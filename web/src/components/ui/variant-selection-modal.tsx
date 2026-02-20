@@ -18,11 +18,11 @@ interface VariantSelectionModalProps {
         price: number;
         image: string;
         variants: ProductVariant[];
+        variantLabel1Values: string[];
+        variantLabel2Values: string[];
     };
     onConfirm: (variant: ProductVariant | any, quantity: number) => void;
     buttonText?: string;
-    initialSelectedVariant?: ProductVariant | any;
-    initialQuantity?: number;
 }
 
 export function VariantSelectionModal({
@@ -31,8 +31,6 @@ export function VariantSelectionModal({
     product,
     onConfirm,
     buttonText = '🛒 Add to Cart',
-    initialSelectedVariant,
-    initialQuantity = 1,
 }: VariantSelectionModalProps) {
     console.log('🎨 NEW MODAL LOADED - v2.0 with separate variant sections');
     console.log('Product data:', {
@@ -46,6 +44,7 @@ export function VariantSelectionModal({
     const [selectedSize, setSelectedSize] = useState<string>('');
     const [currentImage, setCurrentImage] = useState<string>(product.image);
     const [currentPrice, setCurrentPrice] = useState<number>(product.price);
+    const [currentOriginalPrice, setCurrentOriginalPrice] = useState<number | null>((product as any).originalPrice || null);
     const [currentStock, setCurrentStock] = useState<number>(0);
 
     const isNonEmptyString = (value: unknown): value is string =>
@@ -108,33 +107,20 @@ export function VariantSelectionModal({
     // Reset when modal opens
     useEffect(() => {
         if (isOpen) {
-            setQuantity(initialQuantity);
+            setQuantity(1);
+            setCurrentImage(product.image);
+            setCurrentPrice(product.price);
+            setCurrentOriginalPrice((product as any).originalPrice || null);
             
-            if (initialSelectedVariant) {
-                // If editing, use existing variant's options
-                const label1 = getVariantLabel1(initialSelectedVariant);
-                const label2 = getVariantLabel2(initialSelectedVariant);
-                if (label1) setSelectedSize(label1);
-                if (label2) setSelectedColor(label2);
-                
-                setCurrentImage(initialSelectedVariant.image || initialSelectedVariant.thumbnail_url || product.image);
-                setCurrentPrice(initialSelectedVariant.price);
-                setCurrentStock(initialSelectedVariant.stock || 0);
-            } else {
-                // If new, reset to defaults
-                setCurrentImage(product.image);
-                setCurrentPrice(product.price);
-                
-                // Auto-select first options if not already selected
-                if (uniqueColors.length > 0 && !selectedColor) {
-                    setSelectedColor(uniqueColors[0]);
-                }
-                if (uniqueSizes.length > 0 && !selectedSize) {
-                    setSelectedSize(uniqueSizes[0]);
-                }
+            // Auto-select first options
+            if (uniqueColors.length > 0) {
+                setSelectedColor(uniqueColors[0]);
+            }
+            if (uniqueSizes.length > 0) {
+                setSelectedSize(uniqueSizes[0]);
             }
         }
-    }, [isOpen, product, initialSelectedVariant, initialQuantity]);
+    }, [isOpen, product]);
 
     // Update variant info when selection changes
     useEffect(() => {
@@ -161,6 +147,7 @@ export function VariantSelectionModal({
 
         if (matchedVariant) {
             setCurrentPrice(matchedVariant.price);
+            setCurrentOriginalPrice((matchedVariant as any).originalPrice ?? null);
             setCurrentStock(matchedVariant.stock);
             // Use variant thumbnail if available, otherwise fall back to product image
             const newImage = matchedVariant.thumbnail_url || product.image;

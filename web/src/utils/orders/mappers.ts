@@ -6,7 +6,11 @@ import type {
   SellerOrderReviewSnapshot,
   SellerOrderSnapshot,
 } from "@/types/orders";
-import { buildPersonName, parseLegacyShippingAddressFromNotes } from "@/utils/orders/legacy";
+import {
+  buildPersonName,
+  parseLegacyPricingSummaryFromNotes,
+  parseLegacyShippingAddressFromNotes,
+} from "@/utils/orders/legacy";
 import {
   mapNormalizedToBuyerUiStatus,
   mapNormalizedToSellerPaymentStatus,
@@ -32,12 +36,17 @@ const mapOrderItems = (orderItems: any[], fallbackStoreName: string, fallbackSel
       variantParts.push(`Color: ${variantLabel2}`);
     }
 
+    const basePrice = Number(item.price || variantData?.price || 0);
+    const discountPerUnit = Number(item.price_discount || 0);
+    const effectivePrice = Math.max(0, basePrice - discountPerUnit);
+
     return {
       id: item.product_id || item.id,
       orderItemId: item.id,
       name: item.product_name,
       image: variantData?.thumbnail_url || item.primary_image_url || "https://placehold.co/100?text=Product",
-      price: Number(item.price || variantData?.price || 0),
+      price: effectivePrice,
+      originalPrice: discountPerUnit > 0 ? basePrice : undefined,
       quantity: Number(item.quantity || 1),
       seller: item.seller_name || fallbackStoreName,
       sellerId: item.seller_id || fallbackSellerId,
@@ -135,6 +144,7 @@ const mapSellerOrderReviews = (order: any): SellerOrderReviewSnapshot[] => {
 
 export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const notesAddress = parseLegacyShippingAddressFromNotes(order.notes);
+  const notesPricing = parseLegacyPricingSummaryFromNotes(order.notes);
   const recipient = order.recipient || {};
   const shippingAddressJoin = order.shipping_address || order.address || {};
   const createdAt = new Date(order.created_at);
@@ -151,8 +161,60 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const reviews = mapOrderReviews(order);
   const latestReview = reviews[0];
 
+  const orderDiscountRows = Array.isArray(order.order_discounts) ? order.order_discounts : [];
+  const orderVoucherRows = Array.isArray(order.order_vouchers) ? order.order_vouchers : [];
+
+  const subtotalBeforeDiscount = rawItems.reduce((sum: number, item: any) => {
+    const basePrice = Number(item.price || 0);
+    const quantity = Number(item.quantity || 0);
+    return sum + (basePrice * quantity);
+  }, 0);
+
+  const campaignDiscountFromItems = rawItems.reduce((sum: number, item: any) => {
+    const discountPerUnit = Number(item.price_discount || 0);
+    const quantity = Number(item.quantity || 0);
+    return sum + (discountPerUnit * quantity);
+  }, 0);
+
+  const campaignDiscountFromOrder = orderDiscountRows.reduce((sum: number, row: any) => {
+    return sum + Number(row?.discount_amount || 0);
+  }, 0);
+
+  const campaignDiscountTotal =
+    campaignDiscountFromOrder > 0 ? campaignDiscountFromOrder : campaignDiscountFromItems;
+
+  const voucherDiscountTotal = orderVoucherRows.reduce((sum: number, row: any) => {
+    return sum + Number(row?.discount_amount || 0);
+  }, 0);
+
+  const shippingTotal = rawItems.reduce((sum: number, item: any) => {
+    const shippingPrice = Number(item.shipping_price || 0);
+    const shippingDiscount = Number(item.shipping_discount || 0);
+    return sum + Math.max(0, shippingPrice - shippingDiscount);
+  }, 0);
+
+  const computedTotal = rawItems.reduce((sum: number, item: any) => {
+    const basePrice = Number(item.price || 0);
+    const discountPerUnit = Number(item.price_discount || 0);
+    const shippingPrice = Number(item.shipping_price || 0);
+    const shippingDiscount = Number(item.shipping_discount || 0);
+    const quantity = Number(item.quantity || 0);
+
+    const effectiveItemPrice = Math.max(0, basePrice - discountPerUnit);
+    const effectiveShipping = Math.max(0, shippingPrice - shippingDiscount);
+    return sum + (effectiveItemPrice * quantity) + effectiveShipping;
+  }, 0);
+  const totalBeforeFallback = Math.max(
+    0,
+    subtotalBeforeDiscount - campaignDiscountTotal - voucherDiscountTotal + shippingTotal,
+  );
   const numericTotal = Number(order.total_amount || 0);
-  const computedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const resolvedTotal =
+    notesPricing?.total != null
+      ? Number(notesPricing.total)
+      : numericTotal > 0
+        ? numericTotal
+        : (computedTotal > 0 ? computedTotal - voucherDiscountTotal : totalBeforeFallback);
 
   return {
     id: order.order_number || order.id,
@@ -173,7 +235,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     isPaid: order.payment_status === "paid",
     paymentStatus: order.payment_status,
     shipmentStatus: order.shipment_status,
-    total: numericTotal > 0 ? numericTotal : computedTotal,
+    total: Math.max(0, resolvedTotal),
     estimatedDelivery:
       deliveredAt ||
       (shippedAt
@@ -221,6 +283,27 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     order_type: order.order_type,
     review: latestReview,
     reviews: reviews.length > 0 ? reviews : undefined,
+    pricing: {
+      subtotal:
+        notesPricing?.subtotal != null ? Number(notesPricing.subtotal) : subtotalBeforeDiscount,
+      shipping:
+        notesPricing?.shipping != null ? Number(notesPricing.shipping) : shippingTotal,
+      tax:
+        notesPricing?.tax != null ? Number(notesPricing.tax) : undefined,
+      campaignDiscount:
+        notesPricing?.campaignDiscount != null
+          ? Number(notesPricing.campaignDiscount)
+          : campaignDiscountTotal,
+      voucherDiscount:
+        notesPricing?.voucherDiscount != null
+          ? Number(notesPricing.voucherDiscount)
+          : voucherDiscountTotal,
+      bazcoinDiscount:
+        notesPricing?.bazcoinDiscount != null
+          ? Number(notesPricing.bazcoinDiscount)
+          : undefined,
+      total: Math.max(0, resolvedTotal),
+    },
   };
 };
 

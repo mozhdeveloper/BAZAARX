@@ -24,6 +24,7 @@ export interface BuyerOrderItemSnapshot {
   name: string;
   image: string;
   price: number;
+  originalPrice?: number;
   quantity: number;
   seller: string;
   sellerId?: string | null;
@@ -90,6 +91,15 @@ export interface BuyerOrderSnapshot {
   order_type?: "ONLINE" | "OFFLINE";
   review?: OrderReviewSnapshot;
   reviews?: OrderReviewSnapshot[];
+  pricing?: {
+    subtotal: number;
+    shipping: number;
+    tax?: number;
+    campaignDiscount: number;
+    voucherDiscount: number;
+    bazcoinDiscount?: number;
+    total: number;
+  };
 }
 
 export interface SellerOrderItemSnapshot {

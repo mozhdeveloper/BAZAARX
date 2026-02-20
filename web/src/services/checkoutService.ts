@@ -8,6 +8,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { CartItem } from '@/types/database.types';
 import { notificationService } from './notificationService';
 import { orderNotificationService } from './orderNotificationService';
+import { discountService } from './discountService';
+import type { ActiveDiscount } from '@/types/discount';
 
 // Define the payload for the checkout process
 export interface CheckoutPayload {
@@ -40,6 +42,16 @@ export interface CheckoutResult {
     error?: string;
     newBazcoinsBalance?: number;
 }
+
+type CheckoutLinePricing = {
+    item: CheckoutPayload['items'][number];
+    unitPrice: number;
+    quantity: number;
+    campaignDiscountPerUnit: number;
+    campaignDiscountTotal: number;
+    discountedUnitPrice: number;
+    activeDiscount: ActiveDiscount | null;
+};
 
 export class CheckoutService {
     private static instance: CheckoutService;
@@ -233,6 +245,52 @@ export class CheckoutService {
             const sharedBaseNumber = this.generateOrderNumber();
             let orderIndex = 1;
 
+            const getUnitPrice = (item: CheckoutPayload['items'][number]): number => {
+                const base =
+                    Number((item.selected_variant as any)?.original_price) ||
+                    Number((item.selected_variant as any)?.originalPrice) ||
+                    Number(item.product?.price) ||
+                    Number((item.selected_variant as any)?.price) ||
+                    0;
+                return Math.max(0, base);
+            };
+
+            const uniqueProductIds = [...new Set(items.map(item => item.product_id).filter(Boolean) as string[])];
+            const activeDiscountsByProduct = await discountService.getActiveDiscountsForProducts(uniqueProductIds);
+            const linePricing: CheckoutLinePricing[] = items.map(item => {
+                const unitPrice = getUnitPrice(item);
+                const activeDiscount = item.product_id ? (activeDiscountsByProduct[item.product_id] || null) : null;
+                const calculation = discountService.calculateLineDiscount(unitPrice, item.quantity, activeDiscount);
+                return {
+                    item,
+                    unitPrice,
+                    quantity: item.quantity,
+                    campaignDiscountPerUnit: calculation.discountPerUnit,
+                    campaignDiscountTotal: calculation.discountTotal,
+                    discountedUnitPrice: calculation.discountedUnitPrice,
+                    activeDiscount
+                };
+            });
+
+            const campaignDiscountTotal = linePricing.reduce((sum, line) => sum + line.campaignDiscountTotal, 0);
+            const subtotalBeforeDiscount = linePricing.reduce(
+                (sum, line) => sum + (line.unitPrice * line.quantity),
+                0,
+            );
+            const taxAmount = Math.round(subtotalBeforeDiscount * 0.12);
+            const shippingAmount = Number(payload.shippingFee || 0);
+            const voucherDiscount = Number(discount || 0);
+            const bazcoinDiscount = Math.max(0, Number(usedBazcoins || 0));
+            const pricingSummary = {
+                subtotal: subtotalBeforeDiscount,
+                shipping: shippingAmount,
+                tax: taxAmount,
+                campaignDiscount: campaignDiscountTotal,
+                voucherDiscount,
+                bazcoinDiscount,
+                total: Number(payload.totalAmount || 0),
+            };
+
             // For the normalized schema, we create ONE order and associate items with it
             // Each order can have items from different sellers
             const orderNumber = sharedBaseNumber;
@@ -298,6 +356,7 @@ export class CheckoutService {
                 postalCode: shippingAddress.postalCode,
                 phone: shippingAddress.phone
             });
+            const pricingJson = JSON.stringify(pricingSummary);
             
             const { data: orderData, error: orderError } = await supabase
                 .from('orders')
@@ -308,7 +367,7 @@ export class CheckoutService {
                     payment_status: paymentMethod === 'cod' ? 'pending_payment' : 'pending_payment',
                     shipment_status: 'waiting_for_seller',
                     recipient_id: recipientId,
-                    notes: `SHIPPING_ADDRESS:${addressJson}|Payment: ${paymentMethod}`
+                    notes: `SHIPPING_ADDRESS:${addressJson}|PRICING_SUMMARY:${pricingJson}|Payment: ${paymentMethod}`
                 })
                 .select()
                 .single();
@@ -346,19 +405,19 @@ export class CheckoutService {
             });
 
             // Create Order Items (using actual schema: order_id, product_id, product_name, price, quantity, variant_id, price_discount, shipping_price, shipping_discount)
-            const orderItemsData = items.map(item => ({
+            const orderItemsData = linePricing.map(line => ({
                 order_id: orderData.id,
-                product_id: item.product_id,
-                product_name: (item.selected_variant as any)?.name || item.product?.name || 'Unknown Product',
-                primary_image_url: (item.selected_variant as any)?.image || 
-                                   (item.selected_variant as any)?.thumbnail_url ||
-                                   item.product?.primary_image ||
-                                   (item.product?.images && item.product.images[0]) ||
+                product_id: line.item.product_id,
+                product_name: (line.item.selected_variant as any)?.name || line.item.product?.name || 'Unknown Product',
+                primary_image_url: (line.item.selected_variant as any)?.image ||
+                                   (line.item.selected_variant as any)?.thumbnail_url ||
+                                   line.item.product?.primary_image ||
+                                   (line.item.product?.images && line.item.product.images[0]) ||
                                    null,
-                quantity: item.quantity,
-                price: (item.selected_variant as any)?.price || item.product?.price || 0,
-                variant_id: (item.selected_variant as any)?.id || null,
-                price_discount: 0,
+                quantity: line.quantity,
+                price: line.unitPrice,
+                variant_id: (line.item.selected_variant as any)?.id || null,
+                price_discount: line.campaignDiscountPerUnit,
                 shipping_price: 0,
                 shipping_discount: 0
             }));
@@ -368,6 +427,37 @@ export class CheckoutService {
                 .insert(orderItemsData);
 
             if (itemsError) throw itemsError;
+
+            // Record campaign discount totals by campaign for analytics/audit
+            if (campaignDiscountTotal > 0) {
+                const campaignTotals = linePricing.reduce<Record<string, number>>((acc, line) => {
+                    const campaignId = line.activeDiscount?.campaignId;
+                    if (!campaignId || line.campaignDiscountTotal <= 0) return acc;
+                    acc[campaignId] = (acc[campaignId] || 0) + line.campaignDiscountTotal;
+                    return acc;
+                }, {});
+
+                const orderDiscountRows = Object.entries(campaignTotals).map(([campaignId, amount]) => ({
+                    buyer_id: userId,
+                    order_id: orderData.id,
+                    campaign_id: campaignId,
+                    discount_amount: amount
+                }));
+
+                if (orderDiscountRows.length > 0) {
+                    const { error: orderDiscountError } = await supabase
+                        .from('order_discounts')
+                        .insert(orderDiscountRows);
+
+                    if (orderDiscountError) {
+                        console.error('Failed to record order campaign discounts:', orderDiscountError);
+                    }
+                }
+
+                // Intentionally disabled: normalized DB flow currently uses
+                // `order_items.price_discount` and `order_discounts` as source of truth.
+                // `discount_usage` remains optional and can be re-enabled if the table is introduced.
+            }
 
             // Record voucher usage for per-customer limit tracking (claim_limit)
             if (voucherId && discount > 0 && userId) {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
+import { discountService } from "@/services/discountService";
 import {
   ArrowLeft,
   MapPin,
@@ -26,7 +27,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import { useToast } from "@/hooks/use-toast";
 
 import { useCartStore } from "../stores/cartStore";
@@ -39,21 +40,11 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  regions,
-  provinces,
-  cities,
-  barangays,
-} from "select-philippines-address";
+import { regions, provinces, cities, barangays } from "select-philippines-address";
 import { AddressPicker } from "@/components/ui/address-picker";
+import type { ActiveDiscount } from "@/types/discount";
 
 interface CheckoutFormData {
   fullName: string;
@@ -124,25 +115,22 @@ export default function CheckoutPage() {
     buyAgainItems,
     clearBuyAgainItems,
     validateVoucherDetailed,
-    registries,
   } = useBuyerStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-  const [addressView, setAddressView] = useState<"list" | "add" | "edit">(
-    "list",
-  );
-  const [view, setView] = useState<"list" | "add">("list");
+  const [addressView, setAddressView] = useState<'list' | 'add' | 'edit'>('list');
+  const [view, setView] = useState<'list' | 'add'>('list');
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Selection tracking
   const [tempSelected, setTempSelected] = useState<Address | null>(
-    addresses.find((a) => a.isDefault) || addresses[0] || null,
+    addresses.find(a => a.isDefault) || addresses[0] || null
   );
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(
-    addresses.find((a) => a.isDefault) || addresses[0] || null,
+    addresses.find(a => a.isDefault) || addresses[0] || null
   );
   const [confirmedAddress, setConfirmedAddress] = useState<Address | null>(
-    addresses.find((a) => a.isDefault) || addresses[0] || null,
+    addresses.find(a => a.isDefault) || addresses[0] || null
   );
 
   // Form state for new address
@@ -153,101 +141,50 @@ export default function CheckoutPage() {
   const [barangayList, setBarangayList] = useState<any[]>([]);
 
   const [newAddr, setNewAddr] = useState({
-    label: "Home",
-    firstName: profile?.firstName || "",
-    lastName: profile?.lastName || "",
-    phone: profile?.phone || "",
-    street: "",
-    barangay: "",
-    city: "",
-    province: "",
-    region: "", // Added region
-    postalCode: "",
+    label: 'Home',
+    firstName: profile?.firstName || '',
+    lastName: profile?.lastName || '',
+    phone: profile?.phone || '',
+    street: '',
+    barangay: '',
+    city: '',
+    province: '',
+    region: '', // Added region
+    postalCode: '',
     isDefault: false,
     coordinates: null as { lat: number; lng: number } | null,
-    landmark: "",
-    deliveryInstructions: "",
+    landmark: '',
+    deliveryInstructions: '',
   });
 
   // Map picker state
   const [showMapPicker, setShowMapPicker] = useState(false);
 
   useEffect(() => {
-    regions().then((res) => setRegionList(res));
+    regions().then(res => setRegionList(res));
   }, []);
 
   const onRegionChange = (code: string) => {
-    const name = regionList.find((i) => i.region_code === code)?.region_name;
-    setNewAddr({
-      ...newAddr,
-      region: name,
-      province: "",
-      city: "",
-      barangay: "",
-    });
-    provinces(code).then((res) => setProvinceList(res));
+    const name = regionList.find(i => i.region_code === code)?.region_name;
+    setNewAddr({ ...newAddr, region: name, province: '', city: '', barangay: '' });
+    provinces(code).then(res => setProvinceList(res));
   };
 
   const onProvinceChange = (code: string) => {
-    const name = provinceList.find(
-      (i) => i.province_code === code,
-    )?.province_name;
-    setNewAddr({ ...newAddr, province: name, city: "", barangay: "" });
-    cities(code).then((res) => setCityList(res));
+    const name = provinceList.find(i => i.province_code === code)?.province_name;
+    setNewAddr({ ...newAddr, province: name, city: '', barangay: '' });
+    cities(code).then(res => setCityList(res));
   };
 
   const onCityChange = (code: string) => {
-    const name = cityList.find((i) => i.city_code === code)?.city_name;
-    setNewAddr({ ...newAddr, city: name, barangay: "" });
-    barangays(code).then((res) => setBarangayList(res));
+    const name = cityList.find(i => i.city_code === code)?.city_name;
+    setNewAddr({ ...newAddr, city: name, barangay: '' });
+    barangays(code).then(res => setBarangayList(res));
   };
 
-  const locationState = location.state as { fromBuyAgain?: boolean } | null;
-  const isBuyAgainMode =
-    !!locationState?.fromBuyAgain ||
-    (buyAgainItems && buyAgainItems.length > 0);
-
-  // Determine which items to checkout: quick order takes precedence
-  // For cart checkout, filter only selected items
-  const checkoutItems = buyAgainItems
-    ? buyAgainItems
-    : quickOrder
-      ? [quickOrder]
-      : cartItems.filter((item) => item.selected);
-
-  const registryDeliveryContext = useMemo(() => {
-    const firstRegistryItem = checkoutItems.find((i) => i.registryId);
-    if (!firstRegistryItem) return null;
-    const registry = registries.find(
-      (r) => r.id === firstRegistryItem.registryId,
-    );
-    if (!registry) return null;
-    return {
-      registryId: registry.id,
-      showAddress: registry.delivery?.showAddress ?? false,
-      addressId: registry.delivery?.addressId,
-      privacy: registry.privacy ?? "link",
-    };
-  }, [checkoutItems, registries]);
-
   useEffect(() => {
-    if (
-      registryDeliveryContext?.showAddress &&
-      registryDeliveryContext.addressId
-    ) {
-      const regAddr = addresses.find(
-        (a) => a.id === registryDeliveryContext.addressId,
-      );
-      if (regAddr) {
-        setSelectedAddress(regAddr);
-        setConfirmedAddress(regAddr);
-        setTempSelected(regAddr);
-        return;
-      }
-    }
-
     if (addresses.length > 0) {
-      const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
+      const defaultAddr = addresses.find(a => a.isDefault) || addresses[0];
       if (!selectedAddress) {
         setSelectedAddress(defaultAddr);
       }
@@ -255,45 +192,39 @@ export default function CheckoutPage() {
         setConfirmedAddress(defaultAddr);
       }
     }
-  }, [addresses, registryDeliveryContext]);
+  }, [addresses]);
 
-  const checkoutTotal = buyAgainItems
-    ? buyAgainItems.reduce(
-        (sum, item) =>
-          sum + (item.selectedVariant?.price || item.price) * item.quantity,
-        0,
-      )
-    : quickOrder
-      ? getQuickOrderTotal()
-      : cartItems
-          .filter((item) => item.selected)
-          .reduce(
-            (sum, item) =>
-              sum + (item.selectedVariant?.price || item.price) * item.quantity,
-            0,
-          );
+  const locationState = location.state as { fromBuyAgain?: boolean } | null;
+  const isBuyAgainMode = !!locationState?.fromBuyAgain || (buyAgainItems && buyAgainItems.length > 0);
+
+  // Determine which items to checkout: quick order takes precedence
+  // For cart checkout, filter only selected items
+  const checkoutItems = useMemo(() => {
+    if (buyAgainItems && buyAgainItems.length > 0) {
+      return buyAgainItems;
+    }
+    if (quickOrder) {
+      return [quickOrder];
+    }
+    return cartItems.filter(item => item.selected);
+  }, [buyAgainItems, quickOrder, cartItems]);
 
   const isQuickCheckout = quickOrder !== null || isBuyAgainMode;
 
   const isRegistryOrder = useMemo(() => {
-    return checkoutItems.some((item) => !!item.registryId);
+    return checkoutItems.some(item => !!item.registryId);
   }, [checkoutItems]);
 
   // Bazcoins Logic
   // Earn 1 Bazcoin per ₱10 spent
-  const earnedBazcoins = Math.floor(checkoutTotal / 10);
 
   // Bazcoin Redemption
   const [useBazcoins, setUseBazcoins] = useState(false);
   const availableBazcoins = profile?.bazcoins || 0;
   // Redemption rate: 1 Bazcoin = ₱1
-  const maxRedeemableBazcoins = Math.min(availableBazcoins, checkoutTotal);
-  const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
 
   const [formData, setFormData] = useState<CheckoutFormData>({
-    fullName: profile
-      ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
-      : "",
+    fullName: profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : "",
     street: "",
     city: "",
     province: "",
@@ -308,22 +239,17 @@ export default function CheckoutPage() {
     paymayaNumber: "",
   });
 
-  // Force non-COD payment for registry orders if COD is selected or registry hides address
+  // Force non-COD payment for registry orders if COD is selected
   useEffect(() => {
-    const registryBlocksCOD =
-      isRegistryOrder &&
-      (!registryDeliveryContext?.showAddress ||
-        registryDeliveryContext?.privacy === "private");
-    if (registryBlocksCOD && formData.paymentMethod === "cod") {
-      setFormData((prev) => ({ ...prev, paymentMethod: "card" }));
+    if (isRegistryOrder && formData.paymentMethod === 'cod') {
+      setFormData(prev => ({ ...prev, paymentMethod: 'card' }));
       toast({
         title: "Payment Method Changed",
-        description:
-          "Cash on Delivery is not available for this registry order.",
-        variant: "default",
+        description: "Cash on Delivery is not available for registry gifts.",
+        variant: "default", // or "warning" if available, defaults to neutral/blue
       });
     }
-  }, [isRegistryOrder, formData.paymentMethod, registryDeliveryContext]);
+  }, [isRegistryOrder, formData.paymentMethod]);
 
   // Removed: Payment method auto-fill logic - always default to COD
   // Users can manually switch to card/gcash/paymaya if needed
@@ -332,8 +258,45 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<Partial<CheckoutFormData>>({});
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
+  const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, ActiveDiscount>>({});
 
-  const totalPrice = checkoutTotal;
+  const getOriginalUnitPrice = (item: typeof checkoutItems[number]) =>
+    Number((item.selectedVariant as any)?.originalPrice || item.originalPrice || item.price || 0);
+
+  const checkoutProductIdsKey = useMemo(() => {
+    const ids = [...new Set(checkoutItems.map(item => item.id).filter(Boolean))];
+    ids.sort();
+    return ids.join("|");
+  }, [checkoutItems]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCampaignDiscounts = async () => {
+      const productIds = checkoutProductIdsKey ? checkoutProductIdsKey.split("|") : [];
+      if (productIds.length === 0) {
+        if (isMounted) setActiveCampaignDiscounts({});
+        return;
+      }
+
+      try {
+        const discounts = await discountService.getActiveDiscountsForProducts(productIds);
+        if (isMounted) {
+          setActiveCampaignDiscounts(discounts);
+        }
+      } catch (error) {
+        console.error("Failed to load active campaign discounts:", error);
+        if (isMounted) {
+          setActiveCampaignDiscounts({});
+        }
+      }
+    };
+
+    loadCampaignDiscounts();
+    return () => {
+      isMounted = false;
+    };
+  }, [checkoutProductIdsKey]);
 
   const DEFAULT_ADDRESS: CheckoutFormData = {
     fullName: "Juan Dela Cruz",
@@ -350,39 +313,36 @@ export default function CheckoutPage() {
     if (confirmedAddress) {
       // Note: shipping_addresses table doesn't store name/phone separately
       // They may be embedded in the street field as "Name, Phone, Street"
-      let fullName =
-        confirmedAddress.fullName ||
-        `${confirmedAddress.firstName || ""} ${confirmedAddress.lastName || ""}`.trim() ||
-        (profile
-          ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
-          : "");
-      let phone = confirmedAddress.phone || profile?.phone || "";
-      let street = confirmedAddress.street || "";
+      let fullName = confirmedAddress.fullName
+        || `${confirmedAddress.firstName || ''} ${confirmedAddress.lastName || ''}`.trim()
+        || (profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : '');
+      let phone = confirmedAddress.phone || profile?.phone || '';
+      let street = confirmedAddress.street || '';
 
       // Try to parse name and phone from street if they look embedded
       // Format: "Name, Phone, Street..."
-      const streetParts = street.split(", ");
+      const streetParts = street.split(', ');
       if (streetParts.length >= 3 && !phone) {
         const possiblePhone = streetParts[1];
         // Check if second part looks like a phone number (10-11 digits)
-        const digitsOnly = possiblePhone?.replace(/\D/g, "") || "";
+        const digitsOnly = possiblePhone?.replace(/\D/g, '') || '';
         if (digitsOnly.length >= 10 && digitsOnly.length <= 11) {
           if (!fullName || fullName === confirmedAddress.label) {
             fullName = streetParts[0];
           }
           phone = possiblePhone;
-          street = streetParts.slice(2).join(", ");
+          street = streetParts.slice(2).join(', ');
         }
       }
 
-      console.log("📍 Syncing formData from confirmedAddress:", {
+      console.log('📍 Syncing formData from confirmedAddress:', {
         confirmedAddress,
         derivedFullName: fullName,
         derivedPhone: phone,
-        derivedStreet: street,
+        derivedStreet: street
       });
 
-      setFormData((prev) => ({
+      setFormData(prev => ({
         ...prev,
         fullName: fullName || prev.fullName,
         street: street || prev.street,
@@ -394,59 +354,61 @@ export default function CheckoutPage() {
       setErrors({});
     } else if (profile && !confirmedAddress) {
       // No saved address - use profile info as fallback
-      console.log(
-        "📍 No confirmedAddress, using profile as fallback:",
-        profile,
-      );
-      setFormData((prev) => ({
+      console.log('📍 No confirmedAddress, using profile as fallback:', profile);
+      setFormData(prev => ({
         ...prev,
-        fullName:
-          `${profile.firstName || ""} ${profile.lastName || ""}`.trim() ||
-          prev.fullName,
+        fullName: `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || prev.fullName,
         phone: profile.phone || prev.phone,
       }));
     }
   }, [confirmedAddress, profile]);
 
+  const originalSubtotal = checkoutItems.reduce((sum, item) => {
+    return sum + (getOriginalUnitPrice(item) * item.quantity);
+  }, 0);
+
+  const campaignDiscountTotal = checkoutItems.reduce((sum, item) => {
+    const activeDiscount = activeCampaignDiscounts[item.id] || null;
+    const unitPrice = getOriginalUnitPrice(item);
+    const calculation = discountService.calculateLineDiscount(unitPrice, item.quantity, activeDiscount);
+    return sum + calculation.discountTotal;
+  }, 0);
+
+  const subtotalAfterCampaign = Math.max(0, originalSubtotal - campaignDiscountTotal);
+  const earnedBazcoins = Math.floor(subtotalAfterCampaign / 10);
+
   let shippingFee =
     checkoutItems.length > 0 &&
-    !checkoutItems.every((item) => item.isFreeShipping)
+      !checkoutItems.every((item) => item.isFreeShipping)
       ? 50
       : 0;
   let discount = 0;
 
-  // Apply voucher discount
+  // Apply voucher discount after campaign discount
   if (appliedVoucher) {
     if (appliedVoucher.type === "percentage") {
-      const percentageDiscount = totalPrice * (appliedVoucher.value / 100);
+      const percentageDiscount = subtotalAfterCampaign * (appliedVoucher.value / 100);
       discount = appliedVoucher.maxDiscount
         ? Math.min(percentageDiscount, appliedVoucher.maxDiscount)
         : Math.round(percentageDiscount);
     } else if (appliedVoucher.type === "fixed") {
-      discount = Math.min(appliedVoucher.value, totalPrice);
+      discount = Math.min(appliedVoucher.value, subtotalAfterCampaign);
     } else if (appliedVoucher.type === "shipping") {
       shippingFee = 0;
     }
   }
 
-  // VAT calculation (12%)
-  const tax = Math.round(totalPrice * 0.12);
+  const maxRedeemableBazcoins = Math.min(availableBazcoins, Math.max(0, subtotalAfterCampaign - discount));
+  const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
 
-  // Item-level savings (Original price vs Current price)
-  const itemSavings = checkoutItems.reduce((sum, item) => {
-    const original = item.originalPrice || item.price;
-    const current = item.selectedVariant?.price || item.price;
-    return sum + Math.max(0, original - current) * item.quantity;
-  }, 0);
+  // VAT calculation (12%) based on original subtotal display rule
+  const tax = Math.round(originalSubtotal * 0.12);
 
-  const couponSavings = discount + bazcoinDiscount;
-  const grandTotalSavings = itemSavings + couponSavings;
+  const couponSavings = campaignDiscountTotal + discount + bazcoinDiscount;
+  const grandTotalSavings = couponSavings;
 
   // Final total calculation including Bazcoins
-  const finalTotal = Math.max(
-    0,
-    totalPrice + shippingFee + tax - couponSavings,
-  );
+  const finalTotal = Math.max(0, originalSubtotal + shippingFee + tax - couponSavings);
 
   const handleApplyVoucher = async () => {
     const code = voucherCode.trim().toUpperCase();
@@ -467,12 +429,9 @@ export default function CheckoutPage() {
           INACTIVE: "This voucher is currently inactive.",
           NOT_STARTED: "This voucher is not active yet.",
           EXPIRED: "This voucher has expired.",
-          MIN_ORDER_NOT_MET:
-            "This voucher does not meet the minimum purchase requirement.",
-          SELLER_MISMATCH:
-            "This voucher is only valid for specific seller items.",
-          ALREADY_USED:
-            "You have already used this voucher. It can only be used once per customer.",
+          MIN_ORDER_NOT_MET: "This voucher does not meet the minimum purchase requirement.",
+          SELLER_MISMATCH: "This voucher is only valid for specific seller items.",
+          ALREADY_USED: "You have already used this voucher. It can only be used once per customer.",
           UNKNOWN: "Unable to validate voucher right now. Please try again.",
         };
 
@@ -501,49 +460,42 @@ export default function CheckoutPage() {
     const newErrors: any = {};
 
     // Before validation, try to extract phone from street if it's embedded
-    let phoneToValidate = formData.phone || "";
-    let fullNameToValidate = formData.fullName || "";
-    let streetToValidate = formData.street || "";
+    let phoneToValidate = formData.phone || '';
+    let fullNameToValidate = formData.fullName || '';
+    let streetToValidate = formData.street || '';
 
     // If phone is empty, try to parse from street "Name, Phone, Street" format
     if (!phoneToValidate.trim() && streetToValidate) {
-      const parts = streetToValidate.split(", ");
+      const parts = streetToValidate.split(', ');
       if (parts.length >= 3) {
         const possiblePhone = parts[1];
-        const digitsOnly = possiblePhone?.replace(/\D/g, "") || "";
+        const digitsOnly = possiblePhone?.replace(/\D/g, '') || '';
         if (digitsOnly.length >= 10 && digitsOnly.length <= 11) {
           phoneToValidate = possiblePhone;
-          if (!fullNameToValidate.trim() || fullNameToValidate === "User") {
+          if (!fullNameToValidate.trim() || fullNameToValidate === 'User') {
             fullNameToValidate = parts[0];
           }
-          streetToValidate = parts.slice(2).join(", ");
+          streetToValidate = parts.slice(2).join(', ');
 
           // Update formData with parsed values
-          setFormData((prev) => ({
+          setFormData(prev => ({
             ...prev,
             fullName: fullNameToValidate,
             phone: phoneToValidate,
-            street: streetToValidate,
+            street: streetToValidate
           }));
 
-          console.log("📱 Parsed phone from street:", {
-            phoneToValidate,
-            fullNameToValidate,
-            streetToValidate,
-          });
+          console.log('📱 Parsed phone from street:', { phoneToValidate, fullNameToValidate, streetToValidate });
         }
       }
     }
 
     // Strict validation for shipping address
-    if (!fullNameToValidate?.trim())
-      newErrors.fullName = "Full name is required";
-    if (!streetToValidate?.trim())
-      newErrors.street = "Street address is required";
+    if (!fullNameToValidate?.trim()) newErrors.fullName = "Full name is required";
+    if (!streetToValidate?.trim()) newErrors.street = "Street address is required";
     if (!formData.city?.trim()) newErrors.city = "City is required";
     if (!formData.province?.trim()) newErrors.province = "Province is required";
-    if (!formData.postalCode?.trim())
-      newErrors.postalCode = "Postal code is required";
+    if (!formData.postalCode?.trim()) newErrors.postalCode = "Postal code is required";
     if (!phoneToValidate?.trim()) newErrors.phone = "Phone number is required";
 
     if (!formData.paymentMethod) {
@@ -560,25 +512,21 @@ export default function CheckoutPage() {
     } else if (formData.paymentMethod === "gcash") {
       if (!formData.gcashNumber?.trim()) {
         newErrors.gcashNumber = "GCash number is required";
-      } else if (formData.gcashNumber.replace(/\D/g, "").length < 11) {
+      } else if (formData.gcashNumber.replace(/\D/g, '').length < 11) {
         newErrors.gcashNumber = "Valid 11-digit GCash number required";
       }
     } else if (formData.paymentMethod === "paymaya") {
       if (!formData.paymayaNumber?.trim()) {
         newErrors.paymayaNumber = "PayMaya number is required";
-      } else if (formData.paymayaNumber.replace(/\D/g, "").length < 11) {
+      } else if (formData.paymayaNumber.replace(/\D/g, '').length < 11) {
         newErrors.paymayaNumber = "Valid 11-digit PayMaya number required";
       }
     }
 
-    console.log("📝 Form validation check:", {
-      formData: {
-        fullName: fullNameToValidate,
-        phone: phoneToValidate,
-        street: streetToValidate?.substring(0, 30),
-      },
+    console.log('📝 Form validation check:', {
+      formData: { fullName: fullNameToValidate, phone: phoneToValidate, street: streetToValidate?.substring(0, 30) },
       errors: newErrors,
-      hasErrors: Object.keys(newErrors).length > 0,
+      hasErrors: Object.keys(newErrors).length > 0
     });
 
     setErrors(newErrors);
@@ -628,12 +576,7 @@ export default function CheckoutPage() {
   // Check if cart is empty after initial load with a small delay to allow for transitions
   useEffect(() => {
     // DO NOT redirect if we are in Buy Again mode - we have items in location state
-    if (
-      isStoreReady &&
-      checkoutItems.length === 0 &&
-      profile &&
-      !isBuyAgainMode
-    ) {
+    if (isStoreReady && checkoutItems.length === 0 && profile && !isBuyAgainMode) {
       const timer = setTimeout(() => {
         // Re-check after delay to ensure it's not just a transition state
         if (checkoutItems.length === 0 && !isBuyAgainMode) {
@@ -647,44 +590,39 @@ export default function CheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    console.log("🛒 Place Order clicked");
-    console.log("  - selectedAddress:", selectedAddress?.id);
-    console.log("  - confirmedAddress:", confirmedAddress?.id);
-    console.log("  - formData:", {
+    console.log('🛒 Place Order clicked');
+    console.log('  - selectedAddress:', selectedAddress?.id);
+    console.log('  - confirmedAddress:', confirmedAddress?.id);
+    console.log('  - formData:', {
       fullName: formData.fullName,
-      street: formData.street?.substring(0, 30) + "...",
+      street: formData.street?.substring(0, 30) + '...',
       city: formData.city,
       province: formData.province,
       postalCode: formData.postalCode,
       phone: formData.phone,
-      paymentMethod: formData.paymentMethod,
+      paymentMethod: formData.paymentMethod
     });
-    console.log("  - profile:", profile?.id);
-    console.log("  - checkoutItems:", checkoutItems.length);
-    console.log(
-      "  - Items with variants:",
-      checkoutItems.filter((i) => i.selectedVariant).length,
-    );
+    console.log('  - profile:', profile?.id);
+    console.log('  - checkoutItems:', checkoutItems.length);
+    console.log('  - Items with variants:', checkoutItems.filter(i => i.selectedVariant).length);
 
     if (!validateForm()) {
-      console.log("❌ Form validation failed - see validation errors above");
+      console.log('❌ Form validation failed - see validation errors above');
       // Show toast for validation errors
       toast({
         title: "Please fix the errors",
-        description:
-          Object.values(errors).filter(Boolean).join(", ") ||
-          "Missing required fields",
-        variant: "destructive",
+        description: Object.values(errors).filter(Boolean).join(', ') || "Missing required fields",
+        variant: "destructive"
       });
       return;
     }
 
-    console.log("✅ Form validation passed, proceeding with checkout...");
+    console.log('✅ Form validation passed, proceeding with checkout...');
 
     setIsLoading(true);
 
     // Import processCheckout at top of file (I will need to add the import in a separate step or assume I can add it here if I replace enough context, but I only replaced body. I'll rely on TS to complain or I will add import in next step if missed, but let's try to add import with the other changes if possible. Unfortunately this tool only does one block. I will add import in a separate call or just rely on auto-imports if I was in an IDE, but here I must be explicit.
-    // Actually I can't add import here easily without changing top of file.
+    // Actually I can't add import here easily without changing top of file. 
     // I will execute this change, then add the import.
 
     try {
@@ -696,34 +634,33 @@ export default function CheckoutPage() {
       }
 
       // Map checkout items to expected payload
-      const payloadItems = checkoutItems.map((item) => ({
-        // We cast to any to satisfy the strict database type requirement
+      const payloadItems = checkoutItems.map(item => ({
+        // We cast to any to satisfy the strict database type requirement 
         // since we are adapting from BuyerStore structure
         id: item.id, // This is Product ID in BuyerStore
         product_id: item.id,
-        cart_id: "", // Not needed for our new cleanup logic
+        cart_id: '', // Not needed for our new cleanup logic
         quantity: item.quantity,
-        selected_variant: item.selectedVariant
-          ? {
-              id: item.selectedVariant.id,
-              name: item.selectedVariant.name,
-              price: item.selectedVariant.price,
-              stock: item.selectedVariant.stock,
-              image: item.selectedVariant.image,
-            }
-          : null,
+        selected_variant: item.selectedVariant ? {
+          id: item.selectedVariant.id,
+          name: item.selectedVariant.name,
+          original_price: (item.selectedVariant as any).originalPrice || item.selectedVariant.price,
+          price: item.selectedVariant.price,
+          stock: item.selectedVariant.stock,
+          image: item.selectedVariant.image
+        } : null,
         product: {
           seller_id: item.sellerId,
           name: item.name,
-          price: item.price,
+          price: getOriginalUnitPrice(item),
           images: item.images,
-          primary_image: item.image,
+          primary_image: item.image
         },
         // Required fields by type but unused in logic
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         personalized_options: null,
-        notes: item.notes || null,
+        notes: item.notes || null
       }));
 
       const payload = {
@@ -737,7 +674,7 @@ export default function CheckoutPage() {
           province: formData.province,
           postalCode: formData.postalCode,
           phone: formData.phone,
-          country: "Philippines", // Default
+          country: 'Philippines' // Default
         },
         paymentMethod: formData.paymentMethod,
         usedBazcoins: useBazcoins ? bazcoinDiscount : 0, // Deduct based on discount value (1 coin = 1 peso)
@@ -745,7 +682,7 @@ export default function CheckoutPage() {
         shippingFee: shippingFee,
         discount: discount,
         email: profile.email,
-        voucherId: appliedVoucher?.id ?? null,
+        voucherId: appliedVoucher?.id ?? null
       };
 
       const result = await checkoutService.processCheckout(payload);
@@ -758,14 +695,11 @@ export default function CheckoutPage() {
 
       // Update local bazcoins if returned
       if (result.newBazcoinsBalance !== undefined) {
-        useBuyerStore
-          .getState()
-          .updateProfile({ bazcoins: result.newBazcoinsBalance });
+        useBuyerStore.getState().updateProfile({ bazcoins: result.newBazcoinsBalance });
       } else {
         // Manual update if service didn't return it
         if (useBazcoins && bazcoinDiscount > 0) {
-          const newBalance =
-            (profile?.bazcoins || 0) - bazcoinDiscount + earnedBazcoins;
+          const newBalance = (profile?.bazcoins || 0) - bazcoinDiscount + earnedBazcoins;
           useBuyerStore.getState().updateProfile({ bazcoins: newBalance });
         } else {
           const newBalance = (profile?.bazcoins || 0) + earnedBazcoins;
@@ -774,20 +708,16 @@ export default function CheckoutPage() {
       }
 
       // Update registry items if purchased
-      checkoutItems.forEach((item) => {
+      checkoutItems.forEach(item => {
         if (item.registryId) {
           const state = useBuyerStore.getState();
-          const registry = state.registries.find(
-            (r) => r.id === item.registryId,
-          );
+          const registry = state.registries.find(r => r.id === item.registryId);
           if (registry) {
-            const registryProduct = registry.products?.find(
-              (p) => p.id === item.id,
-            );
+            const registryProduct = registry.products?.find(p => p.id === item.id);
             if (registryProduct) {
               const currentReceived = registryProduct.receivedQty || 0;
               updateRegistryItem(item.registryId, item.id, {
-                receivedQty: currentReceived + item.quantity,
+                receivedQty: currentReceived + item.quantity
               });
             }
           }
@@ -812,10 +742,7 @@ export default function CheckoutPage() {
       }
 
       // Navigate to the order detail page for the new order
-      const mainOrderId =
-        result.orderIds && result.orderIds.length > 0
-          ? result.orderIds[0]
-          : null;
+      const mainOrderId = result.orderIds && result.orderIds.length > 0 ? result.orderIds[0] : null;
 
       // Show success toast
       toast({
@@ -842,6 +769,7 @@ export default function CheckoutPage() {
           replace: true,
         });
       }
+
     } catch (error: any) {
       console.error("Order creation failed:", error);
       alert(`Failed to place order: ${error.message || "Unknown error"}`);
@@ -853,10 +781,10 @@ export default function CheckoutPage() {
   // Show loading while store is rehydrating
   if (!isStoreReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--brand-wash)]">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--brand-primary)] mx-auto mb-4"></div>
-          <p className="text-[var(--text-muted)]">Loading checkout...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading checkout...</p>
         </div>
       </div>
     );
@@ -866,28 +794,11 @@ export default function CheckoutPage() {
     return null;
   }
 
-  const addressLockedByRegistry = !!(
-    registryDeliveryContext?.showAddress && registryDeliveryContext.addressId
-  );
-
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-white">
       {!isAddressModalOpen && <Header />}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {registryDeliveryContext && (
-          <div className="mb-4 p-4 rounded-xl bg-[var(--brand-wash)] border border-[var(--border)]">
-            <p className="text-sm text-[var(--text-primary)] font-semibold">
-              Registry Checkout
-            </p>
-            <p className="text-xs text-[var(--text-muted)]">
-              Privacy: {registryDeliveryContext.privacy}.{" "}
-              {registryDeliveryContext.showAddress
-                ? "Shipping address is prefilled from the registry and cannot be changed."
-                : "Address is hidden; please confirm your own address for delivery."}
-            </p>
-          </div>
-        )}
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -901,15 +812,10 @@ export default function CheckoutPage() {
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text-headline)]">
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
               Checkout
             </h1>
-            <p className="text-[var(--text-muted)]">
-              Complete your order & earn{" "}
-              <span className="text-[var(--brand-primary)] font-bold">
-                {earnedBazcoins} Bazcoins
-              </span>
-            </p>
+            <p className="text-gray-600">Complete your order & earn <span className="text-[var(--brand-primary)] font-bold">{earnedBazcoins} Bazcoins</span></p>
           </div>
         </motion.div>
 
@@ -925,82 +831,52 @@ export default function CheckoutPage() {
               >
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[var(--brand-wash)] rounded-xl flex items-center justify-center">
+                    <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
                       <MapPin className="w-5 h-5 text-[var(--brand-primary)]" />
                     </div>
-                    <h2 className="text-xl font-bold text-[var(--text-headline)]">
-                      Delivery Address
-                    </h2>
+                    <h2 className="text-xl font-bold text-gray-900">Delivery Address</h2>
                   </div>
+
+
                 </div>
 
-                {registryDeliveryContext?.showAddress && selectedAddress ? (
-                  <div className="group relative p-5 rounded-xl border border-[var(--brand-primary)]/30 bg-[var(--bg-secondary)]/50">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-gray-900 text-lg">
-                            {selectedAddress.firstName}{" "}
-                            {selectedAddress.lastName}
-                          </span>
-                          <span className="text-gray-300">|</span>
-                          <span className="text-gray-600 font-medium">
-                            {selectedAddress.phone}
-                          </span>
-                          <Badge className="bg-[var(--brand-wash)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] border-none text-[10px] h-5 uppercase tracking-wider font-bold">
-                            Registry Address (locked)
-                          </Badge>
-                        </div>
-                        <div className="text-[var(--text-muted)] text-sm leading-relaxed">
-                          <p className="font-medium text-[var(--text-headline)]">
-                            {selectedAddress.label}
-                          </p>
-                          <p>
-                            {selectedAddress.street}, {selectedAddress.barangay}
-                          </p>
-                          <p>
-                            {selectedAddress.city}, {selectedAddress.province},{" "}
-                            {selectedAddress.postalCode}
-                          </p>
-                        </div>
-                      </div>
+                {isRegistryOrder ? (
+                  <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-3">
+                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Registry Address (Hidden)</h3>
+                      <p className="text-gray-600 text-sm mt-1">
+                        For privacy, the recipient's address is hidden.
+                        <br />
+                        We will deliver this gift directly to them.
+                      </p>
                     </div>
                   </div>
                 ) : selectedAddress ? (
                   <div
-                    className="group relative p-5 rounded-xl border border-gray-100 bg-[var(--bg-secondary)]/50 cursor-pointer hover:border-[var(--brand-wash-gold)]/40 hover:bg-[var(--brand-wash)]/30 transition-all"
-                    onClick={() =>
-                      !addressLockedByRegistry && setIsAddressModalOpen(true)
-                    }
+                    className="group relative p-5 rounded-xl border border-gray-100 bg-gray-50/50 cursor-pointer hover:border-orange-200 hover:bg-orange-50/30 transition-all"
+                    onClick={() => setIsAddressModalOpen(true)}
                   >
                     <div className="flex justify-between items-start">
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-gray-900 text-lg">
-                            {selectedAddress.firstName}{" "}
-                            {selectedAddress.lastName}
+                            {selectedAddress.firstName} {selectedAddress.lastName}
                           </span>
                           <span className="text-gray-300">|</span>
-                          <span className="text-gray-600 font-medium">
-                            {selectedAddress.phone}
-                          </span>
+                          <span className="text-gray-600 font-medium">{selectedAddress.phone}</span>
                           {selectedAddress.isDefault && (
-                            <Badge className="bg-[var(--brand-wash)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] border-none text-[10px] h-5 uppercase tracking-wider font-bold">
+                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none text-[10px] h-5 uppercase tracking-wider font-bold">
                               Default
                             </Badge>
                           )}
                         </div>
-                        <div className="text-[var(--text-muted)] text-sm leading-relaxed">
-                          <p className="font-medium text-[var(--text-headline)]">
-                            {selectedAddress.label}
-                          </p>
-                          <p>
-                            {selectedAddress.street}, {selectedAddress.barangay}
-                          </p>
-                          <p>
-                            {selectedAddress.city}, {selectedAddress.province},{" "}
-                            {selectedAddress.postalCode}
-                          </p>
+                        <div className="text-gray-600 text-sm leading-relaxed">
+                          <p className="font-medium text-gray-800">{selectedAddress.label}</p>
+                          <p>{selectedAddress.street}, {selectedAddress.barangay}</p>
+                          <p>{selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postalCode}</p>
                         </div>
                       </div>
                       <div className="p-2 rounded-full group-hover:bg-white transition-colors">
@@ -1011,21 +887,15 @@ export default function CheckoutPage() {
                 ) : (
                   <Button
                     variant="outline"
-                    className="w-full py-10 border-dashed border-2 flex flex-col gap-3 hover:bg-[var(--brand-wash)] hover:border-[var(--brand-primary)] transition-all group"
-                    onClick={() =>
-                      !addressLockedByRegistry && setIsAddressModalOpen(true)
-                    }
+                    className="w-full py-10 border-dashed border-2 flex flex-col gap-3 hover:bg-orange-50 hover:border-[var(--brand-primary)] transition-all group"
+                    onClick={() => setIsAddressModalOpen(true)}
                   >
                     <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-white transition-colors">
                       <Plus className="w-6 h-6 text-gray-400 group-hover:text-[var(--brand-primary)]" />
                     </div>
                     <div className="text-center">
-                      <p className="font-bold text-gray-900">
-                        No Address Selected
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Click to add or select a shipping destination
-                      </p>
+                      <p className="font-bold text-gray-900">No Address Selected</p>
+                      <p className="text-sm text-gray-500">Click to add or select a shipping destination</p>
                     </div>
                   </Button>
                 )}
@@ -1051,13 +921,12 @@ export default function CheckoutPage() {
                   {paymentMethods.map((method) => (
                     <div
                       key={method.id}
-                      className={`border-2 rounded-xl p-4 transition-colors relative ${
-                        method.comingSoon
-                          ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
-                          : formData.paymentMethod === method.id
-                            ? "border-[var(--brand-primary)] bg-[var(--brand-wash)] cursor-pointer"
-                            : "border-gray-200 hover:border-gray-300 cursor-pointer"
-                      }`}
+                      className={`border-2 rounded-xl p-4 transition-colors relative ${method.comingSoon
+                        ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
+                        : formData.paymentMethod === method.id
+                          ? "border-[var(--brand-primary)] bg-orange-50 cursor-pointer"
+                          : "border-gray-200 hover:border-gray-300 cursor-pointer"
+                        }`}
                       onClick={() => {
                         if (!method.comingSoon) {
                           handleInputChange("paymentMethod", method.id);
@@ -1074,26 +943,20 @@ export default function CheckoutPage() {
                       )}
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                            method.comingSoon
-                              ? "border-gray-300 bg-gray-200"
-                              : formData.paymentMethod === method.id
-                                ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]"
-                                : "border-gray-300"
-                          }`}
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${method.comingSoon
+                            ? "border-gray-300 bg-gray-200"
+                            : formData.paymentMethod === method.id
+                              ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]"
+                              : "border-gray-300"
+                            }`}
                         >
-                          {!method.comingSoon &&
-                            formData.paymentMethod === method.id && (
-                              <Check className="w-3 h-3 text-white" />
-                            )}
+                          {!method.comingSoon && formData.paymentMethod === method.id && (
+                            <Check className="w-3 h-3 text-white" />
+                          )}
                         </div>
-                        <method.icon
-                          className={`w-5 h-5 ${method.comingSoon ? "text-gray-400" : "text-gray-600"}`}
-                        />
+                        <method.icon className={`w-5 h-5 ${method.comingSoon ? "text-gray-400" : "text-gray-600"}`} />
                         <div>
-                          <p
-                            className={`font-medium ${method.comingSoon ? "text-gray-400" : "text-gray-900"}`}
-                          >
+                          <p className={`font-medium ${method.comingSoon ? "text-gray-400" : "text-gray-900"}`}>
                             {method.name}
                           </p>
                           <p className="text-xs text-gray-500">
@@ -1119,11 +982,10 @@ export default function CheckoutPage() {
                           onChange={(e) =>
                             handleInputChange("cardNumber", e.target.value)
                           }
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${
-                            errors.cardNumber
-                              ? "border-red-500"
-                              : "border-gray-300"
-                          }`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${errors.cardNumber
+                            ? "border-red-500"
+                            : "border-gray-300"
+                            }`}
                           placeholder="1234 5678 9012 3456"
                         />
                         {errors.cardNumber && (
@@ -1143,11 +1005,10 @@ export default function CheckoutPage() {
                           onChange={(e) =>
                             handleInputChange("cardName", e.target.value)
                           }
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${
-                            errors.cardName
-                              ? "border-red-500"
-                              : "border-gray-300"
-                          }`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${errors.cardName
+                            ? "border-red-500"
+                            : "border-gray-300"
+                            }`}
                           placeholder="JUAN DELA CRUZ"
                         />
                         {errors.cardName && (
@@ -1167,11 +1028,10 @@ export default function CheckoutPage() {
                           onChange={(e) =>
                             handleInputChange("expiryDate", e.target.value)
                           }
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${
-                            errors.expiryDate
-                              ? "border-red-500"
-                              : "border-gray-300"
-                          }`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${errors.expiryDate
+                            ? "border-red-500"
+                            : "border-gray-300"
+                            }`}
                           placeholder="MM/YY"
                         />
                         {errors.expiryDate && (
@@ -1191,9 +1051,8 @@ export default function CheckoutPage() {
                           onChange={(e) =>
                             handleInputChange("cvv", e.target.value)
                           }
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${
-                            errors.cvv ? "border-red-500" : "border-gray-300"
-                          }`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${errors.cvv ? "border-red-500" : "border-gray-300"
+                            }`}
                           placeholder="123"
                         />
                         {errors.cvv && (
@@ -1208,35 +1067,20 @@ export default function CheckoutPage() {
 
                 {formData.paymentMethod === "gcash" && (
                   <div className="space-y-4">
-                    {profile?.paymentMethods
-                      ?.filter(
-                        (pm) => pm.type === "wallet" && pm.brand === "GCash",
-                      )
-                      .map((wallet) => (
-                        <div
-                          key={wallet.id}
-                          onClick={() =>
-                            handleInputChange(
-                              "gcashNumber",
-                              wallet.accountNumber || "",
-                            )
-                          }
-                          className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors mb-2"
-                        >
-                          <div
-                            className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.gcashNumber === wallet.accountNumber ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"}`}
-                          >
-                            {formData.gcashNumber === wallet.accountNumber && (
-                              <Check className="w-3 h-3 text-white" />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">
-                              Linked GCash: {wallet.accountNumber}
-                            </p>
-                          </div>
+                    {profile?.paymentMethods?.filter(pm => pm.type === 'wallet' && pm.brand === 'GCash').map(wallet => (
+                      <div
+                        key={wallet.id}
+                        onClick={() => handleInputChange("gcashNumber", wallet.accountNumber || "")}
+                        className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors mb-2"
+                      >
+                        <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.gcashNumber === wallet.accountNumber ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"}`}>
+                          {formData.gcashNumber === wallet.accountNumber && <Check className="w-3 h-3 text-white" />}
                         </div>
-                      ))}
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">Linked GCash: {wallet.accountNumber}</p>
+                        </div>
+                      </div>
+                    ))}
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       GCash Number *
                     </label>
@@ -1246,11 +1090,10 @@ export default function CheckoutPage() {
                       onChange={(e) =>
                         handleInputChange("gcashNumber", e.target.value)
                       }
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${
-                        errors.gcashNumber
-                          ? "border-red-500"
-                          : "border-gray-300"
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${errors.gcashNumber
+                        ? "border-red-500"
+                        : "border-gray-300"
+                        }`}
                       placeholder="+63 912 345 6789"
                     />
                     {errors.gcashNumber && (
@@ -1263,36 +1106,20 @@ export default function CheckoutPage() {
 
                 {formData.paymentMethod === "paymaya" && (
                   <div className="space-y-4">
-                    {profile?.paymentMethods
-                      ?.filter(
-                        (pm) => pm.type === "wallet" && pm.brand === "Maya",
-                      )
-                      .map((wallet) => (
-                        <div
-                          key={wallet.id}
-                          onClick={() =>
-                            handleInputChange(
-                              "paymayaNumber",
-                              wallet.accountNumber || "",
-                            )
-                          }
-                          className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors mb-2"
-                        >
-                          <div
-                            className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.paymayaNumber === wallet.accountNumber ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"}`}
-                          >
-                            {formData.paymayaNumber ===
-                              wallet.accountNumber && (
-                              <Check className="w-3 h-3 text-white" />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">
-                              Linked Maya: {wallet.accountNumber}
-                            </p>
-                          </div>
+                    {profile?.paymentMethods?.filter(pm => pm.type === 'wallet' && pm.brand === 'Maya').map(wallet => (
+                      <div
+                        key={wallet.id}
+                        onClick={() => handleInputChange("paymayaNumber", wallet.accountNumber || "")}
+                        className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors mb-2"
+                      >
+                        <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.paymayaNumber === wallet.accountNumber ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"}`}>
+                          {formData.paymayaNumber === wallet.accountNumber && <Check className="w-3 h-3 text-white" />}
                         </div>
-                      ))}
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">Linked Maya: {wallet.accountNumber}</p>
+                        </div>
+                      </div>
+                    ))}
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       PayMaya Number *
                     </label>
@@ -1302,11 +1129,10 @@ export default function CheckoutPage() {
                       onChange={(e) =>
                         handleInputChange("paymayaNumber", e.target.value)
                       }
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${
-                        errors.paymayaNumber
-                          ? "border-red-500"
-                          : "border-gray-300"
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent ${errors.paymayaNumber
+                        ? "border-red-500"
+                        : "border-gray-300"
+                        }`}
                       placeholder="+63 912 345 6789"
                     />
                     {errors.paymayaNumber && (
@@ -1333,67 +1159,52 @@ export default function CheckoutPage() {
                 <div className="space-y-3 mb-6">
                   {checkoutItems.map((item) => {
                     const variant = item.selectedVariant as any;
-                    const itemPrice = variant?.price || item.price;
+                    const originalUnitPrice = getOriginalUnitPrice(item);
+                    const activeDiscount = activeCampaignDiscounts[item.id] || null;
+                    const calculation = discountService.calculateLineDiscount(originalUnitPrice, item.quantity, activeDiscount);
+                    const discountedUnitPrice = calculation.discountedUnitPrice;
+                    const lineOriginalTotal = originalUnitPrice * item.quantity;
+                    const lineDiscountedTotal = discountedUnitPrice * item.quantity;
 
                     // Build variant display from available fields
                     let variantParts: string[] = [];
                     if (variant) {
-                      // Check name fields (variant_name from DB, name from local)
                       const variantName = variant.variant_name || variant.name;
                       if (variantName) variantParts.push(variantName);
-
-                      // Add size if available
-                      if (variant.size)
-                        variantParts.push(`Size: ${variant.size}`);
-
-                      // Add color if available
-                      if (variant.color)
-                        variantParts.push(`Color: ${variant.color}`);
-
-                      // Add option values if available
-                      if (variant.option_1_value)
-                        variantParts.push(variant.option_1_value);
-                      if (variant.option_2_value)
-                        variantParts.push(variant.option_2_value);
-
-                      // Fallback to SKU or ID if nothing else
+                      if (variant.size) variantParts.push(`Size: ${variant.size}`);
+                      if (variant.color) variantParts.push(`Color: ${variant.color}`);
+                      if (variant.option_1_value) variantParts.push(variant.option_1_value);
+                      if (variant.option_2_value) variantParts.push(variant.option_2_value);
                       if (variantParts.length === 0) {
-                        if (variant.sku)
-                          variantParts.push(`SKU: ${variant.sku}`);
-                        else if (variant.id)
-                          variantParts.push(`#${variant.id.slice(0, 8)}`);
+                        if (variant.sku) variantParts.push(`SKU: ${variant.sku}`);
+                        else if (variant.id) variantParts.push(`#${variant.id.slice(0, 8)}`);
                       }
                     }
-                    const variantInfo =
-                      variantParts.length > 0 ? variantParts.join(" / ") : null;
-
-                    console.log("📦 Order Summary Item:", {
-                      name: item.name,
-                      price: item.price,
-                      selectedVariant: variant,
-                      variantInfo,
-                      itemPrice,
-                    });
+                    const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
 
                     return (
-                      <div
-                        key={`${item.id}-${variant?.id || "no-variant"}`}
-                        className="flex justify-between text-sm"
-                      >
+                      <div key={`${item.id}-${variant?.id || 'no-variant'}`} className="flex justify-between text-sm">
                         <div className="flex-1">
                           <p className="text-gray-900 font-medium line-clamp-1">
                             {item.name}
                           </p>
                           {variantInfo && (
-                            <p className="text-xs text-[var(--brand-primary)] font-medium">
+                            <p className="text-xs text-orange-600 font-medium">
                               {variantInfo}
                             </p>
                           )}
                           <p className="text-gray-500">Qty: {item.quantity}</p>
                         </div>
-                        <p className="text-gray-900 font-medium">
-                          ₱{(itemPrice * item.quantity).toLocaleString()}
-                        </p>
+                        <div className="text-right">
+                          <p className="text-gray-900 font-medium">
+                            ₱{lineDiscountedTotal.toLocaleString()}
+                          </p>
+                          {lineOriginalTotal > lineDiscountedTotal && (
+                            <p className="text-xs text-gray-500 line-through">
+                              ₱{lineOriginalTotal.toLocaleString()}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1409,7 +1220,7 @@ export default function CheckoutPage() {
                   </div>
 
                   {appliedVoucher ? (
-                    <div className="flex items-center justify-between bg-[var(--brand-wash)] border-2 border-[var(--brand-primary)] rounded-lg p-3">
+                    <div className="flex items-center justify-between bg-orange-50 border-2 border-[var(--brand-primary)] rounded-lg p-3">
                       <div className="flex items-center gap-2">
                         <Tag className="w-4 h-4 text-[var(--brand-primary)]" />
                         <div>
@@ -1471,41 +1282,29 @@ export default function CheckoutPage() {
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900">Bazcoins</p>
-                        <p className="text-sm text-gray-500">
-                          Balance: {availableBazcoins}
-                        </p>
+                        <p className="text-sm text-gray-500">Balance: {availableBazcoins}</p>
                       </div>
                     </div>
                     {availableBazcoins > 0 ? (
                       <div className="flex items-center gap-2">
                         <div className="text-right mr-2">
-                          <p className="text-sm font-medium text-gray-900">
-                            -₱{maxRedeemableBazcoins}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {useBazcoins ? "Applied" : "Available"}
-                          </p>
+                          <p className="text-sm font-medium text-gray-900">-₱{maxRedeemableBazcoins}</p>
+                          <p className="text-xs text-gray-500">{useBazcoins ? "Applied" : "Available"}</p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setUseBazcoins(!useBazcoins)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:ring-offset-2 ${
-                            useBazcoins
-                              ? "bg-[var(--brand-primary)]"
-                              : "bg-gray-200"
-                          }`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:ring-offset-2 ${useBazcoins ? 'bg-[var(--brand-primary)]' : 'bg-gray-200'
+                            }`}
                         >
                           <span
-                            className={`${
-                              useBazcoins ? "translate-x-6" : "translate-x-1"
-                            } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                            className={`${useBazcoins ? 'translate-x-6' : 'translate-x-1'
+                              } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
                           />
                         </button>
                       </div>
                     ) : (
-                      <span className="text-sm text-gray-400">
-                        No coins available
-                      </span>
+                      <span className="text-sm text-gray-400">No coins available</span>
                     )}
                   </div>
                 </motion.section>
@@ -1514,7 +1313,7 @@ export default function CheckoutPage() {
                   {" "}
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
-                    <span>₱{totalPrice.toLocaleString()}</span>
+                    <span>₱{originalSubtotal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span>Shipping</span>
@@ -1530,10 +1329,22 @@ export default function CheckoutPage() {
                     <span>Tax (12% VAT)</span>
                     <span>₱{tax.toLocaleString()}</span>
                   </div>
-                  {couponSavings > 0 && (
-                    <div className="flex justify-between text-green-600 font-medium">
-                      <span>Discounts & Rewards</span>
-                      <span>-₱{couponSavings.toLocaleString()}</span>
+                  {campaignDiscountTotal > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Campaign Discount</span>
+                      <span>-₱{campaignDiscountTotal.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Voucher Discount</span>
+                      <span>-₱{discount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {bazcoinDiscount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>BazCoins Applied</span>
+                      <span>-₱{bazcoinDiscount.toLocaleString()}</span>
                     </div>
                   )}
                   <hr className="border-gray-300" />
@@ -1546,8 +1357,7 @@ export default function CheckoutPage() {
                   {grandTotalSavings > 0 && (
                     <div className="mt-2 text-right">
                       <p className="text-xs text-green-600 font-semibold animate-pulse">
-                        You're saving ₱{grandTotalSavings.toLocaleString()} on
-                        this order!
+                        You're saving ₱{grandTotalSavings.toLocaleString()} on this order!
                       </p>
                     </div>
                   )}
@@ -1558,12 +1368,8 @@ export default function CheckoutPage() {
                     <span className="text-white text-xs font-bold">B</span>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-yellow-800">
-                      You will earn {earnedBazcoins} Bazcoins
-                    </p>
-                    <p className="text-xs text-yellow-700">
-                      Receive coins upon successful delivery
-                    </p>
+                    <p className="text-sm font-semibold text-yellow-800">You will earn {earnedBazcoins} Bazcoins</p>
+                    <p className="text-xs text-yellow-700">Receive coins upon successful delivery</p>
                   </div>
                 </div>
 
@@ -1596,20 +1402,16 @@ export default function CheckoutPage() {
       </div>
       <BazaarFooter />
 
-      <Dialog
-        open={isAddressModalOpen}
-        onOpenChange={(open) => {
-          setIsAddressModalOpen(open);
-          if (!open) setAddressView("list"); // Reset view when closed
-        }}
-      >
+      <Dialog open={isAddressModalOpen} onOpenChange={(open) => {
+        setIsAddressModalOpen(open);
+        if (!open) setAddressView('list'); // Reset view when closed
+      }}>
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden flex flex-col max-h-[90vh]">
-          {addressView === "list" ? (
+
+          {addressView === 'list' ? (
             <>
               <DialogHeader className="p-6 pb-2">
-                <DialogTitle className="text-xl font-bold">
-                  Select Delivery Address
-                </DialogTitle>
+                <DialogTitle className="text-xl font-bold">Select Delivery Address</DialogTitle>
               </DialogHeader>
 
               <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-3">
@@ -1619,17 +1421,13 @@ export default function CheckoutPage() {
                     onClick={() => setTempSelected(addr)}
                     className={cn(
                       "p-4 border-2 rounded-xl cursor-pointer transition-all",
-                      tempSelected?.id === addr.id
-                        ? "border-[var(--brand-primary)] bg-[var(--brand-wash)]/50"
-                        : "border-gray-100",
+                      tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-orange-50/50" : "border-gray-100"
                     )}
                   >
                     {/* Delete Confirmation */}
                     {deleteConfirmId === addr.id ? (
                       <div className="flex flex-col gap-3">
-                        <p className="text-sm text-gray-700">
-                          Delete this address?
-                        </p>
+                        <p className="text-sm text-gray-700">Delete this address?</p>
                         <div className="flex gap-2">
                           <Button
                             size="sm"
@@ -1638,34 +1436,20 @@ export default function CheckoutPage() {
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
-                                const { addressService } =
-                                  await import("../services/addressService");
+                                const { addressService } = await import('../services/addressService');
                                 await addressService.deleteAddress(addr.id);
                                 deleteAddress(addr.id);
                                 setDeleteConfirmId(null);
                                 if (selectedAddress?.id === addr.id) {
-                                  setSelectedAddress(
-                                    addresses.find((a) => a.id !== addr.id) ||
-                                      null,
-                                  );
+                                  setSelectedAddress(addresses.find(a => a.id !== addr.id) || null);
                                 }
                                 if (tempSelected?.id === addr.id) {
-                                  setTempSelected(
-                                    addresses.find((a) => a.id !== addr.id) ||
-                                      null,
-                                  );
+                                  setTempSelected(addresses.find(a => a.id !== addr.id) || null);
                                 }
-                                toast({
-                                  title: "Address deleted",
-                                  description: "The address has been removed.",
-                                });
+                                toast({ title: "Address deleted", description: "The address has been removed." });
                               } catch (error: any) {
                                 console.error("Error deleting address:", error);
-                                toast({
-                                  title: "Error",
-                                  description: "Failed to delete address",
-                                  variant: "destructive",
-                                });
+                                toast({ title: "Error", description: "Failed to delete address", variant: "destructive" });
                               }
                             }}
                           >
@@ -1686,41 +1470,22 @@ export default function CheckoutPage() {
                       </div>
                     ) : (
                       <div className="flex items-start gap-3">
-                        <div
-                          className={cn(
-                            "mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-                            tempSelected?.id === addr.id
-                              ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]"
-                              : "border-gray-300",
-                          )}
-                        >
-                          {tempSelected?.id === addr.id && (
-                            <Check className="w-3 h-3 text-white stroke-[3px]" />
-                          )}
+                        <div className={cn(
+                          "mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                          tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"
+                        )}>
+                          {tempSelected?.id === addr.id && <Check className="w-3 h-3 text-white stroke-[3px]" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-gray-900">
-                              {addr.firstName} {addr.lastName}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] h-4 px-1.5 uppercase font-bold border-gray-300"
-                            >
-                              {addr.label}
-                            </Badge>
+                            <span className="font-bold text-gray-900">{addr.firstName} {addr.lastName}</span>
+                            <Badge variant="outline" className="text-[10px] h-4 px-1.5 uppercase font-bold border-gray-300">{addr.label}</Badge>
                             {addr.isDefault && (
-                              <Badge className="text-[10px] h-4 px-1.5 bg-[var(--brand-wash)] text-[var(--brand-primary)] border-0">
-                                Default
-                              </Badge>
+                              <Badge className="text-[10px] h-4 px-1.5 bg-green-100 text-green-700 border-0">Default</Badge>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 font-medium">
-                            {addr.phone}
-                          </p>
-                          <p className="text-xs text-gray-600 mt-1 line-clamp-1">
-                            {addr.street}, {addr.barangay}, {addr.city}
-                          </p>
+                          <p className="text-xs text-gray-500 font-medium">{addr.phone}</p>
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-1">{addr.street}, {addr.barangay}, {addr.city}</p>
                         </div>
                         {/* Edit & Delete Buttons */}
                         <div className="flex items-center gap-1 flex-shrink-0">
@@ -1729,23 +1494,22 @@ export default function CheckoutPage() {
                               e.stopPropagation();
                               setEditingAddress(addr);
                               setNewAddr({
-                                label: addr.label || "Home",
-                                firstName: addr.firstName || "",
-                                lastName: addr.lastName || "",
-                                phone: addr.phone || "",
-                                street: addr.street || "",
-                                barangay: addr.barangay || "",
-                                city: addr.city || "",
-                                province: addr.province || "",
-                                region: addr.region || "",
-                                postalCode: addr.postalCode || "",
+                                label: addr.label || 'Home',
+                                firstName: addr.firstName || '',
+                                lastName: addr.lastName || '',
+                                phone: addr.phone || '',
+                                street: addr.street || '',
+                                barangay: addr.barangay || '',
+                                city: addr.city || '',
+                                province: addr.province || '',
+                                region: addr.region || '',
+                                postalCode: addr.postalCode || '',
                                 isDefault: addr.isDefault || false,
                                 coordinates: addr.coordinates || null,
-                                landmark: addr.landmark || "",
-                                deliveryInstructions:
-                                  addr.deliveryInstructions || "",
+                                landmark: addr.landmark || '',
+                                deliveryInstructions: addr.deliveryInstructions || '',
                               });
-                              setAddressView("edit");
+                              setAddressView('edit');
                             }}
                             className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
                             title="Edit address"
@@ -1771,22 +1535,16 @@ export default function CheckoutPage() {
                 <Button
                   variant="outline"
                   className="w-full border-dashed border-2 py-8 text-gray-500 hover:text-white"
-                  onClick={() => setAddressView("add")}
+                  onClick={() => setAddressView('add')}
                 >
                   <Plus className="w-4 h-4 mr-2" /> Add New Address
                 </Button>
               </div>
 
               <div className="p-4 bg-gray-50 border-t flex gap-3">
+                <Button variant="ghost" className="flex-1" onClick={() => setIsAddressModalOpen(false)}>Cancel</Button>
                 <Button
-                  variant="ghost"
-                  className="flex-1"
-                  onClick={() => setIsAddressModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] font-bold text-white"
+                  className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
                   disabled={!tempSelected}
                   onClick={() => {
                     setSelectedAddress(tempSelected);
@@ -1801,49 +1559,39 @@ export default function CheckoutPage() {
             <>
               <DialogHeader className="p-6 pb-2">
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => {
-                      setAddressView("list");
-                      setShowMapPicker(false);
-                      setEditingAddress(null);
-                      // Reset form
-                      setNewAddr({
-                        label: "Home",
-                        firstName: profile?.firstName || "",
-                        lastName: profile?.lastName || "",
-                        phone: profile?.phone || "",
-                        street: "",
-                        barangay: "",
-                        city: "",
-                        province: "",
-                        region: "",
-                        postalCode: "",
-                        isDefault: false,
-                        coordinates: null,
-                        landmark: "",
-                        deliveryInstructions: "",
-                      });
-                    }}
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                    setAddressView('list');
+                    setShowMapPicker(false);
+                    setEditingAddress(null);
+                    // Reset form
+                    setNewAddr({
+                      label: 'Home',
+                      firstName: profile?.firstName || '',
+                      lastName: profile?.lastName || '',
+                      phone: profile?.phone || '',
+                      street: '',
+                      barangay: '',
+                      city: '',
+                      province: '',
+                      region: '',
+                      postalCode: '',
+                      isDefault: false,
+                      coordinates: null,
+                      landmark: '',
+                      deliveryInstructions: '',
+                    });
+                  }}>
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                   <DialogTitle className="text-xl font-bold">
-                    {addressView === "edit"
-                      ? "Edit Address"
-                      : "New Shipping Address"}
+                    {addressView === 'edit' ? 'Edit Address' : 'New Shipping Address'}
                   </DialogTitle>
                 </div>
               </DialogHeader>
 
               {/* Map Picker View */}
               {showMapPicker ? (
-                <div
-                  className="flex-1 overflow-hidden"
-                  style={{ height: "500px" }}
-                >
+                <div className="flex-1 overflow-hidden" style={{ height: '500px' }}>
                   <AddressPicker
                     initialCoordinates={newAddr.coordinates || undefined}
                     onLocationSelect={async (location) => {
@@ -1861,182 +1609,107 @@ export default function CheckoutPage() {
 
                       // Try to auto-select dropdowns based on map data
                       // Match region (handle Metro Manila / NCR specially)
-                      const regionToMatch =
-                        location.region || location.province || "";
-                      const isMetroManila =
-                        regionToMatch.toLowerCase().includes("metro manila") ||
-                        regionToMatch.toLowerCase().includes("ncr") ||
-                        regionToMatch.toLowerCase() === "manila" ||
-                        [
-                          "makati",
-                          "quezon city",
-                          "pasig",
-                          "taguig",
-                          "mandaluyong",
-                          "paranaque",
-                          "pasay",
-                          "marikina",
-                          "muntinlupa",
-                          "las pinas",
-                          "valenzuela",
-                          "caloocan",
-                          "malabon",
-                          "navotas",
-                          "san juan",
-                          "pateros",
-                        ].some((city) =>
-                          location.city?.toLowerCase().includes(city),
+                      const regionToMatch = location.region || location.province || '';
+                      const isMetroManila = regionToMatch.toLowerCase().includes('metro manila') ||
+                        regionToMatch.toLowerCase().includes('ncr') ||
+                        regionToMatch.toLowerCase() === 'manila' ||
+                        ['makati', 'quezon city', 'pasig', 'taguig', 'mandaluyong', 'paranaque', 'pasay', 'marikina', 'muntinlupa', 'las pinas', 'valenzuela', 'caloocan', 'malabon', 'navotas', 'san juan', 'pateros'].some(city =>
+                          location.city?.toLowerCase().includes(city)
                         );
 
                       if (regionToMatch || isMetroManila) {
-                        let matchedRegion = regionList.find(
-                          (r) =>
-                            r.region_name
-                              ?.toLowerCase()
-                              .includes(regionToMatch?.toLowerCase()) ||
-                            regionToMatch
-                              ?.toLowerCase()
-                              .includes(r.region_name?.toLowerCase()),
+                        let matchedRegion = regionList.find(r =>
+                          r.region_name?.toLowerCase().includes(regionToMatch?.toLowerCase()) ||
+                          regionToMatch?.toLowerCase().includes(r.region_name?.toLowerCase())
                         );
 
                         // If Metro Manila area, force match to NCR
                         if (!matchedRegion && isMetroManila) {
-                          matchedRegion = regionList.find(
-                            (r) =>
-                              r.region_name?.toLowerCase().includes("ncr") ||
-                              r.region_name
-                                ?.toLowerCase()
-                                .includes("national capital"),
+                          matchedRegion = regionList.find(r =>
+                            r.region_name?.toLowerCase().includes('ncr') ||
+                            r.region_name?.toLowerCase().includes('national capital')
                           );
                         }
 
                         if (matchedRegion) {
                           updatedAddr.region = matchedRegion.region_name;
                           // Load provinces for this region
-                          const provs = await provinces(
-                            matchedRegion.region_code,
-                          );
+                          const provs = await provinces(matchedRegion.region_code);
                           setProvinceList(provs);
 
                           // For Metro Manila/NCR, load ALL cities from all districts
                           if (isMetroManila) {
                             let allCities: any[] = [];
                             for (const prov of provs) {
-                              const provCities = await cities(
-                                prov.province_code,
-                              );
+                              const provCities = await cities(prov.province_code);
                               allCities = [...allCities, ...provCities];
                             }
                             setCityList(allCities);
 
                             // Match city
                             if (location.city) {
-                              const matchedCity = allCities.find(
-                                (c: any) =>
-                                  c.city_name
-                                    ?.toLowerCase()
-                                    .includes(location.city?.toLowerCase()) ||
-                                  location.city
-                                    ?.toLowerCase()
-                                    .includes(
-                                      c.city_name
-                                        ?.toLowerCase()
-                                        .replace("city of ", ""),
-                                    ),
+                              const matchedCity = allCities.find((c: any) =>
+                                c.city_name?.toLowerCase().includes(location.city?.toLowerCase()) ||
+                                location.city?.toLowerCase().includes(c.city_name?.toLowerCase().replace('city of ', ''))
                               );
 
                               if (matchedCity) {
                                 updatedAddr.city = matchedCity.city_name;
                                 // Load barangays for this city
-                                const brgys = await barangays(
-                                  matchedCity.city_code,
-                                );
+                                const brgys = await barangays(matchedCity.city_code);
                                 setBarangayList(brgys);
 
                                 // Match barangay
                                 if (location.barangay) {
-                                  const matchedBarangay = brgys.find(
-                                    (b: any) =>
-                                      b.brgy_name
-                                        ?.toLowerCase()
-                                        .includes(
-                                          location.barangay?.toLowerCase(),
-                                        ) ||
-                                      location.barangay
-                                        ?.toLowerCase()
-                                        .includes(b.brgy_name?.toLowerCase()),
+                                  const matchedBarangay = brgys.find((b: any) =>
+                                    b.brgy_name?.toLowerCase().includes(location.barangay?.toLowerCase()) ||
+                                    location.barangay?.toLowerCase().includes(b.brgy_name?.toLowerCase())
                                   );
                                   if (matchedBarangay) {
-                                    updatedAddr.barangay =
-                                      matchedBarangay.brgy_name;
+                                    updatedAddr.barangay = matchedBarangay.brgy_name;
                                   }
                                 }
                               }
                             }
                           } else {
                             // Non-Metro Manila: Match province first
-                            const provinceToMatch = location.province || "";
+                            const provinceToMatch = location.province || '';
                             let matchedProvince = null;
 
                             if (provinceToMatch) {
-                              matchedProvince = provs.find(
-                                (p: any) =>
-                                  p.province_name
-                                    ?.toLowerCase()
-                                    .includes(provinceToMatch?.toLowerCase()) ||
-                                  provinceToMatch
-                                    ?.toLowerCase()
-                                    .includes(p.province_name?.toLowerCase()),
+                              matchedProvince = provs.find((p: any) =>
+                                p.province_name?.toLowerCase().includes(provinceToMatch?.toLowerCase()) ||
+                                provinceToMatch?.toLowerCase().includes(p.province_name?.toLowerCase())
                               );
 
                               if (matchedProvince) {
-                                updatedAddr.province =
-                                  matchedProvince.province_name;
+                                updatedAddr.province = matchedProvince.province_name;
                                 // Load cities for this province
-                                const cts = await cities(
-                                  matchedProvince.province_code,
-                                );
+                                const cts = await cities(matchedProvince.province_code);
                                 setCityList(cts);
 
                                 // Match city
-                                const cityToMatch = location.city || "";
+                                const cityToMatch = location.city || '';
                                 if (cityToMatch) {
-                                  const matchedCity = cts.find(
-                                    (c: any) =>
-                                      c.city_name
-                                        ?.toLowerCase()
-                                        .includes(cityToMatch?.toLowerCase()) ||
-                                      cityToMatch
-                                        ?.toLowerCase()
-                                        .includes(c.city_name?.toLowerCase()),
+                                  const matchedCity = cts.find((c: any) =>
+                                    c.city_name?.toLowerCase().includes(cityToMatch?.toLowerCase()) ||
+                                    cityToMatch?.toLowerCase().includes(c.city_name?.toLowerCase())
                                   );
 
                                   if (matchedCity) {
                                     updatedAddr.city = matchedCity.city_name;
                                     // Load barangays for this city
-                                    const brgys = await barangays(
-                                      matchedCity.city_code,
-                                    );
+                                    const brgys = await barangays(matchedCity.city_code);
                                     setBarangayList(brgys);
 
                                     // Match barangay
                                     if (location.barangay) {
-                                      const matchedBarangay = brgys.find(
-                                        (b: any) =>
-                                          b.brgy_name
-                                            ?.toLowerCase()
-                                            .includes(
-                                              location.barangay?.toLowerCase(),
-                                            ) ||
-                                          location.barangay
-                                            ?.toLowerCase()
-                                            .includes(
-                                              b.brgy_name?.toLowerCase(),
-                                            ),
+                                      const matchedBarangay = brgys.find((b: any) =>
+                                        b.brgy_name?.toLowerCase().includes(location.barangay?.toLowerCase()) ||
+                                        location.barangay?.toLowerCase().includes(b.brgy_name?.toLowerCase())
                                       );
                                       if (matchedBarangay) {
-                                        updatedAddr.barangay =
-                                          matchedBarangay.brgy_name;
+                                        updatedAddr.barangay = matchedBarangay.brgy_name;
                                       }
                                     }
                                   }
@@ -2063,21 +1736,19 @@ export default function CheckoutPage() {
 
                       // Show toast with autofill summary
                       const filledFields = [];
-                      if (updatedAddr.firstName || updatedAddr.lastName)
-                        filledFields.push("Name");
-                      if (updatedAddr.phone) filledFields.push("Phone");
-                      if (updatedAddr.region) filledFields.push("Region");
-                      if (updatedAddr.province) filledFields.push("Province");
-                      if (updatedAddr.city) filledFields.push("City");
-                      if (updatedAddr.barangay) filledFields.push("Barangay");
-                      if (updatedAddr.street) filledFields.push("Street");
-                      if (updatedAddr.postalCode)
-                        filledFields.push("Postal Code");
+                      if (updatedAddr.firstName || updatedAddr.lastName) filledFields.push('Name');
+                      if (updatedAddr.phone) filledFields.push('Phone');
+                      if (updatedAddr.region) filledFields.push('Region');
+                      if (updatedAddr.province) filledFields.push('Province');
+                      if (updatedAddr.city) filledFields.push('City');
+                      if (updatedAddr.barangay) filledFields.push('Barangay');
+                      if (updatedAddr.street) filledFields.push('Street');
+                      if (updatedAddr.postalCode) filledFields.push('Postal Code');
 
                       if (filledFields.length > 0) {
                         toast({
                           title: "📍 Location Selected",
-                          description: `Auto-filled: ${filledFields.join(", ")}. Please verify the details.`,
+                          description: `Auto-filled: ${filledFields.join(', ')}. Please verify the details.`,
                         });
                       }
                     }}
@@ -2095,12 +1766,8 @@ export default function CheckoutPage() {
                           <Map className="w-4 h-4 text-white" />
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900 text-sm">
-                            Pick from Map
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Use GPS or search for your location
-                          </p>
+                          <p className="font-semibold text-gray-900 text-sm">Pick from Map</p>
+                          <p className="text-xs text-gray-500">Use GPS or search for your location</p>
                         </div>
                       </div>
                       <Button
@@ -2117,9 +1784,7 @@ export default function CheckoutPage() {
                       <div className="mt-3 pt-3 border-t border-orange-200">
                         <p className="text-xs text-green-600 flex items-center gap-1">
                           <Check className="w-3 h-3" />
-                          Location selected:{" "}
-                          {newAddr.coordinates.lat.toFixed(4)},{" "}
-                          {newAddr.coordinates.lng.toFixed(4)}
+                          Location selected: {newAddr.coordinates.lat.toFixed(4)}, {newAddr.coordinates.lng.toFixed(4)}
                         </p>
                       </div>
                     )}
@@ -2128,48 +1793,22 @@ export default function CheckoutPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">First Name</Label>
-                      <Input
-                        placeholder="John"
-                        value={newAddr.firstName}
-                        onChange={(e) =>
-                          setNewAddr({ ...newAddr, firstName: e.target.value })
-                        }
-                      />
+                      <Input placeholder="John" value={newAddr.firstName} onChange={e => setNewAddr({ ...newAddr, firstName: e.target.value })} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Last Name</Label>
-                      <Input
-                        placeholder="Doe"
-                        value={newAddr.lastName}
-                        onChange={(e) =>
-                          setNewAddr({ ...newAddr, lastName: e.target.value })
-                        }
-                      />
+                      <Input placeholder="Doe" value={newAddr.lastName} onChange={e => setNewAddr({ ...newAddr, lastName: e.target.value })} />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Phone Number</Label>
-                      <Input
-                        placeholder="09123456789"
-                        value={newAddr.phone}
-                        onChange={(e) =>
-                          setNewAddr({ ...newAddr, phone: e.target.value })
-                        }
-                      />
+                      <Input placeholder="09123456789" value={newAddr.phone} onChange={e => setNewAddr({ ...newAddr, phone: e.target.value })} />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">
-                        Label (e.g. Home, Office)
-                      </Label>
-                      <Input
-                        placeholder="Home"
-                        value={newAddr.label}
-                        onChange={(e) =>
-                          setNewAddr({ ...newAddr, label: e.target.value })
-                        }
-                      />
+                      <Label className="text-xs">Label (e.g. Home, Office)</Label>
+                      <Input placeholder="Home" value={newAddr.label} onChange={e => setNewAddr({ ...newAddr, label: e.target.value })} />
                     </div>
                   </div>
 
@@ -2177,10 +1816,7 @@ export default function CheckoutPage() {
                   <div className="space-y-1">
                     <Label className="text-xs">Region</Label>
                     <Select
-                      value={
-                        regionList.find((r) => r.region_name === newAddr.region)
-                          ?.region_code
-                      }
+                      value={regionList.find(r => r.region_name === newAddr.region)?.region_code}
                       onValueChange={onRegionChange}
                     >
                       <SelectTrigger className="w-full">
@@ -2188,9 +1824,7 @@ export default function CheckoutPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {regionList.map((r) => (
-                          <SelectItem key={r.region_code} value={r.region_code}>
-                            {r.region_name}
-                          </SelectItem>
+                          <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -2200,11 +1834,7 @@ export default function CheckoutPage() {
                   <div className="space-y-1">
                     <Label className="text-xs">Province</Label>
                     <Select
-                      value={
-                        provinceList.find(
-                          (p) => p.province_name === newAddr.province,
-                        )?.province_code
-                      }
+                      value={provinceList.find(p => p.province_name === newAddr.province)?.province_code}
                       onValueChange={onProvinceChange}
                       disabled={!newAddr.region}
                     >
@@ -2213,12 +1843,7 @@ export default function CheckoutPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {provinceList.map((p) => (
-                          <SelectItem
-                            key={p.province_code}
-                            value={p.province_code}
-                          >
-                            {p.province_name}
-                          </SelectItem>
+                          <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -2229,10 +1854,7 @@ export default function CheckoutPage() {
                     <div className="space-y-1">
                       <Label className="text-xs">City / Municipality</Label>
                       <Select
-                        value={
-                          cityList.find((c) => c.city_name === newAddr.city)
-                            ?.city_code
-                        }
+                        value={cityList.find(c => c.city_name === newAddr.city)?.city_code}
                         onValueChange={onCityChange}
                         disabled={!newAddr.province}
                       >
@@ -2241,9 +1863,7 @@ export default function CheckoutPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {cityList.map((c) => (
-                            <SelectItem key={c.city_code} value={c.city_code}>
-                              {c.city_name}
-                            </SelectItem>
+                            <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -2253,19 +1873,8 @@ export default function CheckoutPage() {
                     <div className="space-y-1">
                       <Label className="text-xs">Barangay</Label>
                       <Select
-                        value={
-                          barangayList.find(
-                            (b) => b.brgy_name === newAddr.barangay,
-                          )?.brgy_code
-                        }
-                        onValueChange={(v) =>
-                          setNewAddr({
-                            ...newAddr,
-                            barangay: barangayList.find(
-                              (b) => b.brgy_code === v,
-                            )?.brgy_name,
-                          })
-                        }
+                        value={barangayList.find(b => b.brgy_name === newAddr.barangay)?.brgy_code}
+                        onValueChange={(v) => setNewAddr({ ...newAddr, barangay: barangayList.find(b => b.brgy_code === v)?.brgy_name })}
                         disabled={!newAddr.city}
                       >
                         <SelectTrigger className="w-full">
@@ -2273,9 +1882,7 @@ export default function CheckoutPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {barangayList.map((b) => (
-                            <SelectItem key={b.brgy_code} value={b.brgy_code}>
-                              {b.brgy_name}
-                            </SelectItem>
+                            <SelectItem key={b.brgy_code} value={b.brgy_code}>{b.brgy_name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -2284,63 +1891,31 @@ export default function CheckoutPage() {
 
                   <div className="space-y-1">
                     <Label className="text-xs">Street Address</Label>
-                    <Input
-                      placeholder="House No., Street Name"
-                      value={newAddr.street}
-                      onChange={(e) =>
-                        setNewAddr({ ...newAddr, street: e.target.value })
-                      }
-                    />
+                    <Input placeholder="House No., Street Name" value={newAddr.street} onChange={e => setNewAddr({ ...newAddr, street: e.target.value })} />
                   </div>
 
                   <div className="space-y-1">
                     <Label className="text-xs">Landmark (Optional)</Label>
-                    <Input
-                      placeholder="Near SM Mall, In front of church, etc."
-                      value={newAddr.landmark}
-                      onChange={(e) =>
-                        setNewAddr({ ...newAddr, landmark: e.target.value })
-                      }
-                    />
+                    <Input placeholder="Near SM Mall, In front of church, etc." value={newAddr.landmark} onChange={e => setNewAddr({ ...newAddr, landmark: e.target.value })} />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 items-center">
                     <div className="space-y-1">
                       <Label className="text-xs">Postal Code</Label>
-                      <Input
-                        placeholder="1234"
-                        value={newAddr.postalCode}
-                        onChange={(e) =>
-                          setNewAddr({ ...newAddr, postalCode: e.target.value })
-                        }
-                      />
+                      <Input placeholder="1234" value={newAddr.postalCode} onChange={e => setNewAddr({ ...newAddr, postalCode: e.target.value })} />
                     </div>
                     <div className="flex items-center space-x-2 pt-5">
-                      <Switch
-                        checked={newAddr.isDefault}
-                        onCheckedChange={(checked) =>
-                          setNewAddr({ ...newAddr, isDefault: checked })
-                        }
-                      />
-                      <Label className="text-sm cursor-pointer">
-                        Set as default
-                      </Label>
+                      <Switch checked={newAddr.isDefault} onCheckedChange={checked => setNewAddr({ ...newAddr, isDefault: checked })} />
+                      <Label className="text-sm cursor-pointer">Set as default</Label>
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs">
-                      Delivery Instructions (Optional)
-                    </Label>
+                    <Label className="text-xs">Delivery Instructions (Optional)</Label>
                     <Input
                       placeholder="Gate code, leave at door, call upon arrival, etc."
                       value={newAddr.deliveryInstructions}
-                      onChange={(e) =>
-                        setNewAddr({
-                          ...newAddr,
-                          deliveryInstructions: e.target.value,
-                        })
-                      }
+                      onChange={e => setNewAddr({ ...newAddr, deliveryInstructions: e.target.value })}
                     />
                   </div>
                 </div>
@@ -2348,33 +1923,27 @@ export default function CheckoutPage() {
 
               {!showMapPicker && (
                 <div className="p-4 bg-gray-50 border-t flex gap-3">
-                  <Button
-                    variant="ghost"
-                    className="flex-1"
-                    onClick={() => {
-                      setAddressView("list");
-                      setEditingAddress(null);
-                      // Reset form
-                      setNewAddr({
-                        label: "Home",
-                        firstName: profile?.firstName || "",
-                        lastName: profile?.lastName || "",
-                        phone: profile?.phone || "",
-                        street: "",
-                        barangay: "",
-                        city: "",
-                        province: "",
-                        region: "",
-                        postalCode: "",
-                        isDefault: false,
-                        coordinates: null,
-                        landmark: "",
-                        deliveryInstructions: "",
-                      });
-                    }}
-                  >
-                    Back
-                  </Button>
+                  <Button variant="ghost" className="flex-1" onClick={() => {
+                    setAddressView('list');
+                    setEditingAddress(null);
+                    // Reset form
+                    setNewAddr({
+                      label: 'Home',
+                      firstName: profile?.firstName || '',
+                      lastName: profile?.lastName || '',
+                      phone: profile?.phone || '',
+                      street: '',
+                      barangay: '',
+                      city: '',
+                      province: '',
+                      region: '',
+                      postalCode: '',
+                      isDefault: false,
+                      coordinates: null,
+                      landmark: '',
+                      deliveryInstructions: '',
+                    });
+                  }}>Back</Button>
                   <Button
                     className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
                     disabled={isSaving || !newAddr.firstName || !newAddr.phone}
@@ -2382,8 +1951,7 @@ export default function CheckoutPage() {
                       if (!profile) return;
                       setIsSaving(true);
                       try {
-                        const { addressService } =
-                          await import("../services/addressService");
+                        const { addressService } = await import('../services/addressService');
 
                         // Map to shipping_addresses table columns
                         const addressPayload: any = {
@@ -2397,9 +1965,8 @@ export default function CheckoutPage() {
                           region: newAddr.region,
                           postal_code: newAddr.postalCode,
                           is_default: newAddr.isDefault,
-                          delivery_instructions:
-                            newAddr.deliveryInstructions || null,
-                          address_type: "residential",
+                          delivery_instructions: newAddr.deliveryInstructions || null,
+                          address_type: 'residential',
                         };
 
                         // Include coordinates if available
@@ -2409,91 +1976,69 @@ export default function CheckoutPage() {
 
                         let savedAddress: Address;
 
-                        if (addressView === "edit" && editingAddress) {
+                        if (addressView === 'edit' && editingAddress) {
                           // UPDATE existing address
-                          const dbAddress = await addressService.updateAddress(
-                            editingAddress.id,
-                            addressPayload,
-                          );
+                          const dbAddress = await addressService.updateAddress(editingAddress.id, addressPayload);
                           // Merge with user input since DB doesn't store name/phone
                           savedAddress = {
                             ...dbAddress,
                             firstName: newAddr.firstName,
                             lastName: newAddr.lastName,
-                            fullName:
-                              `${newAddr.firstName} ${newAddr.lastName}`.trim(),
+                            fullName: `${newAddr.firstName} ${newAddr.lastName}`.trim(),
                             phone: newAddr.phone,
                             street: newAddr.street,
                           };
                           updateAddress(editingAddress.id, savedAddress);
-                          toast({
-                            title: "Address updated",
-                            description:
-                              "Your address has been updated successfully.",
-                          });
+                          toast({ title: "Address updated", description: "Your address has been updated successfully." });
                         } else {
                           // CREATE new address
-                          const dbAddress =
-                            await addressService.createAddress(addressPayload);
+                          const dbAddress = await addressService.createAddress(addressPayload);
                           // Merge with user input since DB doesn't store name/phone
                           savedAddress = {
                             ...dbAddress,
                             firstName: newAddr.firstName,
                             lastName: newAddr.lastName,
-                            fullName:
-                              `${newAddr.firstName} ${newAddr.lastName}`.trim(),
+                            fullName: `${newAddr.firstName} ${newAddr.lastName}`.trim(),
                             phone: newAddr.phone,
                             street: newAddr.street,
                           };
                           addAddress(savedAddress);
-                          toast({
-                            title: "Address saved",
-                            description: "Your new address has been added.",
-                          });
+                          toast({ title: "Address saved", description: "Your new address has been added." });
                         }
 
                         setSelectedAddress(savedAddress);
                         setTempSelected(savedAddress);
                         setConfirmedAddress(savedAddress);
                         setIsAddressModalOpen(false);
-                        setAddressView("list");
+                        setAddressView('list');
                         setShowMapPicker(false);
                         setEditingAddress(null);
                         // Reset form
                         setNewAddr({
-                          label: "Home",
-                          firstName: profile?.firstName || "",
-                          lastName: profile?.lastName || "",
-                          phone: profile?.phone || "",
-                          street: "",
-                          barangay: "",
-                          city: "",
-                          province: "",
-                          region: "",
-                          postalCode: "",
+                          label: 'Home',
+                          firstName: profile?.firstName || '',
+                          lastName: profile?.lastName || '',
+                          phone: profile?.phone || '',
+                          street: '',
+                          barangay: '',
+                          city: '',
+                          province: '',
+                          region: '',
+                          postalCode: '',
                           isDefault: false,
                           coordinates: null,
-                          landmark: "",
-                          deliveryInstructions: "",
+                          landmark: '',
+                          deliveryInstructions: '',
                         });
                       } catch (error: any) {
                         console.error("Error saving address:", error);
-                        toast({
-                          title: "Error",
-                          description:
-                            error.message || "Failed to save address",
-                          variant: "destructive",
-                        });
+                        toast({ title: "Error", description: error.message || "Failed to save address", variant: "destructive" });
                       } finally {
                         setIsSaving(false);
                       }
                     }}
                   >
-                    {isSaving
-                      ? "Saving..."
-                      : addressView === "edit"
-                        ? "Update Address"
-                        : "Save and Use"}
+                    {isSaving ? "Saving..." : (addressView === 'edit' ? "Update Address" : "Save and Use")}
                   </Button>
                 </div>
               )}
@@ -2504,3 +2049,5 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
+

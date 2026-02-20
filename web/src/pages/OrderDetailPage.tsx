@@ -226,9 +226,9 @@ export default function OrderDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--brand-wash)]">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-gray-600 font-medium">Loading order details...</p>
         </div>
       </div>
@@ -312,8 +312,8 @@ export default function OrderDetailPage() {
         order.status === "reviewed",
       date:
         order.status === "shipped" ||
-          order.status === "delivered" ||
-          order.status === "reviewed"
+        order.status === "delivered" ||
+        order.status === "reviewed"
           ? order.createdAt
           : null,
     },
@@ -327,6 +327,27 @@ export default function OrderDetailPage() {
           : null,
     },
   ];
+
+  const subtotalAmount =
+    order.pricing?.subtotal ??
+    order.items.reduce((sum, item) => {
+      const baseUnitPrice = Number(item.originalPrice ?? item.price);
+      return sum + (baseUnitPrice * item.quantity);
+    }, 0);
+  const campaignDiscountAmount =
+    order.pricing?.campaignDiscount ??
+    order.items.reduce((sum, item) => {
+      const baseUnitPrice = Number(item.originalPrice ?? item.price);
+      const effectiveUnitPrice = Number(item.price || 0);
+      return sum + Math.max(0, baseUnitPrice - effectiveUnitPrice) * item.quantity;
+    }, 0);
+  const voucherDiscountAmount = order.pricing?.voucherDiscount ?? 0;
+  const taxAmount = order.pricing?.tax ?? 0;
+  const bazcoinDiscountAmount = order.pricing?.bazcoinDiscount ?? 0;
+  const shippingAmount = order.pricing?.shipping ?? Number(dbOrder?.shipping_cost || 0);
+  const totalAmount =
+    order.pricing?.total ??
+    Math.max(0, subtotalAmount + taxAmount + shippingAmount - campaignDiscountAmount - voucherDiscountAmount - bazcoinDiscountAmount);
 
   const handleSendMessage = async () => {
     if (!chatMessage.trim() || !conversation || !profile?.id || isSendingMessage) return;
@@ -426,10 +447,14 @@ export default function OrderDetailPage() {
       return labels[type] || type.toUpperCase();
     };
 
-    // Calculate totals from items
-    const calculatedSubtotal = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const shippingCost = Number(dbOrder?.shipping_cost) || 0;
-    const calculatedTotal = Number(order.total) || calculatedSubtotal + shippingCost;
+    // Calculate totals from normalized order pricing
+    const calculatedSubtotal = subtotalAmount;
+    const campaignDiscount = campaignDiscountAmount;
+    const voucherDiscount = voucherDiscountAmount;
+    const tax = taxAmount;
+    const bazcoinDiscount = bazcoinDiscountAmount;
+    const shippingCost = shippingAmount;
+    const calculatedTotal = totalAmount;
 
     // Create PDF document
     const doc = new jsPDF();
@@ -625,6 +650,30 @@ export default function OrderDetailPage() {
     rightText(formatPHP(calculatedSubtotal), y);
     y += 7;
 
+    if (campaignDiscount > 0) {
+      doc.text('Campaign Discount:', 130, y);
+      rightText(`- ${formatPHP(campaignDiscount)}`, y);
+      y += 7;
+    }
+
+    if (voucherDiscount > 0) {
+      doc.text('Voucher Discount:', 130, y);
+      rightText(`- ${formatPHP(voucherDiscount)}`, y);
+      y += 7;
+    }
+
+    if (bazcoinDiscount > 0) {
+      doc.text('BazCoins Applied:', 130, y);
+      rightText(`- ${formatPHP(bazcoinDiscount)}`, y);
+      y += 7;
+    }
+
+    if (tax > 0) {
+      doc.text('Tax (12% VAT):', 130, y);
+      rightText(formatPHP(tax), y);
+      y += 7;
+    }
+
     doc.text('Shipping:', 130, y);
     rightText(shippingCost === 0 ? 'FREE' : formatPHP(shippingCost), y);
     y += 10;
@@ -760,7 +809,7 @@ export default function OrderDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -768,7 +817,7 @@ export default function OrderDetailPage() {
         <div className="mb-6">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
+            className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
           >
             <div className="p-1.5">
               <ChevronLeft className="w-4 h-4 mt-3" />
@@ -816,7 +865,7 @@ export default function OrderDetailPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Truck className="w-5 h-5 text-[var(--brand-primary)]" />
+                  <Truck className="w-5 h-5 text-orange-500" />
                   Order Status
                 </CardTitle>
               </CardHeader>
@@ -900,7 +949,7 @@ export default function OrderDetailPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-[var(--brand-primary)]" />
+                  <Package className="w-5 h-5 text-orange-500" />
                   Items ({order.items.length})
                 </CardTitle>
               </CardHeader>
@@ -952,7 +1001,7 @@ export default function OrderDetailPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => setShowReviewModal(true)}
-                              className="mt-2 text-[var(--brand-primary)] border-[var(--brand-primary)]/30 hover:bg-[var(--brand-wash)]"
+                              className="mt-2 text-orange-600 border-orange-300 hover:bg-orange-50"
                             >
                               <Star className="w-3 h-3 mr-1" />
                               Review
@@ -978,7 +1027,7 @@ export default function OrderDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <MessageCircle className="w-5 h-5 text-[var(--brand-primary)]" />
+                    <MessageCircle className="w-5 h-5 text-orange-500" />
                     Chat with Seller
                   </div>
                   <div className="flex items-center gap-2">
@@ -993,7 +1042,7 @@ export default function OrderDetailPage() {
                   {isLoadingChat ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--brand-primary)] mx-auto mb-2"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-2"></div>
                         <p className="text-sm text-gray-500">Loading messages...</p>
                       </div>
                     </div>
@@ -1020,7 +1069,7 @@ export default function OrderDetailPage() {
                           className={cn(
                             "max-w-[70%] rounded-lg px-4 py-2",
                             msg.sender === "buyer"
-                              ? "bg-[var(--brand-primary)] text-white"
+                              ? "bg-orange-500 text-white"
                               : msg.sender === "seller"
                                 ? "bg-white border border-gray-200 text-gray-900"
                                 : "bg-blue-50 border border-blue-200 text-blue-900 text-sm",
@@ -1047,7 +1096,7 @@ export default function OrderDetailPage() {
                             className={cn(
                               "text-xs mt-1",
                               msg.sender === "buyer"
-                                ? "text-white/80"
+                                ? "text-orange-100"
                                 : "text-gray-500",
                             )}
                           >
@@ -1073,7 +1122,7 @@ export default function OrderDetailPage() {
                   <Button
                     onClick={handleSendMessage}
                     disabled={!chatMessage.trim() || !conversation || isSendingMessage}
-                    className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
                   >
                     {isSendingMessage ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1092,7 +1141,7 @@ export default function OrderDetailPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-[var(--brand-primary)]" />
+                  <Receipt className="w-5 h-5 text-orange-500" />
                   Order Summary
                 </CardTitle>
               </CardHeader>
@@ -1100,18 +1149,52 @@ export default function OrderDetailPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal</span>
                   <span className="font-medium">
-                    ₱{(order.total || 0).toLocaleString()}
+                    {"\u20B1"}{subtotalAmount.toLocaleString()}
                   </span>
                 </div>
+                {campaignDiscountAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Campaign Discount</span>
+                    <span className="font-medium text-green-600">
+                      -{"\u20B1"}{campaignDiscountAmount.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {voucherDiscountAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Voucher Discount</span>
+                    <span className="font-medium text-green-600">
+                      -{"\u20B1"}{voucherDiscountAmount.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {bazcoinDiscountAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">BazCoins Applied</span>
+                    <span className="font-medium text-green-600">
+                      -{"\u20B1"}{bazcoinDiscountAmount.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {taxAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Tax (12% VAT)</span>
+                    <span className="font-medium">{"\u20B1"}{taxAmount.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shipping</span>
-                  <span className="font-medium text-green-600">Free</span>
+                  {shippingAmount === 0 ? (
+                    <span className="font-medium text-green-600">Free</span>
+                  ) : (
+                    <span className="font-medium">{"\u20B1"}{shippingAmount.toLocaleString()}</span>
+                  )}
                 </div>
                 <div className="pt-3 border-t">
                   <div className="flex justify-between">
                     <span className="font-semibold text-gray-900">Total</span>
-                    <span className="font-bold text-lg text-[var(--brand-primary)]">
-                      ₱{(order.total || 0).toLocaleString()}
+                    <span className="font-bold text-lg text-orange-600">
+                      {"\u20B1"}{totalAmount.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -1122,7 +1205,7 @@ export default function OrderDetailPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-[var(--brand-primary)]" />
+                  <CreditCard className="w-5 h-5 text-orange-500" />
                   Payment
                 </CardTitle>
               </CardHeader>
@@ -1185,11 +1268,11 @@ export default function OrderDetailPage() {
                   )}
                   {(order.status === "delivered" ||
                     order.status === "reviewed") && (
-                      <p className="text-sm text-green-700 flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4" />
-                        Package delivered successfully!
-                      </p>
-                    )}
+                    <p className="text-sm text-green-700 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      Package delivered successfully!
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -1197,18 +1280,18 @@ export default function OrderDetailPage() {
             <ShippingAddressCard address={order.shippingAddress} />
 
             {/* Need Help */}
-            <Card className="bg-[var(--brand-wash)] border-[var(--brand-primary)]/20">
+            <Card className="bg-orange-50 border-orange-200">
               <CardContent className="p-4">
-                <h4 className="font-semibold text-[var(--text-headline)] mb-2">
+                <h4 className="font-semibold text-orange-900 mb-2">
                   Need Help?
                 </h4>
-                <p className="text-sm text-[var(--text-muted)] mb-3">
+                <p className="text-sm text-orange-800 mb-3">
                   Have questions about your order? Our support team is here to
                   help!
                 </p>
                 <Button
                   variant="outline"
-                  className="w-full border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash-gold)]/20"
+                  className="w-full border-orange-300 text-orange-700 hover:bg-orange-100"
                 >
                   Contact Support
                 </Button>
@@ -1251,7 +1334,7 @@ export default function OrderDetailPage() {
                         className={cn(
                           "w-8 h-8",
                           star <= reviewRating
-                            ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]"
+                            ? "fill-yellow-400 text-yellow-400"
                             : "text-gray-300",
                         )}
                       />
@@ -1270,7 +1353,7 @@ export default function OrderDetailPage() {
                   onChange={(e) => setReviewComment(e.target.value)}
                   placeholder="Share your experience with this product..."
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
@@ -1286,7 +1369,7 @@ export default function OrderDetailPage() {
                 </Button>
                 <Button
                   onClick={handleSubmitReview}
-                  className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
                   disabled={isSubmittingReview}
                 >
                   {isSubmittingReview ? "Submitting..." : "Submit Review"}
@@ -1301,3 +1384,4 @@ export default function OrderDetailPage() {
     </div>
   );
 }
+

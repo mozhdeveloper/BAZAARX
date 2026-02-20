@@ -139,6 +139,12 @@ export class OrderReadService {
             sort_order,
             uploaded_at
           )
+        ),
+        order_discounts (
+          discount_amount
+        ),
+        order_vouchers (
+          discount_amount
         )
       `)
       .eq(isUuid ? "id" : "order_number", orderIdOrNumber);

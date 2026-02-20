@@ -258,6 +258,12 @@ export default function OrdersPage() {
     return new Date(date).getTime();
   };
 
+  const getOrderItemKey = (orderId: string, item: any, index: number): string => {
+    const itemId = item.orderItemId || item.id || "item";
+    const variantId = item.variant?.id || "no-variant";
+    return `${orderId}-${itemId}-${variantId}-${index}`;
+  };
+
   const filteredOrders = orders
     .filter((order) => {
       const matchesSearch =
@@ -302,7 +308,7 @@ export default function OrdersPage() {
   // Always show orders page with sample orders - users should see this immediately
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -344,15 +350,15 @@ export default function OrdersPage() {
         >
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
+            className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
           >
             <div className="p-1.5">
               <ChevronLeft className="w-4 h-4 mt-4" />
             </div>
             <span className="font-medium text-sm mt-4">Back</span>
           </button>
-          <h1 className="text-xl lg:text-2xl font-bold text-[var(--text-headline)]">My Orders</h1>
-          <p className="text-[var(--text-muted)] text-sm">Track and manage all your orders</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Orders</h1>
+          <p className="text-gray-500 text-sm">Track and manage all your orders</p>
         </motion.div>
 
         {/* Filters */}
@@ -364,7 +370,7 @@ export default function OrdersPage() {
           {/* Status Navigation Container */}
           <div className="flex-1 relative min-w-0">
             <div className="overflow-x-auto scrollbar-hide pb-0.5">
-              <div className="inline-flex items-center p-1 bg-white rounded-full border border-orange-100/50 shadow-sm min-w-full md:min-w-max">
+              <div className="inline-flex items-center p-1 bg-white rounded-full border border-gray-100 shadow-sm min-w-full md:min-w-max">
                 {statusOptions.map((option) => (
                   <button
                     key={option.value}
@@ -372,8 +378,8 @@ export default function OrdersPage() {
                     className={cn(
                       "px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all duration-300",
                       statusFilter === option.value
-                        ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
-                        : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50",
+                        ? "bg-white text-[#FF5722] shadow-md shadow-orange-500/10 ring-1 ring-orange-500/10"
+                        : "text-gray-500 hover:text-[#FF5722] hover:bg-white/50",
                     )}
                   >
                     {option.label}
@@ -385,13 +391,13 @@ export default function OrdersPage() {
 
           {/* Search bar */}
           <div className="relative w-full lg:w-64 xl:w-72 flex-shrink-0 self-center">
-            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[var(--brand-primary)] w-3.5 h-3.5" />
+            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[#FF5722] w-3.5 h-3.5" />
             <input
               type="text"
               placeholder="Search orders..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-1.5 border-2 border-[var(--brand-wash-gold)]/20 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/10 focus:border-[var(--brand-primary)] bg-white text-xs sm:text-sm text-[var(--text-headline)] placeholder-[var(--text-muted)] shadow-sm transition-all hover:border-[var(--brand-primary)]/30"
+              className="w-full pl-10 pr-4 py-1.5 border-2 border-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#FF6a00]/10 focus:border-[#FF6a00] bg-white text-xs sm:text-sm text-gray-900 placeholder-gray-400 shadow-sm transition-all hover:border-[#FF5722]/30"
             />
           </div>
         </motion.div>
@@ -403,7 +409,7 @@ export default function OrdersPage() {
             className="text-center py-12"
           >
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-[var(--text-headline)] mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
               {searchQuery || statusFilter !== "all"
                 ? "No orders found"
                 : "No orders yet"}
@@ -419,7 +425,7 @@ export default function OrdersPage() {
                   setSearchQuery("");
                   setStatusFilter("all");
                 }}
-                className="mt-4 px-4 py-2 bg-[var(--brand-primary)] text-white rounded-lg hover:bg-[var(--brand-primary-dark)] transition-colors"
+                className="mt-4 px-4 py-2 bg-[#FF5722] text-white rounded-lg hover:bg-[#E64A19] transition-colors"
               >
                 Clear Filters
               </button>
@@ -434,17 +440,17 @@ export default function OrdersPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-white shadow-sm rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
+                className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
               >
                 {order.status === "reviewed" ? (
                   <div className="flex flex-col gap-2">
-                    <div className="border-b border-[var(--brand-wash-gold)]/20 pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="border-b border-gray-100 pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2 group/store cursor-pointer" onClick={(e) => {
                         e.stopPropagation();
                         navigate(`/seller/${(order as any).sellerId}`);
                       }}>
-                        <span className="font-bold text-[var(--text-headline)] group-hover/store:text-[var(--brand-primary)] transition-colors">{(order as any).storeName}</span>
-                        <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover/store:text-[var(--brand-primary)] transition-colors" />
+                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722] transition-colors">{(order as any).storeName}</span>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover/store:text-[#FF5722] transition-colors" />
                       </div>
 
                       <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
@@ -459,9 +465,9 @@ export default function OrdersPage() {
                         navigate(`/order/${encodeURIComponent(order.id)}`)
                       }
                     >
-                      {order.items.map((item) => (
+                      {order.items.map((item, itemIndex) => (
                         <div
-                          key={item.id}
+                          key={getOrderItemKey(order.id, item, itemIndex)}
                           className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-2 last:border-0 last:pb-0"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -471,11 +477,11 @@ export default function OrdersPage() {
                               className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
                             />
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-[var(--text-headline)] line-clamp-1">
+                              <span className="text-sm font-medium text-gray-800 line-clamp-1">
                                 {item.name}
                               </span>
                               {(item as any).variantDisplay && (
-                                <span className="text-xs text-[var(--brand-primary)] font-medium">
+                                <span className="text-xs text-orange-600 font-medium">
                                   {(item as any).variantDisplay}
                                 </span>
                               )}
@@ -484,14 +490,14 @@ export default function OrdersPage() {
                               </span>
                             </div>
                           </div>
-                          <div className="text-sm font-semibold text-[var(--text-headline)] whitespace-nowrap pl-2">
+                          <div className="text-sm font-semibold text-gray-900 whitespace-nowrap pl-2">
                             ₱{item.price.toLocaleString()}
                           </div>
                         </div>
                       ))}
                       <div className="flex justify-end items-center pt-2 border-t border-gray-50">
                         <span className="text-sm text-gray-500 mr-2">Order Total:</span>
-                        <span className="text-lg font-bold text-[var(--brand-primary)]">₱{order.total.toLocaleString()}</span>
+                        <span className="text-lg font-bold text-[#FF5722]">₱{order.total.toLocaleString()}</span>
                       </div>
                     </div>
                     {order.review && (
@@ -507,7 +513,7 @@ export default function OrdersPage() {
                           )}
                           <span className="text-sm font-medium text-gray-500 flex items-center gap-1 ml-2">
                             {order.review.rating}/5{" "}
-                            <Star className="w-3.5 h-3.5 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
+                            <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
                           </span>
                         </div>
                         <div className="flex justify-between items-start gap-4">
@@ -520,7 +526,7 @@ export default function OrdersPage() {
                                 {order.review.images.map((img, idx) => (
                                   <div
                                     key={idx}
-                                    className="w-12 h-12 rounded-lg border border-[var(--brand-wash-gold)]/30 overflow-hidden cursor-pointer hover:ring-2 hover:ring-[var(--brand-primary)] transition-all"
+                                    className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#FF6a00] transition-all"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setViewImage(img);
@@ -542,18 +548,18 @@ export default function OrdersPage() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {/* Compact Header */}
-                    <div className="border-b border-[var(--brand-wash-gold)]/20 pb-2 mb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="border-b border-gray-100 pb-2 mb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2 group/store cursor-pointer" onClick={(e) => {
                         e.stopPropagation();
                         navigate(`/seller/${(order as any).sellerId}`);
                       }}>
-                        <span className="font-bold text-[var(--text-headline)] group-hover/store:text-[var(--brand-primary)] transition-colors">{(order as any).storeName}</span>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover/store:text-[var(--brand-primary)] transition-colors" />
+                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722] transition-colors">{(order as any).storeName}</span>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover/store:text-[#FF5722] transition-colors" />
                       </div>
 
                       <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
                         {isNewOrder(order) && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--brand-primary)] text-white animate-pulse">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500 text-white animate-pulse">
                             <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
                             NEW
                           </span>
@@ -576,23 +582,23 @@ export default function OrdersPage() {
                         navigate(`/order/${encodeURIComponent(order.id)}`)
                       }
                     >
-                      {order.items.map((item) => (
+                      {order.items.map((item, itemIndex) => (
                         <div
-                          key={item.id}
-                          className="flex items-center justify-between gap-3 w-full pb-2 last:border-0 last:pb-0"
+                          key={getOrderItemKey(order.id, item, itemIndex)}
+                          className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-2 last:border-0 last:pb-0"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                             <img
                               src={item.image}
                               alt={item.name}
-                              className="w-12 h-12 object-cover rounded-md shadow-sm border border-[var(--brand-wash-gold)]/30"
+                              className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
                             />
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-[var(--text-headline)] line-clamp-1">
+                              <span className="text-sm font-medium text-gray-800 line-clamp-1">
                                 {item.name}
                               </span>
                               {(item as any).variantDisplay && (
-                                <span className="text-xs text-[var(--brand-primary)] font-medium">
+                                <span className="text-xs text-orange-600 font-medium">
                                   {(item as any).variantDisplay}
                                 </span>
                               )}
@@ -601,14 +607,14 @@ export default function OrdersPage() {
                               </span>
                             </div>
                           </div>
-                          <div className="text-sm font-semibold text-[var(--text-headline)] whitespace-nowrap pl-2">
+                          <div className="text-sm font-semibold text-gray-900 whitespace-nowrap pl-2">
                             ₱{item.price.toLocaleString()}
                           </div>
                         </div>
                       ))}
                       <div className="flex justify-end items-center pt-2 border-t border-gray-50">
                         <span className="text-sm text-gray-500 mr-2">Order Total:</span>
-                        <span className="text-lg font-bold text-[var(--brand-primary)]">₱{order.total.toLocaleString()}</span>
+                        <span className="text-lg font-bold text-[#FF5722]">₱{order.total.toLocaleString()}</span>
                       </div>
                     </div>
 
@@ -666,7 +672,7 @@ export default function OrdersPage() {
                                   }}
                                   size="sm"
                                   variant="outline"
-                                  className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white hover:border-[var(--brand-primary)]"
+                                  className="border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722] hover:text-white hover:border-[#FF5722]"
                                 >
                                   Write Review
                                 </Button>
@@ -713,7 +719,7 @@ export default function OrdersPage() {
                                   });
                                 }}
                                 size="sm"
-                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md shadow-[var(--brand-primary)]/20"
+                                className="bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-md shadow-orange-500/20"
                               >
                                 Buy Again
                               </Button>
@@ -726,7 +732,7 @@ export default function OrdersPage() {
                               }
                               variant="outline"
                               size="sm"
-                              className="border-gray-300 text-gray-500 hover:bg-[var(--brand-primary)] hover:text-white"
+                              className="border-gray-300 text-gray-500 hover:bg-gray-50"
                             >
                               <Eye className="w-4 h-4 mr-1" />
                               View Details
@@ -737,7 +743,7 @@ export default function OrdersPage() {
                               onClick={() => setViewReturnDetails(order)}
                               variant="outline"
                               size="sm"
-                              className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
+                              className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
                             >
                               <Eye className="w-4 h-4 mr-1" />
                               View Details
@@ -849,8 +855,8 @@ export default function OrdersPage() {
                 Items Ordered
               </h3>
               <div className="space-y-4">
-                {selectedOrderData.items.map((item) => (
-                  <div key={item.id} className="flex gap-4">
+                {selectedOrderData.items.map((item, itemIndex) => (
+                  <div key={getOrderItemKey(selectedOrderData.id, item, itemIndex)} className="flex gap-4">
                     <img
                       src={item.image}
                       alt={item.name}
@@ -997,9 +1003,9 @@ export default function OrdersPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3">Items</h3>
                 <div className="space-y-3">
-                  {viewReturnDetails.items.map((item: any) => (
+                  {viewReturnDetails.items.map((item: any, itemIndex: number) => (
                     <div
-                      key={item.id}
+                      key={getOrderItemKey(viewReturnDetails.id, item, itemIndex)}
                       className="flex gap-3 bg-gray-50 rounded-lg p-3"
                     >
                       <img
@@ -1014,7 +1020,7 @@ export default function OrdersPage() {
                         <p className="text-sm text-gray-600">
                           Quantity: {item.quantity}
                         </p>
-                        <p className="text-sm font-medium text-[var(--brand-primary)]">
+                        <p className="text-sm font-medium text-[#FF6a00]">
                           ₱{(item.price * item.quantity).toLocaleString()}
                         </p>
                       </div>
@@ -1028,7 +1034,7 @@ export default function OrdersPage() {
                 <h3 className="font-semibold text-gray-900 mb-3">
                   Return/Refund Information
                 </h3>
-                <div className="bg-[var(--brand-wash)] border border-[var(--brand-primary)]/20 rounded-lg p-4 space-y-3">
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-3">
                   {viewReturnDetails.returnRequest ? (
                     <>
                       <div>
@@ -1067,7 +1073,7 @@ export default function OrdersPage() {
                         <span className="text-sm font-medium text-gray-700">
                           Status:
                         </span>
-                        <p className="text-[var(--brand-primary)] font-medium">
+                        <p className="text-orange-600 font-medium">
                           Pending Review
                         </p>
                       </div>
@@ -1089,7 +1095,7 @@ export default function OrdersPage() {
                         <span className="text-sm font-medium text-gray-700">
                           Refund Amount:
                         </span>
-                        <p className="text-[var(--brand-primary)] font-bold text-lg">
+                        <p className="text-[#FF6a00] font-bold text-lg">
                           ₱
                           {viewReturnDetails.returnRequest.refundAmount.toLocaleString()}
                         </p>
@@ -1200,7 +1206,7 @@ export default function OrdersPage() {
                     className={cn(
                       "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
                       cancelReason === reason
-                        ? "border-[var(--brand-primary)] bg-[var(--brand-wash)]"
+                        ? "border-[#FF5722] bg-orange-50"
                         : "border-gray-200 hover:border-gray-300"
                     )}
                   >
@@ -1210,7 +1216,7 @@ export default function OrdersPage() {
                       value={reason}
                       checked={cancelReason === reason}
                       onChange={(e) => setCancelReason(e.target.value)}
-                      className="accent-[var(--brand-primary)]"
+                      className="accent-[#FF5722]"
                     />
                     <span className="text-sm text-gray-700">{reason}</span>
                   </label>
@@ -1223,7 +1229,7 @@ export default function OrdersPage() {
                   placeholder="Please specify your reason..."
                   value={otherReason}
                   onChange={(e) => setOtherReason(e.target.value)}
-                  className="w-full p-3 border rounded-lg text-sm mb-4 focus:ring-2 focus:ring-[var(--brand-primary)] focus:outline-none"
+                  className="w-full p-3 border rounded-lg text-sm mb-4 focus:ring-2 focus:ring-[#FF5722] focus:outline-none"
                   rows={2}
                 />
               )}

@@ -14,10 +14,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
   const hasDiscount =
     product.originalPrice && product.originalPrice > product.price;
   const discountPercent = hasDiscount
-    ? Math.round(
-      ((product.originalPrice! - product.price) / product.originalPrice!) *
-      100,
-    )
+    ? (typeof product.discountBadgePercent === 'number'
+      ? product.discountBadgePercent
+      : Math.round(
+        ((product.originalPrice! - product.price) / product.originalPrice!) *
+        100,
+      ))
     : 0;
 
   return (
@@ -35,7 +37,10 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
         />
         {hasDiscount && (
-          <div className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider">
+          <div
+            title={product.discountBadgeTooltip}
+            className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider"
+          >
             -{discountPercent}%
           </div>
         )}

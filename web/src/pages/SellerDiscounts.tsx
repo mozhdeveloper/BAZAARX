@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -13,14 +13,17 @@ import {
   TrendingUp,
   Calendar,
   Percent,
+  LogOut,
   Zap,
   ShoppingBag,
   Eye,
   X,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SellerSidebar } from "@/components/seller/SellerSidebar";
+import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/stores/sellerStore";
+import { sellerLinks } from "@/config/sellerLinks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -57,7 +60,38 @@ import {
   campaignStatusColors as statusColors,
 } from "@/types/discount";
 
+const Logo = () => (
+  <Link
+    to="/seller"
+    className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+  >
+    <img
+      src="/Logo.png"
+      alt="BazaarPH Logo"
+      className="h-8 w-8 object-contain flex-shrink-0"
+    />
+    <motion.span
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="font-semibold text-gray-900 whitespace-pre"
+    >
+      BazaarPH Seller
+    </motion.span>
+  </Link>
+);
 
+const LogoIcon = () => (
+  <Link
+    to="/seller"
+    className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+  >
+    <img
+      src="/Logo.png"
+      alt="BazaarPH Logo"
+      className="h-8 w-8 object-contain flex-shrink-0"
+    />
+  </Link>
+);
 
 // Countdown Timer Component
 const CountdownTimer = ({ endDate }: { endDate: Date }) => {
@@ -101,6 +135,24 @@ const CountdownTimer = ({ endDate }: { endDate: Date }) => {
 };
 
 export default function SellerDiscounts() {
+  const parseDateTimeLocal = (value: string): Date => {
+    const [datePart, timePart] = value.split("T");
+    if (!datePart || !timePart) return new Date(value);
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hour, minute] = timePart.split(":").map(Number);
+    return new Date(year, (month || 1) - 1, day || 1, hour || 0, minute || 0);
+  };
+
+  const formatDateTimeLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const [open, setOpen] = useState(false);
   const [campaigns, setCampaigns] = useState<DiscountCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -114,7 +166,7 @@ export default function SellerDiscounts() {
   const [viewingCampaign, setViewingCampaign] = useState<DiscountCampaign | null>(null);
   const [campaignProducts, setCampaignProducts] = useState<Record<string, ProductDiscount[]>>({});
 
-  const { seller } = useAuthStore();
+  const { seller, logout } = useAuthStore();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -131,7 +183,7 @@ export default function SellerDiscounts() {
     endsAt: "",
     badgeText: "",
     badgeColor: "#FF6A00",
-    totalUsageLimit: "",
+    claimLimit: "",
     perCustomerLimit: "1",
     appliesTo: "all_products" as AppliesTo,
   });
@@ -178,7 +230,10 @@ export default function SellerDiscounts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller?.id]);
 
-
+  const handleLogout = () => {
+    logout();
+    navigate("/seller/auth");
+  };
 
   // Calculate stats
   const stats = {
@@ -220,12 +275,12 @@ export default function SellerDiscounts() {
         minPurchaseAmount: formData.minPurchaseAmount
           ? parseFloat(formData.minPurchaseAmount)
           : 0,
-        startsAt: new Date(formData.startsAt),
-        endsAt: new Date(formData.endsAt),
+        startsAt: parseDateTimeLocal(formData.startsAt),
+        endsAt: parseDateTimeLocal(formData.endsAt),
         badgeText: formData.badgeText,
         badgeColor: formData.badgeColor,
-        totalUsageLimit: formData.totalUsageLimit
-          ? parseInt(formData.totalUsageLimit)
+        claimLimit: formData.claimLimit
+          ? parseInt(formData.claimLimit)
           : undefined,
         perCustomerLimit: parseInt(formData.perCustomerLimit),
         appliesTo: formData.appliesTo,
@@ -266,12 +321,12 @@ export default function SellerDiscounts() {
         minPurchaseAmount: formData.minPurchaseAmount
           ? parseFloat(formData.minPurchaseAmount)
           : 0,
-        startsAt: new Date(formData.startsAt),
-        endsAt: new Date(formData.endsAt),
+        startsAt: parseDateTimeLocal(formData.startsAt),
+        endsAt: parseDateTimeLocal(formData.endsAt),
         badgeText: formData.badgeText,
         badgeColor: formData.badgeColor,
-        totalUsageLimit: formData.totalUsageLimit
-          ? parseInt(formData.totalUsageLimit)
+        claimLimit: formData.claimLimit
+          ? parseInt(formData.claimLimit)
           : undefined,
         perCustomerLimit: parseInt(formData.perCustomerLimit),
         appliesTo: formData.appliesTo,
@@ -347,6 +402,27 @@ export default function SellerDiscounts() {
     }
   };
 
+  // Deactivate campaign (set status to cancelled)
+  const handleDeactivateCampaign = async (id: string) => {
+    if (!confirm("Are you sure you want to deactivate this campaign?")) return;
+
+    try {
+      await discountService.deactivateCampaign(id);
+      toast({
+        title: "Campaign Deactivated",
+        description: "Campaign has been deactivated successfully.",
+      });
+      fetchCampaigns();
+    } catch (error) {
+      console.error("Failed to deactivate campaign:", error);
+      toast({
+        title: "Error",
+        description: "Failed to deactivate campaign.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const openEditDialog = (campaign: DiscountCampaign) => {
     setEditingCampaign(campaign);
     setFormData({
@@ -357,11 +433,11 @@ export default function SellerDiscounts() {
       discountValue: campaign.discountValue.toString(),
       maxDiscountAmount: campaign.maxDiscountAmount?.toString() || "",
       minPurchaseAmount: campaign.minPurchaseAmount?.toString() || "",
-      startsAt: campaign.startsAt.toISOString().slice(0, 16),
-      endsAt: campaign.endsAt.toISOString().slice(0, 16),
+      startsAt: formatDateTimeLocal(campaign.startsAt),
+      endsAt: formatDateTimeLocal(campaign.endsAt),
       badgeText: campaign.badgeText || "",
       badgeColor: campaign.badgeColor || "#FF6A00",
-      totalUsageLimit: campaign.totalUsageLimit?.toString() || "",
+      claimLimit: campaign.claimLimit?.toString() || "",
       perCustomerLimit: campaign.perCustomerLimit.toString(),
       appliesTo: campaign.appliesTo,
     });
@@ -381,109 +457,141 @@ export default function SellerDiscounts() {
       endsAt: "",
       badgeText: "",
       badgeColor: "#FF6A00",
-      totalUsageLimit: "",
+      claimLimit: "",
       perCustomerLimit: "1",
       appliesTo: "all_products",
     });
   };
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
-      <SellerSidebar />
+    <div
+      className={cn(
+        "flex flex-col md:flex-row bg-gray-50 w-full flex-1 mx-auto border border-neutral-200 overflow-hidden",
+        "h-screen"
+      )}
+    >
+      <Sidebar open={open} setOpen={setOpen}>
+        <SidebarBody className="justify-between gap-10">
+          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+            {open ? <Logo /> : <LogoIcon />}
+            <div className="mt-8 flex flex-col gap-2">
+              {sellerLinks.map((link, idx) => (
+                <SidebarLink key={idx} link={link} />
+              ))}
+            </div>
+          </div>
+          <div>
+            <SidebarLink
+              link={{
+                label: seller?.name || "Seller",
+                href: "#",
+                icon: (
+                  <img
+                    src={seller?.avatar || "https://avatar.vercel.sh/seller"}
+                    className="h-7 w-7 flex-shrink-0 rounded-full"
+                    alt="Avatar"
+                  />
+                ),
+              }}
+            />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-neutral-700 hover:bg-gray-100 rounded-md"
+            >
+              <LogOut className="h-4 w-4" />
+              {open && <span>Logout</span>}
+            </button>
+          </div>
+        </SidebarBody>
+      </Sidebar>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto relative z-10 scrollbar-hide">
-        <div className="w-full max-w-7xl mx-auto space-y-8">
+      <div className="flex-1 overflow-auto">
+        <div className="w-full max-w-7xl mx-auto">
           <div className="p-6 md:p-8">
             {/* Header */}
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex justify-between items-center mb-6">
               <div>
-                <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight flex items-center gap-3">
+                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                  <Zap className="h-8 w-8 text-orange-600" />
                   Discount Campaigns
                 </h1>
-                <p className="text-[var(--text-muted)] mt-1">
+                <p className="text-gray-600 mt-1">
                   Create and manage your discount campaigns
                 </p>
               </div>
-              <Button onClick={() => setIsCreateDialogOpen(true)} size="lg" className="rounded-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:scale-105 transition-all">
+              <Button onClick={() => setIsCreateDialogOpen(true)} size="lg">
                 <Plus className="h-5 w-5 mr-2" />
                 Create Campaign
               </Button>
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white p-6 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-[var(--text-secondary)]">Active Campaigns</p>
-                    <p className="text-2xl font-black text-green-600 mt-1">{stats.active}</p>
+                    <p className="text-sm text-gray-600">Active Campaigns</p>
+                    <p className="text-2xl font-bold text-green-600">{stats.active}</p>
                   </div>
-                  <div className="p-3 bg-green-50 rounded-2xl">
-                    <TrendingUp className="h-6 w-6 text-green-600" />
-                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-600" />
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-[var(--text-secondary)]">Scheduled</p>
-                    <p className="text-2xl font-black text-blue-600 mt-1">{stats.scheduled}</p>
+                    <p className="text-sm text-gray-600">Scheduled</p>
+                    <p className="text-2xl font-bold text-blue-600">{stats.scheduled}</p>
                   </div>
-                  <div className="p-3 bg-blue-50 rounded-2xl">
-                    <Calendar className="h-6 w-6 text-blue-600" />
-                  </div>
+                  <Calendar className="h-8 w-8 text-blue-600" />
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-[var(--text-secondary)]">Total Usage</p>
-                    <p className="text-2xl font-black text-purple-600 mt-1">{stats.totalUsage}</p>
+                    <p className="text-sm text-gray-600">Total Usage</p>
+                    <p className="text-2xl font-bold text-purple-600">{stats.totalUsage}</p>
                   </div>
-                  <div className="p-3 bg-purple-50 rounded-2xl">
-                    <Package className="h-6 w-6 text-purple-600" />
-                  </div>
+                  <Package className="h-8 w-8 text-purple-600" />
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-[var(--text-secondary)]">Avg Discount</p>
-                    <p className="text-2xl font-black text-orange-600 mt-1">{stats.avgDiscount}%</p>
+                    <p className="text-sm text-gray-600">Avg Discount</p>
+                    <p className="text-2xl font-bold text-orange-600">{stats.avgDiscount}%</p>
                   </div>
-                  <div className="p-3 bg-orange-50 rounded-2xl">
-                    <Percent className="h-6 w-6 text-orange-600" />
-                  </div>
+                  <Percent className="h-8 w-8 text-orange-600" />
                 </div>
               </div>
             </div>
 
             {/* Filters */}
-            <div className="mb-8">
+            <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
               <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative group">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5 group-focus-within:text-[var(--brand-primary)] transition-colors" />
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <Input
                     placeholder="Search campaigns..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-12 rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 transition-all font-medium py-6"
+                    className="pl-10"
                   />
                 </div>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-full md:w-48 rounded-xl border-gray-200 py-6 font-medium">
+                  <SelectTrigger className="w-full md:w-48">
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-100 shadow-lg">
+                  <SelectContent>
                     <SelectItem value="all">All Campaigns</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="scheduled">Scheduled</SelectItem>
                     <SelectItem value="paused">Paused</SelectItem>
                     <SelectItem value="ended">Ended</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -511,7 +619,7 @@ export default function SellerDiscounts() {
                 {filteredCampaigns.map((campaign) => (
                   <div
                     key={campaign.id}
-                    className="bg-white p-8 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+                    className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -559,7 +667,7 @@ export default function SellerDiscounts() {
                                 ? "All Products"
                                 : campaign.appliesTo === "specific_products"
                                   ? `${campaignProducts[campaign.id]?.length || 0} Products`
-                                  : "Categories"}
+                                  : "Specific Scope"}
                             </span>
                           </div>
                           {campaign.status === "active" && (
@@ -615,7 +723,8 @@ export default function SellerDiscounts() {
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        {campaign.status !== "ended" && (
+                        {campaign.status !== "ended" &&
+                          campaign.status !== "cancelled" && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -628,6 +737,16 @@ export default function SellerDiscounts() {
                             ) : (
                               <Pause className="h-4 w-4" />
                             )}
+                          </Button>
+                        )}
+                        {campaign.status !== "cancelled" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeactivateCampaign(campaign.id)}
+                            title="Deactivate campaign"
+                          >
+                            <XCircle className="h-4 w-4 text-amber-600" />
                           </Button>
                         )}
                         <Button
@@ -690,10 +809,10 @@ export default function SellerDiscounts() {
                       setFormData({ ...formData, campaignType: value as CampaignType })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="campaignType">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent portal={false} className="z-[100] max-h-60">
                       {Object.entries(typeLabels).map(([key, label]) => (
                         <SelectItem key={key} value={key}>
                           {label}
@@ -711,10 +830,10 @@ export default function SellerDiscounts() {
                       setFormData({ ...formData, discountType: value as DiscountType })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="discountType">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent portal={false} className="z-[100] max-h-60">
                       <SelectItem value="percentage">Percentage</SelectItem>
                       <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
                     </SelectContent>
@@ -818,13 +937,13 @@ export default function SellerDiscounts() {
                 </div>
 
                 <div>
-                  <Label htmlFor="totalUsageLimit">Total Usage Limit</Label>
+                  <Label htmlFor="claimLimit">Claim Limit</Label>
                   <Input
-                    id="totalUsageLimit"
+                    id="claimLimit"
                     type="number"
-                    value={formData.totalUsageLimit}
+                    value={formData.claimLimit}
                     onChange={(e) =>
-                      setFormData({ ...formData, totalUsageLimit: e.target.value })
+                      setFormData({ ...formData, claimLimit: e.target.value })
                     }
                     placeholder="Optional"
                   />
@@ -839,13 +958,15 @@ export default function SellerDiscounts() {
                     setFormData({ ...formData, appliesTo: value as AppliesTo })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="appliesTo">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent portal={false} className="z-[100] max-h-60">
                     <SelectItem value="all_products">All Products</SelectItem>
                     <SelectItem value="specific_products">Specific Products</SelectItem>
-                    <SelectItem value="specific_categories">Specific Categories</SelectItem>
+                    <SelectItem value="specific_categories" disabled>
+                      Specific Categories (Unavailable)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 {formData.appliesTo === "specific_products" && (
@@ -907,10 +1028,10 @@ export default function SellerDiscounts() {
                       setFormData({ ...formData, campaignType: value as CampaignType })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-campaignType">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent portal={false} className="z-[100] max-h-60">
                       {Object.entries(typeLabels).map(([key, label]) => (
                         <SelectItem key={key} value={key}>
                           {label}
@@ -928,10 +1049,10 @@ export default function SellerDiscounts() {
                       setFormData({ ...formData, discountType: value as DiscountType })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-discountType">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent portal={false} className="z-[100] max-h-60">
                       <SelectItem value="percentage">Percentage</SelectItem>
                       <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
                     </SelectContent>
@@ -1032,13 +1153,13 @@ export default function SellerDiscounts() {
                 </div>
 
                 <div>
-                  <Label htmlFor="edit-totalUsageLimit">Total Usage Limit</Label>
+                  <Label htmlFor="edit-claimLimit">Claim Limit</Label>
                   <Input
-                    id="edit-totalUsageLimit"
+                    id="edit-claimLimit"
                     type="number"
-                    value={formData.totalUsageLimit}
+                    value={formData.claimLimit}
                     onChange={(e) =>
-                      setFormData({ ...formData, totalUsageLimit: e.target.value })
+                      setFormData({ ...formData, claimLimit: e.target.value })
                     }
                   />
                 </div>
@@ -1052,13 +1173,15 @@ export default function SellerDiscounts() {
                     setFormData({ ...formData, appliesTo: value as AppliesTo })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="edit-appliesTo">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent portal={false} className="z-[100] max-h-60">
                     <SelectItem value="all_products">All Products</SelectItem>
                     <SelectItem value="specific_products">Specific Products</SelectItem>
-                    <SelectItem value="specific_categories">Specific Categories</SelectItem>
+                    <SelectItem value="specific_categories" disabled>
+                      Specific Categories (Unavailable)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 {formData.appliesTo === "specific_products" && (
@@ -1228,5 +1351,3 @@ export default function SellerDiscounts() {
     </div>
   );
 }
-
-
