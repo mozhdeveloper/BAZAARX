@@ -328,6 +328,27 @@ export default function OrderDetailPage() {
     },
   ];
 
+  const subtotalAmount =
+    order.pricing?.subtotal ??
+    order.items.reduce((sum, item) => {
+      const baseUnitPrice = Number(item.originalPrice ?? item.price);
+      return sum + (baseUnitPrice * item.quantity);
+    }, 0);
+  const campaignDiscountAmount =
+    order.pricing?.campaignDiscount ??
+    order.items.reduce((sum, item) => {
+      const baseUnitPrice = Number(item.originalPrice ?? item.price);
+      const effectiveUnitPrice = Number(item.price || 0);
+      return sum + Math.max(0, baseUnitPrice - effectiveUnitPrice) * item.quantity;
+    }, 0);
+  const voucherDiscountAmount = order.pricing?.voucherDiscount ?? 0;
+  const taxAmount = order.pricing?.tax ?? 0;
+  const bazcoinDiscountAmount = order.pricing?.bazcoinDiscount ?? 0;
+  const shippingAmount = order.pricing?.shipping ?? Number(dbOrder?.shipping_cost || 0);
+  const totalAmount =
+    order.pricing?.total ??
+    Math.max(0, subtotalAmount + taxAmount + shippingAmount - campaignDiscountAmount - voucherDiscountAmount - bazcoinDiscountAmount);
+
   const handleSendMessage = async () => {
     if (!chatMessage.trim() || !conversation || !profile?.id || isSendingMessage) return;
 
@@ -426,10 +447,14 @@ export default function OrderDetailPage() {
       return labels[type] || type.toUpperCase();
     };
 
-    // Calculate totals from items
-    const calculatedSubtotal = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const shippingCost = Number(dbOrder?.shipping_cost) || 0;
-    const calculatedTotal = Number(order.total) || calculatedSubtotal + shippingCost;
+    // Calculate totals from normalized order pricing
+    const calculatedSubtotal = subtotalAmount;
+    const campaignDiscount = campaignDiscountAmount;
+    const voucherDiscount = voucherDiscountAmount;
+    const tax = taxAmount;
+    const bazcoinDiscount = bazcoinDiscountAmount;
+    const shippingCost = shippingAmount;
+    const calculatedTotal = totalAmount;
 
     // Create PDF document
     const doc = new jsPDF();
@@ -624,6 +649,30 @@ export default function OrderDetailPage() {
     doc.text('Subtotal:', 130, y);
     rightText(formatPHP(calculatedSubtotal), y);
     y += 7;
+
+    if (campaignDiscount > 0) {
+      doc.text('Campaign Discount:', 130, y);
+      rightText(`- ${formatPHP(campaignDiscount)}`, y);
+      y += 7;
+    }
+
+    if (voucherDiscount > 0) {
+      doc.text('Voucher Discount:', 130, y);
+      rightText(`- ${formatPHP(voucherDiscount)}`, y);
+      y += 7;
+    }
+
+    if (bazcoinDiscount > 0) {
+      doc.text('BazCoins Applied:', 130, y);
+      rightText(`- ${formatPHP(bazcoinDiscount)}`, y);
+      y += 7;
+    }
+
+    if (tax > 0) {
+      doc.text('Tax (12% VAT):', 130, y);
+      rightText(formatPHP(tax), y);
+      y += 7;
+    }
 
     doc.text('Shipping:', 130, y);
     rightText(shippingCost === 0 ? 'FREE' : formatPHP(shippingCost), y);
@@ -1100,18 +1149,52 @@ export default function OrderDetailPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal</span>
                   <span className="font-medium">
-                    ₱{(order.total || 0).toLocaleString()}
+                    {"\u20B1"}{subtotalAmount.toLocaleString()}
                   </span>
                 </div>
+                {campaignDiscountAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Campaign Discount</span>
+                    <span className="font-medium text-green-600">
+                      -{"\u20B1"}{campaignDiscountAmount.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {voucherDiscountAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Voucher Discount</span>
+                    <span className="font-medium text-green-600">
+                      -{"\u20B1"}{voucherDiscountAmount.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {bazcoinDiscountAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">BazCoins Applied</span>
+                    <span className="font-medium text-green-600">
+                      -{"\u20B1"}{bazcoinDiscountAmount.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {taxAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Tax (12% VAT)</span>
+                    <span className="font-medium">{"\u20B1"}{taxAmount.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shipping</span>
-                  <span className="font-medium text-green-600">Free</span>
+                  {shippingAmount === 0 ? (
+                    <span className="font-medium text-green-600">Free</span>
+                  ) : (
+                    <span className="font-medium">{"\u20B1"}{shippingAmount.toLocaleString()}</span>
+                  )}
                 </div>
                 <div className="pt-3 border-t">
                   <div className="flex justify-between">
                     <span className="font-semibold text-gray-900">Total</span>
                     <span className="font-bold text-lg text-orange-600">
-                      ₱{(order.total || 0).toLocaleString()}
+                      {"\u20B1"}{totalAmount.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -1301,3 +1384,4 @@ export default function OrderDetailPage() {
     </div>
   );
 }
+

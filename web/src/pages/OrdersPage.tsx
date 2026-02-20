@@ -258,6 +258,12 @@ export default function OrdersPage() {
     return new Date(date).getTime();
   };
 
+  const getOrderItemKey = (orderId: string, item: any, index: number): string => {
+    const itemId = item.orderItemId || item.id || "item";
+    const variantId = item.variant?.id || "no-variant";
+    return `${orderId}-${itemId}-${variantId}-${index}`;
+  };
+
   const filteredOrders = orders
     .filter((order) => {
       const matchesSearch =
@@ -459,9 +465,9 @@ export default function OrdersPage() {
                         navigate(`/order/${encodeURIComponent(order.id)}`)
                       }
                     >
-                      {order.items.map((item) => (
+                      {order.items.map((item, itemIndex) => (
                         <div
-                          key={item.id}
+                          key={getOrderItemKey(order.id, item, itemIndex)}
                           className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-2 last:border-0 last:pb-0"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -576,9 +582,9 @@ export default function OrdersPage() {
                         navigate(`/order/${encodeURIComponent(order.id)}`)
                       }
                     >
-                      {order.items.map((item) => (
+                      {order.items.map((item, itemIndex) => (
                         <div
-                          key={item.id}
+                          key={getOrderItemKey(order.id, item, itemIndex)}
                           className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-2 last:border-0 last:pb-0"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -849,8 +855,8 @@ export default function OrdersPage() {
                 Items Ordered
               </h3>
               <div className="space-y-4">
-                {selectedOrderData.items.map((item) => (
-                  <div key={item.id} className="flex gap-4">
+                {selectedOrderData.items.map((item, itemIndex) => (
+                  <div key={getOrderItemKey(selectedOrderData.id, item, itemIndex)} className="flex gap-4">
                     <img
                       src={item.image}
                       alt={item.name}
@@ -997,9 +1003,9 @@ export default function OrdersPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3">Items</h3>
                 <div className="space-y-3">
-                  {viewReturnDetails.items.map((item: any) => (
+                  {viewReturnDetails.items.map((item: any, itemIndex: number) => (
                     <div
-                      key={item.id}
+                      key={getOrderItemKey(viewReturnDetails.id, item, itemIndex)}
                       className="flex gap-3 bg-gray-50 rounded-lg p-3"
                     >
                       <img
