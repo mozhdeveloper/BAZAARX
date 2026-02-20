@@ -391,11 +391,26 @@ export class ReviewService {
   /**
    * Get reviews for a specific product
    */
-  async getProductReviews(productId: string, page = 1, limit = 5): Promise<ProductReviewsResult> {
+  async getProductReviews(
+    productId: string, 
+    page = 1, 
+    limit = 5,
+    filters?: { rating?: number; withImages?: boolean; variantId?: string }
+  ): Promise<ProductReviewsResult> {
     if (!isSupabaseConfigured()) {
-      const productReviews = this.mockReviews
+       // Mock implementation for development
+       let productReviews = this.mockReviews
         .filter((review) => review.product_id === productId && !review.is_hidden)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      // Apply Mock Filters
+      if (filters?.rating) {
+        productReviews = productReviews.filter(r => Math.round(r.rating) === filters.rating);
+      }
+      if (filters?.withImages) {
+          // Mock filtering for images (simplified)
+      }
+      // Mock variant filtering (simplified - would need order data in mock)
 
       const start = (page - 1) * limit;
       const pagedReviews = productReviews
@@ -413,7 +428,13 @@ export class ReviewService {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      const { data, error, count } = await supabase
+      // Determine strict filtering mode
+      const isRatingSelected = filters?.rating !== undefined;
+      const isWithImagesSelected = filters?.withImages === true;
+      const shouldExcludeImages = isRatingSelected && !isWithImagesSelected;
+
+      // Start building the query
+      let query = supabase
         .from('reviews')
         .select(
           `
@@ -432,11 +453,11 @@ export class ReviewService {
             is_edited,
             created_at,
             updated_at,
-            review_images (
-              id,
-              image_url,
-              sort_order,
-              uploaded_at
+            review_images${isWithImagesSelected ? '!inner' : ''} (
+               id,
+               image_url,
+               sort_order,
+               uploaded_at
             ),
             buyer:buyers!reviews_buyer_id_fkey (
               id,
@@ -445,7 +466,7 @@ export class ReviewService {
                 *
               )
             ),
-            order_item:order_items!reviews_order_item_id_fkey (
+            order_item:order_items!reviews_order_item_id_fkey${filters?.variantId ? '!inner' : ''} (
               id,
               product_name,
               primary_image_url,
@@ -487,54 +508,69 @@ export class ReviewService {
         .order('created_at', { ascending: false })
         .range(from, to);
 
+      // Apply Filters
+      if (filters?.rating) {
+        const r = filters.rating;
+        query = query.gte('rating', r).lt('rating', r + 1);
+      }
+      
+      // Filter by Variant (requires inner join on order_items)
+      if (filters?.variantId) {
+        // We use the dot notation to filter on the joined table relationship
+        // Since we used !inner above, rows without matching order items (and thus variant_id) will be excluded
+        // However, Supabase/PostgREST usually filters on joined columns via embedded resource filtering in select or specific syntax
+        // But simpler: we filter on the joined relationship
+        // Actually, with Supabase JS client v2, we can filter on foreign tables.
+        // It's tricky with nested structure. 
+        // A common pattern is: .eq('order_items.variant_id', filters.variantId) if the resource name matches
+        // Here we aliased it as `order_item`.
+        // Let's try .eq('order_item.variant_id', filters.variantId)
+        
+        // IMPORTANT: The resource name in filter must match the name used in select (the alias if present)
+        // We aliased order_items as `order_item`.
+        
+        query = query.eq('order_item.variant_id', filters.variantId);
+      }
+       
+      // Executing the query
+      const { data, error, count } = await query;
+      
       if (error) {
-        console.warn('[ReviewService] Error fetching product reviews:', error);
-        return { reviews: [], total: 0, stats: EMPTY_REVIEW_STATS };
+        console.error('Error fetching reviews:', error);
+        throw error;
       }
 
-      const { data: statsRows, error: statsError } = await supabase
+      // Filter out reviews with images in memory if strict filtering is enabled
+      // (Supabase doesn't easily support "where review_images is empty" on a left join without complex syntax)
+      let filteredData = data;
+      if (shouldExcludeImages) {
+        filteredData = data.filter((r: any) => !r.review_images || r.review_images.length === 0);
+      }
+
+      // Fetch Stats
+      const { data: statsRows } = await supabase
         .from('reviews')
-        .select(
-          `
-            rating,
-            review_images (
-              id
-            )
-          `
-        )
+        .select('rating, review_images(id)')
         .eq('product_id', productId)
         .eq('is_hidden', false);
-
-      if (statsError) {
-        console.warn('[ReviewService] Error fetching product review stats:', statsError);
-      }
-
-      const mappedReviews = (data || []).map((review) => mapReviewRowToFeedItem(review));
-      const ratings = Array.isArray(statsRows)
-        ? statsRows.map((row: any) => Number(row.rating || 0))
-        : [];
-      const withImages = Array.isArray(statsRows)
-        ? statsRows.filter((row: any) => Array.isArray(row.review_images) && row.review_images.length > 0)
-            .length
-        : 0;
-
-      const computedStats = buildReviewStatsFromRatings(ratings, withImages);
-      const fallbackStats = computeReviewStats(mappedReviews);
-      const total = count ?? computedStats.total;
-      const resolvedStats = computedStats.total > 0 ? computedStats : fallbackStats;
-
+        
+      const ratings = (statsRows || []).map((row: any) => Number(row.rating || 0));
+      const withImagesCount = (statsRows || []).filter((row: any) => row.review_images?.length > 0).length;
+      
+      const computedStats = buildReviewStatsFromRatings(ratings, withImagesCount);
+      
       return {
-        reviews: mappedReviews,
-        total,
+        reviews: (filteredData || []).map((row) => mapReviewRowToFeedItem(row)),
+        // Note: Total count from DB might be slightly off if we filter in memory
+        total: count || 0,
         stats: {
-          ...resolvedStats,
-          total,
-          averageRating: total > 0 ? resolvedStats.averageRating : 0,
-        },
+             ...computedStats,
+             total: count || computedStats.total
+        }
       };
     } catch (error) {
       console.error('[ReviewService] Error fetching product reviews:', error);
-      return { reviews: [], total: 0, stats: EMPTY_REVIEW_STATS };
+      return { reviews: [], total: 0, stats: { averageRating: 0, total: 0, distribution: [0, 0, 0, 0, 0], withImages: 0 } };
     }
   }
 

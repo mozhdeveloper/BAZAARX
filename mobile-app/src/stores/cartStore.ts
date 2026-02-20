@@ -17,10 +17,9 @@ interface CartStore {
   addItem: (product: Product) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  updateItemVariant: (cartItemId: string, variantId?: string, options?: any) => Promise<void>;
+  removeItems: (cartItemIds: string[]) => Promise<void>;
   clearCart: () => void;
-  getTotal: () => number;
-  getItemCount: () => number;
-  syncCartTotal: (cartId: string) => Promise<void>;
 
   // Quick Order (Buy Now)
   quickOrder: CartItem | null;
@@ -109,6 +108,12 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
         isFreeShipping: !!product.is_free_shipping,
         quantity: ci.quantity || 1,
         selectedVariant,
+        // Pass essential product fields for variant selection modal
+        variants: product.variants || [],
+        variant_label_1: product.variant_label_1,
+        variant_label_2: product.variant_label_2,
+        option1Values: product.option1Values || [],
+        option2Values: product.option2Values || [],
       } as CartItem;
     });
 }
@@ -234,12 +239,10 @@ export const useCartStore = create<CartStore>()(
           }
 
           try {
-             // Similar logic: try to find by cartItemId first
              const item = get().items.find(i => i.cartItemId === itemId);
              if (item) {
                 await cartService.updateCartItemQuantity(item.cartItemId, quantity);
              } else {
-                // Fallback: legacy productId
                 await cartService.updateQuantity(get().cartId!, itemId, quantity);
              }
             
@@ -247,6 +250,24 @@ export const useCartStore = create<CartStore>()(
           } catch (e) {
             console.error('[CartStore] Failed to update quantity:', e);
           }
+        };
+        run();
+      },
+
+      updateItemVariant: async (cartItemId, variantId, options) => {
+        // Optimistically update local state if needed, or just wait for refresh
+        const run = async () => {
+           const cartId = get().cartId;
+           if (!cartId) return;
+            try {
+              // Call service
+              await cartService.updateCartItemVariant(cartItemId, variantId, options);
+              // Refresh
+              await get().initializeForCurrentUser();
+            } catch (e) {
+               console.error('[CartStore] Failed to update item variant:', e);
+               set({ error: 'Failed to update item variant' });
+            }
         };
         run();
       },
@@ -263,6 +284,20 @@ export const useCartStore = create<CartStore>()(
           }
         };
         run();
+      },
+
+      removeItems: async (cartItemIds: string[]) => {
+        if (!cartItemIds || cartItemIds.length === 0) return;
+        
+        try {
+          await cartService.removeItems(cartItemIds);
+          
+          // Optimistic update or refresh
+          await get().initializeForCurrentUser();
+        } catch (e) {
+          console.error('[CartStore] Failed to remove multiple items:', e);
+           set({ error: 'Failed to delete selected items' });
+        }
       },
 
       getTotal: () => get().items.reduce((total, item) => total + (item.price ?? 0) * item.quantity, 0),
