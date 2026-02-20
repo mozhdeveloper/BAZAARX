@@ -31,7 +31,9 @@ import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "../lib/utils";
 import { productService } from "../services/productService";
+import { discountService } from "@/services/discountService";
 import { ProductWithSeller } from "../types/database.types";
+import type { ActiveDiscount } from "@/types/discount";
 import { ProductReviews } from "@/components/reviews/ProductReviews";
 import { CreateRegistryModal } from "../components/CreateRegistryModal";
 import { CartModal } from "../components/ui/cart-modal";
@@ -88,6 +90,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [activeTab, setActiveTab] = useState("description");
     const [dbProduct, setDbProduct] = useState<ProductWithSeller | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(null);
 
     // Modal states for Add to Cart and Buy Now
     const [showCartModal, setShowCartModal] = useState(false);
@@ -147,6 +150,34 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         return buildCurrentSeller(normalizedProduct, demoSellers);
     }, [normalizedProduct]);
 
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadActiveDiscount = async () => {
+            if (!normalizedProduct?.id) {
+                if (isMounted) setActiveCampaignDiscount(null);
+                return;
+            }
+
+            try {
+                const discount = await discountService.getActiveProductDiscount(normalizedProduct.id);
+                if (isMounted) {
+                    setActiveCampaignDiscount(discount);
+                }
+            } catch (error) {
+                console.error("Failed to fetch active campaign discount for product detail:", error);
+                if (isMounted) {
+                    setActiveCampaignDiscount(null);
+                }
+            }
+        };
+
+        loadActiveDiscount();
+        return () => {
+            isMounted = false;
+        };
+    }, [normalizedProduct?.id]);
+
     // ── Variant helpers (operate on normalizedProduct directly) ─────────────
 
     // Initialize first variant label 1 value when product loads
@@ -179,6 +210,10 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         });
 
         return matchedVariant || dbVariants[0];
+    };
+
+    const getCampaignAdjustedPrice = (unitPrice: number) => {
+        return discountService.calculateLineDiscount(unitPrice, 1, activeCampaignDiscount).discountedUnitPrice;
     };
 
     // ── Quantity & Stock Clamping ──────────────────────────────────────────
@@ -359,8 +394,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             : undefined;
 
         // Use variant price if available
-        const effectivePrice =
+        const baseUnitPrice =
             selectedVariant?.price || normalizedProduct.price;
+        const effectivePrice = getCampaignAdjustedPrice(baseUnitPrice);
 
         // Create proper product object for buyerStore
         const productForCart = {
@@ -422,7 +458,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         const productForQuickOrder = {
             id: normalizedProduct.id,
             name: normalizedProduct.name,
-            price: variant?.price || normalizedProduct.price,
+            price: getCampaignAdjustedPrice(variant?.price || normalizedProduct.price),
             originalPrice: normalizedProduct.originalPrice,
             image: variant?.image || productImage,
             images: normalizedProduct.images,
@@ -585,17 +621,25 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 alt={productData.name}
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                             />
-                            {productData.originalPrice && (
-                                <Badge className="absolute top-4 left-4 bg-red-500 hover:bg-red-500 text-white text-xs px-2 py-1">
-                                    {Math.round(
-                                        ((productData.originalPrice -
-                                            productData.price) /
-                                            productData.originalPrice) *
-                                        100,
-                                    )}
-                                    % OFF
-                                </Badge>
-                            )}
+                            {(() => {
+                                const basePrice = productData.price;
+                                const discountedPrice = getCampaignAdjustedPrice(basePrice);
+                                const originalPrice = productData.originalPrice || basePrice;
+                                if (originalPrice <= discountedPrice) return null;
+                                const percentOff = activeCampaignDiscount?.discountType === 'percentage'
+                                    ? Math.round(activeCampaignDiscount.discountValue)
+                                    : Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
+                                const discountTooltip =
+                                    activeCampaignDiscount?.discountType === 'percentage' &&
+                                        typeof activeCampaignDiscount.maxDiscountAmount === 'number'
+                                        ? `Up to ₱${activeCampaignDiscount.maxDiscountAmount.toLocaleString()} off`
+                                        : undefined;
+                                return (
+                                    <Badge title={discountTooltip} className="absolute top-4 left-4 bg-red-500 hover:bg-red-500 text-white text-xs px-2 py-1">
+                                        {percentOff}% OFF
+                                    </Badge>
+                                );
+                            })()}
                         </motion.div>
                     </div>
 

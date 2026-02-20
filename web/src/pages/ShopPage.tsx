@@ -35,10 +35,12 @@ import { categories } from "../data/categories";
 import { useBuyerStore } from "../stores/buyerStore";
 import { useProductStore } from "../stores/sellerStore";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { discountService } from "@/services/discountService";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { AlertCircle } from "lucide-react";
 // import { useProductQAStore } from "../stores/productQAStore";
 import { ShopProduct } from "../types/shop";
+import type { ActiveDiscount } from "@/types/discount";
 
 // Flash sale products are now derived from real products in the component
 
@@ -104,6 +106,7 @@ export default function ShopPage() {
   const [isToolbarSticky, setIsToolbarSticky] = useState(true);
   const [showBuyNowModal, setShowBuyNowModal] = useState(false);
   const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
+  const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, ActiveDiscount>>({});
 
   // Variant Selection Modal state (for Add to Cart)
   const [showVariantModal, setShowVariantModal] = useState(false);
@@ -212,8 +215,65 @@ export default function ShopPage() {
     return dbProducts;
   }, [sellerProducts]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDiscounts = async () => {
+      const productIds = [...new Set(allProducts.map(product => product.id).filter(Boolean))];
+      if (productIds.length === 0) {
+        if (isMounted) setActiveCampaignDiscounts({});
+        return;
+      }
+
+      try {
+        const discounts = await discountService.getActiveDiscountsForProducts(productIds);
+        if (isMounted) {
+          setActiveCampaignDiscounts(discounts);
+        }
+      } catch (error) {
+        console.error("Failed to load campaign discounts in shop:", error);
+        if (isMounted) {
+          setActiveCampaignDiscounts({});
+        }
+      }
+    };
+
+    loadDiscounts();
+    return () => {
+      isMounted = false;
+    };
+  }, [allProducts]);
+
+  const pricedProducts = useMemo<ShopProduct[]>(() => {
+    return allProducts.map((product) => {
+      const activeDiscount = activeCampaignDiscounts[product.id] || null;
+      if (!activeDiscount) return product;
+
+      const calculation = discountService.calculateLineDiscount(product.price, 1, activeDiscount);
+      if (calculation.discountPerUnit <= 0) return product;
+
+      return {
+        ...product,
+        price: calculation.discountedUnitPrice,
+        originalPrice: activeDiscount.originalPrice || product.price,
+        campaignDiscount: {
+          discountType: activeDiscount.discountType,
+          discountValue: activeDiscount.discountValue,
+          maxDiscountAmount: activeDiscount.maxDiscountAmount
+        },
+        discountBadgePercent: activeDiscount.discountType === 'percentage'
+          ? Math.round(activeDiscount.discountValue)
+          : undefined,
+        discountBadgeTooltip:
+          activeDiscount.discountType === 'percentage' && typeof activeDiscount.maxDiscountAmount === 'number'
+            ? `Up to ₱${activeDiscount.maxDiscountAmount.toLocaleString()} off`
+            : undefined
+      };
+    });
+  }, [allProducts, activeCampaignDiscounts]);
+
   const flashSales = useMemo(() => {
-    const autoFlash = allProducts
+    const autoFlash = pricedProducts
       .filter((p) => (p.originalPrice || 0) > p.price)
       .sort((a, b) => {
         const discountA = a.originalPrice ? (a.originalPrice - a.price) / a.originalPrice : 0;
@@ -341,10 +401,10 @@ export default function ShopPage() {
     ];
 
     return [...sampleFlashProducts, ...autoFlash].slice(0, 6);
-  }, [allProducts]);
+  }, [pricedProducts]);
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
-    const filtered = allProducts.filter((product) => {
+    const filtered = pricedProducts.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -381,7 +441,7 @@ export default function ShopPage() {
     }
 
     return filtered;
-  }, [allProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange]);
+  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange]);
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -793,12 +853,17 @@ export default function ShopPage() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                         {product.originalPrice && (
-                          <Badge className="absolute top-3 left-3 bg-destructive hover:bg-destructive text-white text-xs">
-                            {Math.round(
-                              ((product.originalPrice - product.price) /
-                                product.originalPrice) *
-                              100
-                            )}
+                          <Badge
+                            title={product.discountBadgeTooltip}
+                            className="absolute top-3 left-3 bg-destructive hover:bg-destructive text-white text-xs"
+                          >
+                            {typeof product.discountBadgePercent === "number"
+                              ? product.discountBadgePercent
+                              : Math.round(
+                                ((product.originalPrice - product.price) /
+                                  product.originalPrice) *
+                                100
+                              )}
                             % OFF
                           </Badge>
                         )}

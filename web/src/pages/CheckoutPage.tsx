@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
+import { discountService } from "@/services/discountService";
 import {
   ArrowLeft,
   MapPin,
@@ -43,6 +44,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { regions, provinces, cities, barangays } from "select-philippines-address";
 import { AddressPicker } from "@/components/ui/address-picker";
+import type { ActiveDiscount } from "@/types/discount";
 
 interface CheckoutFormData {
   fullName: string;
@@ -197,17 +199,15 @@ export default function CheckoutPage() {
 
   // Determine which items to checkout: quick order takes precedence
   // For cart checkout, filter only selected items
-  const checkoutItems = buyAgainItems
-    ? buyAgainItems
-    : (quickOrder ? [quickOrder] : cartItems.filter(item => item.selected));
-
-  const checkoutTotal = buyAgainItems
-    ? buyAgainItems.reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0)
-    : (quickOrder
-      ? getQuickOrderTotal()
-      : cartItems
-        .filter(item => item.selected)
-        .reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0));
+  const checkoutItems = useMemo(() => {
+    if (buyAgainItems && buyAgainItems.length > 0) {
+      return buyAgainItems;
+    }
+    if (quickOrder) {
+      return [quickOrder];
+    }
+    return cartItems.filter(item => item.selected);
+  }, [buyAgainItems, quickOrder, cartItems]);
 
   const isQuickCheckout = quickOrder !== null || isBuyAgainMode;
 
@@ -217,14 +217,11 @@ export default function CheckoutPage() {
 
   // Bazcoins Logic
   // Earn 1 Bazcoin per ₱10 spent
-  const earnedBazcoins = Math.floor(checkoutTotal / 10);
 
   // Bazcoin Redemption
   const [useBazcoins, setUseBazcoins] = useState(false);
   const availableBazcoins = profile?.bazcoins || 0;
   // Redemption rate: 1 Bazcoin = ₱1
-  const maxRedeemableBazcoins = Math.min(availableBazcoins, checkoutTotal);
-  const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     fullName: profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : "",
@@ -261,8 +258,45 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<Partial<CheckoutFormData>>({});
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
+  const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, ActiveDiscount>>({});
 
-  const totalPrice = checkoutTotal;
+  const getOriginalUnitPrice = (item: typeof checkoutItems[number]) =>
+    Number((item.selectedVariant as any)?.originalPrice || item.originalPrice || item.price || 0);
+
+  const checkoutProductIdsKey = useMemo(() => {
+    const ids = [...new Set(checkoutItems.map(item => item.id).filter(Boolean))];
+    ids.sort();
+    return ids.join("|");
+  }, [checkoutItems]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCampaignDiscounts = async () => {
+      const productIds = checkoutProductIdsKey ? checkoutProductIdsKey.split("|") : [];
+      if (productIds.length === 0) {
+        if (isMounted) setActiveCampaignDiscounts({});
+        return;
+      }
+
+      try {
+        const discounts = await discountService.getActiveDiscountsForProducts(productIds);
+        if (isMounted) {
+          setActiveCampaignDiscounts(discounts);
+        }
+      } catch (error) {
+        console.error("Failed to load active campaign discounts:", error);
+        if (isMounted) {
+          setActiveCampaignDiscounts({});
+        }
+      }
+    };
+
+    loadCampaignDiscounts();
+    return () => {
+      isMounted = false;
+    };
+  }, [checkoutProductIdsKey]);
 
   const DEFAULT_ADDRESS: CheckoutFormData = {
     fullName: "Juan Dela Cruz",
@@ -329,6 +363,20 @@ export default function CheckoutPage() {
     }
   }, [confirmedAddress, profile]);
 
+  const originalSubtotal = checkoutItems.reduce((sum, item) => {
+    return sum + (getOriginalUnitPrice(item) * item.quantity);
+  }, 0);
+
+  const campaignDiscountTotal = checkoutItems.reduce((sum, item) => {
+    const activeDiscount = activeCampaignDiscounts[item.id] || null;
+    const unitPrice = getOriginalUnitPrice(item);
+    const calculation = discountService.calculateLineDiscount(unitPrice, item.quantity, activeDiscount);
+    return sum + calculation.discountTotal;
+  }, 0);
+
+  const subtotalAfterCampaign = Math.max(0, originalSubtotal - campaignDiscountTotal);
+  const earnedBazcoins = Math.floor(subtotalAfterCampaign / 10);
+
   let shippingFee =
     checkoutItems.length > 0 &&
       !checkoutItems.every((item) => item.isFreeShipping)
@@ -336,35 +384,31 @@ export default function CheckoutPage() {
       : 0;
   let discount = 0;
 
-  // Apply voucher discount
+  // Apply voucher discount after campaign discount
   if (appliedVoucher) {
     if (appliedVoucher.type === "percentage") {
-      const percentageDiscount = totalPrice * (appliedVoucher.value / 100);
+      const percentageDiscount = subtotalAfterCampaign * (appliedVoucher.value / 100);
       discount = appliedVoucher.maxDiscount
         ? Math.min(percentageDiscount, appliedVoucher.maxDiscount)
         : Math.round(percentageDiscount);
     } else if (appliedVoucher.type === "fixed") {
-      discount = Math.min(appliedVoucher.value, totalPrice);
+      discount = Math.min(appliedVoucher.value, subtotalAfterCampaign);
     } else if (appliedVoucher.type === "shipping") {
       shippingFee = 0;
     }
   }
 
-  // VAT calculation (12%)
-  const tax = Math.round(totalPrice * 0.12);
+  const maxRedeemableBazcoins = Math.min(availableBazcoins, Math.max(0, subtotalAfterCampaign - discount));
+  const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
 
-  // Item-level savings (Original price vs Current price)
-  const itemSavings = checkoutItems.reduce((sum, item) => {
-    const original = item.originalPrice || item.price;
-    const current = item.selectedVariant?.price || item.price;
-    return sum + (Math.max(0, original - current) * item.quantity);
-  }, 0);
+  // VAT calculation (12%) based on original subtotal display rule
+  const tax = Math.round(originalSubtotal * 0.12);
 
-  const couponSavings = discount + bazcoinDiscount;
-  const grandTotalSavings = itemSavings + couponSavings;
+  const couponSavings = campaignDiscountTotal + discount + bazcoinDiscount;
+  const grandTotalSavings = couponSavings;
 
   // Final total calculation including Bazcoins
-  const finalTotal = Math.max(0, totalPrice + shippingFee + tax - couponSavings);
+  const finalTotal = Math.max(0, originalSubtotal + shippingFee + tax - couponSavings);
 
   const handleApplyVoucher = async () => {
     const code = voucherCode.trim().toUpperCase();
@@ -600,6 +644,7 @@ export default function CheckoutPage() {
         selected_variant: item.selectedVariant ? {
           id: item.selectedVariant.id,
           name: item.selectedVariant.name,
+          original_price: (item.selectedVariant as any).originalPrice || item.selectedVariant.price,
           price: item.selectedVariant.price,
           stock: item.selectedVariant.stock,
           image: item.selectedVariant.image
@@ -607,7 +652,7 @@ export default function CheckoutPage() {
         product: {
           seller_id: item.sellerId,
           name: item.name,
-          price: item.price,
+          price: getOriginalUnitPrice(item),
           images: item.images,
           primary_image: item.image
         },
@@ -1114,40 +1159,28 @@ export default function CheckoutPage() {
                 <div className="space-y-3 mb-6">
                   {checkoutItems.map((item) => {
                     const variant = item.selectedVariant as any;
-                    const itemPrice = variant?.price || item.price;
+                    const originalUnitPrice = getOriginalUnitPrice(item);
+                    const activeDiscount = activeCampaignDiscounts[item.id] || null;
+                    const calculation = discountService.calculateLineDiscount(originalUnitPrice, item.quantity, activeDiscount);
+                    const discountedUnitPrice = calculation.discountedUnitPrice;
+                    const lineOriginalTotal = originalUnitPrice * item.quantity;
+                    const lineDiscountedTotal = discountedUnitPrice * item.quantity;
 
                     // Build variant display from available fields
                     let variantParts: string[] = [];
                     if (variant) {
-                      // Check name fields (variant_name from DB, name from local)
                       const variantName = variant.variant_name || variant.name;
                       if (variantName) variantParts.push(variantName);
-
-                      // Add size if available
                       if (variant.size) variantParts.push(`Size: ${variant.size}`);
-
-                      // Add color if available
                       if (variant.color) variantParts.push(`Color: ${variant.color}`);
-
-                      // Add option values if available
                       if (variant.option_1_value) variantParts.push(variant.option_1_value);
                       if (variant.option_2_value) variantParts.push(variant.option_2_value);
-
-                      // Fallback to SKU or ID if nothing else
                       if (variantParts.length === 0) {
                         if (variant.sku) variantParts.push(`SKU: ${variant.sku}`);
                         else if (variant.id) variantParts.push(`#${variant.id.slice(0, 8)}`);
                       }
                     }
                     const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
-
-                    console.log('📦 Order Summary Item:', {
-                      name: item.name,
-                      price: item.price,
-                      selectedVariant: variant,
-                      variantInfo,
-                      itemPrice
-                    });
 
                     return (
                       <div key={`${item.id}-${variant?.id || 'no-variant'}`} className="flex justify-between text-sm">
@@ -1162,9 +1195,16 @@ export default function CheckoutPage() {
                           )}
                           <p className="text-gray-500">Qty: {item.quantity}</p>
                         </div>
-                        <p className="text-gray-900 font-medium">
-                          ₱{(itemPrice * item.quantity).toLocaleString()}
-                        </p>
+                        <div className="text-right">
+                          <p className="text-gray-900 font-medium">
+                            ₱{lineDiscountedTotal.toLocaleString()}
+                          </p>
+                          {lineOriginalTotal > lineDiscountedTotal && (
+                            <p className="text-xs text-gray-500 line-through">
+                              ₱{lineOriginalTotal.toLocaleString()}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1273,7 +1313,7 @@ export default function CheckoutPage() {
                   {" "}
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
-                    <span>₱{totalPrice.toLocaleString()}</span>
+                    <span>₱{originalSubtotal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span>Shipping</span>
@@ -1289,10 +1329,22 @@ export default function CheckoutPage() {
                     <span>Tax (12% VAT)</span>
                     <span>₱{tax.toLocaleString()}</span>
                   </div>
-                  {couponSavings > 0 && (
-                    <div className="flex justify-between text-green-600 font-medium">
-                      <span>Discounts & Rewards</span>
-                      <span>-₱{couponSavings.toLocaleString()}</span>
+                  {campaignDiscountTotal > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Campaign Discount</span>
+                      <span>-₱{campaignDiscountTotal.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Voucher Discount</span>
+                      <span>-₱{discount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {bazcoinDiscount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>BazCoins Applied</span>
+                      <span>-₱{bazcoinDiscount.toLocaleString()}</span>
                     </div>
                   )}
                   <hr className="border-gray-300" />
@@ -1997,4 +2049,5 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
 

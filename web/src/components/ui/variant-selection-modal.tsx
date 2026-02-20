@@ -44,6 +44,7 @@ export function VariantSelectionModal({
     const [selectedSize, setSelectedSize] = useState<string>('');
     const [currentImage, setCurrentImage] = useState<string>(product.image);
     const [currentPrice, setCurrentPrice] = useState<number>(product.price);
+    const [currentOriginalPrice, setCurrentOriginalPrice] = useState<number | null>((product as any).originalPrice || null);
     const [currentStock, setCurrentStock] = useState<number>(0);
 
     const isNonEmptyString = (value: unknown): value is string =>
@@ -109,6 +110,7 @@ export function VariantSelectionModal({
             setQuantity(1);
             setCurrentImage(product.image);
             setCurrentPrice(product.price);
+            setCurrentOriginalPrice((product as any).originalPrice || null);
             
             // Auto-select first options
             if (uniqueColors.length > 0) {
@@ -145,6 +147,7 @@ export function VariantSelectionModal({
 
         if (matchedVariant) {
             setCurrentPrice(matchedVariant.price);
+            setCurrentOriginalPrice((matchedVariant as any).originalPrice ?? null);
             setCurrentStock(matchedVariant.stock);
             // Use variant thumbnail if available, otherwise fall back to product image
             const newImage = matchedVariant.thumbnail_url || product.image;
