@@ -151,8 +151,8 @@ const parseSellerReply = (sellerReply: unknown): ReviewReplySummary | null => {
 const resolveVariantLabel = (review: any): string | null => {
   const snapshot =
     review?.variant_snapshot &&
-    typeof review.variant_snapshot === 'object' &&
-    !Array.isArray(review.variant_snapshot)
+      typeof review.variant_snapshot === 'object' &&
+      !Array.isArray(review.variant_snapshot)
       ? (review.variant_snapshot as Record<string, unknown>)
       : null;
 
@@ -230,8 +230,8 @@ const mapReviewRowToFeedItem = (review: any): ReviewFeedItem => {
 
   const variantSnapshot =
     review?.variant_snapshot &&
-    typeof review.variant_snapshot === 'object' &&
-    !Array.isArray(review.variant_snapshot)
+      typeof review.variant_snapshot === 'object' &&
+      !Array.isArray(review.variant_snapshot)
       ? (review.variant_snapshot as Record<string, unknown>)
       : null;
 
@@ -382,12 +382,27 @@ export class ReviewService {
         });
       }
 
+      let statsReviews = this.mockReviews
+        .filter((review) => review.product_id === productId && !review.is_hidden);
+
+      if (withImages) {
+        statsReviews = statsReviews.filter(r => (r as any).review_images?.length > 0 || Array.isArray((r as any).images) && (r as any).images.length > 0);
+      }
+
+      if (variantId) {
+        statsReviews = statsReviews.filter(r => {
+          const snapshot = r.variant_snapshot as any;
+          const reviewVariantId = (snapshot?.variant_id || snapshot?.id) as string | undefined;
+          return reviewVariantId === variantId;
+        });
+      }
+
       const pagedReviews = mappedReviews.slice(start, start + limit);
 
       return {
         reviews: pagedReviews,
         total: mappedReviews.length,
-        stats: computeReviewStats(productReviews.map((review) => mapReviewRowToFeedItem(review))),
+        stats: computeReviewStats(statsReviews.map((review) => mapReviewRowToFeedItem(review))),
       };
     }
 
@@ -488,18 +503,27 @@ export class ReviewService {
       }
 
       // We still want full stats (distribution) even when filtering
-      const { data: statsRows, error: statsError } = await supabase
+      let statsQuery = supabase
         .from('reviews')
         .select(
           `
             rating,
             review_images (
               id
+            ),
+            order_item:order_items!reviews_order_item_id_fkey (
+              variant_id
             )
           `,
         )
         .eq('product_id', productId)
         .eq('is_hidden', false);
+
+      if (variantId) {
+        statsQuery = statsQuery.filter('order_item.variant_id', 'eq', variantId);
+      }
+
+      const { data: statsRows, error: statsError } = await statsQuery;
 
       if (statsError) {
         console.warn('Error fetching product review stats:', statsError);
@@ -516,18 +540,21 @@ export class ReviewService {
         mappedReviews = mappedReviews.filter(r => r.images.length > 0);
       }
 
-      const ratings = Array.isArray(statsRows)
-        ? statsRows.map((row: any) => Number(row.rating || 0))
-        : [];
-      const withImagesCount = Array.isArray(statsRows)
-        ? statsRows.filter((row: any) =>
-            Array.isArray(row.review_images) && row.review_images.length > 0,
-          ).length
-        : 0;
+      let filteredStatsRows = statsRows || [];
+      if (withImages) {
+        filteredStatsRows = filteredStatsRows.filter((row: any) =>
+          Array.isArray(row.review_images) && row.review_images.length > 0
+        );
+      }
+
+      const ratings = filteredStatsRows.map((row: any) => Number(row.rating || 0));
+      const withImagesCount = filteredStatsRows.filter((row: any) =>
+        Array.isArray(row.review_images) && row.review_images.length > 0,
+      ).length;
 
       const computedStats = buildReviewStatsFromRatings(ratings, withImagesCount);
       const fallbackStats = computeReviewStats(mappedReviews);
-      
+
       // Handle pagination locally since we might have filtered
       const pagedReviews = mappedReviews.slice(from, to + 1);
 
