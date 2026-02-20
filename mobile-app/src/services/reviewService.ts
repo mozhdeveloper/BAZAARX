@@ -3,6 +3,8 @@
  * Handles database operations for reviews and review presentation data.
  */
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
 
 export interface Review {
   id: string;
@@ -20,6 +22,9 @@ export interface Review {
   is_edited: boolean;
   created_at: string;
   updated_at: string;
+  // Images from review_images table (populated separately if needed)
+  images?: string[];
+  has_voted_helpful?: boolean;
 }
 
 export interface ReviewInsert {
@@ -35,6 +40,7 @@ export interface ReviewInsert {
   seller_reply?: Record<string, unknown> | null;
   is_hidden?: boolean;
   is_edited?: boolean;
+  images?: string[];
 }
 
 export interface ReviewReplySummary {
@@ -389,13 +395,49 @@ export class ReviewService {
   }
 
   /**
+   * Create a review and upload image attachments
+   */
+  async submitReviewWithImages(reviewData: ReviewInsert, imageUris: string[] = []): Promise<Review | null> {
+      const review = await this.createReview({
+          ...reviewData,
+          images: []
+      });
+
+      if (!review || imageUris.length === 0) {
+          return review;
+      }
+
+      const uploadedUrls = await this.uploadReviewImages(review.id, imageUris);
+      if (uploadedUrls.length === 0) {
+          return review;
+      }
+
+      await this.attachImagesToReview(review.id, uploadedUrls);
+      return {
+          ...review,
+          images: uploadedUrls,
+      };
+  }
+
+  /**
    * Get reviews for a specific product
    */
-  async getProductReviews(productId: string, page = 1, limit = 5): Promise<ProductReviewsResult> {
+  async getProductReviews(
+    productId: string, 
+    page = 1, 
+    limit = 5,
+    filters?: { rating?: number; withImages?: boolean; variantId?: string }
+  ): Promise<ProductReviewsResult> {
     if (!isSupabaseConfigured()) {
-      const productReviews = this.mockReviews
+       // Mock implementation for development
+       let productReviews = this.mockReviews
         .filter((review) => review.product_id === productId && !review.is_hidden)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      // Apply Mock Filters
+      if (filters?.rating) {
+        productReviews = productReviews.filter(r => Math.round(r.rating) === filters.rating);
+      }
 
       const start = (page - 1) * limit;
       const pagedReviews = productReviews
@@ -413,7 +455,13 @@ export class ReviewService {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      const { data, error, count } = await supabase
+      // Determine strict filtering mode
+      const isRatingSelected = filters?.rating !== undefined;
+      const isWithImagesSelected = filters?.withImages === true;
+      const shouldExcludeImages = isRatingSelected && !isWithImagesSelected;
+
+      // Start building the query
+      let query = supabase
         .from('reviews')
         .select(
           `
@@ -432,11 +480,11 @@ export class ReviewService {
             is_edited,
             created_at,
             updated_at,
-            review_images (
-              id,
-              image_url,
-              sort_order,
-              uploaded_at
+            review_images${isWithImagesSelected ? '!inner' : ''} (
+               id,
+               image_url,
+               sort_order,
+               uploaded_at
             ),
             buyer:buyers!reviews_buyer_id_fkey (
               id,
@@ -445,7 +493,7 @@ export class ReviewService {
                 *
               )
             ),
-            order_item:order_items!reviews_order_item_id_fkey (
+            order_item:order_items!reviews_order_item_id_fkey${filters?.variantId ? '!inner' : ''} (
               id,
               product_name,
               primary_image_url,
@@ -487,54 +535,54 @@ export class ReviewService {
         .order('created_at', { ascending: false })
         .range(from, to);
 
+      // Apply Filters
+      if (filters?.rating) {
+        const r = filters.rating;
+        query = query.gte('rating', r).lt('rating', r + 1);
+      }
+      
+      // Filter by Variant
+      if (filters?.variantId) {
+        query = query.eq('order_item.variant_id', filters.variantId);
+      }
+       
+      // Executing the query
+      const { data, error, count } = await query;
+      
       if (error) {
-        console.warn('[ReviewService] Error fetching product reviews:', error);
-        return { reviews: [], total: 0, stats: EMPTY_REVIEW_STATS };
+        console.error('Error fetching reviews:', error);
+        throw error;
       }
 
-      const { data: statsRows, error: statsError } = await supabase
+      // Filter out reviews with images in memory if strict filtering is enabled
+      let filteredData = data;
+      if (shouldExcludeImages) {
+        filteredData = data.filter((r: any) => !r.review_images || r.review_images.length === 0);
+      }
+
+      // Fetch Stats
+      const { data: statsRows } = await supabase
         .from('reviews')
-        .select(
-          `
-            rating,
-            review_images (
-              id
-            )
-          `
-        )
+        .select('rating, review_images(id)')
         .eq('product_id', productId)
         .eq('is_hidden', false);
-
-      if (statsError) {
-        console.warn('[ReviewService] Error fetching product review stats:', statsError);
-      }
-
-      const mappedReviews = (data || []).map((review) => mapReviewRowToFeedItem(review));
-      const ratings = Array.isArray(statsRows)
-        ? statsRows.map((row: any) => Number(row.rating || 0))
-        : [];
-      const withImages = Array.isArray(statsRows)
-        ? statsRows.filter((row: any) => Array.isArray(row.review_images) && row.review_images.length > 0)
-            .length
-        : 0;
-
-      const computedStats = buildReviewStatsFromRatings(ratings, withImages);
-      const fallbackStats = computeReviewStats(mappedReviews);
-      const total = count ?? computedStats.total;
-      const resolvedStats = computedStats.total > 0 ? computedStats : fallbackStats;
-
+        
+      const ratings = (statsRows || []).map((row: any) => Number(row.rating || 0));
+      const withImagesCount = (statsRows || []).filter((row: any) => row.review_images?.length > 0).length;
+      
+      const computedStats = buildReviewStatsFromRatings(ratings, withImagesCount);
+      
       return {
-        reviews: mappedReviews,
-        total,
+        reviews: (filteredData || []).map((row) => mapReviewRowToFeedItem(row)),
+        total: count || 0,
         stats: {
-          ...resolvedStats,
-          total,
-          averageRating: total > 0 ? resolvedStats.averageRating : 0,
+             ...computedStats,
+             total: count || computedStats.total
         },
       };
     } catch (error) {
       console.error('[ReviewService] Error fetching product reviews:', error);
-      return { reviews: [], total: 0, stats: EMPTY_REVIEW_STATS };
+      return { reviews: [], total: 0, stats: { averageRating: 0, total: 0, distribution: [0, 0, 0, 0, 0], withImages: 0 } };
     }
   }
 
@@ -832,6 +880,7 @@ export class ReviewService {
       console.error('[ReviewService] Error checking vote eligibility:', error);
       return false;
     }
+
   }
 
   /**
@@ -1249,6 +1298,147 @@ export class ReviewService {
       throw error;
     }
   }
+
+
+    /**
+     * Mark a review as helpful and return latest count
+     */
+    async markReviewHelpful(reviewId: string, buyerId: string): Promise<{ helpfulCount: number; alreadyVoted: boolean }> {
+        if (!isSupabaseConfigured()) {
+            return { helpfulCount: 0, alreadyVoted: false };
+        }
+
+        try {
+            const { error: insertError } = await supabase
+                .from('review_votes')
+                .insert({
+                    review_id: reviewId,
+                    buyer_id: buyerId,
+                });
+
+            const isDuplicateVote = insertError?.code === '23505';
+            if (insertError && !isDuplicateVote) {
+                throw insertError;
+            }
+
+            const { data: review, error: fetchError } = await supabase
+                .from('reviews')
+                .select('helpful_count')
+                .eq('id', reviewId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            return {
+                helpfulCount: review?.helpful_count || 0,
+                alreadyVoted: isDuplicateVote,
+            };
+        } catch (error) {
+            console.error('[ReviewService] Error marking review helpful:', error);
+            throw new Error('Failed to update helpful count');
+        }
+    }
+
+    private async uploadReviewImages(reviewId: string, imageUris: string[]): Promise<string[]> {
+        if (!isSupabaseConfigured() || imageUris.length === 0) {
+            return imageUris;
+        }
+
+        const uploadTasks = imageUris.map(async (uri, index) => {
+            try {
+                const fileData = await this.readImageAsArrayBuffer(uri);
+                const extMatch = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+                const fileExt = (extMatch?.[1] || 'jpg').toLowerCase();
+                const fileName = `${reviewId}/${Date.now()}_${index}.${fileExt}`;
+                const contentType =
+                    fileExt === 'png'
+                        ? 'image/png'
+                        : fileExt === 'webp'
+                            ? 'image/webp'
+                            : fileExt === 'heic' || fileExt === 'heif'
+                                ? 'image/heic'
+                                : 'image/jpeg';
+
+                const { error: uploadError } = await supabase.storage
+                    .from('review-images')
+                    .upload(fileName, fileData, {
+                        contentType,
+                        upsert: false,
+                    });
+
+                if (uploadError) {
+                    throw uploadError;
+                }
+
+                const { data } = supabase.storage
+                    .from('review-images')
+                    .getPublicUrl(fileName);
+
+                return data.publicUrl;
+            } catch (error) {
+                console.warn('[ReviewService] Failed to upload one review image:', {
+                    index,
+                    uri,
+                    error,
+                });
+                return null;
+            }
+        });
+
+        const uploaded = await Promise.all(uploadTasks);
+        return uploaded.filter((url): url is string => Boolean(url));
+    }
+
+    private async attachImagesToReview(reviewId: string, imageUrls: string[]): Promise<void> {
+        if (!imageUrls.length || !isSupabaseConfigured()) return;
+
+        const payload = imageUrls.map((imageUrl, index) => ({
+            review_id: reviewId,
+            image_url: imageUrl,
+            sort_order: index,
+        }));
+
+        const { error } = await supabase
+            .from('review_images')
+            .insert(payload);
+
+        if (!error) {
+            return;
+        }
+
+        console.warn('[ReviewService] Failed to save to review_images table, trying legacy reviews.images:', error.message);
+
+        const { error: legacyError } = await supabase
+            .from('reviews')
+            .update({ images: imageUrls } as any)
+            .eq('id', reviewId);
+
+        if (legacyError) {
+            console.warn('[ReviewService] Failed to save legacy review images:', legacyError.message);
+        }
+    }
+
+    private async readImageAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
+        try {
+            const base64 = await FileSystem.readAsStringAsync(uri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            return decode(base64);
+        } catch (fileSystemError) {
+            console.warn('[ReviewService] FileSystem read failed, trying fetch fallback:', {
+                uri,
+                fileSystemError,
+            });
+
+            const response = await fetch(uri);
+            if (!response.ok) {
+                throw new Error(`Failed to read image: ${response.status}`);
+            }
+
+            return await response.arrayBuffer();
+        }
+    }
+
 }
 
 export const reviewService = ReviewService.getInstance();

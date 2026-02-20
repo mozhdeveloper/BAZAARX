@@ -15,10 +15,13 @@ import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
+import { CartItem, Product } from '../src/types';
+import { Alert } from 'react-native';
 
 
 export default function CartScreen({ navigation }: any) {
-  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder } = useCartStore(); // Add clearQuickOrder
+  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems } = useCartStore(); // Add clearQuickOrder
   const insets = useSafeAreaInsets();
 
   // Use global theme color
@@ -35,7 +38,95 @@ export default function CartScreen({ navigation }: any) {
     }, [])
   );
 
+
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // Edit Variant State
+  const [showVariantModal, setShowVariantModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<CartItem | null>(null);
+
+  const handleEditVariant = (item: CartItem) => {
+    setEditingItem(item);
+    setShowVariantModal(true);
+  };
+
+  const handleSaveVariant = async (
+    variantData: {
+      option1Value?: string;
+      option2Value?: string;
+      variantId?: string;
+    },
+    newQuantity: number
+  ) => {
+    if (!editingItem) return;
+
+    // Build personalized options
+    const newOptions: any = {
+       ...editingItem.selectedVariant, // Keep existing (like fallback)
+       option1Value: variantData.option1Value,
+       option2Value: variantData.option2Value,
+       variantId: variantData.variantId,
+    };
+    // Also update legacy fields if applicable (though store might handle mapping)
+    if (variantData.option1Value) newOptions.color = variantData.option1Value;
+    if (variantData.option2Value) newOptions.size = variantData.option2Value;
+
+    await updateItemVariant(editingItem.cartItemId, variantData.variantId, newOptions);
+    
+    // Also update quantity if changed
+    if (newQuantity !== editingItem.quantity) {
+      updateQuantity(editingItem.id, newQuantity);
+    }
+    
+    setShowVariantModal(false);
+    setEditingItem(null);
+  };
+
+  // Delete Handlers
+  const handleRemoveSingle = (item: CartItem) => {
+    Alert.alert(
+      'Remove Item',
+      'Are you sure you want to remove this item from your cart?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive', 
+          onPress: () => removeItem(item.cartItemId) // Using cartItemId as per store update
+        }
+      ]
+    );
+  };
+
+  const handleClearAll = () => {
+     Alert.alert(
+      'Clear Cart',
+      'Are you sure you want to remove all items?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear', style: 'destructive', onPress: clearCart }
+      ]
+    );
+  };
+
+  const handleDeleteSelected = () => {
+    Alert.alert(
+      'Delete Selected',
+      `Remove ${selectedIds.length} item(s) from your cart?`,
+       [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: () => {
+            removeItems(selectedIds);
+            setSelectedIds([]); // Clear selection after delete
+          }
+        }
+      ]
+    );
+  };
 
   const groupedItems = useMemo(() => {
     const sortedItems = [...items].reverse();
@@ -134,9 +225,15 @@ export default function CartScreen({ navigation }: any) {
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>My Cart</Text>
           <View style={styles.clearTextWrapper}>
-            <Pressable onPress={clearCart}>
-              <Text style={styles.clearText}>Clear All</Text>
-            </Pressable>
+            {selectedIds.length > 0 ? (
+               <Pressable onPress={handleDeleteSelected}>
+                <Text style={[styles.clearText, { color: '#EF4444' }]}>Delete ({selectedIds.length})</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={handleClearAll}>
+                <Text style={styles.clearText}>Clear All</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       </LinearGradient>
@@ -194,7 +291,8 @@ export default function CartScreen({ navigation }: any) {
                         onIncrement={() => updateQuantity(item.id, item.quantity + 1)}
                         onDecrement={() => item.quantity > 1 && updateQuantity(item.id, item.quantity - 1)}
                         onChange={(val) => updateQuantity(item.id, val)}
-                        onRemove={() => removeItem(item.id)}
+                        onRemove={() => handleRemoveSingle(item)}
+                        onEdit={item.selectedVariant ? () => handleEditVariant(item) : undefined}
                       />
                     </View>
                   </View>
@@ -244,6 +342,19 @@ export default function CartScreen({ navigation }: any) {
 
         </View>
       </View>
+      {editingItem && (
+        <VariantSelectionModal
+          visible={showVariantModal}
+          onClose={() => setShowVariantModal(false)}
+          product={editingItem as any} // Cast because CartItem has superset of Product props mostly
+          variants={editingItem.variants} // Pass variants for stock validation
+          initialSelectedVariant={editingItem.selectedVariant}
+          initialQuantity={editingItem.quantity}
+          onConfirm={handleSaveVariant}
+          confirmLabel="Update Cart"
+          hideQuantity={true}
+        />
+      )}
     </LinearGradient>
   );
 }

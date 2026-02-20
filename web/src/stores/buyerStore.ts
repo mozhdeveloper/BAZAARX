@@ -115,6 +115,11 @@ export interface ProductVariant {
   price: number;
   stock: number;
   image?: string;
+  thumbnail_url?: string;
+  size?: string;
+  color?: string;
+  option_1_value?: string;
+  option_2_value?: string;
   attributes?: Record<string, string>; // optional snapshot of variant options (color/size)
 }
 
@@ -282,6 +287,7 @@ interface BuyerStore {
   addToCart: (product: Product, quantity?: number, variant?: ProductVariant) => void;
   removeFromCart: (productId: string, variantId?: string) => void;
   updateCartQuantity: (productId: string, quantity: number, variantId?: string) => void;
+  updateItemVariant: (productId: string, oldVariantId: string | undefined, newVariant: ProductVariant, quantity?: number) => Promise<void>;
   updateCartNotes: (productId: string, notes: string) => void;
   clearCart: () => void;
   getCartTotal: () => number;
@@ -869,6 +875,60 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
     },
 
+    updateItemVariant: async (productId, oldVariantId, newVariant, quantity) => {
+      const user = await getCurrentUser();
+      const cartItems = get().cartItems;
+      
+      // Find the item to update
+      const itemIndex = cartItems.findIndex(item => 
+        item.id === productId && item.selectedVariant?.id === oldVariantId
+      );
+
+      if (itemIndex === -1) return;
+
+      const currentItem = cartItems[itemIndex];
+      const updatedItem = {
+        ...currentItem,
+        selectedVariant: newVariant,
+        price: newVariant.price,
+        quantity: quantity !== undefined ? quantity : currentItem.quantity,
+        image: newVariant.image || newVariant.thumbnail_url || currentItem.image
+      };
+
+      // If user is logged in, sync with DB
+      if (user) {
+        try {
+          const cart = await cartService.getOrCreateCart(user.id);
+          if (cart) {
+            const dbItems = await cartService.getCartItems(cart.id);
+            const dbItem = dbItems.find(i => 
+              i.product_id === productId && 
+              (oldVariantId ? (i as any).variant_id === oldVariantId : !(i as any).variant_id)
+            );
+
+            if (dbItem) {
+              // Update variant
+              await cartService.updateCartItemVariant(dbItem.id, newVariant.id);
+              
+              // Update quantity if different
+              if (quantity !== undefined && quantity !== dbItem.quantity) {
+                await cartService.updateCartItemQuantity(dbItem.id, quantity);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error updating item variant in DB:', error);
+        }
+      }
+
+      // Update local state
+      const nextCartItems = [...cartItems];
+      nextCartItems[itemIndex] = updatedItem;
+
+      set({ cartItems: nextCartItems });
+      get().groupCartBySeller();
+    },
+
     updateCartNotes: (productId, notes) => {
       set((state) => ({
         cartItems: state.cartItems.map(item =>
@@ -1127,20 +1187,29 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     removeSelectedItems: async () => {
       const user = await getCurrentUser();
-      const selectedItems = get().cartItems.filter(item => item.selected);
+      const cartItems = get().cartItems;
+      const selectedItems = cartItems.filter(item => item.selected);
+      
+      if (selectedItems.length === 0) return;
 
       if (user) {
         try {
           const cart = await cartService.getOrCreateCart(user.id);
           if (cart) {
             const dbItems = await cartService.getCartItems(cart.id);
-            // Match selected items with DB items to delete
-            // Ideally we should have the DB ID in cartItems, leveraging product_id matching for now
-            for (const item of selectedItems) {
-              const dbItem = dbItems.find(i => i.product_id === item.id && i.variant?.id === item.selectedVariant?.id);
-              if (dbItem) {
-                await cartService.removeFromCart(dbItem.id);
-              }
+            // Collect all DB IDs for matching selected items
+            const idsToDelete = selectedItems
+              .map(item => {
+                const dbItem = dbItems.find(i => 
+                  i.product_id === item.id && 
+                  (item.selectedVariant ? (i as any).variant_id === item.selectedVariant.id : !(i as any).variant_id)
+                );
+                return dbItem?.id;
+              })
+              .filter(Boolean) as string[];
+
+            if (idsToDelete.length > 0) {
+              await cartService.removeItemsFromCart(idsToDelete);
             }
           }
         } catch (error) {
@@ -1148,9 +1217,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
       }
 
-      set((state) => ({
-        cartItems: state.cartItems.filter(item => !item.selected)
-      }));
+      // Update local state
+      set({ cartItems: cartItems.filter(item => !item.selected) });
       get().groupCartBySeller();
     },
 

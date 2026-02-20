@@ -191,7 +191,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   // Clamp quantity when selected variant changes or product loads
   useEffect(() => {
     const currentVariant = getSelectedVariant();
-    const maxStock = currentVariant?.stock || normalizedProduct?.stock || 0;
+    const maxStock = currentVariant 
+      ? (currentVariant.stock ?? 0) 
+      : (normalizedProduct?.stock ?? 0);
 
     if (maxStock === 0) {
       setQuantity(0);
@@ -227,7 +229,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const handleQuantityInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value) || 0;
     const currentVariant = getSelectedVariant();
-    const maxStock = currentVariant?.stock || normalizedProduct?.stock || 0;
+    const maxStock = currentVariant 
+      ? (currentVariant.stock ?? 0) 
+      : (normalizedProduct?.stock ?? 0);
 
     if (val > maxStock) {
       if (maxStock > 0) {
@@ -245,7 +249,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
   const handleQuantityBlur = () => {
     const currentVariant = getSelectedVariant();
-    const maxStock = currentVariant?.stock || normalizedProduct?.stock || 0;
+    const maxStock = currentVariant 
+      ? (currentVariant.stock ?? 0) 
+      : (normalizedProduct?.stock ?? 0);
     if (quantity < 1 && maxStock > 0) {
       setQuantity(1);
     }
@@ -814,7 +820,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                   onClick={() => {
                     const currentVariant = getSelectedVariant();
                     const maxStock =
-                      currentVariant?.stock || normalizedProduct?.stock || 100;
+                      currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
                     setQuantity(Math.min(maxStock, quantity + 1));
                   }}
                   className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--brand-wash)] text-[var(--text-primary)] transition-colors"
@@ -825,8 +831,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
               {/* Stock Display */}
               {(() => {
                 const currentVariant = getSelectedVariant();
-                const stockQty =
-                  currentVariant?.stock || normalizedProduct?.stock || 0;
+                const stockQty = currentVariant
+                  ? (currentVariant.stock ?? 0)
+                  : (normalizedProduct?.stock ?? 0);
                 return (
                   <div className="flex items-center gap-2">
                     {stockQty > 0 ? (
@@ -879,16 +886,18 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 onClick={handleBuyNow}
                 disabled={(() => {
                   const currentVariant = getSelectedVariant();
-                  const stockQty =
-                    currentVariant?.stock || normalizedProduct?.stock || 0;
+                  const stockQty = currentVariant
+                    ? (currentVariant.stock ?? 0)
+                    : (normalizedProduct?.stock ?? 0);
                   return stockQty === 0;
                 })()}
                 className="flex-1 h-12 sm:h-14 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white text-sm sm:text-base font-bold shadow-lg shadow-[var(--brand-primary)]/20 hover:shadow-xl hover:shadow-[var(--brand-primary)]/30 transition-all active:scale-[0.98] border-0 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {(() => {
                   const currentVariant = getSelectedVariant();
-                  const stockQty =
-                    currentVariant?.stock || normalizedProduct?.stock || 0;
+                  const stockQty = currentVariant
+                    ? (currentVariant.stock ?? 0)
+                    : (normalizedProduct?.stock ?? 0);
                   return stockQty > 0 ? "Buy Now" : "Out of Stock";
                 })()}
               </Button>
@@ -933,6 +942,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 productId={normalizedProduct.id}
                 rating={productData.rating}
                 reviewCount={productData.reviewCount}
+                variants={productData.variants}
+                currentVariantId={getSelectedVariant()?.id}
               />
             )}
 
@@ -1135,7 +1146,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
               productData.label2Options?.map((c: any) => c.name || c) || [],
             variantLabel1Values: productData.label1Options || [],
             variants: productData.variants || [],
-            stock: normalizedProduct.stock || 100,
+            stock: normalizedProduct.stock ?? 0,
           }}
           onConfirm={(qty, variant) => {
             proceedToCheckout(qty, variant);
