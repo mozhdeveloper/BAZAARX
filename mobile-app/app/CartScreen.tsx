@@ -47,7 +47,7 @@ export default function CartScreen({ navigation }: any) {
     }, {} as Record<string, typeof items>);
   }, [items]);
 
-  const selectedItems = items.filter(item => selectedIds.includes(item.id));
+  const selectedItems = items.filter(item => selectedIds.includes(item.cartItemId));
   const subtotal = selectedItems.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
   const totalSavings = selectedItems.reduce((sum, item) => {
     const savings = (item.originalPrice && item.originalPrice > (item.price || 0))
@@ -67,7 +67,7 @@ export default function CartScreen({ navigation }: any) {
   };
 
   const toggleSellerGroup = (sellerProducts: typeof items) => {
-    const sellerItemIds = sellerProducts.map(item => item.id);
+    const sellerItemIds = sellerProducts.map(item => item.cartItemId);
     const isSellerFullySelected = sellerItemIds.every(id => selectedIds.includes(id));
 
     if (isSellerFullySelected) {
@@ -143,7 +143,7 @@ export default function CartScreen({ navigation }: any) {
 
       {/* SELECT ALL BAR */}
       <View style={styles.selectAllBar}>
-        <Pressable style={styles.checkboxWrapper} onPress={() => isAllSelected ? setSelectedIds([]) : setSelectedIds(items.map(i => i.id))}>
+        <Pressable style={styles.checkboxWrapper} onPress={() => isAllSelected ? setSelectedIds([]) : setSelectedIds(items.map(i => i.cartItemId))}>
           {isAllSelected ? <CheckCircle size={22} color={BRAND_PRIMARY} fill={BRAND_PRIMARY + '15'} /> : <Circle size={22} color="#D1D5DB" />}
           <Text style={styles.selectAllText}>Select All Items</Text>
         </Pressable>
@@ -156,7 +156,7 @@ export default function CartScreen({ navigation }: any) {
       >
         {/* SELLER GROUPS */}
         {Object.entries(groupedItems).map(([sellerName, sellerProducts]) => {
-          const isSellerSelected = sellerProducts.every(item => selectedIds.includes(item.id));
+          const isSellerSelected = sellerProducts.every(item => selectedIds.includes(item.cartItemId));
 
           return (
             <View key={sellerName} style={styles.sellerCard}>
@@ -179,10 +179,10 @@ export default function CartScreen({ navigation }: any) {
 
               {/* PRODUCTS LIST */}
               {sellerProducts.map((item, index) => (
-                <View key={item.id}>
+                <View key={item.cartItemId}>
                   <View style={styles.itemRow}>
-                    <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.id)}>
-                      {selectedIds.includes(item.id) ? (
+                    <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)}>
+                      {selectedIds.includes(item.cartItemId) ? (
                         <CheckCircle size={20} color={BRAND_PRIMARY} />
                       ) : (
                         <Circle size={20} color="#D1D5DB" />
@@ -241,6 +241,7 @@ export default function CartScreen({ navigation }: any) {
             style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}>
             <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
           </Pressable>
+
         </View>
       </View>
     </LinearGradient>
