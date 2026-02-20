@@ -36,6 +36,7 @@ import {
   Truck,
   ShieldCheck,
   ChevronRight,
+  ChevronDown,
   Bookmark, // For Wishlist categories
   FolderHeart,
   PlusCircle,
@@ -43,8 +44,12 @@ import {
   Edit3,
   MapPin, // Added for seller location
   User, // Added missing import
+  Filter, // For Filter icon
+  ImageIcon, // For Image filter icon
+  CheckCircle,
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
+import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import StoreChatModal from '../src/components/StoreChatModal';
 import { AIChatBubble } from '../src/components/AIChatBubble';
@@ -160,8 +165,24 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const parsedOptions1 = typeof rawOptions1 === 'string' ? JSON.parse(rawOptions1) : rawOptions1;
   const parsedOptions2 = typeof rawOptions2 === 'string' ? JSON.parse(rawOptions2) : rawOptions2;
 
-  const option1Values = Array.isArray(parsedOptions1) ? parsedOptions1.filter((c: string) => c && typeof c === 'string' && c.trim() !== '') : [];
-  const option2Values = Array.isArray(parsedOptions2) ? parsedOptions2.filter((s: string) => s && typeof s === 'string' && s.trim() !== '') : [];
+  // Dedupe logic with case-insensitivity
+  const dedupeOptions = (opts: any) => {
+    if (!Array.isArray(opts)) return [];
+    const seen = new Set();
+    return opts.reduce((acc: string[], curr: any) => {
+      if (curr && typeof curr === 'string' && curr.trim() !== '') {
+        const normalized = curr.trim().toLowerCase();
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          acc.push(curr.trim());
+        }
+      }
+      return acc;
+    }, []);
+  };
+
+  const option1Values = dedupeOptions(parsedOptions1);
+  const option2Values = dedupeOptions(parsedOptions2);
 
   // Legacy aliases for compatibility
   const productColors = option1Values;
@@ -205,6 +226,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const setModalSelectedColor = setModalSelectedOption1;
   const setModalSelectedSize = setModalSelectedOption2;
   const [modalQuantity, setModalQuantity] = useState(1);
+  const [showVariantFilterModal, setShowVariantFilterModal] = useState(false); // Filter dropdown state
 
   // Computed modal variant price, stock, and image
   const modalVariantInfo = useMemo(() => {
@@ -233,10 +255,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return { price: product.price, stock: product.stock, image: null };
     }
 
+    const normalize = (val: any) => String(val || '').trim().toLowerCase();
+
     const matchedVariant = productVariants.find((v: any) => {
-      // Match by option values OR legacy color/size using main screen state
-      const option1Match = !selectedOption1 || v.option_1_value === selectedOption1 || v.color === selectedOption1;
-      const option2Match = !selectedOption2 || v.option_2_value === selectedOption2 || v.size === selectedOption2;
+      // Match by option values OR legacy color/size using main screen state with normalization
+      const targetOp1 = normalize(selectedOption1);
+      const targetOp2 = normalize(selectedOption2);
+
+      const vOption1 = normalize(v.option_1_value || v.color);
+      const vOption2 = normalize(v.option_2_value || v.size);
+
+      const option1Match = !selectedOption1 || vOption1 === targetOp1;
+      const option2Match = !selectedOption2 || vOption2 === targetOp2;
       return option1Match && option2Match;
     });
 
@@ -260,10 +290,48 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Reviews State
   const [reviews, setReviews] = useState<ReviewFeedItem[]>([]);
   const [reviewsTotal, setReviewsTotal] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
   const [reviewPage, setReviewPage] = useState(1);
-  const [averageRating, setAverageRating] = useState(0);
+
+  
+  // Review Filters
+  const [reviewFilters, setReviewFilters] = useState<{ rating?: number; withImages?: boolean }>({});
+  const [activeRatingFilter, setActiveRatingFilter] = useState<number | null>(null);
+  const [activeImageFilter, setActiveImageFilter] = useState(false);
+  
+  // Variant filtering
+  const [activeVariantFilter, setActiveVariantFilter] = useState<string | null>(null);
+
+  const toggleRatingFilter = (rating: number | null) => {
+    // If null, it means 'All' was clicked
+    const newRating = rating === null ? null : (activeRatingFilter === rating ? null : rating);
+    setActiveRatingFilter(newRating);
+    setReviewFilters(prev => ({ ...prev, rating: newRating || undefined }));
+  };
+
+  const toggleVariantFilter = (variantId: string | null) => {
+     // If null, it means 'All Variants' was clicked
+     const newVariantId = variantId === null ? null : (activeVariantFilter === variantId ? null : variantId);
+     setActiveVariantFilter(newVariantId);
+     setReviewFilters(prev => ({ ...prev, variantId: newVariantId || undefined }));
+  };
+
+  const toggleImageFilter = () => {
+    const newWithImages = !activeImageFilter;
+    setActiveImageFilter(newWithImages);
+    setReviewFilters(prev => ({ ...prev, withImages: newWithImages || undefined }));
+  };
+
+  // ... (rest of component code)
+  
+  // RENDER SECTION FOR FILTERS (inside the Ratings tab content)
+  // Need to locate where filters are rendered. I will insert this hook logic first.
+  // Then I will use replace_file_content to insert the UI components.
+  
+  // WAIT - I need to see where the filters are currently rendered to replace/append them.
+  // I'll search for 'activeRatingFilter' usage in the JSX.
 
   const effectiveAverageRating = averageRating > 0 ? averageRating : Number(product.rating || 0);
   const effectiveReviewTotal = reviewsTotal > 0
@@ -280,7 +348,22 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [showMenu, setShowMenu] = useState(false);
 
   // Use product images if available, otherwise mock an array with the main image
-  const productImages = product.images || [product.image, product.image, product.image, product.image, product.image];
+  // product.images from Supabase is an array of objects { id, image_url, alt_text, ... }
+  // We normalize these to plain strings for rendering
+  const productImages: string[] = (() => {
+    const raw = product.images;
+    if (!raw || !Array.isArray(raw) || raw.length === 0) {
+      // Fallback: use the main image string
+      const fallback = product.image;
+      return fallback ? [fallback, fallback, fallback, fallback, fallback] : [];
+    }
+    // Map Supabase image objects to string URLs, sorted by sort_order
+    const sorted = [...raw].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    return sorted.map((img: any) => {
+      if (typeof img === 'string') return img;
+      return img.image_url || img.url || img.uri || product.image || '';
+    }).filter(Boolean) as string[];
+  })();
 
   // Stores
   const addItem = useCartStore((state) => state.addItem);
@@ -294,8 +377,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
 
-  const fetchReviews = async (page = 1, append = false) => {
+
+
+  const fetchReviews = async (page = 1, append = false, currentFilters = reviewFilters) => {
     if (!product.id) return;
+
 
     if (append) {
       setIsLoadingMoreReviews(true);
@@ -304,7 +390,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
 
     try {
-      const { reviews: fetchedReviews, total, stats } = await reviewService.getProductReviews(product.id, page, 5);
+      const { reviews: fetchedReviews, total, stats } = await reviewService.getProductReviews(product.id, page, 5, currentFilters);
       const mergedReviews = append
         ? Array.from(new Map([...reviews, ...fetchedReviews].map((review) => [review.id, review])).values())
         : fetchedReviews;
@@ -333,8 +419,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   useEffect(() => {
     setReviewPage(1);
     setReviews([]);
-    fetchReviews(1, false);
-  }, [product.id]);
+    fetchReviews(1, false, reviewFilters);
+  }, [product.id, reviewFilters]); // Refetch when filters change
 
   const handleLoadMoreReviews = () => {
     if (isLoadingMoreReviews || reviews.length >= reviewsTotal) {
@@ -539,6 +625,63 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     navigation.navigate('Checkout', {});
   };
 
+  // NEW Handle Confirm from Shared Modal
+  const handleSharedModalConfirm = (
+    selectedVariant: {
+      option1Value?: string;
+      option2Value?: string;
+      variantId?: string;
+      price?: number;
+      stock?: number;
+    },
+    newQuantity: number
+  ) => {
+    const variantPrice = selectedVariant.price ?? product.price;
+    const variantId = selectedVariant.variantId;
+    
+    // Build selected variant object for cart/order
+    const variantObj = buildSelectedVariant(selectedVariant.option1Value, selectedVariant.option2Value);
+
+    if (variantModalAction === 'cart') {
+      addItem({
+        ...product,
+        price: variantPrice,
+        selectedVariant: {
+          ...variantObj,
+          variantId,
+        },
+        quantity: newQuantity
+      });
+
+      // Show Added Modal
+      const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
+      setAddedProductInfo({
+        name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
+        image: productImages[0] || product.image
+      });
+      setShowVariantModal(false);
+      setTimeout(() => setShowAddedToCartModal(true), 100);
+
+    } else {
+       setQuickOrder({
+        ...product,
+        price: variantPrice,
+        selectedVariant: {
+          ...variantObj,
+           variantId,
+        },
+      }, newQuantity);
+      setShowVariantModal(false);
+      navigation.navigate('Checkout', {});
+    }
+
+    // Update main screen selections
+    if (selectedVariant.option1Value) setSelectedOption1(selectedVariant.option1Value);
+    if (selectedVariant.option2Value) setSelectedOption2(selectedVariant.option2Value);
+    setQuantity(newQuantity);
+  };
+
+
   const handleShare = async () => {
     await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
   };
@@ -589,7 +732,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     navigation.push('StoreDetail', {
       store: {
         id: sellerId,
-        name: product.seller || 'Store',
+        name: displayStoreName,
         image: product.seller_avatar || product.sellerAvatar || null,
         rating: product.sellerRating || 0,
         verified: product.sellerVerified || false,
@@ -737,7 +880,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             }}
             scrollEventThrottle={16}
           >
-            {productImages.filter((img): img is string => img !== undefined).map((img: string, index: number) => (
+            {productImages.map((img: string, index: number) => (
               <Image key={index} source={{ uri: img }} style={styles.productImage} />
             ))}
           </ScrollView>
@@ -797,6 +940,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     <Text style={[
                       styles.sizeOptionText,
                       selectedOption2 === value && styles.sizeOptionTextSelected,
+
                     ]}>{value}</Text>
                   </Pressable>
                 ))}
@@ -804,30 +948,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
-          <View style={styles.quantityRow}>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: '#1F2937' }}>Quantity</Text>
-            <View style={styles.qtyPill}>
-              <Pressable
-                onPress={() => setQuantity(Math.max(1, quantity - 1))}
-                style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Minus size={22} color="#FB8C00" />
-              </Pressable>
-              <Text style={styles.qtyValue}>{quantity}</Text>
-              <Pressable
-                onPress={() => {
-                  if (quantity < (selectedVariantInfo.stock || 0)) {
-                    setQuantity(quantity + 1);
-                  } else {
-                    Alert.alert('Limit Reached', `Only ${selectedVariantInfo.stock} items available.`);
-                  }
-                }}
-                style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Plus size={22} color="#FB8C00" />
-              </Pressable>
-            </View>
-          </View>
           <Text style={{ fontSize: 13, color: '#9CA3AF', marginTop: 5, textAlign: 'right', marginBottom: 15 }}>{selectedVariantInfo.stock} In Stock</Text>
 
           <Text style={{ fontSize: 15, color: '#4B5563', lineHeight: 24, marginBottom: 15 }}>
@@ -840,8 +960,59 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </View>
 
         {/* --- RATINGS SECTION --- */}
-        <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
+        <View style={{ paddingHorizontal: 16, marginTop: 32 }}> {/* Increased top margin */}
           <Text style={styles.sectionTitle}>Ratings & Reviews</Text>
+          
+          {/* Review Filters - Wrapped Layout */}
+          <View style={{ marginTop: 12 }}> {/* Added spacing from title */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+               {/* "All" Rating Filter */}
+               <Pressable 
+                  style={[styles.filterChip, activeRatingFilter === null && !activeImageFilter && styles.filterChipActive]}
+                  onPress={() => {
+                    toggleRatingFilter(null);
+                    if (activeImageFilter) toggleImageFilter(); 
+                  }}
+               >
+                 <Text style={[styles.filterChipText, activeRatingFilter === null && !activeImageFilter && styles.filterChipTextActive]}>All</Text>
+               </Pressable>
+
+               <Pressable 
+                  style={[styles.filterChip, activeImageFilter && styles.filterChipActive]}
+                  onPress={toggleImageFilter}
+               >
+                 <ImageIcon size={14} color={activeImageFilter ? '#FFF' : '#4B5563'} />
+                 <Text style={[styles.filterChipText, activeImageFilter && styles.filterChipTextActive]}>With Photo</Text>
+               </Pressable>
+               
+               {[5, 4, 3, 2, 1].map((rating) => (
+                  <Pressable
+                    key={`filter-${rating}`}
+                    style={[styles.filterChip, activeRatingFilter === rating && styles.filterChipActive]}
+                    onPress={() => toggleRatingFilter(rating)}
+                  >
+                    <Star size={14} color={activeRatingFilter === rating ? '#FFF' : '#FBBF24'} fill={activeRatingFilter === rating ? '#FFF' : '#FBBF24'} />
+                    <Text style={[styles.filterChipText, activeRatingFilter === rating && styles.filterChipTextActive]}>{rating}</Text>
+                  </Pressable>
+               ))}
+
+              {/* Variant Filter Dropdown Trigger */}
+              {hasStructuredVariants && (
+                 <Pressable 
+                    style={[styles.filterChip, activeVariantFilter !== null && styles.filterChipActive, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}
+                    onPress={() => setShowVariantFilterModal(true)}
+                 >
+                   <Text style={[styles.filterChipText, activeVariantFilter !== null && styles.filterChipTextActive]}>
+                     {activeVariantFilter 
+                       ? productVariants.find((v: any) => v.id === activeVariantFilter)?.variant_name || 'Selected Variant'
+                       : 'All Variants'}
+                   </Text>
+                   <ChevronDown size={14} color={activeVariantFilter !== null ? '#FFF' : '#4B5563'} />
+                 </Pressable>
+              )}
+            </View>
+          </View>
+
           {isLoadingReviews ? (
             <ActivityIndicator size="small" color="#FB8C00" style={{ marginVertical: 20 }} />
           ) : reviews.length > 0 ? (
@@ -949,140 +1120,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </Pressable>
       </View>
 
-      {/* --- VARIANT SELECTION MODAL --- */}
-      <Modal
+      {/* --- VARIANT SELECTION MODAL (SHARED) --- */}
+      <VariantSelectionModal
         visible={showVariantModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowVariantModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowVariantModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => { }}>
-              <View style={[styles.variantModal, { paddingBottom: insets.bottom + 20 }]}>
-                {/* Modal Header */}
-                <View style={styles.variantModalHeader}>
-                  <Image
-                    source={{ uri: modalVariantInfo.image || productImages[0] }}
-                    style={styles.variantModalImage}
-                  />
-                  <View style={styles.variantModalInfo}>
-                    <Text style={styles.variantModalPrice}>₱{(modalVariantInfo.price ?? 0).toLocaleString()}</Text>
-                    <Text style={[
-                      styles.variantModalStock,
-                      { color: (modalVariantInfo.stock || 0) <= 5 ? '#F97316' : (modalVariantInfo.stock || 0) === 0 ? '#EF4444' : '#10B981' }
-                    ]}>
-                      {(modalVariantInfo.stock || 0) === 0 ? 'Out of Stock' : `Stock: ${modalVariantInfo.stock || 0}`}
-                    </Text>
-                    <Text style={styles.variantModalSelected}>
-                      {[modalSelectedColor, modalSelectedSize].filter(Boolean).join(', ') || 'Select options'}
-                    </Text>
-                  </View>
-                  <Pressable style={styles.variantModalClose} onPress={() => setShowVariantModal(false)}>
-                    <X size={22} color="#6B7280" />
-                  </Pressable>
-                </View>
-
-                <ScrollView style={styles.variantModalContent} showsVerticalScrollIndicator={false}>
-                  {/* Option 1 Selection (Dynamic - e.g., Color, Material) */}
-                  {hasOption1 && (
-                    <View style={styles.variantModalSection}>
-                      <Text style={styles.variantModalLabel}>{variantLabel1}</Text>
-                      <View style={styles.variantModalOptions}>
-                        {option1Values.filter((c: string) => c.trim() !== '').map((value: string, index: number) => (
-                          <Pressable
-                            key={`modal-option1-${value}-${index}`}
-                            style={[
-                              styles.variantModalColorOption,
-                              { backgroundColor: variantLabel1.toLowerCase() === 'color' ? getColorHex(value) : '#F3F4F6' },
-                              modalSelectedOption1 === value && styles.variantModalColorSelected,
-                            ]}
-                            onPress={() => setModalSelectedOption1(value)}
-                          >
-                            {variantLabel1.toLowerCase() !== 'color' && (
-                              <Text style={[styles.variantModalOptionText, modalSelectedOption1 === value && { color: '#FFF' }]}>{value}</Text>
-                            )}
-                            {modalSelectedOption1 === value && variantLabel1.toLowerCase() === 'color' && (
-                              <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
-                            )}
-                          </Pressable>
-                        ))}
-                      </View>
-                      {variantLabel1.toLowerCase() === 'color' && (
-                        <Text style={styles.variantModalSelectedText}>{modalSelectedOption1}</Text>
-                      )}
-                    </View>
-                  )}
-
-                  {/* Option 2 Selection (Dynamic - e.g., Size, Style) */}
-                  {hasOption2 && (
-                    <View style={styles.variantModalSection}>
-                      <Text style={styles.variantModalLabel}>{variantLabel2}</Text>
-                      <View style={styles.variantModalSizeOptions}>
-                        {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => (
-                          <Pressable
-                            key={`modal-option2-${value}-${index}`}
-                            style={[
-                              styles.variantModalSizeOption,
-                              modalSelectedOption2 === value && styles.variantModalSizeSelected,
-                            ]}
-                            onPress={() => setModalSelectedOption2(value)}
-                          >
-                            <Text style={[
-                              styles.variantModalSizeText,
-                              modalSelectedOption2 === value && styles.variantModalSizeTextSelected,
-                            ]}>{value}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Quantity Selection */}
-                  <View style={styles.variantModalSection}>
-                    <Text style={styles.variantModalLabel}>Quantity</Text>
-                    <View style={styles.variantModalQuantityRow}>
-                      <Pressable
-                        style={styles.variantModalQtyBtn}
-                        onPress={() => setModalQuantity(Math.max(1, modalQuantity - 1))}
-                      >
-                        <Minus size={18} color={BRAND_COLOR} />
-                      </Pressable>
-                      <Text style={styles.variantModalQtyValue}>{modalQuantity}</Text>
-                      <Pressable
-                        style={styles.variantModalQtyBtn}
-                        onPress={() => setModalQuantity(modalQuantity + 1)}
-                      >
-                        <Plus size={18} color={BRAND_COLOR} />
-                      </Pressable>
-                    </View>
-                  </View>
-                </ScrollView>
-
-                {/* Confirm Button */}
-                <Pressable
-                  style={[
-                    styles.variantModalConfirmBtn,
-                    variantModalAction === 'buy' && styles.variantModalBuyBtn,
-                    // Disable button if required variants not selected
-                    ((hasOption1 && !modalSelectedOption1) || (hasOption2 && !modalSelectedOption2)) && styles.variantModalConfirmBtnDisabled
-                  ]}
-                  onPress={handleVariantModalConfirm}
-                  disabled={(hasOption1 && !modalSelectedOption1) || (hasOption2 && !modalSelectedOption2)}
-                >
-                  <Text style={[
-                    styles.variantModalConfirmText,
-                    variantModalAction === 'buy' && { color: '#FFF' },
-                    ((hasOption1 && !modalSelectedOption1) || (hasOption2 && !modalSelectedOption2)) && styles.variantModalConfirmTextDisabled
-                  ]}>
-                    {variantModalAction === 'cart' ? 'Add to Cart' : 'Buy Now'}
-                  </Text>
-                </Pressable>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        onClose={() => setShowVariantModal(false)}
+        product={product}
+        variants={productVariants} // Pass full variants list for accurate stock validation
+        initialSelectedVariant={buildSelectedVariant(selectedOption1, selectedOption2)}
+        initialQuantity={quantity}
+        onConfirm={handleSharedModalConfirm}
+        confirmLabel={variantModalAction === 'cart' ? 'Add to Cart' : 'Buy Now'}
+        isBuyNow={variantModalAction === 'buy'}
+      />
 
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
 
@@ -1092,6 +1141,101 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         storeName={displayStoreName}
         sellerId={product.seller_id || product.sellerId}
       />
+
+      {/* --- REVIEW VARIANT FILTER MODAL --- */}
+      <Modal
+        visible={showVariantFilterModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowVariantFilterModal(false)}
+      >
+        <Pressable 
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setShowVariantFilterModal(false)}
+        >
+          <Pressable 
+            style={{ 
+              width: '80%', 
+              backgroundColor: '#fff', 
+              borderRadius: 16, 
+              paddingVertical: 20, 
+              paddingHorizontal: 16,
+              maxHeight: '60%'
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 16, textAlign: 'center' }}>
+              Filter Reviews by Variant
+            </Text>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+               <Pressable 
+                  style={{ 
+                    paddingVertical: 12, 
+                    borderBottomWidth: 1, 
+                    borderBottomColor: '#F3F4F6',
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                  onPress={() => {
+                    toggleVariantFilter(null);
+                    setShowVariantFilterModal(false);
+                  }}
+               >
+                 <Text style={{ fontSize: 16, color: activeVariantFilter === null ? '#EA580C' : '#374151', fontWeight: activeVariantFilter === null ? '700' : '400' }}>
+                   All Variants
+                 </Text>
+                 {activeVariantFilter === null && <CheckCircle size={20} color="#EA580C" />}
+               </Pressable>
+
+               {productVariants.map((variant: any) => {
+                   // Construct label
+                   const labelParts: string[] = [];
+                   if (variant.option_1_value) labelParts.push(variant.option_1_value);
+                   if (variant.option_2_value) labelParts.push(variant.option_2_value);
+                   // Fallback to legacy
+                   if (labelParts.length === 0) {
+                      if (variant.color) labelParts.push(variant.color);
+                      if (variant.size) labelParts.push(variant.size);
+                   }
+                   const label = labelParts.join(' / ') || variant.variant_name || 'Variant';
+                   const isActive = activeVariantFilter === variant.id;
+
+                   return (
+                      <Pressable 
+                        key={variant.id}
+                        style={{ 
+                          paddingVertical: 12, 
+                          borderBottomWidth: 1, 
+                          borderBottomColor: '#F3F4F6',
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                        onPress={() => {
+                          toggleVariantFilter(variant.id);
+                          setShowVariantFilterModal(false);
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, color: isActive ? '#EA580C' : '#374151', fontWeight: isActive ? '700' : '400' }}>
+                          {label}
+                        </Text>
+                        {isActive && <CheckCircle size={20} color="#EA580C" />}
+                      </Pressable>
+                   );
+               })}
+            </ScrollView>
+
+            <Pressable 
+              style={{ marginTop: 16, alignSelf: 'center', padding: 10 }}
+              onPress={() => setShowVariantFilterModal(false)}
+            >
+              <Text style={{ color: '#9CA3AF', fontSize: 15 }}>Close</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {showGuestModal && (
         <GuestLoginModal
@@ -1267,7 +1411,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           rating: averageRating || product.rating,
           reviewCount: reviewsTotal,
           salesCount: product.sales_count,
-          images: productImages.filter((img): img is string => !!img),
+          images: productImages,
           isFreeShipping: product.is_free_shipping || product.isFreeShipping,
           weight: product.weight ?? undefined,
           dimensions: product.dimensions ?? undefined,
@@ -1598,7 +1742,35 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
+    gap: 16,
   },
+  
+  // Filter Styles
+  filtersContainer: { marginBottom: 15 },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  filterChipActive: {
+    backgroundColor: '#374151',
+    borderColor: '#374151',
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  filterChipTextActive: {
+    color: '#FFF',
+  },
+
   variantModalImage: {
     width: 80,
     height: 80,

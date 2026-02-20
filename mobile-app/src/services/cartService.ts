@@ -148,6 +148,18 @@ export class CartService {
               id,
               store_name,
               avatar_url
+            ),
+            variants:product_variants (
+              id,
+              sku,
+              variant_name,
+              size,
+              color,
+              option_1_value,
+              option_2_value,
+              price,
+              stock,
+              thumbnail_url
             )
           ),
           variant:product_variants (
@@ -289,6 +301,34 @@ export class CartService {
   }
 
   /**
+   * Update cart item variant
+   */
+  async updateCartItemVariant(
+    itemId: string,
+    variantId?: string | null,
+    personalizedOptions?: Record<string, unknown> | null
+  ): Promise<void> {
+    if (!isSupabaseConfigured()) {
+       throw new Error('Supabase not configured');
+    }
+
+    try {
+      const { error } = await supabase
+        .from('cart_items')
+        .update({ 
+          variant_id: variantId || null,
+          personalized_options: personalizedOptions || null
+        })
+        .eq('id', itemId);
+
+      if (error) throw error;
+    } catch (error) {
+       console.error('Error updating cart item variant:', error);
+       throw new Error('Failed to update item variant.');
+    }
+  }
+
+  /**
    * Remove item from cart
    */
   async removeFromCart(itemId: string): Promise<void> {
@@ -306,6 +346,29 @@ export class CartService {
     } catch (error) {
       console.error('Error removing from cart:', error);
       throw new Error('Failed to remove item from cart.');
+    }
+  }
+
+  /**
+   * Remove multiple items from cart
+   */
+  async removeItems(itemIds: string[]): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured - cannot remove items');
+    }
+
+    if (!itemIds || itemIds.length === 0) return;
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('cart_items')
+        .delete()
+        .in('id', itemIds);
+
+      if (deleteError) throw deleteError;
+    } catch (error) {
+      console.error('Error removing multiple items from cart:', error);
+      throw new Error('Failed to remove items from cart.');
     }
   }
 
