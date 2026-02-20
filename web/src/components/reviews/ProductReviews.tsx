@@ -14,6 +14,8 @@ interface ProductReviewsProps {
   productId: string;
   rating: number;
   reviewCount: number;
+  variants?: any[];
+  currentVariantId?: string;
 }
 
 const EMPTY_REVIEW_STATS: ReviewStats = {
@@ -27,6 +29,8 @@ export function ProductReviews({
   productId,
   rating,
   reviewCount,
+  variants = [],
+  currentVariantId,
 }: ProductReviewsProps) {
   const [reviews, setReviews] = useState<ReviewFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,15 +39,25 @@ export function ProductReviews({
   const [page, setPage] = useState(1);
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
   const [isVotersModalOpen, setIsVotersModalOpen] = useState(false);
+  const [selectedRatingFilter, setSelectedRatingFilter] = useState(0); // 0 = All
+  const [withPhotoFilter, setWithPhotoFilter] = useState(false);
+  const [filteringVariantId, setFilteringVariantId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     void fetchReviews();
-  }, [productId, page]);
+  }, [productId, page, selectedRatingFilter, withPhotoFilter, filteringVariantId]);
 
   const fetchReviews = async () => {
     setLoading(true);
     try {
-      const result = await reviewService.getProductReviews(productId, page, 5);
+      const result = await reviewService.getProductReviews(
+        productId,
+        page,
+        5,
+        selectedRatingFilter > 0 ? selectedRatingFilter : undefined,
+        withPhotoFilter,
+        filteringVariantId
+      );
 
       if (page === 1) {
         setReviews(result.reviews);
@@ -160,6 +174,100 @@ export function ProductReviews({
                 </div>
               );
             })}
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-[var(--brand-wash-gold)]/30">
+            <h4 className="text-sm font-bold text-[var(--text-headline)] mb-4">Filter Reviews</h4>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  setPage(1);
+                  setSelectedRatingFilter(0);
+                }}
+                className={cn(
+                  "px-4 py-2 rounded-full text-xs font-semibold transition-all border",
+                  selectedRatingFilter === 0
+                    ? "bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] shadow-sm"
+                    : "bg-white text-[var(--text-muted)] border-gray-200 hover:border-[var(--brand-wash-gold)]"
+                )}
+              >
+                All
+              </button>
+              {[5, 4, 3, 2, 1].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => {
+                    setPage(1);
+                    setSelectedRatingFilter(star);
+                  }}
+                  className={cn(
+                    "px-4 py-2 rounded-full text-xs font-semibold transition-all border flex items-center gap-1",
+                    selectedRatingFilter === star
+                      ? "bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] shadow-sm"
+                      : "bg-white text-[var(--text-muted)] border-gray-200 hover:border-[var(--brand-wash-gold)]"
+                  )}
+                >
+                  {star} <Star className={cn("w-3 h-3", selectedRatingFilter === star ? "fill-white" : "fill-[var(--brand-primary)]")} />
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  setPage(1);
+                  setWithPhotoFilter(!withPhotoFilter);
+                }}
+                className={cn(
+                  "px-4 py-2 rounded-full text-xs font-semibold transition-all border flex items-center gap-1",
+                  withPhotoFilter
+                    ? "bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] shadow-sm"
+                    : "bg-white text-[var(--text-muted)] border-gray-200 hover:border-[var(--brand-wash-gold)]"
+                )}
+              >
+                With Photo
+              </button>
+            </div>
+
+            {variants.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2">Filter by Variant</h4>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      setPage(1);
+                      setFilteringVariantId(undefined);
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all border",
+                      !filteringVariantId
+                        ? "bg-gray-800 text-white border-gray-800"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                    )}
+                  >
+                    All Variants
+                  </button>
+                  {variants.map((v) => {
+                    const label = [v.size || v.option_1_value, v.color || v.option_2_value].filter(Boolean).join(" / ");
+                    if (!label) return null;
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => {
+                          setPage(1);
+                          setFilteringVariantId(v.id);
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all border",
+                          filteringVariantId === v.id
+                            ? "bg-[var(--brand-primary)] text-white border-[var(--brand-primary)]"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -345,22 +345,44 @@ export class ReviewService {
     productId: string,
     page: number = 1,
     limit: number = 5,
+    rating?: number,
+    withImages: boolean = false,
+    variantId?: string,
   ): Promise<ProductReviewsResult> {
     if (!isSupabaseConfigured()) {
-      const productReviews = this.mockReviews
+      let productReviews = this.mockReviews
         .filter((review) => review.product_id === productId && !review.is_hidden)
         .sort((a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
         );
 
+      if (rating) {
+        productReviews = productReviews.filter((r) => Math.round(r.rating) === rating);
+      }
+
       const start = (page - 1) * limit;
-      const pagedReviews = productReviews.slice(start, start + limit).map((review) =>
-        mapReviewRowToFeedItem(review),
-      );
+      let mappedReviews = productReviews.map((review) => mapReviewRowToFeedItem(review));
+
+      // Apply photo logic: if not "All" rating and withImages is false, hide photo reviews
+      if (rating && !withImages) {
+        mappedReviews = mappedReviews.filter(r => r.images.length === 0);
+      } else if (withImages) {
+        mappedReviews = mappedReviews.filter(r => r.images.length > 0);
+      }
+
+      if (variantId) {
+        mappedReviews = mappedReviews.filter(r => {
+          const snapshot = r.variantSnapshot;
+          const reviewVariantId = (snapshot?.variant_id || snapshot?.id) as string | undefined;
+          return reviewVariantId === variantId;
+        });
+      }
+
+      const pagedReviews = mappedReviews.slice(start, start + limit);
 
       return {
         reviews: pagedReviews,
-        total: productReviews.length,
+        total: mappedReviews.length,
         stats: computeReviewStats(productReviews.map((review) => mapReviewRowToFeedItem(review))),
       };
     }
@@ -369,7 +391,7 @@ export class ReviewService {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      const { data, error, count } = await supabase
+      let query = supabase
         .from('reviews')
         .select(
           `
@@ -439,15 +461,29 @@ export class ReviewService {
           { count: 'exact' },
         )
         .eq('product_id', productId)
-        .eq('is_hidden', false)
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        .eq('is_hidden', false);
+
+      if (rating) {
+        query = query.eq('rating', rating);
+      }
+
+      // If variant filter is active
+      if (variantId) {
+        // We can check variant_id in joined order_items, or in variant_snapshot
+        // postgrest doesn't support complex json filtering easily in simple .eq
+        // So we filter by order_item -> variant_id
+        query = query.filter('order_item.variant_id', 'eq', variantId);
+      }
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.warn('Error fetching product reviews:', error);
         return { reviews: [], total: 0, stats: EMPTY_REVIEW_STATS };
       }
 
+      // We still want full stats (distribution) even when filtering
       const { data: statsRows, error: statsError } = await supabase
         .from('reviews')
         .select(
@@ -465,31 +501,36 @@ export class ReviewService {
         console.warn('Error fetching product review stats:', statsError);
       }
 
-      const mappedReviews = (data || []).map((review) => mapReviewRowToFeedItem(review));
+      let mappedReviews = (data || []).map((review) => mapReviewRowToFeedItem(review));
+
+      // Apply the user's specific photo logic
+      if (rating && !withImages) {
+        // User requested: don't show reviews with photos if photo filter is OFF, but only if a rating is selected
+        mappedReviews = mappedReviews.filter(r => r.images.length === 0);
+      } else if (withImages) {
+        // Standard "with photo" filter
+        mappedReviews = mappedReviews.filter(r => r.images.length > 0);
+      }
 
       const ratings = Array.isArray(statsRows)
         ? statsRows.map((row: any) => Number(row.rating || 0))
         : [];
-      const withImages = Array.isArray(statsRows)
+      const withImagesCount = Array.isArray(statsRows)
         ? statsRows.filter((row: any) =>
             Array.isArray(row.review_images) && row.review_images.length > 0,
           ).length
         : 0;
 
-      const computedStats = buildReviewStatsFromRatings(ratings, withImages);
+      const computedStats = buildReviewStatsFromRatings(ratings, withImagesCount);
       const fallbackStats = computeReviewStats(mappedReviews);
-      const total = count ?? computedStats.total;
-      const resolvedStats =
-        computedStats.total > 0 ? computedStats : fallbackStats;
+      
+      // Handle pagination locally since we might have filtered
+      const pagedReviews = mappedReviews.slice(from, to + 1);
 
       return {
-        reviews: mappedReviews,
-        total,
-        stats: {
-          ...resolvedStats,
-          total,
-          averageRating: total > 0 ? resolvedStats.averageRating : 0,
-        },
+        reviews: pagedReviews,
+        total: mappedReviews.length,
+        stats: computedStats.total > 0 ? computedStats : fallbackStats,
       };
     } catch (error) {
       console.error('Error fetching product reviews:', error);

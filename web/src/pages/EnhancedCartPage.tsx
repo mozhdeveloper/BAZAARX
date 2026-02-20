@@ -22,6 +22,15 @@ import {
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { VariantSelectionModal } from "../components/ui/variant-selection-modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function EnhancedCartPage() {
   const navigate = useNavigate();
@@ -45,11 +54,20 @@ export default function EnhancedCartPage() {
     selectAllItems,
     getSelectedTotal,
     getSelectedCount,
+    removeSelectedItems,
+    updateItemVariant,
   } = useBuyerStore();
 
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherError, setVoucherError] = useState("");
   const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
+
+  // Edit Variant State
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [showVariantModal, setShowVariantModal] = useState(false);
+
+  // Delete Confirmation State
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const getImageSrc = (src?: string | null) =>
     src && src.trim().length > 0 ? src : undefined;
 
@@ -142,6 +160,24 @@ export default function EnhancedCartPage() {
     }
   };
 
+  const handleEditOptions = (item: any) => {
+    setEditingItem(item);
+    setShowVariantModal(true);
+  };
+
+  const handleUpdateVariant = (newVariant: any, newQuantity: number) => {
+    if (editingItem) {
+      updateItemVariant(editingItem.id, editingItem.selectedVariant?.id, newVariant, newQuantity);
+    }
+    setShowVariantModal(false);
+    setEditingItem(null);
+  };
+
+  const handleDeleteSelected = () => {
+    removeSelectedItems();
+    setShowDeleteConfirm(false);
+  };
+
   if (totalItems === 0) {
     return (
       <div className="min-h-screen bg-[var(--brand-wash)]">
@@ -214,7 +250,19 @@ export default function EnhancedCartPage() {
                 checked={allSelected || (someSelected ? "indeterminate" : false)}
                 onCheckedChange={(checked) => selectAllItems(checked === true)}
               />
-              <span className="text-xs font-small text-[var(--text-muted)]">Select All Items ({totalItems})</span>
+              <span className="text-xs font-small text-[var(--text-muted)] mr-auto">Select All Items ({totalItems})</span>
+
+              {selectedCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50 text-xs h-8 px-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  Delete ({selectedCount})
+                </Button>
+              )}
             </div>
 
             <AnimatePresence>
@@ -320,26 +368,44 @@ export default function EnhancedCartPage() {
                                 >
                                   {item.name}
                                 </h4>
-                                {item.selectedVariant && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {(() => {
-                                      const variantMeta = item.selectedVariant as any;
-                                      const labels: string[] = [];
-                                      if (variantMeta?.size) labels.push(`Size: ${variantMeta.size}`);
-                                      if (variantMeta?.color) labels.push(`Color: ${variantMeta.color}`);
-                                      if (labels.length === 0 && variantMeta?.name) labels.push(variantMeta.name);
+                                {item.variants && item.variants.length > 0 && (
+                                  <button
+                                    onClick={() => handleEditOptions(item)}
+                                    className="flex flex-wrap gap-1 mt-1 hover:opacity-80 transition-opacity group text-left"
+                                    title="Click to change variety"
+                                  >
+                                    {item.selectedVariant ? (
+                                      (() => {
+                                        const variantMeta = item.selectedVariant as any;
+                                        const labels: string[] = [];
+                                        if (variantMeta?.size) labels.push(`Size: ${variantMeta.size}`);
+                                        if (variantMeta?.color) labels.push(`Color: ${variantMeta.color}`);
+                                        if (labels.length === 0 && variantMeta?.name) labels.push(variantMeta.name);
 
-                                      return labels.map((label) => (
-                                        <Badge
-                                          key={label}
-                                          variant="secondary"
-                                          className="text-[10px] h-4 px-1 bg-[var(--brand-wash)] text-[var(--text-primary)] border border-[var(--brand-wash-gold)]/30 hover:bg-[var(--brand-wash-gold)] hover:text-[var(--brand-primary)] transition-colors"
-                                        >
-                                          {label}
-                                        </Badge>
-                                      ));
-                                    })()}
-                                  </div>
+                                        return (
+                                          <>
+                                            {labels.map((label) => (
+                                              <Badge
+                                                key={label}
+                                                variant="secondary"
+                                                className="text-[10px] h-4 px-1.5 bg-[var(--brand-wash)] text-[var(--text-primary)] border border-[var(--brand-wash-gold)]/30 group-hover:border-[var(--brand-primary)] group-hover:text-[var(--brand-primary)] transition-colors pointer-events-none"
+                                              >
+                                                {label}
+                                              </Badge>
+                                            ))}
+                                            <span className="text-[9px] text-[var(--brand-primary)] opacity-0 group-hover:opacity-100 transition-opacity ml-1 font-medium bg-[var(--brand-wash)] px-1 rounded border border-[var(--brand-primary)]/20">Change</span>
+                                          </>
+                                        );
+                                      })()
+                                    ) : (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] h-5 px-2 text-[var(--brand-primary)] border-[var(--brand-primary)]/30 bg-[var(--brand-wash)]"
+                                      >
+                                        Select Options
+                                      </Badge>
+                                    )}
+                                  </button>
                                 )}
 
                                 {/* Quantity Controls */}
@@ -508,6 +574,52 @@ export default function EnhancedCartPage() {
           </motion.div>
         </div>
       </div>
+
+      {/* Variant Selection Modal */}
+      {editingItem && (
+        <VariantSelectionModal
+          isOpen={showVariantModal}
+          onClose={() => setShowVariantModal(false)}
+          product={{
+            id: editingItem.id,
+            name: editingItem.name,
+            price: editingItem.price,
+            image: editingItem.image,
+            variants: editingItem.variants || [],
+          }}
+          initialSelectedVariant={editingItem.selectedVariant}
+          initialQuantity={editingItem.quantity}
+          buttonText="Confirm Changes"
+          onConfirm={handleUpdateVariant}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Selected Items?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove {selectedCount} items from your cart?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteSelected}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
