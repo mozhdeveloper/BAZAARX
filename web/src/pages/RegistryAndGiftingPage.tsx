@@ -119,7 +119,7 @@ const RegistryAndGiftingPage = () => {
   }, [location]);
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-transparent">
       <Header />
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 pt-0 pb-4 flex flex-col gap-2">
         {/* Page Navigation */}
@@ -246,7 +246,7 @@ const RegistryAndGiftingPage = () => {
                 <div
                   key={list.id}
                   onClick={() => handleRegistryClick(list as any)}
-                  className="flex items-center w-full md:w-80 p-3 border border-gray-200 rounded-lg hover:shadow-sm cursor-pointer transition bg-white"
+                  className="product-card-premium product-card-premium-interactive flex-row items-center w-full md:w-80 p-3"
                 >
                   <img
                     src={list.imageUrl}
@@ -273,10 +273,10 @@ const RegistryAndGiftingPage = () => {
               }
               return list.category?.toLowerCase() === activeCategory;
             }).length === 0 && (
-              <div className="w-full text-center py-8 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300">
-                No registries found in this category.
-              </div>
-            )}
+                <div className="w-full text-center py-12 text-gray-500 bg-card rounded-3xl border border-dashed border-gray-200">
+                  No registries found in this category.
+                </div>
+              )}
           </div>
         </section>
 
@@ -336,16 +336,15 @@ const CategoryCard = ({
 }) => (
   <div
     onClick={onClick}
-    className={`border rounded-lg overflow-hidden flex flex-col hover:shadow-md transition cursor-pointer ${
-      isActive
-        ? "border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/20"
-        : "border-gray-200"
-    }`}
+    className={`product-card-premium product-card-premium-interactive ${isActive
+      ? "ring-2 ring-[var(--brand-primary)]/20"
+      : "border-gray-200"
+      }`}
   >
     <img src={imgSrc} alt={title} className="h-44 w-full object-cover" />
-    <div className="p-4 bg-white">
+    <div className="p-4 flex-1 flex flex-col">
       <h4
-        className={`font-bold text-base ${isActive ? "text-[var(--brand-primary)]" : ""}`}
+        className={`product-title-premium text-base ${isActive ? "text-[var(--brand-primary)]" : ""}`}
       >
         {title}
       </h4>
@@ -363,16 +362,16 @@ const FeatureCard = ({
   title: string;
   desc: string;
 }) => (
-  <div className="border border-gray-200 rounded-lg p-8 text-center flex flex-col items-center justify-center space-y-4 min-h-[220px]">
-    <div className="p-3 bg-gray-50 rounded-full">
+  <div className="product-card-premium p-8 text-center flex flex-col items-center justify-center space-y-4 min-h-[220px]">
+    <div className="p-3 bg-[var(--brand-wash)] rounded-full">
       <Icon
         size={32}
-        className="text-[var(--text-primary)]"
+        className="text-[var(--brand-primary)]"
         strokeWidth={1.5}
       />
     </div>
-    <h4 className="font-bold text-lg">{title}</h4>
-    <p className="text-sm text-gray-600 max-w-[250px]">{desc}</p>
+    <h4 className="font-bold text-lg text-[var(--text-headline)]">{title}</h4>
+    <p className="text-sm text-[var(--text-secondary)] max-w-[250px]">{desc}</p>
   </div>
 );
 

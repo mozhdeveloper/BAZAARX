@@ -302,7 +302,7 @@ const SearchPage: React.FC = () => {
     }));
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-transparent">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
@@ -518,22 +518,22 @@ const SearchPage: React.FC = () => {
           <main className="flex-1">
 
             {/* Results Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 pb-2">
               <p className="text-[var(--text-muted)] text-sm mb-4 sm:mb-0">
                 Showing <span className="font-bold text-[var(--brand-primary)]">{sortedResults.length}</span> results
               </p>
               <div className="w-full sm:w-auto">
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-full sm:w-[180px] h-9 bg-white border-0 rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-1 focus:ring-orange-100 shadow-md hover:shadow-lg transition-all">
+                  <SelectTrigger className="w-full sm:w-[160px] h-10 bg-white border border-gray-200 rounded-full text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/10 transition-all hover:border-[var(--brand-primary)]/50">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-orange-100 shadow-xl bg-white">
-                    <SelectItem value="relevance" className="text-xs">Default</SelectItem>
-                    <SelectItem value="price-low" className="text-xs">Price: Low to High</SelectItem>
-                    <SelectItem value="price-high" className="text-xs">Price: High to Low</SelectItem>
-                    <SelectItem value="rating" className="text-xs">Rating</SelectItem>
-                    <SelectItem value="newest" className="text-xs">Newest</SelectItem>
-                    <SelectItem value="best-sellers" className="text-xs">Best Sellers</SelectItem>
+                  <SelectContent className="rounded-2xl border-gray-100 shadow-xl bg-white p-1">
+                    <SelectItem value="relevance" className="text-xs rounded-lg cursor-pointer">Default</SelectItem>
+                    <SelectItem value="price-low" className="text-xs rounded-lg cursor-pointer">Price: Low to High</SelectItem>
+                    <SelectItem value="price-high" className="text-xs rounded-lg cursor-pointer">Price: High to Low</SelectItem>
+                    <SelectItem value="rating" className="text-xs rounded-lg cursor-pointer">Rating</SelectItem>
+                    <SelectItem value="newest" className="text-xs rounded-lg cursor-pointer">Newest</SelectItem>
+                    <SelectItem value="best-sellers" className="text-xs rounded-lg cursor-pointer">Best Sellers</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -549,7 +549,7 @@ const SearchPage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     onClick={() => navigate(`/product/${product.id}`)}
-                    className="bg-[var(--bg-secondary)] rounded-2xl shadow-[0_8px_30px_rgb(245,158,11,0.12)] hover:shadow-[0_20px_40px_rgb(245,158,11,0.2)] transition-all duration-500 overflow-hidden group cursor-pointer border-none"
+                    className="product-card-premium product-card-premium-interactive"
                   >
                     <div className="relative aspect-square overflow-hidden">
                       <img
@@ -565,7 +565,7 @@ const SearchPage: React.FC = () => {
                     </div>
 
                     <div className="p-2 flex-1 flex flex-col">
-                      <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors duration-200 line-clamp-2 h-10 text-xs">
+                      <h3 className="product-title-premium h-10 text-xs">
                         {product.name}
                       </h3>
 
@@ -583,7 +583,7 @@ const SearchPage: React.FC = () => {
 
                       <div className="mt-1.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-base font-bold text-[var(--brand-primary)]">₱{product.price.toLocaleString()}</span>
+                          <span className="text-base product-price-premium">₱{product.price.toLocaleString()}</span>
                           {product.originalPrice && product.originalPrice > product.price && (
                             <span className="text-xs text-gray-500 line-through">₱{product.originalPrice.toLocaleString()}</span>
                           )}
