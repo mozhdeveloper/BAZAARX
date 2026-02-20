@@ -18,11 +18,11 @@ interface VariantSelectionModalProps {
         price: number;
         image: string;
         variants: ProductVariant[];
-        variantLabel1Values: string[];
-        variantLabel2Values: string[];
     };
     onConfirm: (variant: ProductVariant | any, quantity: number) => void;
     buttonText?: string;
+    initialSelectedVariant?: ProductVariant | any;
+    initialQuantity?: number;
 }
 
 export function VariantSelectionModal({
@@ -31,6 +31,8 @@ export function VariantSelectionModal({
     product,
     onConfirm,
     buttonText = '🛒 Add to Cart',
+    initialSelectedVariant,
+    initialQuantity = 1,
 }: VariantSelectionModalProps) {
     console.log('🎨 NEW MODAL LOADED - v2.0 with separate variant sections');
     console.log('Product data:', {
@@ -106,19 +108,33 @@ export function VariantSelectionModal({
     // Reset when modal opens
     useEffect(() => {
         if (isOpen) {
-            setQuantity(1);
-            setCurrentImage(product.image);
-            setCurrentPrice(product.price);
+            setQuantity(initialQuantity);
             
-            // Auto-select first options
-            if (uniqueColors.length > 0) {
-                setSelectedColor(uniqueColors[0]);
-            }
-            if (uniqueSizes.length > 0) {
-                setSelectedSize(uniqueSizes[0]);
+            if (initialSelectedVariant) {
+                // If editing, use existing variant's options
+                const label1 = getVariantLabel1(initialSelectedVariant);
+                const label2 = getVariantLabel2(initialSelectedVariant);
+                if (label1) setSelectedSize(label1);
+                if (label2) setSelectedColor(label2);
+                
+                setCurrentImage(initialSelectedVariant.image || initialSelectedVariant.thumbnail_url || product.image);
+                setCurrentPrice(initialSelectedVariant.price);
+                setCurrentStock(initialSelectedVariant.stock || 0);
+            } else {
+                // If new, reset to defaults
+                setCurrentImage(product.image);
+                setCurrentPrice(product.price);
+                
+                // Auto-select first options if not already selected
+                if (uniqueColors.length > 0 && !selectedColor) {
+                    setSelectedColor(uniqueColors[0]);
+                }
+                if (uniqueSizes.length > 0 && !selectedSize) {
+                    setSelectedSize(uniqueSizes[0]);
+                }
             }
         }
-    }, [isOpen, product]);
+    }, [isOpen, product, initialSelectedVariant, initialQuantity]);
 
     // Update variant info when selection changes
     useEffect(() => {
