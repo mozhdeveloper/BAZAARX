@@ -28,4 +28,11 @@ export type ShopProduct = {
         stock: number;
         image?: string;
     }[];
+    discountBadgePercent?: number;
+    discountBadgeTooltip?: string;
+    campaignDiscount?: {
+        discountType: 'percentage' | 'fixed_amount';
+        discountValue: number;
+        maxDiscountAmount?: number;
+    };
 };

@@ -81,6 +81,7 @@ export interface ActiveDiscount {
   campaignName: string;
   discountType: DiscountType;
   discountValue: number;
+  maxDiscountAmount?: number;
   discountedPrice: number;
   originalPrice: number;
   badgeText?: string;

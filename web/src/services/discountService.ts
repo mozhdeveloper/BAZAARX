@@ -356,11 +356,20 @@ export class DiscountService {
       if (!data || data.length === 0) return null;
 
       const discount = data[0];
+      const { data: campaignMeta } = await supabase
+        .from('discount_campaigns')
+        .select('max_discount_amount')
+        .eq('id', discount.campaign_id)
+        .maybeSingle();
+
       return {
         campaignId: discount.campaign_id,
         campaignName: discount.campaign_name,
         discountType: discount.discount_type,
         discountValue: parseFloat(discount.discount_value),
+        maxDiscountAmount: campaignMeta?.max_discount_amount != null
+          ? parseFloat(String(campaignMeta.max_discount_amount))
+          : undefined,
         discountedPrice: parseFloat(discount.discounted_price),
         originalPrice: parseFloat(discount.original_price),
         badgeText: discount.badge_text,
@@ -371,6 +380,84 @@ export class DiscountService {
       console.error('Error fetching product discount:', error);
       throw new Error('Failed to get product discount.');
     }
+  }
+
+  /**
+   * Get active discounts for multiple products.
+   * Uses per-product RPC calls and returns only products with active discounts.
+   */
+  async getActiveDiscountsForProducts(productIds: string[]): Promise<Record<string, ActiveDiscount>> {
+    const uniqueProductIds = [...new Set(productIds.filter(Boolean))];
+    if (uniqueProductIds.length === 0) {
+      return {};
+    }
+
+    const entries = await Promise.all(
+      uniqueProductIds.map(async (productId) => {
+        try {
+          const discount = await this.getActiveProductDiscount(productId);
+          return [productId, discount] as const;
+        } catch (error) {
+          console.warn(`Failed to fetch active discount for product ${productId}:`, error);
+          return [productId, null] as const;
+        }
+      })
+    );
+
+    return entries.reduce<Record<string, ActiveDiscount>>((acc, [productId, discount]) => {
+      if (discount) {
+        acc[productId] = discount;
+      }
+      return acc;
+    }, {});
+  }
+
+  /**
+   * Calculate campaign line discount for a unit price and quantity.
+   */
+  calculateLineDiscount(
+    unitPrice: number,
+    quantity: number,
+    activeDiscount: ActiveDiscount | null
+  ): {
+    discountPerUnit: number;
+    discountTotal: number;
+    discountedUnitPrice: number;
+  } {
+    const normalizedUnitPrice = Math.max(0, Number(unitPrice) || 0);
+    const normalizedQty = Math.max(0, Number(quantity) || 0);
+
+    if (!activeDiscount || normalizedUnitPrice <= 0 || normalizedQty <= 0) {
+      return {
+        discountPerUnit: 0,
+        discountTotal: 0,
+        discountedUnitPrice: normalizedUnitPrice
+      };
+    }
+
+    let rawDiscountPerUnit = 0;
+    if (activeDiscount.discountType === 'percentage') {
+      rawDiscountPerUnit = (normalizedUnitPrice * activeDiscount.discountValue) / 100;
+    } else if (activeDiscount.discountType === 'fixed_amount') {
+      rawDiscountPerUnit = activeDiscount.discountValue;
+    }
+
+    if (
+      activeDiscount.discountType === 'percentage' &&
+      typeof activeDiscount.maxDiscountAmount === 'number'
+    ) {
+      rawDiscountPerUnit = Math.min(rawDiscountPerUnit, Math.max(0, activeDiscount.maxDiscountAmount));
+    }
+
+    const discountPerUnit = Math.min(normalizedUnitPrice, Math.max(0, rawDiscountPerUnit));
+    const discountedUnitPrice = Math.max(0, normalizedUnitPrice - discountPerUnit);
+    const discountTotal = discountPerUnit * normalizedQty;
+
+    return {
+      discountPerUnit,
+      discountTotal,
+      discountedUnitPrice
+    };
   }
 
   // ============================================================================
