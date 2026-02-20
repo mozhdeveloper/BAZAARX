@@ -42,10 +42,11 @@ export function ProductReviews({
   const [selectedRatingFilter, setSelectedRatingFilter] = useState(0); // 0 = All
   const [withPhotoFilter, setWithPhotoFilter] = useState(false);
   const [filteringVariantId, setFilteringVariantId] = useState<string | undefined>(undefined);
+  const [sortBy, setSortBy] = useState<'helpful' | 'recent'>('recent');
 
   useEffect(() => {
     void fetchReviews();
-  }, [productId, page, selectedRatingFilter, withPhotoFilter, filteringVariantId]);
+  }, [productId, page, selectedRatingFilter, withPhotoFilter, filteringVariantId, sortBy]);
 
   const fetchReviews = async () => {
     setLoading(true);
@@ -56,7 +57,8 @@ export function ProductReviews({
         5,
         selectedRatingFilter > 0 ? selectedRatingFilter : undefined,
         withPhotoFilter,
-        filteringVariantId
+        filteringVariantId,
+        sortBy
       );
 
       if (page === 1) {

@@ -77,12 +77,11 @@ export function ReviewVoteButton({
     }
   };
 
-  // Don't render anything for anonymous users
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center gap-1 text-sm font-medium text-gray-500">
+      <div className="flex items-center gap-1 text-sm font-medium text-gray-400">
         <ThumbsUp className="w-3.5 h-3.5" />
-        <span className="text-xs">{helpfulCount} found helpful</span>
+        <span className="text-xs">{helpfulCount} people found this helpful</span>
       </div>
     );
   }
