@@ -26,6 +26,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
+import { reviewService } from '@/services/reviewService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -117,6 +118,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     orderItemId: string,
     rating: number,
     review: string,
+    images: string[] = [],
   ) => {
     const { user } = useAuthStore.getState();
     if (!user?.id) {
@@ -134,12 +136,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       );
       if (!item) throw new Error('Product not found');
 
-      const success = await orderService.submitOrderReview(realOrderId, user.id, rating, review, [], {
-        productId,
-        orderItemId,
-      });
+      // Create review with optional image uploads
+      const result = await reviewService.submitReviewWithImages({
+        product_id: productId,
+        buyer_id: user.id,
+        order_id: realOrderId,
+        order_item_id: orderItemId,
+        rating,
+        comment: review || null,
+        is_verified_purchase: true,
+      }, images);
 
-      if (!success) {
+      if (!result) {
         throw new Error('This item has already been reviewed');
       }
 
