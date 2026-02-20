@@ -103,7 +103,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
               <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg
-                    className="h-5 w-5 text-[var(--text-muted)]"
+                    className="h-5 w-5 text-[var(--brand-primary)]"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -111,7 +111,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth="2"
+                      strokeWidth="2.5"
                       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                     />
                   </svg>
@@ -119,7 +119,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                 <input
                   type="text"
                   placeholder={location.pathname === "/stores" ? "Search for stores..." : "Search for products, brands, categories"}
-                  className="w-full pl-10 pr-12 py-2.5 bg-[var(--brand-wash)] border-2 border-[var(--brand-wash)]/20 focus:border-[var(--brand-primary)]/50 rounded-full text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-0 focus:ring-offset-0 transition-all text-sm shadow-sm"
+                  className="w-full pl-11 pr-12 py-3 bg-white border border-gray-100 rounded-full text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] transition-all text-sm shadow-md hover:shadow-lg"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       const query = (e.target as HTMLInputElement).value;

@@ -16,6 +16,7 @@ import {
   Heart,
   Ruler,
   X,
+  BadgeCheck,
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import {
@@ -53,7 +54,7 @@ import {
   reviewsData,
 } from "../data/dummy/productDetailData";
 
-interface ProductDetailPageProps {}
+interface ProductDetailPageProps { }
 
 interface EnhancedReview {
   id: number;
@@ -66,7 +67,7 @@ interface EnhancedReview {
   replies: any[];
 }
 
-export default function ProductDetailPage({}: ProductDetailPageProps) {
+export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
@@ -339,22 +340,22 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
 
     const selectedVariant = hasVariations
       ? {
-          id:
-            dbVariant?.id ||
-            `var-${normalizedProduct.id}-${selectedVariantLabel1 || "default"}-${label2Name}`,
-          name: variantName,
-          size: dbVariant?.size || selectedVariantLabel1 || undefined,
-          color:
-            dbVariant?.color ||
-            (label2Name !== "Default" ? label2Name : undefined),
-          price: dbVariant?.price || normalizedProduct.price,
-          stock: dbVariant?.stock || normalizedProduct.stock || 100,
-          image:
-            dbVariant?.thumbnail_url ||
-            normalizedProduct.label2Options[selectedVariantLabel2Index]
-              ?.image ||
-            productImage,
-        }
+        id:
+          dbVariant?.id ||
+          `var-${normalizedProduct.id}-${selectedVariantLabel1 || "default"}-${label2Name}`,
+        name: variantName,
+        size: dbVariant?.size || selectedVariantLabel1 || undefined,
+        color:
+          dbVariant?.color ||
+          (label2Name !== "Default" ? label2Name : undefined),
+        price: dbVariant?.price || normalizedProduct.price,
+        stock: dbVariant?.stock || normalizedProduct.stock || 100,
+        image:
+          dbVariant?.thumbnail_url ||
+          normalizedProduct.label2Options[selectedVariantLabel2Index]
+            ?.image ||
+          productImage,
+      }
       : undefined;
 
     // Use variant price if available
@@ -504,23 +505,23 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
 
     const variantToCheckout = hasVariations
       ? {
-          id:
-            dbVariant?.id ||
-            `var-${normalizedProduct.id}-${selectedVariantLabel1 || "default"}-${label2Name}`,
-          name: variantName,
-          size: dbVariant?.size || selectedVariantLabel1 || undefined,
-          color:
-            dbVariant?.color ||
-            (label2Name !== "Default" ? label2Name : undefined),
-          price: dbVariant?.price || normalizedProduct.price,
-          stock: dbVariant?.stock || normalizedProduct.stock || 100,
-          image:
-            dbVariant?.thumbnail_url ||
-            normalizedProduct.label2Options?.[selectedVariantLabel2Index]
-              ?.image ||
-            normalizedProduct.images?.[0] ||
-            normalizedProduct.image,
-        }
+        id:
+          dbVariant?.id ||
+          `var-${normalizedProduct.id}-${selectedVariantLabel1 || "default"}-${label2Name}`,
+        name: variantName,
+        size: dbVariant?.size || selectedVariantLabel1 || undefined,
+        color:
+          dbVariant?.color ||
+          (label2Name !== "Default" ? label2Name : undefined),
+        price: dbVariant?.price || normalizedProduct.price,
+        stock: dbVariant?.stock || normalizedProduct.stock || 100,
+        image:
+          dbVariant?.thumbnail_url ||
+          normalizedProduct.label2Options?.[selectedVariantLabel2Index]
+            ?.image ||
+          normalizedProduct.images?.[0] ||
+          normalizedProduct.image,
+      }
       : undefined;
 
     proceedToCheckout(quantity, variantToCheckout);
@@ -583,7 +584,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                   {Math.round(
                     ((productData.originalPrice - productData.price) /
                       productData.originalPrice) *
-                      100,
+                    100,
                   )}
                   % OFF
                 </Badge>
@@ -614,11 +615,20 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                   <div className="flex items-center gap-1">
                     <h3 className="font-bold text-[var(--text-headline)] text-base leading-tight group-hover:text-[var(--brand-primary)] transition-colors">
                       {normalizedProduct?.seller &&
-                      normalizedProduct.seller !== "Verified Seller"
+                        normalizedProduct.seller !== "Verified Seller"
                         ? normalizedProduct.seller
                         : currentSeller.name || "Official Store"}
                     </h3>
                     <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--brand-primary)] transition-colors" />
+                    {normalizedProduct?.isVerified && (
+                      <Badge
+                        variant="outline"
+                        className="ml-2 text-[10px] py-0 px-1.5 gap-1 border-emerald-200 bg-emerald-50 text-emerald-700 font-bold shadow-sm"
+                      >
+                        <BadgeCheck className="w-2.5 h-2.5 fill-emerald-100/50" />
+                        Verified
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-[var(--text-muted)] mt-0.5">
                     <span className="flex items-center gap-1">
@@ -988,33 +998,33 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
 
                     const variantSnapshot = selectedVariant
                       ? {
-                          id: selectedVariant.id,
-                          name:
-                            selectedVariant.name ||
-                            selectedVariant.variant_name ||
-                            "Variant",
-                          price:
-                            selectedVariant.price ??
-                            selectedVariant.variant_price ??
-                            productToAdd.price,
-                          stock:
-                            selectedVariant.stock ?? productToAdd.stock ?? 0,
-                          image: selectedVariant.image || productToAdd.image,
-                          attributes: {
-                            ...(selectedVariant.option_1_value
-                              ? { option1: selectedVariant.option_1_value }
-                              : {}),
-                            ...(selectedVariant.option_2_value
-                              ? { option2: selectedVariant.option_2_value }
-                              : {}),
-                            ...(selectedVariant.variantLabel1Value
-                              ? { label1: selectedVariant.variantLabel1Value }
-                              : {}),
-                            ...(selectedVariant.variantLabel2Value
-                              ? { label2: selectedVariant.variantLabel2Value }
-                              : {}),
-                          },
-                        }
+                        id: selectedVariant.id,
+                        name:
+                          selectedVariant.name ||
+                          selectedVariant.variant_name ||
+                          "Variant",
+                        price:
+                          selectedVariant.price ??
+                          selectedVariant.variant_price ??
+                          productToAdd.price,
+                        stock:
+                          selectedVariant.stock ?? productToAdd.stock ?? 0,
+                        image: selectedVariant.image || productToAdd.image,
+                        attributes: {
+                          ...(selectedVariant.option_1_value
+                            ? { option1: selectedVariant.option_1_value }
+                            : {}),
+                          ...(selectedVariant.option_2_value
+                            ? { option2: selectedVariant.option_2_value }
+                            : {}),
+                          ...(selectedVariant.variantLabel1Value
+                            ? { label1: selectedVariant.variantLabel1Value }
+                            : {}),
+                          ...(selectedVariant.variantLabel2Value
+                            ? { label2: selectedVariant.variantLabel2Value }
+                            : {}),
+                        },
+                      }
                       : undefined;
 
                     const registryProduct = {

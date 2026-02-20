@@ -110,7 +110,7 @@ const StoresPage: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-transparent">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 pt-0 flex flex-col gap-2">
@@ -314,18 +314,18 @@ const StoresPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   onClick={() => navigate(`/seller/${store.id}`)}
-                  className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col h-full"
+                  className="product-card-premium product-card-premium-interactive h-full"
                 >
                   {/* Store Header with Background */}
-                  <div className="relative h-32 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] overflow-hidden">
+                  <div className="relative h-[110px] bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] overflow-hidden">
                     <div className="absolute inset-0 opacity-20">
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full -translate-y-20 translate-x-20" />
-                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-white rounded-full translate-y-16 -translate-x-16" />
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full -translate-y-16 translate-x-16" />
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full translate-y-12 -translate-x-12" />
                     </div>
 
                     {store.isVerified && (
-                      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 text-blue-600">
-                        <Shield className="w-3 h-3" />
+                      <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-medium flex items-center gap-1 text-blue-600">
+                        <Shield className="w-3.5 h-3.5" />
                         Verified
                       </div>
                     )}
@@ -333,8 +333,8 @@ const StoresPage: React.FC = () => {
 
                   {/* Store Avatar */}
                   <div className="px-6 pb-6 flex-1 flex flex-col">
-                    <div className="relative -mt-12 mb-4">
-                      <div className="w-24 h-24 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
+                    <div className="relative -mt-10 mb-3">
+                      <div className="w-20 h-20 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
                         <img
                           src={store.avatar}
                           alt={store.name}
@@ -342,37 +342,39 @@ const StoresPage: React.FC = () => {
                         />
                       </div>
                       {store.badges.length > 0 && (
-                        <div className="absolute -bottom-2 -right-2 bg-[var(--brand-primary)] text-white p-2 rounded-full">
-                          <Award className="w-4 h-4" />
+                        <div className="absolute -bottom-1 -right-1 bg-[var(--brand-primary)] text-white p-2 rounded-full shadow-sm">
+                          <Award className="w-3.5 h-3.5" />
                         </div>
                       )}
                     </div>
 
                     {/* Store Info */}
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-[var(--brand-primary)] transition-colors">
-                      {store.name}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <h3 className="text-xl font-bold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors truncate">
+                        {store.name}
+                      </h3>
+                    </div>
 
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                    <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">
                       {store.description}
                     </p>
 
                     {/* Stats */}
-                    <div className="flex items-center gap-4 mb-4 text-sm">
+                    <div className="flex items-center gap-4 mb-4 text-xs font-semibold">
                       <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-semibold">{store.rating}</span>
-                        <span className="text-gray-500">({store.totalReviews.toLocaleString()})</span>
+                        <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                        <span className="text-gray-900">{store.rating}</span>
+                        <span className="text-gray-500 font-normal">({store.totalReviews.toLocaleString()})</span>
                       </div>
                       <div className="flex items-center gap-1 text-gray-600">
-                        <Package className="w-4 h-4" />
+                        <Package className="w-3.5 h-3.5" />
                         <span>{store.products} products</span>
                       </div>
                     </div>
 
                     {/* Location */}
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-                      <MapPin className="w-4 h-4" />
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-4 font-medium">
+                      <MapPin className="w-3.5 h-3.5" />
                       <span>{store.location}</span>
                     </div>
 
@@ -381,35 +383,15 @@ const StoresPage: React.FC = () => {
                       {store.categories.slice(0, 2).map((category, idx) => (
                         <span
                           key={idx}
-                          className="px-3 py-1 bg-[var(--brand-wash)] text-[var(--brand-primary)] text-xs rounded-full font-medium"
+                          className="px-3.5 py-1 bg-[var(--brand-wash)] text-[var(--brand-primary)] text-[10px] rounded-full font-bold"
                         >
                           {category}
                         </span>
                       ))}
-                      {store.categories.length > 2 && (
-                        <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">
-                          +{store.categories.length - 2} more
-                        </span>
-                      )}
                     </div>
 
-                    {/* Badges */}
-                    {store.badges.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {store.badges.map((badge, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded font-medium flex items-center gap-1"
-                          >
-                            <TrendingUp className="w-3 h-3" />
-                            {badge}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
                     {/* Visit Store Button */}
-                    <button className="w-full mt-auto py-3 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-300 group-hover:scale-105">
+                    <button className="w-full mt-auto py-3 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all duration-300">
                       Visit Store
                     </button>
                   </div>

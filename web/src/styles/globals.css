@@ -6,101 +6,111 @@
 
 @layer base {
   :root {
-    /* Backgrounds (Shadcn HSL format) */
-    --background: hsl(0 0% 100%);
-    --foreground: hsl(222.2 84% 4.9%);
-    --card: hsl(0 0% 100%);
-    --card-foreground: hsl(222.2 84% 4.9%);
-    --popover: hsl(0 0% 100%);
-    --popover-foreground: hsl(222.2 84% 4.9%);
+    /* ─── Backgrounds (Shadcn HSL format) ─────────────────────────────────────
+       Shifted to a very soft warm parchment — not pure white, not too yellow.
+       This removes the harsh contrast that causes eye strain.               */
+    --background: hsl(32 20% 99%);
+    /* warm parchment instead of pure white */
+    --foreground: hsl(20 30% 18%);
+    /* soft warm dark brown, not harsh black */
+    --card: #FFFBF0;
+    /* warm cream white for cards */
+    --card-foreground: hsl(20 30% 18%);
+    --popover: hsl(34 35% 97%);
+    --popover-foreground: hsl(20 30% 18%);
 
-    /* Brand Colors (Hex for custom usage) */
-    --brand-primary: #FB8C00;
-    /* Primary Action */
-    --brand-primary-dark: #E67E00;
-    /* Darker Primary */
-    --brand-accent: #F59E0B;
-    /* Secondary Accent */
-    --brand-accent-light: #FFE0B2;
-    /* Tertiary Accent */
-    --brand-wash: #FFFAF5;
-    /* Main Background (Light Cream) */
-    --brand-wash-gold: #FFE0A3;
-    /* Warm Pastel Gold */
-    --brand-wash-beige: #FFD89A;
-    /* Soft Beige-Gold */
-    --bg-secondary: #FFFBF0;
-    /* Warm Ivory (Cards) */
+    /* ─── Brand Colors (Hex) ──────────────────────────────────────────────────
+       Shifted from bright #FB8C00 orange → a softer burnt-amber palette.
+       Think warm sunset, not neon construction cone.                        */
+    --brand-primary: #D97706;
+    /* amber-600 — warm but not blinding */
+    --brand-primary-dark: #B45309;
+    /* amber-700 for hover states */
+    --brand-accent: #E58C1A;
+    /* mid amber accent */
+    --brand-accent-light: #FDE8C8;
+    /* very soft peach-amber */
+    --brand-wash: hsl(32 30% 97%);
+    /* main background — warm ivory */
+    --brand-wash-gold: #F5DDB0;
+    /* muted gold wash */
+    --brand-wash-beige: #EDD9A3;
+    /* deeper warm beige */
+    --bg-secondary: hsl(32 30% 98%);
+    /* card background — warm ivory */
 
-    /* Brand Colors (HSL for Tailwind compatibility) */
-    --primary: hsl(33 98% 49%);
-    /* #FB8C00 */
+    /* ─── Brand Colors (HSL for Tailwind) ────────────────────────────────── */
+    --primary: hsl(38 90% 44%);
+    /* #D97706 */
     --primary-foreground: hsl(0 0% 98%);
-    --secondary: hsl(36 100% 85%);
-    /* #FFE0B2 */
-    --secondary-foreground: hsl(15 70% 28%);
-    --muted: hsl(36 100% 94%);
-    --muted-foreground: hsl(25 24% 65%);
-    --accent: hsl(38 92% 50%);
-    /* #F59E0B */
-    --accent-foreground: hsl(15 70% 28%);
-    --destructive: hsl(0 75% 50%);
-    /* #DC2626 */
+    --secondary: hsl(36 75% 88%);
+    /* soft peach-amber */
+    --secondary-foreground: hsl(20 40% 25%);
+    --muted: hsl(36 50% 93%);
+    --muted-foreground: hsl(25 20% 55%);
+    /* warm medium gray */
+    --accent: hsl(38 82% 50%);
+    --accent-foreground: hsl(20 40% 25%);
+    --destructive: hsl(0 65% 48%);
     --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(33 100% 90%);
-    /* Subtle cream border */
-    --btn-border: hsl(33 100% 85%);
-    --input: hsl(33 100% 90%);
-    --ring: hsl(33 98% 49%);
+    --border: hsl(34 40% 88%);
+    /* subtle warm border */
+    --btn-border: hsl(34 40% 83%);
+    --input: hsl(34 40% 88%);
+    --ring: hsl(38 90% 44%);
 
-    /* Status Colors */
-    --color-success: #22C55E;
-    --color-error: #DC2626;
-    /* Urgent Red */
-    --color-pending: #F59E0B;
+    /* ─── Status Colors ──────────────────────────────────────────────────── */
+    --color-success: #16A34A;
+    /* slightly muted green */
+    --color-error: #C53030;
+    /* softer red */
+    --color-pending: #D97706;
 
-    /* Text Colors */
-    --text-primary: #78350F;
-    /* Soft Warm Brown (Body) */
-    --text-headline: #7C2D12;
-    /* Rich Warm Brown (Headlines) */
-    --text-accent: #EA580C;
-    /* Vibrant Dark Orange */
-    --text-secondary: #78350F;
-    /* Mapping body to secondary for now */
-    --text-muted: #A8A29E;
-    /* Warm Gray (Meta) */
-    --price-standard: #EA580C;
-    --price-flash: #DC2626;
+    /* ─── Text Colors ────────────────────────────────────────────────────────
+       The biggest eye-strain fix: body text is now soft warm brown, not
+       vivid orange/brown. Headlines stay rich but won't burn.              */
+    --text-primary: #5C3D1E;
+    /* warm cocoa brown — easy to read */
+    --text-headline: #2D2522;
+    /* deep neutral charcoal-brown - crisp and professional */
+    --card: #FFFBF0;
+    /* warm cream for all product/collection cards */
+    --text-accent: #C2631A;
+    /* muted burnt orange accent */
+    --text-secondary: #5C3D1E;
+    --text-muted: #9C8E83;
+    /* warm stone gray */
+    --price-standard: #C2631A;
+    /* softer than the old EA580C */
+    --price-flash: #B91C1C;
+    /* deep red, not neon */
 
-    /* Radius */
+    /* ─── Radius ──────────────────────────────────────────────────────────── */
     --radius: 0.5rem;
     --radius-none: 0px;
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
-    /* 12px for standard product look */
     --radius-xl: 16px;
     --radius-full: 9999px;
 
-    /* Fonts */
+    /* ─── Fonts ───────────────────────────────────────────────────────────── */
     --font-heading: "Montserrat", "Poppins", "Inter", system-ui, sans-serif;
     --font-sans: "Inter", system-ui, sans-serif;
     --font-mono: "Fira Code", "JetBrains Mono", monospace;
 
-    /* Spacing */
+    /* ─── Spacing ─────────────────────────────────────────────────────────── */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 12px;
     --spacing-lg: 24px;
     --spacing-xl: 48px;
 
-    /* Shadows */
-    --shadow-small: 0 2px 4px rgba(124, 45, 18, 0.05);
-    --shadow-medium: 0 4px 8px rgba(124, 45, 18, 0.1);
-    --shadow-large: 0 24px 48px -36px rgba(124, 45, 18, 0.15);
-    --shadow-golden-glow: 0 6px 12px rgba(245, 158, 11, 0.2);
-    /* #F59E0B at 20% */
+    /* ─── Shadows — toned down opacity so they don't look heavy ──────────── */
+    --shadow-small: 0 2px 4px rgba(92, 61, 30, 0.06);
+    --shadow-medium: 0 4px 12px rgba(92, 61, 30, 0.09);
+    --shadow-large: 0 24px 48px -36px rgba(92, 61, 30, 0.12);
+    --shadow-golden-glow: 0 6px 18px rgba(217, 119, 6, 0.18);
   }
 
   * {
@@ -114,6 +124,13 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     scroll-behavior: smooth;
+    /* Premium Global Background with Soft Blobs (Standardized from ShopPage) */
+    background-color: hsl(32 20% 99%);
+    background-image:
+      radial-gradient(circle at 100% 0%, rgba(255, 237, 213, 0.4) 0%, transparent 50%),
+      radial-gradient(circle at 0% 100%, rgba(254, 249, 195, 0.4) 0%, transparent 40%),
+      linear-gradient(180deg, hsl(32 40% 98%) 0%, hsl(32 30% 96%) 100%);
+    background-attachment: fixed;
   }
 }
 
@@ -128,6 +145,23 @@
 
   .chip-orange {
     @apply bg-[var(--brand-primary)] text-white px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  /* ─── Product Card Components ─────────────────────────────────────────── */
+  .product-card-premium {
+    @apply bg-card rounded-xl shadow-sm border border-gray-100 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col;
+  }
+
+  .product-card-premium-interactive {
+    @apply hover:shadow-xl hover:-translate-y-1 hover:border-orange-100 active:scale-[0.98];
+  }
+
+  .product-title-premium {
+    @apply font-bold text-[var(--text-headline)] transition-colors duration-200 line-clamp-2 leading-snug;
+  }
+
+  .product-price-premium {
+    @apply text-[var(--brand-primary)] font-bold;
   }
 
   /* Utility Animations */
@@ -150,12 +184,25 @@
     scrollbar-width: none;
   }
 
+  /* ── Gradient helpers ──────────────────────────────────────────────────────
+     bg-main-gradient: the soft warm peach-to-amber sweep used in hero sections
+     (matches the look in your screenshots but much gentler on the eyes)     */
   .bg-main-gradient {
-    background: linear-gradient(135deg, #FFF6E5 0%, #FFE0A3 50%, #FFD89A 100%);
+    background: linear-gradient(135deg, #FBF5EC 0%, #F5DDB0 45%, #EDD9A3 100%);
+  }
+
+  /* Solid colors to reduce eye strain, replacing gradients */
+  .bg-hero-gradient {
+    background: #FFFBF5;
+  }
+
+  .bg-flash-sale-gradient {
+    /* solid very light red tint */
+    background: #FFF9F9;
   }
 
   .bg-gold-band {
-    background: linear-gradient(to right, #FFF6E5, #FFE0A3, #FFF6E5);
+    background: #FBF5EC;
   }
 
   .shadow-golden {
@@ -187,7 +234,7 @@
   }
 }
 
-/* Leaflet Map Fixes */
+/* ── Leaflet Map Fixes ───────────────────────────────────────────────────── */
 .leaflet-container {
   width: 100% !important;
   height: 100% !important;

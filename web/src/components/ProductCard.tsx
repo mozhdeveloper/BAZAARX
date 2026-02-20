@@ -25,7 +25,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.1 }}
-      className="group bg-[#FFFBF0] rounded-[12px] shadow-golden hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer border-none"
+      className="product-card-premium product-card-premium-interactive shadow-golden h-full"
       onClick={() => navigate(`/product/${product.id}`)}
     >
       <div className="relative aspect-square overflow-hidden bg-[#FFF6E5]">
@@ -53,7 +53,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
       </div>
 
       <div className="p-4">
-        <h3 className="font-bold text-[var(--text-headline)] text-sm mb-2 line-clamp-2 transition-colors leading-tight min-h-[2.5rem]">
+        <h3 className="product-title-premium text-sm mb-2 min-h-[2.5rem]">
           {product.name}
         </h3>
 
@@ -78,7 +78,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
         </div>
 
         <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-xl font-extrabold text-[var(--price-standard)]">
+          <span className="text-xl product-price-premium">
             ₱{product.price.toLocaleString()}
           </span>
           {hasDiscount && (
