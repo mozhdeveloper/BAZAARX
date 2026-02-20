@@ -47,6 +47,7 @@ import {
   Filter, // For Filter icon
   ImageIcon, // For Image filter icon
   CheckCircle,
+  ThumbsUp,
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
@@ -294,8 +295,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
   const [reviewPage, setReviewPage] = useState(1);
+  const [helpfulReviewIds, setHelpfulReviewIds] = useState<Record<string, boolean>>({});
 
-  
   // Review Filters
   const [reviewFilters, setReviewFilters] = useState<{ rating?: number; withImages?: boolean }>({});
   const [activeRatingFilter, setActiveRatingFilter] = useState<number | null>(null);
@@ -305,14 +306,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [activeVariantFilter, setActiveVariantFilter] = useState<string | null>(null);
 
   const toggleRatingFilter = (rating: number | null) => {
-    // If null, it means 'All' was clicked
     const newRating = rating === null ? null : (activeRatingFilter === rating ? null : rating);
     setActiveRatingFilter(newRating);
     setReviewFilters(prev => ({ ...prev, rating: newRating || undefined }));
   };
 
   const toggleVariantFilter = (variantId: string | null) => {
-     // If null, it means 'All Variants' was clicked
      const newVariantId = variantId === null ? null : (activeVariantFilter === variantId ? null : variantId);
      setActiveVariantFilter(newVariantId);
      setReviewFilters(prev => ({ ...prev, variantId: newVariantId || undefined }));
@@ -323,15 +322,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setActiveImageFilter(newWithImages);
     setReviewFilters(prev => ({ ...prev, withImages: newWithImages || undefined }));
   };
-
-  // ... (rest of component code)
-  
-  // RENDER SECTION FOR FILTERS (inside the Ratings tab content)
-  // Need to locate where filters are rendered. I will insert this hook logic first.
-  // Then I will use replace_file_content to insert the UI components.
-  
-  // WAIT - I need to see where the filters are currently rendered to replace/append them.
-  // I'll search for 'activeRatingFilter' usage in the JSX.
 
   const effectiveAverageRating = averageRating > 0 ? averageRating : Number(product.rating || 0);
   const effectiveReviewTotal = reviewsTotal > 0
@@ -420,7 +410,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setReviewPage(1);
     setReviews([]);
     fetchReviews(1, false, reviewFilters);
-  }, [product.id, reviewFilters]); // Refetch when filters change
+  }, [product.id, reviewFilters]);
 
   const handleLoadMoreReviews = () => {
     if (isLoadingMoreReviews || reviews.length >= reviewsTotal) {
@@ -657,7 +647,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
       setAddedProductInfo({
         name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
-        image: productImages[0] || product.image
+        image: productImages[0] || product.image || ''
       });
       setShowVariantModal(false);
       setTimeout(() => setShowAddedToCartModal(true), 100);
@@ -762,6 +752,36 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       } else {
         setShowWishlistDropdown(!showWishlistDropdown);
       }
+    }
+  };
+
+  const handleMarkReviewHelpful = async (reviewId: string) => {
+    if (helpfulReviewIds[reviewId]) {
+      return;
+    }
+
+    if (!user?.id || isGuest) {
+      setGuestModalMessage('Sign up to mark reviews as helpful.');
+      setShowGuestModal(true);
+      return;
+    }
+
+    try {
+      const result = await reviewService.markReviewHelpful(reviewId, user.id);
+      setHelpfulReviewIds((prev) => ({ ...prev, [reviewId]: true }));
+      setReviews((prev) =>
+        prev.map((review) =>
+          review.id === reviewId
+            ? {
+              ...review,
+              helpful_count: result.helpfulCount,
+              has_voted_helpful: true,
+            }
+            : review
+        )
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Could not update helpful count. Please try again.');
     }
   };
 
@@ -960,11 +980,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </View>
 
         {/* --- RATINGS SECTION --- */}
-        <View style={{ paddingHorizontal: 16, marginTop: 32 }}> {/* Increased top margin */}
+        {/* Increased top margin */}
+        <View style={{ paddingHorizontal: 16, marginTop: 32 }}>
           <Text style={styles.sectionTitle}>Ratings & Reviews</Text>
           
           {/* Review Filters - Wrapped Layout */}
-          <View style={{ marginTop: 12 }}> {/* Added spacing from title */}
+            {/* Added spacing from title */}
+          <View style={{ marginTop: 12 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                {/* "All" Rating Filter */}
                <Pressable 
@@ -1063,6 +1085,29 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                         <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{review.sellerReply.message}</Text>
                       </View>
                     ) : null}
+                    <View style={styles.reviewFooter}>
+                      <Pressable
+                        style={[
+                          styles.helpfulButton,
+                          helpfulReviewIds[review.id] && styles.helpfulButtonActive,
+                        ]}
+                        onPress={() => handleMarkReviewHelpful(review.id)}
+                        disabled={!!helpfulReviewIds[review.id]}
+                      >
+                        <ThumbsUp
+                          size={14}
+                          color={helpfulReviewIds[review.id] ? BRAND_COLOR : '#6B7280'}
+                        />
+                        <Text
+                          style={[
+                            styles.helpfulButtonText,
+                            helpfulReviewIds[review.id] && styles.helpfulButtonTextActive,
+                          ]}
+                        >
+                          Helpful ({review.helpfulCount || 0})
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
               ))}
@@ -1605,6 +1650,34 @@ const styles = StyleSheet.create({
   reviewRatingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 2 },
   reviewDate: { fontSize: 12, color: '#9CA3AF' },
   reviewText: { fontSize: 14, color: '#4B5563', lineHeight: 20 },
+  reviewFooter: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  helpfulButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  helpfulButtonActive: {
+    borderColor: '#FDBA74',
+    backgroundColor: '#FFF7ED',
+  },
+  helpfulButtonText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  helpfulButtonTextActive: {
+    color: BRAND_COLOR,
+  },
 
   recommendations: { paddingHorizontal: 20, paddingTop: 24, marginBottom: 20 },
   recommendationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },

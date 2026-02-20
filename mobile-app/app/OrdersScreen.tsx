@@ -37,6 +37,7 @@ import type { RootStackParamList, TabParamList } from '../App';
 import type { Order } from '../src/types';
 import { safeImageUri } from '../src/utils/imageUtils';
 import { supabase } from '../src/lib/supabase';
+import { reviewService } from '../src/services/reviewService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
@@ -478,6 +479,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
     orderItemId: string,
     rating: number,
     review: string,
+    images: string[] = [],
   ) => {
     if (!selectedOrder || !user?.id) return;
 
@@ -491,12 +493,18 @@ export default function OrdersScreen({ navigation, route }: Props) {
       );
       if (!item) throw new Error('Product not found');
 
-      const success = await orderService.submitOrderReview(realOrderId, user.id, rating, review, [], {
-        productId,
-        orderItemId,
-      });
+      // Create review with optional image uploads
+      const result = await reviewService.submitReviewWithImages({
+        product_id: productId,
+        buyer_id: user.id,
+        order_id: realOrderId,
+        order_item_id: orderItemId,
+        rating,
+        comment: review || null,
+        is_verified_purchase: true,
+      }, images);
 
-      if (!success) {
+      if (!result) {
         throw new Error('This item has already been reviewed');
       }
 
