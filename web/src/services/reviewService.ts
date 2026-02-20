@@ -348,13 +348,17 @@ export class ReviewService {
     rating?: number,
     withImages: boolean = false,
     variantId?: string,
+    sortBy: 'recent' | 'helpful' = 'helpful',
   ): Promise<ProductReviewsResult> {
     if (!isSupabaseConfigured()) {
       let productReviews = this.mockReviews
         .filter((review) => review.product_id === productId && !review.is_hidden)
-        .sort((a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        );
+        .sort((a, b) => {
+          if (sortBy === 'helpful') {
+            return (b.helpful_count || 0) - (a.helpful_count || 0);
+          }
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
 
       if (rating) {
         productReviews = productReviews.filter((r) => Math.round(r.rating) === rating);
@@ -476,7 +480,7 @@ export class ReviewService {
       }
 
       const { data, error, count } = await query
-        .order('created_at', { ascending: false });
+        .order(sortBy === 'helpful' ? 'helpful_count' : 'created_at', { ascending: false });
 
       if (error) {
         console.warn('Error fetching product reviews:', error);
