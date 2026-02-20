@@ -123,6 +123,7 @@ export interface SellerOrderSnapshot {
   total: number;
   status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
   paymentStatus: "pending" | "paid" | "refunded";
+  paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online";
   orderDate: string;
   shippingAddress: NormalizedShippingAddress;
   trackingNumber?: string;

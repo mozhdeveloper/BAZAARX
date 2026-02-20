@@ -11,6 +11,8 @@ import { authService } from '../services/authService';
 import { productService } from '../services/productService';
 import { cartService } from '../services/cartService';
 import { orderService } from '../services/orderService';
+import { orderReadService } from '../services/orders/orderReadService';
+import { orderMutationService } from '../services/orders/orderMutationService';
 import { qaService } from '../services/qaService';
 import { chatService } from '../services/chatService';
 
@@ -281,8 +283,8 @@ export const testOrderService = async (
     // Test 2: Get seller orders
     tests.push(
       await runTest(
-        'getSellerOrders - retrieves seller orders from order_items',
-        () => orderService.getSellerOrders(testSellerId),
+        'orderReadService.getSellerOrders - typed seller snapshots',
+        () => orderReadService.getSellerOrders({ sellerId: testSellerId }),
         (orders) => Array.isArray(orders)
       )
     );
@@ -291,12 +293,12 @@ export const testOrderService = async (
   // Test 3: POS Order creation (mock mode)
   tests.push(
     await runTest(
-      'createPOSOrder - creates offline order with new schema',
+      'orderMutationService.createPOSOrder - creates POS order',
       () =>
-        orderService.createPOSOrder(
-          testSellerId || 'test-seller',
-          'Test Store',
-          [
+        orderMutationService.createPOSOrder({
+          sellerId: testSellerId || 'test-seller',
+          sellerName: 'Test Store',
+          items: [
             {
               productId: 'test-product',
               productName: 'Test Item',
@@ -305,9 +307,10 @@ export const testOrderService = async (
               image: 'test.jpg',
             },
           ],
-          100,
-          'Test POS order'
-        ),
+          total: 100,
+          note: 'Test POS order',
+          paymentMethod: 'cash',
+        }),
       (result) => result !== null && 'orderId' in result
     )
   );
@@ -555,7 +558,7 @@ export const testSellerFlow = async (sellerId: string): Promise<void> => {
     
     // Step 4: Get seller orders
     console.log('\n4️⃣ Getting seller orders...');
-    const orders = await orderService.getSellerOrders(sellerId);
+    const orders = await orderReadService.getSellerOrders({ sellerId });
     console.log(`   Found ${orders.length} orders`);
     
     console.log('\n✅ Seller flow test completed successfully!');

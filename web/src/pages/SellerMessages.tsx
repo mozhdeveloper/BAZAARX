@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/sellerStore';
-import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
-import { sellerLinks } from '@/config/sellerLinks';
+import { SellerSidebar } from '@/components/seller/SellerSidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -16,12 +15,11 @@ import {
   Video,
   Image as ImageIcon,
   Paperclip,
-  LogOut,
   ChevronLeft,
   MessageCircle,
   Clock,
   User,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
 
@@ -45,35 +43,16 @@ interface Conversation {
 }
 
 // Logo components
-const Logo = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img src="/Logo.png" alt="BazaarPH Logo" className="h-5 w-6 flex-shrink-0" />
-    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-medium text-black whitespace-pre">
-      BazaarPH Seller
-    </motion.span>
-  </Link>
-);
 
-const LogoIcon = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img src="/Logo.png" alt="BazaarPH Logo" className="h-8 w-8 object-contain flex-shrink-0" />
-  </Link>
-);
 
 export default function SellerMessages() {
-  const { seller, logout } = useAuthStore();
-  const [open, setOpen] = useState(false);
+  const { seller } = useAuthStore();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/seller/auth');
-  };
 
   // Mock Data
   const [conversations, setConversations] = useState<Conversation[]>([
@@ -318,50 +297,22 @@ export default function SellerMessages() {
       });
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
-      <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-2">
-              {sellerLinks.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <SidebarLink
-              link={{
-                label: seller?.storeName || "Store",
-                href: "/seller/store-profile",
-                icon: (
-                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-medium">
-                    {seller?.storeName?.charAt(0) || 'S'}
-                  </div>
-                ),
-              }}
-            />
-            <button onClick={handleLogout} className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors">
-              <LogOut className="h-5 w-5 flex-shrink-0" />
-              {open && <span>Logout</span>}
-            </button>
-          </div>
-        </SidebarBody>
-      </Sidebar>
+    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
+      <SellerSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 flex h-full overflow-hidden max-w-7xl mx-auto w-full p-0 md:px-8 md:py-6 gap-0 md:gap-6">
           {/* Conversations List Sidebar */}
-          <div className="w-full md:w-80 border-r bg-white flex flex-col md:rounded-2xl md:shadow-sm md:border border-gray-100 overflow-hidden hidden md:flex">
-            <div className="p-4 border-b border-gray-50 bg-white">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Messages</h2>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <div className="w-full md:w-80 border-r bg-white flex flex-col md:rounded-xl md:shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:border border-orange-100 overflow-hidden hidden md:flex">
+            <div className="p-6 border-b border-orange-50 bg-white">
+              <h2 className="text-xl font-black text-[var(--text-headline)] mb-4 tracking-tight">Messages</h2>
+              <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4 group-focus-within:text-[var(--brand-primary)] transition-colors" />
                 <Input
                   placeholder="Search buyers..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 bg-gray-50 border-none focus-visible:ring-1 focus-visible:ring-orange-500 rounded-xl py-5 shadow-none"
+                  className="pl-10 bg-gray-50/50 border-transparent focus:border-orange-200 focus:bg-white focus:ring-4 focus:ring-orange-500/10 rounded-xl py-6 shadow-sm transition-all font-medium"
                 />
               </div>
             </div>
@@ -382,33 +333,33 @@ export default function SellerMessages() {
                   <div
                     key={conv.id}
                     onClick={() => setSelectedConversation(conv.id)}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-all border-l-4 ${selectedConversation === conv.id
-                      ? 'bg-orange-50 border-l-orange-500'
-                      : 'border-l-transparent'
+                    className={`p-4 cursor-pointer transition-all border-l-4 mx-2 rounded-xl my-1 ${selectedConversation === conv.id
+                      ? 'bg-orange-50 border-l-[var(--brand-primary)] shadow-sm'
+                      : 'border-l-transparent hover:bg-gray-50'
                       }`}
                   >
-                    <div className="flex gap-3">
+                    <div className="flex gap-4">
                       <div className="relative">
-                        <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
-                          <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
+                        <Avatar className="h-12 w-12 border-2 border-white shadow-md ring-1 ring-orange-100">
+                          <AvatarFallback className="bg-gradient-to-br from-orange-100 to-orange-200 text-orange-700 font-bold">
                             {conv.buyerName.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
+                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full shadow-sm" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-baseline mb-0.5">
-                          <h4 className="font-bold text-gray-900 truncate">{conv.buyerName}</h4>
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase">
+                      <div className="flex-1 min-w-0 py-0.5">
+                        <div className="flex justify-between items-baseline mb-1">
+                          <h4 className={`font-bold truncate text-sm ${selectedConversation === conv.id ? 'text-[var(--brand-primary-dark)]' : 'text-gray-900'}`}>{conv.buyerName}</h4>
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
                             {conv.lastMessageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
+                        <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-bold' : 'text-gray-500 font-medium'}`}>
                           {conv.lastMessage}
                         </p>
                       </div>
                       {conv.unreadCount > 0 && (
-                        <Badge className="bg-orange-500 hover:bg-orange-600 rounded-full h-5 min-w-[20px] flex items-center justify-center p-0.5 text-[10px]">
+                        <Badge className="bg-[var(--brand-primary)] shadow-lg shadow-orange-500/30 rounded-full h-5 min-w-[20px] flex items-center justify-center p-0.5 text-[10px] animate-pulse">
                           {conv.unreadCount}
                         </Badge>
                       )}
@@ -420,47 +371,47 @@ export default function SellerMessages() {
           </div>
 
           {/* Chat Area */}
-          <div className="flex-1 flex flex-col bg-white md:rounded-2xl md:shadow-sm md:border border-gray-100 overflow-hidden relative">
+          <div className="flex-1 flex flex-col bg-white md:rounded-xl md:shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:border border-orange-100 overflow-hidden relative">
             {activeConversation ? (
               <>
                 {/* Chat Header - Mobile Style Orange */}
-                <div className="bg-[#ff6a00] p-4 flex items-center gap-4 text-white shadow-lg relative z-10 transition-all">
-                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 md:hidden" onClick={() => setSelectedConversation(null)}>
+                <div className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] p-4 flex items-center gap-4 text-white shadow-lg shadow-orange-500/20 relative z-10 transition-all">
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 md:hidden rounded-full" onClick={() => setSelectedConversation(null)}>
                     <ChevronLeft className="h-6 w-6" />
                   </Button>
 
                   <div className="relative">
-                    <Avatar className="h-10 w-10 border-2 border-white/20">
-                      <AvatarFallback className="bg-white/20 text-white font-bold">
+                    <Avatar className="h-11 w-11 border-2 border-white/30 shadow-inner">
+                      <AvatarFallback className="bg-white/20 text-white font-bold backdrop-blur-sm">
                         {activeConversation.buyerName.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-[#ff6a00] rounded-full" />
+                    <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-orange-500 rounded-full shadow-sm" />
                   </div>
 
                   <div className="flex-1">
-                    <h3 className="font-bold leading-tight">{activeConversation.buyerName}</h3>
-                    <div className="flex items-center gap-1 text-[11px] font-medium opacity-90">
-                      <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
+                    <h3 className="font-black text-lg leading-tight tracking-tight">{activeConversation.buyerName}</h3>
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-orange-50">
+                      <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
                       Online
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full transition-colors">
                       <Phone className="h-5 w-5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full transition-colors">
                       <Video className="h-5 w-5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full transition-colors">
                       <MoreVertical className="h-5 w-5" />
                     </Button>
                   </div>
                 </div>
 
                 {/* Messages Body */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50 scrollbar-hide">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[var(--brand-wash)] scrollbar-hide">
                   {activeConversation.messages.map((msg) => (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
@@ -470,9 +421,9 @@ export default function SellerMessages() {
                     >
                       <div className={`max-w-[80%] flex flex-col ${msg.senderId === 'seller' ? 'items-end' : 'items-start'}`}>
                         <div
-                          className={`px-4 py-3 rounded-2xl shadow-sm ${msg.senderId === 'seller'
-                            ? 'bg-[#ff6a00] text-white rounded-tr-none shadow-orange-500/10'
-                            : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none shadow-gray-200/50'
+                          className={`px-5 py-4 shadow-sm ${msg.senderId === 'seller'
+                            ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl rounded-tr-sm shadow-orange-500/20'
+                            : 'bg-white text-gray-800 border border-gray-100 rounded-xl rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
                             }`}
                         >
                           {msg.images && msg.images.length > 0 && (
@@ -503,8 +454,8 @@ export default function SellerMessages() {
                 </div>
 
                 {/* Input Area */}
-                <div className="p-4 bg-white border-t border-gray-100">
-                  <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-1 bg-gray-50 rounded-2xl border border-gray-100 focus-within:border-orange-300 transition-all">
+                <div className="p-4 bg-white border-t border-orange-100">
+                  <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-2 bg-gray-50/80 rounded-[20px] border border-gray-100 focus-within:border-orange-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-orange-500/10 transition-all shadow-sm">
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -517,7 +468,7 @@ export default function SellerMessages() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="text-gray-400 hover:text-orange-500 rounded-full"
+                      className="text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-full h-10 w-10 transition-colors"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <ImageIcon className="w-5 h-5" />
@@ -527,13 +478,13 @@ export default function SellerMessages() {
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       placeholder="Reply to customer..."
-                      className="flex-1 bg-transparent border-none focus-visible:ring-0 text-gray-700 shadow-none h-10"
+                      className="flex-1 bg-transparent border-none focus-visible:ring-0 text-gray-700 shadow-none h-10 font-medium placeholder:text-gray-400"
                     />
 
                     <div className="flex items-center gap-1 pr-1">
                       <Button
                         type="submit"
-                        className="bg-[#ff6a00] hover:bg-[#e65e00] text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-orange-500/20"
+                        className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl h-10 w-10 p-0 transition-all transform hover:scale-105 active:scale-95"
                         disabled={!newMessage.trim()}
                       >
                         <Send className="w-4 h-4 ml-0.5" />
@@ -544,7 +495,7 @@ export default function SellerMessages() {
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-4">
-                <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center text-orange-500 mb-2">
+                <div className="w-20 h-20 flex items-center justify-center text-orange-500 -mb-4">
                   <MessageCircle className="h-10 w-10" />
                 </div>
                 <div>
@@ -590,3 +541,5 @@ export default function SellerMessages() {
     </div>
   );
 }
+
+

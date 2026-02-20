@@ -5,6 +5,7 @@ import { ArrowRight, Sparkles, TrendingUp, Heart, Star } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { collections } from '../data/collections';
+import CollectionCard from '../components/CollectionCard';
 
 const CollectionsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ const CollectionsPage: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-transparent">
       <Header />
 
       {/* Hero Section - Glass-like Gradient */}
@@ -32,7 +33,7 @@ const CollectionsPage: React.FC = () => {
           </Link>
           <Link
             to="/collections"
-            className="text-sm text-[var(--brand-primary)]"
+            className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
           >
             Collections
           </Link>
@@ -50,21 +51,21 @@ const CollectionsPage: React.FC = () => {
           </Link>
         </div>
 
-        <div className="w-full py-24 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border border-orange-200/30 rounded-3xl">
+        <div className="py-24 bg-hero-gradient backdrop-blur-md shadow-md rounded-3xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center"
+            className="text-center px-4"
           >
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-2">
+            <h1 className="text-4xl md:text-6xl font-black text-[var(--text-headline)] mb-2 tracking-tight font-primary">
               Discover Handpicked
               <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
                 Collections
               </span>
             </h1>
 
-            <p className="text-medium text-gray-700 max-w-2xl mx-auto">
+            <p className="text-medium text-[var(--text-primary)] max-w-2xl mx-auto font-medium">
               Explore carefully curated collections featuring the best products from trusted sellers.
             </p>
           </motion.div>
@@ -108,79 +109,11 @@ const CollectionsPage: React.FC = () => {
         {/* Collections Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
           {filteredCollections.map((collection, index) => (
-            <motion.div
-              layout
+            <CollectionCard
               key={collection.id}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              onMouseEnter={() => setHoveredId(collection.id)}
-              onMouseLeave={() => setHoveredId(null)}
-              className="group cursor-pointer"
-              onClick={() => navigate('/shop', { state: { collection: collection.id } })}
-            >
-              <div className="relative overflow-hidden rounded-2xl bg-white shadow-lg hover:shadow-2xl transition-all duration-300">
-                {/* Image Container */}
-                <div className="relative h-80 overflow-hidden">
-                  <motion.img
-                    src={collection.image}
-                    alt={collection.name}
-                    className="w-full h-full object-cover"
-                    animate={{
-                      scale: hoveredId === collection.id ? 1.1 : 1,
-                    }}
-                    transition={{ duration: 0.3 }}
-                  />
-
-                  {/* Overlay Gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
-                  {/* Badge */}
-                  {collection.badge && (
-                    <div className="absolute top-4 right-4 bg-white/50 backdrop-blur-medium p-2 rounded-full text-sm font-medium flex items-center shadow-sm">
-                      {collection.badge === 'trending' && (
-                        <TrendingUp className="w-4 h-4 text-green-600" />
-                      )}
-                      {collection.badge === 'new' && (
-                        <Sparkles className="w-4 h-4 text-blue-500" />
-                      )}
-                      {collection.badge === 'popular' && (
-                        <Heart className="w-4 h-4 text-red-500" />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Content Overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 p-6">
-                    <h3 className="text-2xl font-bold text-white mb-2">
-                      {collection.name}
-                    </h3>
-                    <p className="text-white/90 text-sm mb-3 line-clamp-2">
-                      {collection.description}
-                    </p>
-
-                    {/* Stats */}
-                    <div className="flex items-center gap-4 text-white/80 text-sm mb-4">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-medium">{collection.rating}</span>
-                      </div>
-                      <div>•</div>
-                      <div>{collection.productCount} Products</div>
-                    </div>
-
-                    {/* CTA Button */}
-                    <motion.button
-                      className="flex items-center gap-2 bg-white/90 backdrop-blur-sm text-gray-900 px-3.5 py-2.5 rounded-full font-medium text-xs group-hover:bg-orange-500 group-hover:text-white hover:text-white"
-                      whileHover={{ x: 5 }}
-                    >
-                      Explore Collection
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </motion.button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+              collection={collection}
+              index={index}
+            />
           ))}
         </div>
 

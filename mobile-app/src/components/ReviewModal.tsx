@@ -11,17 +11,26 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { Star, X, ChevronRight, ArrowLeft, CheckCircle2 } from 'lucide-react-native';
+import { Star, X, ChevronRight, ArrowLeft, ImagePlus, Trash2 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import type { Order } from '../types';
 import { reviewService } from '../services/reviewService';
 import { COLORS } from '../constants/theme';
+import { useAuthStore } from '../stores/authStore';
 
 interface ReviewModalProps {
   visible: boolean;
   order: Order | null;
   onClose: () => void;
-  onSubmit: (productId: string, rating: number, review: string) => Promise<void>;
+  onSubmit: (
+    productId: string,
+    orderItemId: string,
+    rating: number,
+    review: string,
+    images?: string[],
+  ) => Promise<void>;
 }
 
 interface ProductReviewStatus {
@@ -33,9 +42,12 @@ interface ProductReviewStatus {
 }
 
 export default function ReviewModal({ visible, order, onClose, onSubmit }: ReviewModalProps) {
+  const { user } = useAuthStore();
+  const MAX_REVIEW_IMAGES = 5;
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
+  const [reviewImages, setReviewImages] = useState<string[]>([]);
   const [reviewStatus, setReviewStatus] = useState<ProductReviewStatus>({});
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -48,6 +60,7 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
       setSelectedItemId(null);
       setRating(5);
       setReview('');
+      setReviewImages([]);
       setReviewStatus({});
     }
   }, [visible, order]);
@@ -64,7 +77,16 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
       for (const item of order.items) {
         // Use productId for review check (item.id is order_item id)
         const productId = (item as any).productId || item.id;
-        const hasReview = await reviewService.hasReviewForProduct(realOrderId, productId);
+        let hasReview = false;
+
+        if (item.id) {
+          hasReview = await reviewService.hasReviewForOrderItem(item.id, user?.id);
+        }
+
+        if (!hasReview) {
+          hasReview = await reviewService.hasReviewForProduct(realOrderId, productId, user?.id);
+        }
+
         statuses[item.id] = { reviewed: hasReview };
       }
       setReviewStatus(statuses);
@@ -80,12 +102,52 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
     // If we had the review content, we could pre-fill it here
     setRating(5);
     setReview('');
+    setReviewImages([]);
   };
 
   const handleBackToPicker = () => {
     setSelectedItemId(null);
     setRating(5);
     setReview('');
+    setReviewImages([]);
+  };
+
+  const handleAddReviewImages = async () => {
+    if (reviewImages.length >= MAX_REVIEW_IMAGES) {
+      Alert.alert('Image Limit Reached', `You can upload up to ${MAX_REVIEW_IMAGES} images per review.`);
+      return;
+    }
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow photo library access to upload review images.');
+      return;
+    }
+
+    try {
+      const remaining = MAX_REVIEW_IMAGES - reviewImages.length;
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'] as any,
+        allowsEditing: false,
+        allowsMultipleSelection: true,
+        selectionLimit: remaining,
+        quality: 0.7,
+      });
+
+      if (result.canceled) return;
+
+      const newUris = result.assets.map((asset) => asset.uri).filter(Boolean);
+      if (newUris.length === 0) return;
+
+      setReviewImages((prev) => [...prev, ...newUris].slice(0, MAX_REVIEW_IMAGES));
+    } catch (error) {
+      console.error('Error picking review images:', error);
+      Alert.alert('Error', 'Failed to select images. Please try again.');
+    }
+  };
+
+  const handleRemoveReviewImage = (indexToRemove: number) => {
+    setReviewImages((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
   const handleSubmit = async () => {
@@ -99,7 +161,7 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
       
       // Pass the actual productId to onSubmit, not the order_item id
       const productId = (item as any).productId || item.id;
-      await onSubmit(productId, rating, review);
+      await onSubmit(productId, item.id, rating, review, reviewImages);
       
       // Update local status (track by item.id for UI)
       setReviewStatus(prev => ({
@@ -235,6 +297,34 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
             placeholderTextColor="#9CA3AF"
             textAlignVertical="top"
           />
+        </View>
+
+        <View style={styles.reviewSection}>
+          <View style={styles.imageSectionHeader}>
+            <Text style={styles.reviewLabel}>Add Photos (Optional)</Text>
+            <Text style={styles.imageLimitText}>{reviewImages.length}/{MAX_REVIEW_IMAGES}</Text>
+          </View>
+
+          <Pressable style={styles.addImageButton} onPress={handleAddReviewImages}>
+            <ImagePlus size={18} color={COLORS.primary} />
+            <Text style={styles.addImageButtonText}>Choose Images</Text>
+          </Pressable>
+
+          {reviewImages.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewImagesScroll}>
+              {reviewImages.map((uri, index) => (
+                <View key={`${uri}-${index}`} style={styles.reviewImageWrapper}>
+                  <Image source={{ uri }} style={styles.reviewImagePreview} />
+                  <Pressable
+                    style={styles.removeImageButton}
+                    onPress={() => handleRemoveReviewImage(index)}
+                  >
+                    <Trash2 size={12} color="#FFFFFF" />
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         {/* Buttons */}
@@ -467,6 +557,57 @@ const styles = StyleSheet.create({
   buttonsContainer: {
     flexDirection: 'row',
     gap: 12,
+  },
+  imageSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  imageLimitText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  addImageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF7ED',
+    gap: 8,
+  },
+  addImageButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  reviewImagesScroll: {
+    marginTop: 12,
+  },
+  reviewImageWrapper: {
+    position: 'relative',
+    marginRight: 10,
+  },
+  reviewImagePreview: {
+    width: 84,
+    height: 84,
+    borderRadius: 10,
+    backgroundColor: '#E5E7EB',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   submitButton: {
     flex: 1,

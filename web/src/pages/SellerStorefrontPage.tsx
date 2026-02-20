@@ -145,7 +145,7 @@ export default function SellerStorefrontPage() {
   useEffect(() => {
     const fetchSellerData = async () => {
       if (!sellerId) return;
-      
+
       setLoading(true);
       try {
         // Fetch seller data
@@ -178,19 +178,19 @@ export default function SellerStorefrontPage() {
             isLiked: false,
             replies: review.sellerReply
               ? [
-                  {
-                    id: 1,
-                    text: review.sellerReply.message,
-                    author: 'Seller',
-                    date: review.sellerReply.repliedAt
-                      ? formatRelativeDate(review.sellerReply.repliedAt)
-                      : 'Recently',
-                    avatar:
-                      sellerData?.avatar_url ||
-                      'https://ui-avatars.com/api/?name=S&background=FF6A00&color=fff',
-                    isSeller: true,
-                  },
-                ]
+                {
+                  id: 1,
+                  text: review.sellerReply.message,
+                  author: 'Seller',
+                  date: review.sellerReply.repliedAt
+                    ? formatRelativeDate(review.sellerReply.repliedAt)
+                    : 'Recently',
+                  avatar:
+                    sellerData?.avatar_url ||
+                    'https://ui-avatars.com/api/?name=S&background=FF6A00&color=fff',
+                  isSeller: true,
+                },
+              ]
               : [],
             productName: review.productName || undefined,
             productImage: review.productImage || undefined,
@@ -225,7 +225,7 @@ export default function SellerStorefrontPage() {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
@@ -322,18 +322,18 @@ export default function SellerStorefrontPage() {
   ];
 
   // Map real products to display format
-  const displayProducts = realProducts.length > 0 
+  const displayProducts = realProducts.length > 0
     ? realProducts.map(p => ({
-        id: p.id,
-        name: p.name || 'Untitled Product',
-        price: p.price || 0,
-        originalPrice: p.original_price || undefined,
-        image: p.primary_image || (p.images && p.images[0]) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
-        rating: p.rating || 5.0,
-        sold: p.sales_count || 0,
-        category: p.category || 'General',
-        isFreeShipping: p.is_free_shipping || false
-      }))
+      id: p.id,
+      name: p.name || 'Untitled Product',
+      price: p.price || 0,
+      originalPrice: p.original_price || undefined,
+      image: p.primary_image || (p.images && p.images[0]) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
+      rating: p.rating || 5.0,
+      sold: p.sales_count || 0,
+      category: p.category || 'General',
+      isFreeShipping: p.is_free_shipping || false
+    }))
     : demoProducts;
 
   const filteredProducts = selectedCategory === 'all'
@@ -601,66 +601,69 @@ export default function SellerStorefrontPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
+                    className="product-card-premium product-card-premium-interactive"
+                    onClick={() => navigate(`/product/${product.id}`)}
                   >
-                    <Card className="overflow-hidden hover:shadow-lg transition-shadow group">
-                      <div className="relative">
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className={cn(
-                            "w-full object-cover group-hover:scale-105 transition-transform",
-                            viewMode === 'grid' ? 'h-48' : 'h-32 md:h-48'
-                          )}
-                        />
-                        {product.originalPrice && (
-                          <Badge className="absolute top-2 left-2 bg-red-500">
-                            {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
-                          </Badge>
+                    <div className="relative">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className={cn(
+                          "w-full object-cover group-hover:scale-105 transition-transform",
+                          viewMode === 'grid' ? 'h-48' : 'h-32 md:h-48'
                         )}
-                        {product.isFreeShipping && (
-                          <Badge variant="outline" className="absolute top-2 right-2 bg-white text-green-600">
-                            <Truck className="h-3 w-3 mr-1" />
-                            Free Ship
-                          </Badge>
-                        )}
-                      </div>
-                      <CardContent className="p-4">
-                        <div className={cn(
-                          "space-y-3",
-                          viewMode === 'list' && 'flex items-center gap-4'
-                        )}>
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2">{product.name}</h3>
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="flex items-center gap-1">
-                                <Star className="h-3 w-3 fill-current text-yellow-400" />
-                                <span className="text-sm text-gray-600">{product.rating}</span>
-                              </div>
-                              <span className="text-gray-300">•</span>
-                              <span className="text-sm text-gray-600">{product.sold} sold</span>
+                      />
+                      {product.originalPrice && (
+                        <Badge className="absolute top-2 left-2 bg-red-500">
+                          {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
+                        </Badge>
+                      )}
+                      {product.isFreeShipping && (
+                        <Badge variant="outline" className="absolute top-2 right-2 bg-white text-green-600">
+                          <Truck className="h-3 w-3 mr-1" />
+                          Free Ship
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="p-4 flex-1 flex flex-col">
+                      <div className={cn(
+                        "space-y-3",
+                        viewMode === 'list' && 'flex items-center gap-4'
+                      )}>
+                        <div className="flex-1">
+                          <h3 className="product-title-premium line-clamp-2 mb-2">{product.name}</h3>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-1">
+                              <Star className="h-3 w-3 fill-current text-yellow-400" />
+                              <span className="text-sm text-gray-600">{product.rating}</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg font-bold text-orange-600">
-                                ₱{product.price.toLocaleString()}
-                              </span>
-                              {product.originalPrice && (
-                                <span className="text-sm text-gray-500 line-through">
-                                  ₱{product.originalPrice.toLocaleString()}
-                                </span>
-                              )}
-                            </div>
+                            <span className="text-gray-300">•</span>
+                            <span className="text-sm text-gray-600">{product.sold} sold</span>
                           </div>
-                          <Button
-                            onClick={() => handleAddToCart(product)}
-                            size="sm"
-                            className="bg-orange-500 hover:bg-orange-600 w-full"
-                          >
-                            <ShoppingCart className="h-4 w-4 mr-2" />
-                            Add to Cart
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg product-price-premium">
+                              ₱{product.price.toLocaleString()}
+                            </span>
+                            {product.originalPrice && (
+                              <span className="text-sm text-gray-500 line-through">
+                                ₱{product.originalPrice.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddToCart(product);
+                          }}
+                          size="sm"
+                          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] w-full text-white font-bold"
+                        >
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                          Add to Cart
+                        </Button>
+                      </div>
+                    </div>
                   </motion.div>
                 ))}
               </motion.div>
@@ -687,8 +690,8 @@ export default function SellerStorefrontPage() {
                           key={i}
                           className={cn(
                             "h-3 w-3",
-                            i < Math.floor(reviewStats.total > 0 ? reviewStats.avgRating : seller.rating) 
-                              ? "fill-current text-yellow-400" 
+                            i < Math.floor(reviewStats.total > 0 ? reviewStats.avgRating : seller.rating)
+                              ? "fill-current text-yellow-400"
                               : "text-gray-300"
                           )}
                         />
@@ -702,8 +705,8 @@ export default function SellerStorefrontPage() {
                   <div className="space-y-1">
                     {[5, 4, 3, 2, 1].map((star) => {
                       const count = reviewStats.distribution[star - 1] || 0;
-                      const percentage = reviewStats.total > 0 
-                        ? Math.round((count / reviewStats.total) * 100) 
+                      const percentage = reviewStats.total > 0
+                        ? Math.round((count / reviewStats.total) * 100)
                         : (star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1);
                       return (
                         <div key={star} className="flex items-center gap-3">
@@ -763,7 +766,7 @@ export default function SellerStorefrontPage() {
                         </div>
                         <h3 className="text-lg font-semibold text-gray-600 mb-2">No Reviews Yet</h3>
                         <p className="text-gray-500 text-sm">
-                          {reviewFilter === 'all' 
+                          {reviewFilter === 'all'
                             ? 'Be the first to review products from this store!'
                             : `No ${reviewFilter === 'media' ? 'reviews with photos' : `${reviewFilter}-star reviews`} found.`}
                         </p>
@@ -772,153 +775,153 @@ export default function SellerStorefrontPage() {
                   }
 
                   return filteredReviews.map((review) => (
-                  <Card key={review.id} className="border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <img
-                          src={review.avatar}
-                          alt={review.author}
-                          className="w-10 h-10 rounded-full object-cover border border-gray-100"
-                        />
-                        <div className="flex-1">
-                          <div className="mb-2">
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-gray-900 text-sm">{review.author}</span>
-                              <span className="text-xs text-gray-400 mb-1">{review.date}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={cn(
-                                    "h-3 w-3",
-                                    i < review.rating ? "fill-current text-yellow-400" : "text-gray-200"
-                                  )}
-                                />
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Product info if available */}
-                          {review.productName && (
-                            <div className="flex items-center gap-2 mb-2 bg-gray-50 rounded-lg p-2">
-                              {review.productImage && (
-                                <img 
-                                  src={review.productImage} 
-                                  alt={review.productName}
-                                  className="w-8 h-8 rounded object-cover"
-                                />
-                              )}
-                              <span className="text-xs text-gray-600">
-                                Purchased: <span className="font-medium text-gray-800">{review.productName}</span>
-                              </span>
-                            </div>
-                          )}
-
-                          {review.variantLabel && (
-                            <div className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 text-orange-700 text-[11px] px-2.5 py-1 mb-3">
-                              Variant: {review.variantLabel}
-                            </div>
-                          )}
-
-                          <p className="text-sm text-gray-600 mb-3 leading-relaxed">
-                            {review.content}
-                          </p>
-
-                          {/* Review Images if available */}
-                          {review.images && review.images.length > 0 && (
-                            <div className="flex gap-2 mb-3 flex-wrap">
-                              {review.images.map((img, idx) => (
-                                <img 
-                                  key={idx}
-                                  src={img} 
-                                  alt={`Review image ${idx + 1}`}
-                                  className="w-16 h-16 rounded-lg object-cover border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
-                                />
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Existing Replies */}
-                          {review.replies.length > 0 && (
-                            <div className="mb-4 pl-4 border-l-2 border-gray-100 space-y-3">
-                              {review.replies.map(reply => (
-                                <div key={reply.id} className="bg-gray-50/50 p-3 rounded-lg">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-semibold text-xs text-gray-900">{reply.author}</span>
-                                    {reply.isSeller && (
-                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-50 text-orange-600 border-orange-200">
-                                        Seller
-                                      </Badge>
-                                    )}
-                                    <span className="text-[10px] text-gray-400">{reply.date}</span>
-                                  </div>
-                                  <p className="text-xs text-gray-600 leading-relaxed">{reply.text}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
-                            <button
-                              onClick={() => handleToggleLike(review.id)}
-                              className={cn(
-                                "transition-colors flex items-center gap-1.5 group",
-                                review.isLiked ? "text-orange-600" : "hover:text-orange-600"
-                              )}
-                            >
-                              <ThumbsUp className={cn(
-                                "h-3.5 w-3.5 transition-colors",
-                                review.isLiked ? "fill-current text-orange-600" : "group-hover:text-orange-600"
-                              )} />
-                              Helpful ({review.helpfulCount})
-                            </button>
-                            <button
-                              onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
-                              className="hover:text-orange-600 transition-colors"
-                            >
-                              Reply
-                            </button>
-                          </div>
-
-                          {replyingTo === review.id && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                              animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <Textarea
-                                  value={replyText}
-                                  onChange={(e) => setReplyText(e.target.value)}
-                                  placeholder="Write a reply..."
-                                  className="min-h-[80px] bg-white border-gray-200 focus:border-[#ff6a00] focus:ring-[#ff6a00] mb-3 text-sm resize-none"
-                                />
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setReplyingTo(null)}
-                                    className="h-8 text-xs hover:bg-gray-200 hover:text-gray-900"
-                                  >
-                                    Cancel
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handlePostReply(review.id)}
-                                    className="h-8 text-xs bg-[#ff6a00] hover:bg-[#ff6a00]/90 text-white"
-                                  >
-                                    Post Reply
-                                  </Button>
-                                </div>
+                    <Card key={review.id} className="border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                      <CardContent className="p-5">
+                        <div className="flex items-start gap-4">
+                          <img
+                            src={review.avatar}
+                            alt={review.author}
+                            className="w-10 h-10 rounded-full object-cover border border-gray-100"
+                          />
+                          <div className="flex-1">
+                            <div className="mb-2">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-gray-900 text-sm">{review.author}</span>
+                                <span className="text-xs text-gray-400 mb-1">{review.date}</span>
                               </div>
-                            </motion.div>
-                          )}
+                              <div className="flex items-center gap-1">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={cn(
+                                      "h-3 w-3",
+                                      i < review.rating ? "fill-current text-yellow-400" : "text-gray-200"
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Product info if available */}
+                            {review.productName && (
+                              <div className="flex items-center gap-2 mb-2 bg-gray-50 rounded-lg p-2">
+                                {review.productImage && (
+                                  <img
+                                    src={review.productImage}
+                                    alt={review.productName}
+                                    className="w-8 h-8 rounded object-cover"
+                                  />
+                                )}
+                                <span className="text-xs text-gray-600">
+                                  Purchased: <span className="font-medium text-gray-800">{review.productName}</span>
+                                </span>
+                              </div>
+                            )}
+
+                            {review.variantLabel && (
+                              <div className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 text-orange-700 text-[11px] px-2.5 py-1 mb-3">
+                                Variant: {review.variantLabel}
+                              </div>
+                            )}
+
+                            <p className="text-sm text-gray-600 mb-3 leading-relaxed">
+                              {review.content}
+                            </p>
+
+                            {/* Review Images if available */}
+                            {review.images && review.images.length > 0 && (
+                              <div className="flex gap-2 mb-3 flex-wrap">
+                                {review.images.map((img, idx) => (
+                                  <img
+                                    key={idx}
+                                    src={img}
+                                    alt={`Review image ${idx + 1}`}
+                                    className="w-16 h-16 rounded-lg object-cover border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Existing Replies */}
+                            {review.replies.length > 0 && (
+                              <div className="mb-4 pl-4 border-l-2 border-gray-100 space-y-3">
+                                {review.replies.map(reply => (
+                                  <div key={reply.id} className="bg-gray-50/50 p-3 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-semibold text-xs text-gray-900">{reply.author}</span>
+                                      {reply.isSeller && (
+                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-50 text-orange-600 border-orange-200">
+                                          Seller
+                                        </Badge>
+                                      )}
+                                      <span className="text-[10px] text-gray-400">{reply.date}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 leading-relaxed">{reply.text}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                              <button
+                                onClick={() => handleToggleLike(review.id)}
+                                className={cn(
+                                  "transition-colors flex items-center gap-1.5 group",
+                                  review.isLiked ? "text-orange-600" : "hover:text-orange-600"
+                                )}
+                              >
+                                <ThumbsUp className={cn(
+                                  "h-3.5 w-3.5 transition-colors",
+                                  review.isLiked ? "fill-current text-orange-600" : "group-hover:text-orange-600"
+                                )} />
+                                Helpful ({review.helpfulCount})
+                              </button>
+                              <button
+                                onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
+                                className="hover:text-orange-600 transition-colors"
+                              >
+                                Reply
+                              </button>
+                            </div>
+
+                            {replyingTo === review.id && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                  <Textarea
+                                    value={replyText}
+                                    onChange={(e) => setReplyText(e.target.value)}
+                                    placeholder="Write a reply..."
+                                    className="min-h-[80px] bg-white border-gray-200 focus:border-[#ff6a00] focus:ring-[#ff6a00] mb-3 text-sm resize-none"
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setReplyingTo(null)}
+                                      className="h-8 text-xs hover:bg-gray-200 hover:text-gray-900"
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handlePostReply(review.id)}
+                                      className="h-8 text-xs bg-[#ff6a00] hover:bg-[#ff6a00]/90 text-white"
+                                    >
+                                      Post Reply
+                                    </Button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ));
+                      </CardContent>
+                    </Card>
+                  ));
                 })()}
               </div>
             </motion.div>
@@ -971,6 +974,6 @@ export default function SellerStorefrontPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </div >
   );
 }

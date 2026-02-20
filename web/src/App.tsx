@@ -56,6 +56,7 @@ import SellerDiscounts from "./pages/SellerDiscounts";
 import SellerMessages from "./pages/SellerMessages";
 import SellerProductStatus from "./pages/SellerProductStatus";
 import SellerPOS from "./pages/SellerPOS";
+import SellerPOSSettings from "./pages/SellerPOSSettings";
 import SellerHelpCenter from "./pages/SellerHelpCenter";
 import SellerMyTickets from "./pages/SellerMyTickets";
 import SellerBuyerReports from "./pages/SellerBuyerReports";
@@ -333,6 +334,14 @@ function App() {
             element={
               //<ProtectedSellerRoute>
               <SellerPOS />
+              //</ProtectedSellerRoute>
+            }
+          />
+          <Route
+            path="/seller/pos-settings"
+            element={
+              //<ProtectedSellerRoute>
+              <SellerPOSSettings />
               //</ProtectedSellerRoute>
             }
           />

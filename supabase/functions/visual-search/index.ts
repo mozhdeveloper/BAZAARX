@@ -1,5 +1,6 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7'
+
+console.log("Visual Search Edge Function loading...")
 
 const JINA_API_KEY = Deno.env.get('JINA_API_KEY')
 const JINA_URL = 'https://api.jina.ai/v1/embeddings'
@@ -70,17 +71,46 @@ function capitalizeLabel(label: string): string {
   return label.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+Deno.serve(async (req) => {
+  const method = req.method
+  const url = req.url
+  const contentLength = req.headers.get("content-length")
+  
+  console.log(`[REQ] ${method} ${url} | Size: ${contentLength || 'unknown'}`)
+  
+  // Log critical headers (but avoid logging full tokens if possible)
+  const headerKeys = ["authorization", "x-client-info", "apikey", "content-type", "origin"]
+  const loggedHeaders = {}
+  headerKeys.forEach(k => {
+    const val = req.headers.get(k)
+    loggedHeaders[k] = val ? (k === "authorization" || k === "apikey" ? val.substring(0, 15) + "..." : val) : null
+  })
+  console.log("[HEADERS]", JSON.stringify(loggedHeaders))
+
+  if (method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const body = await req.json()
-    const imageUrl = body.primary_image
-    const imageBase64 = body.image_base64
+    let body;
+    try {
+      body = await req.json()
+    } catch (e) {
+      console.error("Failed to parse request body:", e.message)
+      return new Response(JSON.stringify({ error: 'Invalid JSON body: ' + e.message }), { status: 400, headers: corsHeaders })
+    }
+    const imageUrl = body.primary_image || body.imageUrl || body.image_url
+    const imageBase64 = body.image_base64 || body.imageBase64 || body.base64
+    
+    console.log("Visual search request metadata:", {
+      method: req.method,
+      hasImageUrl: !!imageUrl,
+      hasBase64: !!imageBase64,
+      bodyKeys: Object.keys(body)
+    })
 
     if (!imageUrl && !imageBase64) {
+      console.error("Missing image payload in request body")
       return new Response(
         JSON.stringify({ error: 'Missing primary_image or image_base64' }), 
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -93,27 +123,36 @@ serve(async (req) => {
       imageDataUri = `data:image/jpeg;base64,${imageBase64}`
     } else {
       // Download image and convert to base64
-      console.log("Downloading image from URL:", imageUrl?.substring(0, 80))
-      const imageResponse = await fetch(imageUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) BazaarVisualSearch/1.0',
-          'Accept': 'image/*'
+      console.log("Downloading image from URL:", imageUrl?.substring(0, 100))
+      try {
+        const imageResponse = await fetch(imageUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) BazaarVisualSearch/1.0',
+            'Accept': 'image/*'
+          },
+          signal: AbortSignal.timeout(10000) // 10s timeout
+        })
+        
+        if (!imageResponse.ok) {
+          const errorText = await imageResponse.text().catch(() => "N/A")
+          console.error(`Failed to download image: ${imageResponse.status}. Body: ${errorText.substring(0, 100)}`)
+          throw new Error(`Failed to download image: ${imageResponse.status}`)
         }
-      })
-      if (!imageResponse.ok) {
-        console.error("Failed to download image:", imageResponse.status)
-        throw new Error("Failed to download image")
+        
+        const imageArrayBuffer = await imageResponse.arrayBuffer()
+        const uint8Array = new Uint8Array(imageArrayBuffer)
+        let binary = ''
+        for (let i = 0; i < uint8Array.length; i++) {
+          binary += String.fromCharCode(uint8Array[i])
+        }
+        const base64 = btoa(binary)
+        const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
+        imageDataUri = `data:${contentType};base64,${base64}`
+        console.log("Converted external image to base64, length:", base64.length)
+      } catch (fetchError) {
+        console.error("Image fetch network error:", fetchError.message)
+        throw new Error("Image download failed: " + fetchError.message)
       }
-      const imageArrayBuffer = await imageResponse.arrayBuffer()
-      const uint8Array = new Uint8Array(imageArrayBuffer)
-      let binary = ''
-      for (let i = 0; i < uint8Array.length; i++) {
-        binary += String.fromCharCode(uint8Array[i])
-      }
-      const base64 = btoa(binary)
-      const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
-      imageDataUri = `data:${contentType};base64,${base64}`
-      console.log("Converted to base64, length:", base64.length)
     }
 
     const imageInput = { image: imageDataUri }
@@ -160,7 +199,7 @@ serve(async (req) => {
             const imageEmbedding = embeddings[0]
             const labelEmbeddings = embeddings.slice(1)
             
-            console.log("Got", embeddings.length, "embeddings (1 image +", labelEmbeddings.length, "labels)")
+            console.log("Got embeddings from Jina. Image vector length:", imageEmbedding?.length)
             
             // Calculate similarity between image and each label
             const similarities = labelEmbeddings.map((labelEmb: number[], idx: number) => ({
@@ -172,39 +211,33 @@ serve(async (req) => {
             similarities.sort((a, b) => b.similarity - a.similarity)
             const topMatch = similarities[0]
             
-            console.log("Top 5 classifications:")
-            similarities.slice(0, 5).forEach((s, i) => {
-              console.log(`  ${i + 1}. ${s.label}: ${(s.similarity * 100).toFixed(1)}%`)
-            })
-            
-            // Only use classification if confidence is reasonable (> 20%)
             if (topMatch.similarity > 0.20) {
               detectedItem = capitalizeLabel(topMatch.label)
               detectedCategory = LABEL_TO_CATEGORY[topMatch.label] || null
               confidence = topMatch.similarity
-              console.log(`Detected: ${detectedItem} (${(confidence * 100).toFixed(1)}%) -> Category: ${detectedCategory}`)
+              console.log(`Detected: ${detectedItem} (${(confidence * 100).toFixed(1)}%)`)
             }
 
             // Step 2: Search for products using vector similarity
+            console.log("Calling match_products RPC...")
             const { data: vectorProducts, error: vectorError } = await supabase.rpc('match_products', {
               query_embedding: imageEmbedding,
-              match_threshold: 0.10,  // Lower threshold to get more results
-              match_count: 30  // Get more to filter
+              match_threshold: 0.10,
+              match_count: 50
             })
 
             if (vectorError) {
-              console.error("Vector search error:", vectorError.message)
+              console.error("Vector search RPC error:", vectorError.message)
             } else {
-              console.log("Vector search found:", vectorProducts?.length || 0, "products")
+              console.log("Vector RPC found:", vectorProducts?.length || 0)
             }
 
             // Step 3: Also do text search using detected item
             let textProducts: any[] = []
             if (detectedItem) {
               const searchTerms = LABEL_SEARCH_TERMS[topMatch.label] || [topMatch.label]
-              console.log("Text searching for:", searchTerms)
+              console.log("Text search terms:", searchTerms)
               
-              // Build proper OR filter for multiple terms
               const filters = searchTerms.flatMap(term => [
                 `name.ilike.%${term}%`,
                 `description.ilike.%${term}%`
@@ -215,26 +248,22 @@ serve(async (req) => {
                 .select('id, name, price, description')
                 .is('deleted_at', null)
                 .or(filters.join(','))
-                .limit(15)
+                .limit(50)
               
               if (textError) {
                 console.error("Text search error:", textError.message)
-              } else if (textData && textData.length > 0) {
-                // Give text matches high priority (they directly match the detected item)
-                textProducts = textData.map(p => ({ 
+              } else {
+                textProducts = (textData || []).map(p => ({ 
                   ...p, 
-                  similarity: 0.85,  // High similarity for text matches
+                  similarity: 0.85, 
                   source: 'text' 
                 }))
-                console.log("Text search found:", textProducts.length, "products:", textProducts.map(p => p.name).join(', '))
+                console.log("Text search matches:", textProducts.length)
               }
             }
 
             // Step 4: Combine and rank results
-            // Priority: 1) Text matches (exact name match), 2) Same category + high similarity, 3) Other
             const allProducts = [...textProducts]
-            
-            // Add vector products that aren't already in text results
             if (vectorProducts) {
               for (const vp of vectorProducts) {
                 if (!allProducts.find(p => p.id === vp.id)) {
@@ -243,12 +272,11 @@ serve(async (req) => {
               }
             }
 
-            console.log("Combined products before ranking:", allProducts.length)
+            console.log("Total unique candidates for ranking:", allProducts.length)
 
-            // Boost products that match the detected category and sort properly
             if (allProducts.length > 0) {
-              // Get categories for all products and full product details
               const productIds = allProducts.map(p => p.id)
+              console.log("Enriching category data for ranking...")
               const { data: productsWithDetails } = await supabase
                 .from('products')
                 .select('id, name, category:categories!products_category_id_fkey(name)')
@@ -260,68 +288,42 @@ serve(async (req) => {
                   productName: p.name
                 }]))
                 
-                // Calculate ranking score for each product
                 allProducts.forEach(p => {
                   const details = detailsMap.get(p.id)
                   let score = p.similarity || 0
-                  
-                  // Boost for text match (already has high similarity of 0.85)
-                  if (p.source === 'text') {
-                    score += 0.5  // Strong boost for text matches
+                  if (p.source === 'text') score += 0.5
+                  if (details?.categoryName === detectedCategory) score += 0.2
+                  if (detectedItem && details?.productName?.toLowerCase().includes(detectedItem.toLowerCase().split(' ')[0])) {
+                    score += 0.3
                   }
-                  
-                  // Boost for category match
-                  if (details?.categoryName === detectedCategory) {
-                    score += 0.2
-                  }
-                  
-                  // Extra boost if product name contains the detected item keyword
-                  if (detectedItem && details?.productName) {
-                    const detectedLower = detectedItem.toLowerCase()
-                    const nameLower = details.productName.toLowerCase()
-                    if (nameLower.includes(detectedLower.split(' ')[0])) {  // Match first word (e.g., "mouse" from "Computer Mouse")
-                      score += 0.3
-                    }
-                  }
-                  
                   p.rankScore = score
                 })
                 
-                // Sort by rank score descending
                 allProducts.sort((a, b) => (b.rankScore || 0) - (a.rankScore || 0))
-                
-                console.log("Ranked products:", allProducts.slice(0, 5).map(p => 
-                  `${detailsMap.get(p.id)?.productName} (${p.rankScore?.toFixed(2)})`
-                ).join(', '))
               }
             }
 
-            // Return top 10 unique products
-            const finalProducts = allProducts.slice(0, 10)
-            
-            if (finalProducts.length > 0) {
-              console.log("Returning", finalProducts.length, "products")
-              return new Response(
-                JSON.stringify({ 
-                  products: finalProducts, 
-                  source: 'ai',
-                  detectedItem,
-                  detectedCategory,
-                  confidence: Math.round(confidence * 100)
-                }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              )
-            }
+            console.log("Final product count:", allProducts.length)
+            return new Response(
+              JSON.stringify({ 
+                products: allProducts, 
+                source: 'ai',
+                detectedItem,
+                detectedCategory,
+                confidence: Math.round(confidence * 100)
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
           }
         } else {
           const errorText = await jinaResponse.text()
-          console.error("Jina error:", jinaResponse.status, errorText.substring(0, 200))
+          console.error("Jina API error:", jinaResponse.status, errorText)
         }
       } catch (aiError) {
-        console.error("AI search failed:", aiError.message)
+        console.error("AI processing catch block:", aiError.message)
       }
     } else {
-      console.log("JINA_API_KEY not set")
+      console.log("JINA_API_KEY missing from environment")
     }
 
     // Fallback: Return recent products

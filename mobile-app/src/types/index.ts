@@ -105,6 +105,7 @@ export interface ProductVariant {
 }
 
 export interface CartItem extends Product {
+  cartItemId: string;
   quantity: number;
   selectedVariant?: {
     color?: string;
@@ -132,6 +133,8 @@ export interface Order {
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   createdAt: string;
+  buyerUiStatus?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed';
+  isReviewed?: boolean;
   isGift?: boolean;
   isAnonymous?: boolean;
   recipientId?: string;

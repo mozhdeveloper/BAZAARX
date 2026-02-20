@@ -21,11 +21,12 @@ import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
 import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
-import { reviewService } from '../src/services/reviewService';
+import { orderService } from '../src/services/orderService';
 import { useAuthStore } from '../src/stores/authStore';
 import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
+import { reviewService } from '@/services/reviewService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -112,7 +113,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     );
   };
 
-  const handleSubmitReview = async (productId: string, rating: number, review: string) => {
+  const handleSubmitReview = async (
+    productId: string,
+    orderItemId: string,
+    rating: number,
+    review: string,
+    images: string[] = [],
+  ) => {
     const { user } = useAuthStore.getState();
     if (!user?.id) {
       Alert.alert('Error', 'You must be logged in to submit a review');
@@ -125,25 +132,24 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       
       // Find item by productId (now correctly passed from ReviewModal)
       const item = order.items.find(i => 
-        (i as any).productId === productId || i.id === productId
+        i.id === orderItemId || (i as any).productId === productId || i.id === productId
       );
       if (!item) throw new Error('Product not found');
 
-      // Create review (no seller_id - not in reviews table)
-      await reviewService.createReview({
+      // Create review with optional image uploads
+      const result = await reviewService.submitReviewWithImages({
         product_id: productId,
         buyer_id: user.id,
         order_id: realOrderId,
+        order_item_id: orderItemId,
         rating,
         comment: review || null,
         is_verified_purchase: true,
-      });
+      }, images);
 
-      // Mark order item as reviewed with rating
-      await reviewService.markItemAsReviewed(realOrderId, productId, rating);
-
-      // Check if all items reviewed (no-op now since no is_reviewed column)
-      await reviewService.checkAndUpdateOrderReviewed(realOrderId);
+      if (!result) {
+        throw new Error('This item has already been reviewed');
+      }
 
       Alert.alert('Success', 'Your review has been submitted.');
     } catch (error: any) {

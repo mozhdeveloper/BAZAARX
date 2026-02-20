@@ -24,16 +24,32 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   onReview,
   onShopPress
 }) => {
+  const buyerUiStatus = order.buyerUiStatus || (
+    order.status === 'processing'
+      ? 'confirmed'
+      : order.status === 'shipped'
+        ? 'shipped'
+        : order.status === 'delivered'
+          ? 'delivered'
+          : order.status === 'cancelled'
+            ? 'cancelled'
+            : 'pending'
+  );
+
   const getStatusColor = () => {
-    switch (order.status) {
+    switch (buyerUiStatus) {
       case 'pending':
         return '#F59E0B'; // Yellow
-      case 'processing':
+      case 'confirmed':
         return '#3B82F6'; // Blue
       case 'shipped':
         return '#8B5CF6'; // Violet
       case 'delivered':
         return '#22C55E'; // Green
+      case 'reviewed':
+        return '#16A34A';
+      case 'returned':
+        return '#F97316';
       case 'cancelled':
         return '#EF4444'; // Red
       default:
@@ -42,19 +58,23 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   };
 
   const getStatusText = () => {
-    switch (order.status) {
+    switch (buyerUiStatus) {
       case 'pending':
-        return 'To Pay';
-      case 'processing':
-        return 'To Ship';
+        return 'Pending';
+      case 'confirmed':
+        return 'Processing';
       case 'shipped':
-        return 'To Receive';
+        return 'Shipped';
       case 'delivered':
-        return 'Completed';
+        return 'Delivered';
+      case 'reviewed':
+        return 'Reviewed';
+      case 'returned':
+        return 'Return/Refund';
       case 'cancelled':
         return 'Cancelled';
       default:
-        return order.status;
+        return buyerUiStatus;
     }
   };
 

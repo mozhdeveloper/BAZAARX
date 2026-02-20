@@ -1,5 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { Star, ArrowRight } from 'lucide-react';
 import { Collection } from '../types';
 
 interface CollectionCardProps {
@@ -8,43 +10,55 @@ interface CollectionCardProps {
 }
 
 const CollectionCard: React.FC<CollectionCardProps> = ({ collection, index = 0 }) => {
+  const navigate = useNavigate();
   return (
     <motion.div
+      layout
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="flex-1 bg-[#FFFBF0] rounded-[2rem] p-7 shadow-golden hover:shadow-xl transition-all duration-500 group cursor-pointer border-none"
+      className="group cursor-pointer"
+      onClick={() => navigate('/shop', { state: { collection: collection.id } })}
     >
-      <div className="mb-8">
-        <h4 className="text-xl font-bold text-[var(--text-headline)] leading-tight">
-          {collection.title}
-        </h4>
-      </div>
+      <div className="relative overflow-hidden rounded-2xl bg-white shadow-md hover:shadow-xl transition-all duration-500">
+        {/* Image Container */}
+        <div className="relative h-[400px] overflow-hidden">
+          <motion.img
+            src={collection.image}
+            alt={collection.name}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+          />
 
-      <div className="relative w-full aspect-[4/5] mb-8 overflow-hidden rounded-2xl bg-[#FFF6E5]">
-        <img
-          src={collection.image}
-          alt={collection.title}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out"
-        />
-      </div>
+          {/* Overlay Gradient */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-500" />
 
-      <div className="flex items-end justify-between">
-        <div>
-          <span className="block text-sm font-bold text-[var(--text-headline)]">Explore</span>
-          <span className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wider">{collection.productCount} products</span>
-        </div>
+          <div className="absolute inset-x-0 bottom-0 p-8">
+            <h3 className="text-3xl font-black text-white mb-3 tracking-tight font-primary">
+              {collection.name}
+            </h3>
+            <p className="text-white/90 text-sm mb-5 line-clamp-2 max-w-sm font-medium leading-relaxed">
+              {collection.description}
+            </p>
 
-        <div className="w-10 h-10 rounded-full border border-[var(--brand-accent-light)] flex items-center justify-center 
-                        group-hover:bg-[#FB8C00] group-hover:border-[#FB8C00] transition-all duration-300">
-          <svg
-            width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            className="text-[#FB8C00] group-hover:text-white transition-colors duration-300"
-          >
-            <line x1="7" y1="17" x2="17" y2="7"></line>
-            <polyline points="7 7 17 7 17 17"></polyline>
-          </svg>
+            {/* Stats */}
+            <div className="flex items-center gap-6 text-white/80 text-xs font-bold uppercase tracking-widest mb-6">
+              <div className="flex items-center gap-1.5">
+                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                <span>{collection.rating}</span>
+              </div>
+              <div className="w-1 h-1 rounded-full bg-white/40" />
+              <div>{collection.productCount} Products</div>
+            </div>
+
+            {/* CTA Button */}
+            <motion.button
+              className="flex items-center gap-3 bg-white text-gray-900 px-7 py-3 rounded-full font-bold text-sm shadow-xl hover:bg-orange-500 hover:text-white transition-all duration-300"
+              whileHover={{ x: 5 }}
+            >
+              Explore Collection
+              <ArrowRight className="w-4 h-4" />
+            </motion.button>
+          </div>
         </div>
       </div>
     </motion.div>

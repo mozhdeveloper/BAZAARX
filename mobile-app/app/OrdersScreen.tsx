@@ -27,7 +27,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { OrderCard } from '../src/components/OrderCard';
 import ReviewModal from '../src/components/ReviewModal';
-import { reviewService } from '../src/services/reviewService';
+import { orderService } from '../src/services/orderService';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -37,15 +37,79 @@ import type { RootStackParamList, TabParamList } from '../App';
 import type { Order } from '../src/types';
 import { safeImageUri } from '../src/utils/imageUtils';
 import { supabase } from '../src/lib/supabase';
+import { reviewService } from '../src/services/reviewService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
+type OrdersTab = 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed';
+
+const normalizeInitialTab = (tab?: string): OrdersTab => {
+  const normalized = (tab || 'pending').toLowerCase();
+
+  if (normalized === 'topay') return 'pending';
+  if (normalized === 'toship') return 'confirmed';
+  if (normalized === 'toreceive') return 'shipped';
+  if (normalized === 'toreview') return 'delivered';
+  if (normalized === 'completed') return 'reviewed';
+  if (normalized === 'returns') return 'returned';
+
+  if (
+    normalized === 'all' ||
+    normalized === 'pending' ||
+    normalized === 'confirmed' ||
+    normalized === 'shipped' ||
+    normalized === 'delivered' ||
+    normalized === 'returned' ||
+    normalized === 'cancelled' ||
+    normalized === 'reviewed'
+  ) {
+    return normalized;
+  }
+
+  return 'pending';
+};
+
+const mapBuyerUiStatusFromNormalized = (
+  paymentStatus?: string | null,
+  shipmentStatus?: string | null,
+  hasCancellationRecord?: boolean,
+  isReviewed?: boolean,
+): 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed' => {
+  if (isReviewed) return 'reviewed';
+
+  if (shipmentStatus === 'delivered' || shipmentStatus === 'received') {
+    return 'delivered';
+  }
+
+  if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') {
+    return 'shipped';
+  }
+
+  if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') {
+    return 'confirmed';
+  }
+
+  if (shipmentStatus === 'failed_to_deliver') {
+    return 'cancelled';
+  }
+
+  if (shipmentStatus === 'returned') {
+    return hasCancellationRecord ? 'cancelled' : 'returned';
+  }
+
+  if (paymentStatus === 'refunded' || paymentStatus === 'partially_refunded') {
+    return hasCancellationRecord ? 'cancelled' : 'returned';
+  }
+
+  return 'pending';
+};
+
 export default function OrdersScreen({ navigation, route }: Props) {
   const { user, isGuest } = useAuthStore();
-  const initialTab = route.params?.initialTab || 'toPay';
-  const [activeTab, setActiveTab] = useState<'toPay' | 'toShip' | 'toReceive' | 'completed' | 'returns' | 'cancelled'>(initialTab as any);
+  const initialTab = normalizeInitialTab(route.params?.initialTab);
+  const [activeTab, setActiveTab] = useState<OrdersTab>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -108,6 +172,12 @@ export default function OrdersScreen({ navigation, route }: Props) {
                 sort_order
               )
             )
+          ),
+          reviews (
+            id
+          ),
+          cancellations:order_cancellations (
+            id
           )
         `)
         .eq('buyer_id', user.id)
@@ -120,24 +190,29 @@ export default function OrdersScreen({ navigation, route }: Props) {
       }
 
       const mapped: Order[] = (data || []).map((order: any) => {
-        // Use shipment_status for order status (orders table uses shipment_status, not status)
-        const rawStatus = (order.shipment_status || 'waiting_for_seller').toLowerCase();
-        const statusMap: Record<string, Order['status']> = {
-          waiting_for_seller: 'pending',
+        const hasReviews = Array.isArray(order.reviews) && order.reviews.length > 0;
+        const hasCancellationRecord =
+          (Array.isArray(order.cancellations) && order.cancellations.length > 0) ||
+          Boolean(order.cancellation_reason || order.cancelled_at);
+        const buyerUiStatus = mapBuyerUiStatusFromNormalized(
+          order.payment_status,
+          order.shipment_status,
+          hasCancellationRecord,
+          hasReviews || Boolean(order.is_reviewed),
+        );
+
+        const statusByBuyerUiStatus: Record<string, Order['status']> = {
           pending: 'pending',
-          pending_payment: 'pending',
-          processing: 'processing',
-          ready_to_ship: 'processing',
+          confirmed: 'processing',
           shipped: 'shipped',
-          out_for_delivery: 'shipped',
           delivered: 'delivered',
-          received: 'delivered',
-          cancelled: 'cancelled',
+          reviewed: 'delivered',
           returned: 'delivered',
-          failed_to_deliver: 'shipped',
+          cancelled: 'cancelled',
         };
 
-        const mappedStatus = statusMap[rawStatus] || 'pending';
+        const mappedStatus = statusByBuyerUiStatus[buyerUiStatus] || 'pending';
+        const isReviewed = buyerUiStatus === 'reviewed';
 
         // Get seller from first order item's product (orders don't have direct seller_id)
         const firstItem = order.items?.[0];
@@ -265,6 +340,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
                     ? 'PayMongo'
                     : (order.payment_method as any)?.type || 'Cash on Delivery'),
           createdAt: order.created_at,
+          buyerUiStatus,
+          isReviewed,
         } as Order;
       });
       setDbOrders(mapped);
@@ -288,28 +365,32 @@ export default function OrdersScreen({ navigation, route }: Props) {
   }, [user?.id]);
 
   const filteredOrders = useMemo(() => {
-    if (activeTab === 'returns') return [];
-
     let baseOrders: Order[] = [];
 
     switch (activeTab) {
-      case 'toPay':
-        baseOrders = dbOrders.filter(o => o.status === 'pending');
+      case 'all':
+        baseOrders = dbOrders;
         break;
-      case 'toShip':
-        baseOrders = dbOrders.filter(o => o.status === 'processing');
+      case 'pending':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'pending');
         break;
-      case 'toReceive':
-        baseOrders = dbOrders.filter(o => o.status === 'shipped');
+      case 'confirmed':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'confirmed');
         break;
-      case 'completed':
-        baseOrders = dbOrders.filter(o =>
-          o.status === 'delivered' &&
-          !returnRequests.some(req => req.orderId === ((o as any).orderId || o.id))
-        );
+      case 'shipped':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'shipped');
+        break;
+      case 'delivered':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'delivered');
+        break;
+      case 'reviewed':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'reviewed');
+        break;
+      case 'returned':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'returned');
         break;
       case 'cancelled':
-        baseOrders = dbOrders.filter(o => o.status === 'cancelled');
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'cancelled');
         break;
       default:
         baseOrders = [];
@@ -337,7 +418,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         ? b.transactionId.localeCompare(a.transactionId) 
         : a.transactionId.localeCompare(b.transactionId);
     });
-  }, [activeTab, dbOrders, selectedStatus, searchQuery, sortOrder, returnRequests]);
+  }, [activeTab, dbOrders, selectedStatus, searchQuery, sortOrder]);
 
   const handleBuyAgain = (order: Order) => {
     if (order.items.length > 0) {
@@ -393,7 +474,13 @@ export default function OrdersScreen({ navigation, route }: Props) {
   /* Removed unused local state for inline modal: rating, setRating, reviewText, setReviewText */
   /* Instead of setReviewText, we use the logic inside ReviewModal */
 
-  const handleSubmitReview = async (productId: string, rating: number, review: string) => {
+  const handleSubmitReview = async (
+    productId: string,
+    orderItemId: string,
+    rating: number,
+    review: string,
+    images: string[] = [],
+  ) => {
     if (!selectedOrder || !user?.id) return;
 
     try {
@@ -402,26 +489,26 @@ export default function OrdersScreen({ navigation, route }: Props) {
       
       // Find item by productId (now correctly passed from ReviewModal)
       const item = selectedOrder.items.find(i => 
-        (i as any).productId === productId || i.id === productId
+        i.id === orderItemId || (i as any).productId === productId || i.id === productId
       );
       if (!item) throw new Error('Product not found');
 
-      // Create review (no seller_id - not in reviews table)
-      await reviewService.createReview({
+      // Create review with optional image uploads
+      const result = await reviewService.submitReviewWithImages({
         product_id: productId,
         buyer_id: user.id,
         order_id: realOrderId,
+        order_item_id: orderItemId,
         rating,
         comment: review || null,
         is_verified_purchase: true,
-      });
+      }, images);
 
-      // Mark item as reviewed with rating
-      await reviewService.markItemAsReviewed(realOrderId, productId, rating);
+      if (!result) {
+        throw new Error('This item has already been reviewed');
+      }
 
-      // Check if all items reviewed (no-op now since no is_reviewed column)
-      await reviewService.checkAndUpdateOrderReviewed(realOrderId);
-
+      await loadOrders();
       Alert.alert('Success', 'Your review has been submitted.');
     } catch (error: any) {
       console.error('[OrdersScreen] Error submitting review:', error);
@@ -485,15 +572,42 @@ export default function OrdersScreen({ navigation, route }: Props) {
     );
   };
 
+  const renderOrderCard = (order: Order) => (
+    <OrderCard
+      key={order.id}
+      order={order}
+      onPress={() => navigation.navigate('OrderDetail', { order })}
+      onCancel={() => handleCancelOrder(order)}
+      onReceive={() => handleOrderReceived(order)}
+      onReview={order.buyerUiStatus === 'delivered' ? () => handleReview(order) : undefined}
+      onShopPress={(shopId) => {
+        const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;
+        const sellerInfo = dbOrders.find(o => o.id === targetOrder.id)?.sellerInfo || {};
+
+        const storeObj = {
+          id: shopId,
+          name: sellerInfo.store_name || sellerInfo.business_name || 'Shop',
+          rating: sellerInfo.rating || 4.8,
+          verified: !!sellerInfo.is_verified,
+          image: 'https://via.placeholder.com/150',
+          followers: 100,
+          description: sellerInfo.business_address || ''
+        };
+
+        navigation.navigate('StoreDetail', { store: storeObj });
+      }}
+    />
+  );
+
   const renderActionButtons = (order: Order) => {
-    if (activeTab === 'toReceive' && order.status === 'shipped') {
+    if (activeTab === 'shipped' && order.status === 'shipped') {
       return (
         <Pressable style={styles.primaryButton} onPress={() => handleOrderReceived(order)}>
           <Text style={styles.primaryButtonText}>Order Received</Text>
         </Pressable>
       );
     }
-    if (activeTab === 'completed' && order.status === 'delivered') {
+    if (activeTab === 'reviewed' && order.status === 'delivered') {
       return (
         <View style={styles.buttonRow}>
           <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
@@ -651,13 +765,15 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['toPay', 'toShip', 'toReceive', 'completed', 'returns', 'cancelled'] as const).map((tab) => {
+          {(['all', 'pending', 'confirmed', 'shipped', 'delivered', 'reviewed', 'returned', 'cancelled'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
-              toPay: 'To Pay',
-              toShip: 'To Ship',
-              toReceive: 'To Receive',
-              completed: 'Completed',
-              returns: 'Return/Refund',
+              all: 'All Orders',
+              pending: 'Pending',
+              confirmed: 'Processing',
+              shipped: 'Shipped',
+              delivered: 'Delivered',
+              reviewed: 'Reviewed',
+              returned: 'Return/Refund',
               cancelled: 'Cancelled'
             };
             return (
@@ -683,54 +799,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
       >
-        {activeTab === 'returns' ? (
-          // RETURNS VIEW
-          returnRequests.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Package size={64} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>No Return Requests</Text>
-              <Text style={styles.emptyText}>Any return or refund requests will appear here</Text>
-            </View>
-          ) : (
-            returnRequests.map(renderReturnItem)
-          )
+        {filteredOrders.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Package size={64} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>No Orders Found</Text>
+            <Text style={styles.emptyText}>Items you purchase will appear here</Text>
+          </View>
         ) : (
-          // ORDERS VIEW
-          filteredOrders.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Package size={64} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>No Orders Found</Text>
-              <Text style={styles.emptyText}>Items you purchase will appear here</Text>
-            </View>
-          ) : (
-            filteredOrders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                onPress={() => navigation.navigate('OrderDetail', { order })}
-                onCancel={() => handleCancelOrder(order)}
-                onReceive={() => handleOrderReceived(order)}
-                onReview={() => handleReview(order)}
-                onShopPress={(shopId) => {
-                  // Find the order to get the seller info
-                  const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;
-                  const sellerInfo = dbOrders.find(o => o.id === targetOrder.id)?.sellerInfo || {};
-
-                  const storeObj = {
-                    id: shopId,
-                    name: sellerInfo.store_name || sellerInfo.business_name || 'Shop',
-                    rating: sellerInfo.rating || 4.8,
-                    verified: !!sellerInfo.is_verified,
-                    image: 'https://via.placeholder.com/150', // Fallback as we might not have store logo in order query
-                    followers: 100, // Placeholder
-                    description: sellerInfo.business_address || ''
-                  };
-
-                  navigation.navigate('StoreDetail', { store: storeObj });
-                }}
-              />
-            ))
-          )
+          filteredOrders.map(renderOrderCard)
         )}
       </ScrollView>
 

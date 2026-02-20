@@ -219,7 +219,7 @@ export function ReviewModal({
             {!submitted ? (
               <>
                 {/* Header */}
-                <div className="relative p-6 bg-gradient-to-r from-orange-500 to-red-500 text-white">
+                <div className="relative p-6 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white">
                   <button
                     onClick={handleClose}
                     className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
@@ -244,8 +244,8 @@ export function ReviewModal({
                 {/* Content */}
                 <div className="p-6 space-y-6">
                   {/* Seller Info */}
-                  <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-lg">
-                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                  <div className="flex items-center gap-3 p-4 bg-[var(--brand-wash)] rounded-lg">
+                    <div className="w-12 h-12 bg-[var(--brand-primary)] rounded-full flex items-center justify-center text-white font-bold text-lg">
                       {sellerName.charAt(0)}
                     </div>
                     <div>
@@ -261,7 +261,7 @@ export function ReviewModal({
                   {/* Items Purchased */}
                   <div className="space-y-3">
                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      <Package className="w-5 h-5 text-orange-500" />
+                      <Package className="w-5 h-5 text-[var(--brand-primary)]" />
                       Items in this order
                     </h3>
                     <div className="space-y-2 max-h-32 overflow-y-auto">
@@ -307,7 +307,7 @@ export function ReviewModal({
                           >
                             <Star
                               className={`w-10 h-10 ${star <= (hoveredRating || rating)
-                                ? "fill-orange-500 text-orange-500"
+                                ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]"
                                 : "text-gray-300"
                                 } transition-colors`}
                             />
@@ -315,7 +315,7 @@ export function ReviewModal({
                         ))}
                       </div>
                       {rating > 0 && (
-                        <span className="text-2xl font-bold text-orange-500">
+                        <span className="text-2xl font-bold text-[var(--brand-primary)]">
                           {rating}.0
                         </span>
                       )}
@@ -323,7 +323,7 @@ export function ReviewModal({
                     <div className="flex gap-2 text-sm text-gray-600">
                       <span
                         className={
-                          rating === 1 ? "text-orange-500 font-medium" : ""
+                          rating === 1 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Poor
@@ -331,7 +331,7 @@ export function ReviewModal({
                       <span>•</span>
                       <span
                         className={
-                          rating === 2 ? "text-orange-500 font-medium" : ""
+                          rating === 2 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Fair
@@ -339,7 +339,7 @@ export function ReviewModal({
                       <span>•</span>
                       <span
                         className={
-                          rating === 3 ? "text-orange-500 font-medium" : ""
+                          rating === 3 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Good
@@ -347,7 +347,7 @@ export function ReviewModal({
                       <span>•</span>
                       <span
                         className={
-                          rating === 4 ? "text-orange-500 font-medium" : ""
+                          rating === 4 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Very Good
@@ -355,7 +355,7 @@ export function ReviewModal({
                       <span>•</span>
                       <span
                         className={
-                          rating === 5 ? "text-orange-500 font-medium" : ""
+                          rating === 5 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Excellent
@@ -372,7 +372,7 @@ export function ReviewModal({
                       value={reviewText}
                       onChange={(e) => setReviewText(e.target.value)}
                       placeholder="Tell us about the product quality, seller service, and delivery experience..."
-                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none h-32"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent resize-none h-32"
                       disabled={isSubmitting}
                     />
                     <p className="text-xs text-gray-500">
@@ -383,7 +383,7 @@ export function ReviewModal({
                   {/* Image Upload */}
                   <div className="space-y-3">
                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      <Camera className="w-5 h-5 text-orange-500" />
+                      <Camera className="w-5 h-5 text-[var(--brand-primary)]" />
                       Add Photos (optional)
                     </h3>
                     <div className="flex items-center gap-3 flex-wrap">
@@ -404,7 +404,7 @@ export function ReviewModal({
                         </div>
                       ))}
                       {images.length < 5 && (
-                        <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-orange-500 hover:bg-orange-50 transition-colors">
+                        <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-[var(--brand-primary)] hover:bg-[var(--brand-wash)] transition-colors">
                           <input
                             type="file"
                             accept="image/*"
@@ -428,7 +428,7 @@ export function ReviewModal({
                     <Button
                       onClick={handleSubmit}
                       disabled={rating === 0 || isSubmitting}
-                      className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white py-6 text-lg font-semibold"
+                      className="w-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary-dark)] hover:to-[var(--brand-primary)] text-white py-6 text-lg font-semibold"
                     >
                       {isSubmitting ? (
                         <div className="flex items-center gap-2">

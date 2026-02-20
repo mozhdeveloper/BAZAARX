@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cartService } from '@/services/cartService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
-import { ReactNode } from 'react';
 
 export interface Message {
   id: string;
@@ -14,11 +13,21 @@ export interface Message {
 }
 
 // Registry Product Extension
+export type RegistryPrivacy = 'public' | 'link' | 'private';
+
+export interface RegistryDeliveryPreference {
+  addressId?: string;
+  showAddress: boolean;
+  instructions?: string;
+}
+
 export interface RegistryProduct extends Product {
   requestedQty: number;
   receivedQty: number;
   note?: string;
   isMostWanted?: boolean;
+  selectedVariant?: ProductVariant; // snapshot of the chosen variant
+  delivery?: RegistryDeliveryPreference; // item-level override if ever needed
 }
 
 export interface RegistryItem {
@@ -28,7 +37,29 @@ export interface RegistryItem {
   imageUrl: string;
   category?: string;
   products?: RegistryProduct[];
+  privacy?: RegistryPrivacy;
+  delivery?: RegistryDeliveryPreference;
 }
+
+const ensureRegistryProductDefaults = (product: Product | RegistryProduct): RegistryProduct => {
+  const incoming = product as RegistryProduct;
+  return {
+    ...(product as Product),
+    requestedQty: incoming.requestedQty ?? 1,
+    receivedQty: incoming.receivedQty ?? 0,
+    note: incoming.note,
+    isMostWanted: incoming.isMostWanted ?? false,
+    selectedVariant: incoming.selectedVariant,
+    delivery: incoming.delivery,
+  };
+};
+
+const ensureRegistryDefaults = (registry: RegistryItem): RegistryItem => {
+  const privacy = registry.privacy ?? 'link';
+  const delivery = registry.delivery ?? { showAddress: false };
+  const products = (registry.products || []).map(ensureRegistryProductDefaults);
+  return { ...registry, privacy, delivery, products };
+};
 
 export interface Conversation {
   id: string;
@@ -84,6 +115,12 @@ export interface ProductVariant {
   price: number;
   stock: number;
   image?: string;
+  thumbnail_url?: string;
+  size?: string;
+  color?: string;
+  option_1_value?: string;
+  option_2_value?: string;
+  attributes?: Record<string, string>; // optional snapshot of variant options (color/size)
 }
 
 export interface CartItem extends Product {
@@ -250,6 +287,7 @@ interface BuyerStore {
   addToCart: (product: Product, quantity?: number, variant?: ProductVariant) => void;
   removeFromCart: (productId: string, variantId?: string) => void;
   updateCartQuantity: (productId: string, quantity: number, variantId?: string) => void;
+  updateItemVariant: (productId: string, oldVariantId: string | undefined, newVariant: ProductVariant, quantity?: number) => Promise<void>;
   updateCartNotes: (productId: string, notes: string) => void;
   clearCart: () => void;
   getCartTotal: () => number;
@@ -320,9 +358,11 @@ interface BuyerStore {
   // Registry & Gifting
   registries: RegistryItem[];
   createRegistry: (registry: RegistryItem) => void;
+  updateRegistryMeta: (registryId: string, updates: Partial<RegistryItem>) => void;
   addToRegistry: (registryId: string, product: Product) => void;
   updateRegistryItem: (registryId: string, productId: string, updates: Partial<RegistryProduct>) => void;
   removeRegistryItem: (registryId: string, productId: string) => void;
+  deleteRegistry: (registryId: string) => void;
 
   initializeBuyerProfile: (userId: string, profileData: any) => Promise<BuyerProfile>;
 
@@ -835,6 +875,60 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
     },
 
+    updateItemVariant: async (productId, oldVariantId, newVariant, quantity) => {
+      const user = await getCurrentUser();
+      const cartItems = get().cartItems;
+      
+      // Find the item to update
+      const itemIndex = cartItems.findIndex(item => 
+        item.id === productId && item.selectedVariant?.id === oldVariantId
+      );
+
+      if (itemIndex === -1) return;
+
+      const currentItem = cartItems[itemIndex];
+      const updatedItem = {
+        ...currentItem,
+        selectedVariant: newVariant,
+        price: newVariant.price,
+        quantity: quantity !== undefined ? quantity : currentItem.quantity,
+        image: newVariant.image || newVariant.thumbnail_url || currentItem.image
+      };
+
+      // If user is logged in, sync with DB
+      if (user) {
+        try {
+          const cart = await cartService.getOrCreateCart(user.id);
+          if (cart) {
+            const dbItems = await cartService.getCartItems(cart.id);
+            const dbItem = dbItems.find(i => 
+              i.product_id === productId && 
+              (oldVariantId ? (i as any).variant_id === oldVariantId : !(i as any).variant_id)
+            );
+
+            if (dbItem) {
+              // Update variant
+              await cartService.updateCartItemVariant(dbItem.id, newVariant.id);
+              
+              // Update quantity if different
+              if (quantity !== undefined && quantity !== dbItem.quantity) {
+                await cartService.updateCartItemQuantity(dbItem.id, quantity);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error updating item variant in DB:', error);
+        }
+      }
+
+      // Update local state
+      const nextCartItems = [...cartItems];
+      nextCartItems[itemIndex] = updatedItem;
+
+      set({ cartItems: nextCartItems });
+      get().groupCartBySeller();
+    },
+
     updateCartNotes: (productId, notes) => {
       set((state) => ({
         cartItems: state.cartItems.map(item =>
@@ -1093,20 +1187,29 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     removeSelectedItems: async () => {
       const user = await getCurrentUser();
-      const selectedItems = get().cartItems.filter(item => item.selected);
+      const cartItems = get().cartItems;
+      const selectedItems = cartItems.filter(item => item.selected);
+      
+      if (selectedItems.length === 0) return;
 
       if (user) {
         try {
           const cart = await cartService.getOrCreateCart(user.id);
           if (cart) {
             const dbItems = await cartService.getCartItems(cart.id);
-            // Match selected items with DB items to delete
-            // Ideally we should have the DB ID in cartItems, leveraging product_id matching for now
-            for (const item of selectedItems) {
-              const dbItem = dbItems.find(i => i.product_id === item.id && i.variant?.id === item.selectedVariant?.id);
-              if (dbItem) {
-                await cartService.removeFromCart(dbItem.id);
-              }
+            // Collect all DB IDs for matching selected items
+            const idsToDelete = selectedItems
+              .map(item => {
+                const dbItem = dbItems.find(i => 
+                  i.product_id === item.id && 
+                  (item.selectedVariant ? (i as any).variant_id === item.selectedVariant.id : !(i as any).variant_id)
+                );
+                return dbItem?.id;
+              })
+              .filter(Boolean) as string[];
+
+            if (idsToDelete.length > 0) {
+              await cartService.removeItemsFromCart(idsToDelete);
             }
           }
         } catch (error) {
@@ -1114,9 +1217,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
       }
 
-      set((state) => ({
-        cartItems: state.cartItems.filter(item => !item.selected)
-      }));
+      // Update local state
+      set({ cartItems: cartItems.filter(item => !item.selected) });
       get().groupCartBySeller();
     },
 
@@ -1508,21 +1610,24 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     registries: [],
     createRegistry: (registry) => {
       set((state) => ({
-        registries: [...state.registries, registry]
+        registries: [...state.registries.map(ensureRegistryDefaults), ensureRegistryDefaults(registry)]
+      }));
+    },
+    updateRegistryMeta: (registryId, updates) => {
+      set((state) => ({
+        registries: state.registries.map((r) =>
+          r.id === registryId ? ensureRegistryDefaults({ ...r, ...updates }) : r
+        )
       }));
     },
     addToRegistry: (registryId, product) => {
+      const productWithDefaults = ensureRegistryProductDefaults(product);
       set((state) => ({
         registries: state.registries.map(r =>
           r.id === registryId
             ? {
               ...r,
-              products: [...(r.products || []), {
-                ...product,
-                requestedQty: 1,
-                receivedQty: 0,
-                isMostWanted: false
-              }]
+              products: [...(r.products || []).map(ensureRegistryProductDefaults), productWithDefaults]
             }
             : r
         )
@@ -1534,9 +1639,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           r.id === registryId
             ? {
               ...r,
-              products: (r.products || []).map(p =>
-                p.id === productId ? { ...p, ...updates } : p
-              )
+              products: (r.products || []).map(p => {
+                const updated = p.id === productId ? { ...p, ...updates } : p;
+                return ensureRegistryProductDefaults(updated);
+              })
             }
             : r
         )
@@ -1552,6 +1658,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             }
             : r
         )
+      }));
+    },
+    deleteRegistry: (registryId) => {
+      set((state) => ({
+        registries: state.registries.filter(r => r.id !== registryId)
       }));
     }
   }),

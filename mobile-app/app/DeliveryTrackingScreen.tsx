@@ -147,7 +147,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const handleGoToToReceive = () => {
     setShowRedirectPopup(false);
     navigation.navigate('Orders', { 
-      initialTab: 'toReceive'
+      initialTab: 'shipped'
     });
   };
 

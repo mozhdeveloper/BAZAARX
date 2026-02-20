@@ -51,7 +51,7 @@ export default function BuyerProfilePage() {
     if (!profile) return <div>Loading...</div>;
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-[var(--brand-wash)]">
             <Header />
 
             {/* Custom Profile Header - Modern Dark Orange Style */}
@@ -91,7 +91,7 @@ export default function BuyerProfilePage() {
                                     className="w-full h-full rounded-full object-cover transition-transform group-hover:scale-105"
                                 />
                             </div>
-                            <div className="absolute bottom-1 right-1 bg-white text-[#ff6a00] p-1.5 rounded-full shadow-lg border-2 border-[#ff6a00]">
+                            <div className="absolute bottom-1 right-1 bg-[var(--bg-secondary)] text-[var(--brand-primary)] p-1.5 rounded-full shadow-lg border-2 border-[var(--brand-primary)]">
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
                                     width="14"
@@ -115,7 +115,7 @@ export default function BuyerProfilePage() {
                                 <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
                                     {profile.firstName} {profile.lastName}
                                 </h1>
-                                <Badge className="bg-white text-[#ff6a00] hover:bg-white border-none py-0.5 px-3 flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                                <Badge className="bg-[var(--bg-secondary)] text-[var(--brand-primary)] hover:bg-[var(--bg-secondary)] border-none py-0.5 px-3 flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
                                     Verified Member
                                 </Badge>
                             </div>
@@ -198,7 +198,7 @@ export default function BuyerProfilePage() {
                                         navigate("/seller/auth");
                                     }
                                 }}
-                                className="bg-[#ff6a00] hover:bg-[#e65e00] text-white font-bold h-10 px-6 rounded-xl shadow-lg shadow-orange-600/20 flex items-center gap-2"
+                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold h-10 px-6 rounded-xl shadow-lg shadow-orange-600/20 flex items-center gap-2"
                             >
                                 <Store className="w-4 h-4" />
                                 {isSeller ? "Switch to Seller Mode" : "Start Selling"}
@@ -216,34 +216,34 @@ export default function BuyerProfilePage() {
                     className="-mt-4 space-y-4"
                 >
                     <div className="sticky top-20 z-30 flex justify-center w-full mb-4 py-2 backdrop-blur-[2px]">
-                        <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-gray-100/80 p-1 shadow-sm">
+                        <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-[var(--brand-wash)] p-1 shadow-sm border border-[var(--brand-wash-gold)]/20">
                             <TabsTrigger
                                 value="personal"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
                             >
                                 Personal Info
                             </TabsTrigger>
                             <TabsTrigger
                                 value="addresses"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
                             >
                                 Addresses
                             </TabsTrigger>
                             <TabsTrigger
                                 value="payments"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
                             >
                                 Payment Methods
                             </TabsTrigger>
                             <TabsTrigger
                                 value="following"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
                             >
                                 Following
                             </TabsTrigger>
                             <TabsTrigger
                                 value="settings"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
                             >
                                 Settings
                             </TabsTrigger>

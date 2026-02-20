@@ -66,7 +66,7 @@ export default function MyTickets() {
     const tabs: ('All' | TicketStatus)[] = ['All', 'Open', 'In Review', 'Resolved', 'Closed'];
 
     return (
-        <div className="min-h-screen bg-gray-50 font-[family-name:var(--font-sans)]">
+        <div className="min-h-screen bg-[var(--brand-wash)] font-[family-name:var(--font-sans)]">
             <Header />
 
             <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col items-center">

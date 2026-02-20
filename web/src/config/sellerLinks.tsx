@@ -74,6 +74,13 @@ export const sellerLinks = [
     ),
   },
   {
+    label: "POS Settings",
+    href: "/seller/pos-settings",
+    icon: (
+      <Settings className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
     label: "Discounts",
     href: "/seller/discounts",
     icon: (

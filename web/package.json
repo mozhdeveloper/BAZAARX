@@ -29,6 +29,14 @@
     "test:seller-flow": "tsx scripts/test-seller-complete-flow.ts",
     "test:e2e": "tsx scripts/test-e2e-buyer-seller.ts",
     "test:address": "tsx scripts/test-address-system.ts",
+    "test:pos": "tsx scripts/test-pos-features.ts",
+    "test:pos-db": "tsx scripts/test-pos-settings-db.ts",
+    "test:pos-settings": "tsx scripts/test-pos-settings.ts",
+    "test:pos-barcode": "tsx scripts/test-pos-barcode-flow.ts",
+    "test:barcode": "tsx scripts/test-barcode-system.ts",
+    "test:scanner": "tsx scripts/test-hardware-scanner.ts",
+    "validate:barcode": "tsx scripts/validate-barcode-schema.ts",
+    "verify:pos-schema": "tsx scripts/verify-pos-schema-alignment.ts",
     "seed:database": "tsx scripts/seed-complete-database.ts"
   },
   "dependencies": {

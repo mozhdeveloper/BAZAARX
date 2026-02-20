@@ -16,7 +16,7 @@ import { useSellerStore } from '../../src/stores/sellerStore';
 import { safeImageUri } from '../../src/utils/imageUtils';
 import TrackingModal from '../../src/components/seller/TrackingModal';
 
-type OrderStatus = 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled';
+type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 
 export default function SellerOrderDetailScreen() {
     const insets = useSafeAreaInsets();
@@ -24,7 +24,7 @@ export default function SellerOrderDetailScreen() {
     const route = useRoute<any>();
     const { orderId } = route.params;
 
-    const { orders = [], updateOrderStatus, markOrderAsShipped, seller, fetchOrders } = useSellerStore();
+    const { orders = [], updateOrderStatus, markOrderAsShipped, markOrderAsDelivered, seller, fetchOrders } = useSellerStore();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -34,10 +34,10 @@ export default function SellerOrderDetailScreen() {
 
     useEffect(() => {
         const loadOrder = async () => {
-            let foundOrder = orders.find(o => o.id === orderId || o.orderId === orderId);
+            let foundOrder = orders.find(o => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
             if (!foundOrder && seller?.id) {
                 await fetchOrders(seller.id);
-                foundOrder = orders.find(o => o.id === orderId || o.orderId === orderId);
+                foundOrder = orders.find(o => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
             }
             setOrder(foundOrder);
             setLoading(false);
@@ -54,7 +54,11 @@ export default function SellerOrderDetailScreen() {
         }
 
         try {
-            await updateOrderStatus(orderId, newStatus);
+            if (newStatus === 'delivered') {
+                await markOrderAsDelivered(orderId);
+            } else {
+                await updateOrderStatus(orderId, newStatus);
+            }
             if (seller?.id) await fetchOrders(seller.id);
             Alert.alert("Success", `Order updated to ${newStatus.replace('-', ' ')}`);
         } catch (error) {
@@ -86,9 +90,9 @@ export default function SellerOrderDetailScreen() {
 
     const getStatusStyles = (status: string) => {
         switch (status) {
-            case 'completed': return { color: '#10B981', bg: '#D1FAE5' };
+            case 'delivered': return { color: '#10B981', bg: '#D1FAE5' };
             case 'shipped': return { color: '#3B82F6', bg: '#DBEAFE' };
-            case 'to-ship': return { color: '#FF5722', bg: '#FFF5F0' };
+            case 'confirmed': return { color: '#FF5722', bg: '#FFF5F0' };
             case 'pending': return { color: '#FBBF24', bg: '#FEF3C7' };
             case 'cancelled': return { color: '#DC2626', bg: '#FEE2E2' };
             default: return { color: '#6B7280', bg: '#F3F4F6' };
@@ -108,7 +112,7 @@ export default function SellerOrderDetailScreen() {
                     <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
                         <ArrowLeft size={24} color="#1F2937" />
                     </Pressable>
-                    <Text style={styles.headerTitle}>#{String(order.orderId || order.id).toUpperCase()}</Text>
+                    <Text style={styles.headerTitle}>#{String(order.orderNumber || order.id).toUpperCase()}</Text>
                     <View style={{ width: 40 }} />
                 </View>
             </View>
@@ -118,10 +122,10 @@ export default function SellerOrderDetailScreen() {
                 <View style={styles.statusSection}>
                     <View style={styles.dateTimeContainer}>
                         <Text style={styles.dateLabel}>
-                            {new Date(order.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            {new Date(order.orderDate || order.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                         </Text>
                         <Text style={styles.timeLabel}>
-                            {new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(order.orderDate || order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                         </Text>
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
@@ -157,8 +161,8 @@ export default function SellerOrderDetailScreen() {
                 <View style={styles.detailCard}>
                     <View style={styles.detailCardHeader}><Text style={styles.detailCardTitle}>Customer Details</Text></View>
                     <View style={styles.detailCardContent}>
-                        <View style={styles.infoLine}><User size={16} color="#9CA3AF" /><Text style={styles.custName}>{order.customerName || 'Walk-in'}</Text></View>
-                        <View style={[styles.infoLine, { marginTop: 8 }]}><Mail size={16} color="#9CA3AF" /><Text style={styles.custEmail}>{order.customerEmail || 'No email provided'}</Text></View>
+                        <View style={styles.infoLine}><User size={16} color="#9CA3AF" /><Text style={styles.custName}>{order.buyerName || 'Walk-in'}</Text></View>
+                        <View style={[styles.infoLine, { marginTop: 8 }]}><Mail size={16} color="#9CA3AF" /><Text style={styles.custEmail}>{order.buyerEmail || 'No email provided'}</Text></View>
                     </View>
                 </View>
 
@@ -174,26 +178,32 @@ export default function SellerOrderDetailScreen() {
                                         'In-store Pickup'}
                             </Text>
                         </View>
+                        {order.trackingNumber ? (
+                            <View style={[styles.infoLine, { marginTop: 10 }]}>
+                                <Text style={styles.trackingLabel}>Tracking:</Text>
+                                <Text style={styles.infoText}>{order.trackingNumber}</Text>
+                            </View>
+                        ) : null}
                     </View>
                 </View>
             </ScrollView>
 
             {/* Sticky Footer Buttons */}
-            {order.status !== 'completed' && order.status !== 'cancelled' && (
+            {order.status !== 'delivered' && order.status !== 'cancelled' && (
                 <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={styles.footerActionRow}>
                         {order.status === 'pending' && (
-                            <Pressable style={[styles.primaryButton, { backgroundColor: '#FF5722' }]} onPress={() => handleStatusUpdate('to-ship')}>
+                            <Pressable style={[styles.primaryButton, { backgroundColor: '#FF5722' }]} onPress={() => handleStatusUpdate('confirmed')}>
                                 <Text style={styles.buttonText}>Confirm Order</Text>
                             </Pressable>
                         )}
-                        {order.status === 'to-ship' && (
+                        {order.status === 'confirmed' && (
                             <Pressable style={[styles.primaryButton, { backgroundColor: '#FF5722' }]} onPress={() => handleStatusUpdate('shipped')}>
                                 <Text style={styles.buttonText}>Ship Order</Text>
                             </Pressable>
                         )}
                         {order.status === 'shipped' && (
-                            <Pressable style={[styles.primaryButton, { backgroundColor: '#10B981' }]} onPress={() => handleStatusUpdate('completed')}>
+                            <Pressable style={[styles.primaryButton, { backgroundColor: '#10B981' }]} onPress={() => handleStatusUpdate('delivered')}>
                                 <Text style={styles.buttonText}>Mark as Delivered</Text>
                             </Pressable>
                         )}
@@ -258,6 +268,7 @@ const styles = StyleSheet.create({
     custName: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
     custEmail: { fontSize: 13, color: '#6B7280' },
     infoLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    trackingLabel: { fontSize: 13, fontWeight: '700', color: '#4B5563' },
     infoText: { fontSize: 13, color: '#4B5563', flex: 1 },
     // Sticky Footer Styles
     stickyFooter: {

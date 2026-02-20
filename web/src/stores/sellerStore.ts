@@ -4,6 +4,7 @@ import { useProductQAStore } from "./productQAStore";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { authService } from "@/services/authService";
 import { productService } from "@/services/productService";
+import { orderService } from "@/services/orderService";
 import { orderReadService } from "@/services/orders/orderReadService";
 import { orderMutationService } from "@/services/orders/orderMutationService";
 import { mapDbProductToSellerProduct } from "@/utils/productMapper";
@@ -119,6 +120,7 @@ export interface SellerOrder {
     total: number;
     status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
     paymentStatus: "pending" | "paid" | "refunded";
+    paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online"; // Payment method used
     orderDate: string;
     shippingAddress: {
         fullName: string;
@@ -843,16 +845,9 @@ export const useProductStore = create<ProductStore>()(
                 set({ loading: true, error: null });
                 try {
                     const data = await productService.getProducts(filters);
-                    console.log("🔍 Raw product data from DB:", data);
-                    console.log(
-                        "🔍 First product seller info:",
-                        data?.[0]?.seller,
-                    );
                     const mappedProducts = (data || []).map(
                         mapDbProductToSellerProduct,
                     );
-                    console.log("🔍 Mapped products:", mappedProducts);
-                    console.log("🔍 First mapped product:", mappedProducts[0]);
                     set({
                         products: mappedProducts,
                         loading: false,
@@ -1382,12 +1377,16 @@ export const useProductStore = create<ProductStore>()(
                 notes,
             ) => {
                 try {
+                    console.log(`[deductStock] Starting - Product: ${productId}, Quantity: ${quantity}, Reason: ${reason}`);
+                    
                     const product = get().products.find(
                         (p) => p.id === productId,
                     );
                     if (!product) {
                         throw new Error(`Product ${productId} not found`);
                     }
+
+                    console.log(`[deductStock] Current stock: ${product.stock}`);
 
                     // RULE: No negative stock allowed
                     if (product.stock < quantity) {
@@ -1401,6 +1400,7 @@ export const useProductStore = create<ProductStore>()(
 
                     // Use Supabase if configured
                     if (isSupabaseConfigured()) {
+                        console.log(`[deductStock] Updating database...`);
                         await productService.deductStock(
                             productId,
                             quantity,
@@ -1408,10 +1408,16 @@ export const useProductStore = create<ProductStore>()(
                             referenceId,
                             authStoreForStock.seller?.id,
                         );
+                        console.log(`[deductStock] Database updated. Refetching products...`);
                         // Refresh from DB to get updated stock
                         await get().fetchProducts({
                             sellerId: authStoreForStock.seller?.id,
                         });
+                        console.log(`[deductStock] Products refetched. New product count: ${get().products.length}`);
+                        
+                        // Verify the stock was updated
+                        const updatedProduct = get().products.find((p) => p.id === productId);
+                        console.log(`[deductStock] Verified stock after refetch: ${updatedProduct?.stock}`);
                     } else {
                         // Fallback: Update product stock locally
                         set((state) => ({
@@ -2278,7 +2284,7 @@ export const useOrderStore = create<OrderStore>()(
             },
 
             // POS-Lite: Add offline order and deduct stock
-            addOfflineOrder: (cartItems, total, note) => {
+            addOfflineOrder: async (cartItems, total, note) => {
                 try {
                     // Validate cart items
                     if (!cartItems || cartItems.length === 0) {
@@ -2307,10 +2313,30 @@ export const useOrderStore = create<OrderStore>()(
                         }
                     }
 
-                    // Generate order ID
-                    const orderId = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                    // Get seller info for database order
+                    const authStore = useAuthStore.getState();
+                    const sellerId = authStore.seller?.id || '';
+                    const sellerName = authStore.seller?.storeName || authStore.seller?.name || 'Unknown Store';
 
-                    // Create offline order
+                    console.log(`[createOfflineOrder] Creating POS order in database for seller: ${sellerId}`);
+
+                    // Create order in database using orderService
+                    const result = await orderService.createPOSOrder(
+                        sellerId,
+                        sellerName,
+                        cartItems,
+                        total,
+                        note,
+                    );
+
+                    if (!result) {
+                        throw new Error("Failed to create POS order in database");
+                    }
+
+                    const { orderId, orderNumber } = result;
+                    console.log(`[createOfflineOrder] Order created in database: ${orderNumber} (${orderId})`);
+
+                    // Create local order for UI (backwards compatibility)
                     const newOrder: SellerOrder = {
                         id: orderId,
                         buyerName: "Walk-in Customer",
@@ -2330,27 +2356,21 @@ export const useOrderStore = create<OrderStore>()(
                         },
                         type: "OFFLINE", // Mark as offline order
                         posNote: note || "POS Sale",
-                        trackingNumber: `OFFLINE-${Date.now().toString().slice(-8)}`,
+                        trackingNumber: orderNumber,
                     };
 
-                    // Add order to store
+                    // Add order to local store
                     set((state) => ({
                         orders: [newOrder, ...state.orders],
                     }));
 
-                    // Deduct stock for each item with full audit trail
-                    for (const item of cartItems) {
-                        productStore.deductStock(
-                            item.productId,
-                            item.quantity,
-                            "OFFLINE_SALE",
-                            orderId,
-                            `POS sale: ${item.productName} x${item.quantity}`,
-                        );
-                    }
+                    // Refresh products to show updated stock and sold counts
+                    console.log(`[createOfflineOrder] Refreshing products to update stock and sold counts...`);
+                    await productStore.fetchProducts({ sellerId });
+                    console.log(`[createOfflineOrder] Products refreshed. New product count: ${productStore.products.length}`);
 
                     console.log(
-                        `✅ Offline order created: ${orderId}. Stock updated with ledger entries.`,
+                        `✅ Offline order created: ${orderNumber}. Stock deducted and sold count updated in database.`,
                     );
                     return orderId;
                 } catch (error) {

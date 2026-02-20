@@ -18,28 +18,11 @@ import {
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { sellerLinks } from "@/config/sellerLinks";
+import { SellerSidebar } from "@/components/seller/SellerSidebar";
 import { useSupportStore } from "../stores/supportStore";
 import { useAuthStore } from "@/stores/sellerStore";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
-
-// Logo components for sidebar
-const Logo = () => (
-  <div className="font-bold flex items-center text-sm text-black py-1 relative z-20">
-    <div className="h-6 w-8 bg-orange-500 rounded-lg text-white flex items-center justify-center text-xs font-black mr-2">
-      BX
-    </div>
-    BazaarX Seller
-  </div>
-);
-
-const LogoIcon = () => (
-  <div className="h-6 w-8 bg-orange-500 rounded-lg text-white flex items-center justify-center text-xs font-black">
-    BX
-  </div>
-);
 
 interface TicketData {
   subject: string;
@@ -49,7 +32,6 @@ interface TicketData {
 }
 
 export function SellerHelpCenter() {
-  const [open, setOpen] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [generatedTicketId, setGeneratedTicketId] = useState<string>("");
@@ -62,8 +44,8 @@ export function SellerHelpCenter() {
   const [activeTab, setActiveTab] = useState("hot");
   const [buyerReportCount, setBuyerReportCount] = useState(0);
   const navigate = useNavigate();
-  
-  const { seller, logout } = useAuthStore();
+
+  const { seller } = useAuthStore();
   const { submitTicket, fetchCategories, categories, tickets, fetchUserTickets, loading } = useSupportStore();
 
   // Fetch categories and user tickets on mount
@@ -77,13 +59,13 @@ export function SellerHelpCenter() {
 
   const fetchBuyerReportCount = async () => {
     if (!seller?.id) return;
-    
+
     try {
       const { count, error } = await supabase
         .from('support_tickets')
         .select('*', { count: 'exact', head: true })
         .eq('seller_id', seller.id);
-      
+
       if (!error && count !== null) {
         setBuyerReportCount(count);
       }
@@ -94,7 +76,7 @@ export function SellerHelpCenter() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!seller?.id) {
       console.error("Seller not logged in");
       return;
@@ -137,11 +119,6 @@ export function SellerHelpCenter() {
     }, 300);
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/seller/auth");
-  };
-
   // Seller-specific FAQ questions
   const faqCategories = {
     hot: [
@@ -173,222 +150,204 @@ export function SellerHelpCenter() {
   const openTicketCount = tickets.filter(t => t.status === 'Open' || t.status === 'In Review').length;
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden font-[family-name:var(--font-sans)]">
-      {/* Sidebar */}
-      <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-2">
-              {sellerLinks.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <SidebarLink
-              link={{
-                label: seller?.storeName || seller?.ownerName || seller?.name || "Seller",
-                href: "/seller/profile",
-                icon: (
-                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-                    <span className="text-white text-xs font-medium">
-                      {(seller?.storeName || seller?.ownerName || seller?.name || "S").charAt(0)}
-                    </span>
-                  </div>
-                ),
-              }}
-            />
-          </div>
-        </SidebarBody>
-      </Sidebar>
+    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
+      <SellerSidebar />
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-8">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Seller Help Center</h1>
-                <p className="text-gray-500 text-sm">Get support for your store operations</p>
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Background Decor */}
+        <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
+          <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+        </div>
+
+        <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto scrollbar-hide relative z-10">
+          <div className="w-full max-w-7xl mx-auto space-y-8 pb-10">
+            {/* Header */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight flex items-center gap-3">
+                    Seller Help Center
+                  </h1>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">Get support for your store operations</p>
+                </div>
+                {openTicketCount > 0 && (
+                  <Badge className="bg-orange-100 text-[var(--brand-primary)] border-orange-200 px-3 py-1 text-sm font-bold rounded-full">
+                    {openTicketCount} Active Ticket{openTicketCount > 1 ? 's' : ''}
+                  </Badge>
+                )}
               </div>
-              {openTicketCount > 0 && (
-                <Badge className="bg-orange-100 text-orange-600 border-orange-200">
-                  {openTicketCount} Active Ticket{openTicketCount > 1 ? 's' : ''}
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          {/* Main Card Container */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {/* Notice Bar */}
-            <div className="bg-blue-50/50 px-6 py-3 flex items-start gap-3 border-b border-blue-100">
-              <span className="text-blue-500 text-sm mt-0.5">💡</span>
-              <p className="text-xs text-gray-600 leading-relaxed">
-                <span className="font-bold text-gray-800">Seller Tip:</span>{" "}
-                Respond to buyer inquiries within 24 hours to maintain your response rate and store rating.
-              </p>
             </div>
 
-            {/* Content Body */}
-            <div className="p-6">
-              {/* Quick Actions Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-                <QuickActionCard
-                  icon={<Ticket size={24} />}
-                  label="Submit Ticket"
-                  onClick={() => setShowTicketModal(true)}
-                  highlight
-                />
-                <QuickActionCard
-                  icon={<Clock size={24} />}
-                  label="My Tickets"
-                  onClick={() => navigate("/seller/my-tickets")}
-                  badge={openTicketCount > 0 ? openTicketCount : undefined}
-                />
-                <QuickActionCard
-                  icon={<AlertTriangle size={24} />}
-                  label="Buyer Reports"
-                  onClick={() => navigate("/seller/buyer-reports")}
-                  badge={buyerReportCount > 0 ? buyerReportCount : undefined}
-                />
-                <QuickActionCard
-                  icon={<Wallet size={24} />}
-                  label="Payout Help"
-                  onClick={() => navigate("/seller/earnings")}
-                />
-                <QuickActionCard
-                  icon={<FileText size={24} />}
-                  label="Policies"
-                />
+            {/* Main Card Container */}
+            <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 overflow-hidden">
+              {/* Notice Bar */}
+              <div className="bg-blue-50/50 px-8 py-4 flex items-start gap-4 border-b border-blue-100">
+                <div className="p-1.5 bg-blue-100 rounded-lg">
+                  <span className="text-blue-500 text-sm block">💡</span>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed font-medium">
+                  <span className="font-bold text-gray-900">Seller Tip:</span>{" "}
+                  Respond to buyer inquiries within 24 hours to maintain your response rate and store rating.
+                </p>
               </div>
 
-              {/* FAQ Section */}
-              <div className="mb-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
-                <div className="flex gap-4 border-b border-gray-100 mb-4 text-sm font-medium overflow-x-auto pb-1">
-                  {[
-                    { key: "hot", label: "Hot Questions" },
-                    { key: "products", label: "Products" },
-                    { key: "orders", label: "Orders" },
-                    { key: "payouts", label: "Payouts" },
-                  ].map(tab => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setActiveTab(tab.key)}
-                      className={`whitespace-nowrap pb-2 transition-colors ${
-                        activeTab === tab.key
+              {/* Content Body */}
+              <div className="p-8">
+                {/* Quick Actions Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-10">
+                  <QuickActionCard
+                    icon={<Ticket size={24} />}
+                    label="Submit Ticket"
+                    onClick={() => setShowTicketModal(true)}
+                    highlight
+                  />
+                  <QuickActionCard
+                    icon={<Clock size={24} />}
+                    label="My Tickets"
+                    onClick={() => navigate("/seller/my-tickets")}
+                    badge={openTicketCount > 0 ? openTicketCount : undefined}
+                  />
+                  <QuickActionCard
+                    icon={<AlertTriangle size={24} />}
+                    label="Buyer Reports"
+                    onClick={() => navigate("/seller/buyer-reports")}
+                    badge={buyerReportCount > 0 ? buyerReportCount : undefined}
+                  />
+                  <QuickActionCard
+                    icon={<Wallet size={24} />}
+                    label="Payout Help"
+                    onClick={() => navigate("/seller/earnings")}
+                  />
+                  <QuickActionCard
+                    icon={<FileText size={24} />}
+                    label="Policies"
+                  />
+                </div>
+
+                {/* FAQ Section */}
+                <div className="mb-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
+                  <div className="flex gap-4 border-b border-gray-100 mb-4 text-sm font-medium overflow-x-auto pb-1">
+                    {[
+                      { key: "hot", label: "Hot Questions" },
+                      { key: "products", label: "Products" },
+                      { key: "orders", label: "Orders" },
+                      { key: "payouts", label: "Payouts" },
+                    ].map(tab => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`whitespace-nowrap pb-2 transition-colors ${activeTab === tab.key
                           ? "text-orange-500 border-b-2 border-orange-500"
                           : "text-gray-400 hover:text-gray-600"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  {faqCategories[activeTab as keyof typeof faqCategories]?.map((q, idx) => (
-                    <button
-                      key={idx}
-                      className="w-full flex items-center justify-between text-sm py-3 px-3 rounded-lg hover:bg-gray-50 group transition-colors text-left"
-                    >
-                      <p className="flex items-center gap-4">
-                        <span className="italic font-bold text-orange-500 w-4 text-center">
-                          {idx + 1}
-                        </span>
-                        <span className="text-gray-600 group-hover:text-gray-900 font-medium">
-                          {q}
-                        </span>
-                      </p>
-                      <ChevronRight
-                        size={16}
-                        className="text-gray-300 group-hover:text-orange-500"
-                      />
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-4 flex justify-center">
-                  <button className="flex items-center gap-2 text-xs text-gray-400 hover:text-orange-500 transition-colors">
-                    <RefreshCw size={12} /> View More Topics
-                  </button>
-                </div>
-              </div>
-
-              {/* Recent Tickets Section */}
-              {tickets.length > 0 && (
-                <div className="mt-8 pt-6 border-t border-gray-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-gray-900">Recent Tickets</h2>
-                    <button 
-                      onClick={() => navigate("/seller/my-tickets")}
-                      className="text-xs text-orange-500 hover:text-orange-600 font-medium"
-                    >
-                      View All →
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {tickets.slice(0, 3).map((t) => (
-                      <div
-                        key={t.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                        onClick={() => navigate("/seller/my-tickets")}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Ticket size={16} className="text-orange-500" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 truncate max-w-[200px] md:max-w-xs">
-                              {t.subject}
-                            </p>
-                            <p className="text-xs text-gray-500">{t.createdAt}</p>
-                          </div>
-                        </div>
-                        <Badge 
-                          variant="outline" 
-                          className={`text-[10px] ${
-                            t.status === 'Open' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                            t.status === 'In Review' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                            t.status === 'Resolved' ? 'bg-green-50 text-green-600 border-green-200' :
-                            'bg-gray-50 text-gray-500 border-gray-200'
                           }`}
-                        >
-                          {t.status}
-                        </Badge>
-                      </div>
+                      >
+                        {tab.label}
+                      </button>
                     ))}
                   </div>
-                </div>
-              )}
 
-              {/* Contact Section */}
-              <div className="mt-8 pt-6 border-t border-gray-100">
-                <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 rounded-xl p-6">
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center">
-                        <MessageSquare className="text-white" size={24} />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold text-gray-900">Need more help?</h3>
-                        <p className="text-sm text-gray-600">Our seller support team is available 24/7</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setShowTicketModal(true)}
-                      className="bg-orange-500 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-orange-600 transition-all shadow-md active:scale-95"
-                    >
-                      Contact Support
+                  <div className="space-y-2">
+                    {faqCategories[activeTab as keyof typeof faqCategories]?.map((q, idx) => (
+                      <button
+                        key={idx}
+                        className="w-full flex items-center justify-between text-sm py-3 px-3 rounded-lg hover:bg-gray-50 group transition-colors text-left"
+                      >
+                        <p className="flex items-center gap-4">
+                          <span className="italic font-bold text-orange-500 w-4 text-center">
+                            {idx + 1}
+                          </span>
+                          <span className="text-gray-600 group-hover:text-gray-900 font-medium">
+                            {q}
+                          </span>
+                        </p>
+                        <ChevronRight
+                          size={16}
+                          className="text-gray-300 group-hover:text-orange-500"
+                        />
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex justify-center">
+                    <button className="flex items-center gap-2 text-xs text-gray-400 hover:text-orange-500 transition-colors">
+                      <RefreshCw size={12} /> View More Topics
                     </button>
+                  </div>
+                </div>
+
+                {/* Recent Tickets Section */}
+                {tickets.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-bold text-gray-900">Recent Tickets</h2>
+                      <button
+                        onClick={() => navigate("/seller/my-tickets")}
+                        className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+                      >
+                        View All →
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {tickets.slice(0, 3).map((t) => (
+                        <div
+                          key={t.id}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                          onClick={() => navigate("/seller/my-tickets")}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Ticket size={16} className="text-orange-500" />
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 truncate max-w-[200px] md:max-w-xs">
+                                {t.subject}
+                              </p>
+                              <p className="text-xs text-gray-500">{t.createdAt}</p>
+                            </div>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${t.status === 'Open' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                              t.status === 'In Review' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                t.status === 'Resolved' ? 'bg-green-50 text-green-600 border-green-200' :
+                                  'bg-gray-50 text-gray-500 border-gray-200'
+                              }`}
+                          >
+                            {t.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Contact Section */}
+                <div className="mt-10 pt-8 border-t border-gray-100">
+                  <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 rounded-xl p-8 border border-orange-100">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                      <div className="flex items-center gap-5">
+                        <div className="w-14 h-14 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+                          <MessageSquare className="text-white" size={28} />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-black text-gray-900">Need more help?</h3>
+                          <p className="text-sm font-medium text-gray-600">Our seller support team is available 24/7</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowTicketModal(true)}
+                        className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white px-8 py-3 rounded-xl font-bold text-sm hover:shadow-lg hover:shadow-orange-500/30 transition-all shadow-md active:scale-95 transform hover:-translate-y-0.5"
+                      >
+                        Contact Support
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Ticket Modal */}
       <AnimatePresence>
@@ -535,15 +494,15 @@ export function SellerHelpCenter() {
 }
 
 // Quick Action Card Component
-function QuickActionCard({ 
-  icon, 
-  label, 
-  onClick, 
+function QuickActionCard({
+  icon,
+  label,
+  onClick,
   highlight = false,
-  badge 
-}: { 
-  icon: React.ReactNode; 
-  label: string; 
+  badge
+}: {
+  icon: React.ReactNode;
+  label: string;
   onClick?: () => void;
   highlight?: boolean;
   badge?: number;
@@ -551,26 +510,23 @@ function QuickActionCard({
   return (
     <button
       onClick={onClick}
-      className={`relative flex flex-col items-center gap-3 p-4 rounded-xl transition-all group ${
-        highlight 
-          ? "bg-orange-50 hover:bg-orange-100 border border-orange-200" 
-          : "bg-gray-50 hover:bg-gray-100 border border-transparent"
-      }`}
+      className={`relative flex flex-col items-center gap-4 p-6 rounded-xl transition-all group duration-300 ${highlight
+        ? "bg-gradient-to-b from-orange-50 to-white hover:to-orange-50/50 border border-orange-200 shadow-[0_8px_30px_rgba(255,100,0,0.1)] hover:-translate-y-1"
+        : "bg-gray-50/50 hover:bg-white border border-transparent hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/50 hover:-translate-y-1"
+        }`}
     >
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-        highlight
-          ? "bg-orange-500 text-white"
-          : "bg-white text-orange-500 group-hover:bg-orange-500 group-hover:text-white"
-      }`}>
+      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${highlight
+        ? "bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-orange-500/20"
+        : "bg-white text-gray-400 group-hover:text-[var(--brand-primary)] group-hover:shadow-md"
+        }`}>
         {icon}
       </div>
-      <span className={`text-xs font-medium text-center ${
-        highlight ? "text-orange-700" : "text-gray-600"
-      }`}>
+      <span className={`text-sm font-bold text-center ${highlight ? "text-[var(--brand-primary-dark)]" : "text-gray-600 group-hover:text-gray-900"
+        }`}>
         {label}
       </span>
       {badge && badge > 0 && (
-        <span className="absolute top-2 right-2 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+        <span className="absolute top-3 right-3 w-6 h-6 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-sm animate-pulse">
           {badge}
         </span>
       )}

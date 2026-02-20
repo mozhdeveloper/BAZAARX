@@ -1,11 +1,9 @@
 import React, { useState, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuthStore, useProductStore, useOrderStore } from "@/stores/sellerStore";
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { sellerLinks } from "@/config/sellerLinks";
+import { SellerSidebar } from "@/components/seller/SellerSidebar";
 import {
-  Package,
   Camera,
   Globe,
   Clock,
@@ -22,12 +20,14 @@ import {
   Lock,
   Edit2,
   Eye,
-  LogOut,
   Download,
   Loader,
   Star,
   Calendar,
   MessageCircle,
+  LayoutGrid,
+  Image,
+  Package,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,47 +36,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { uploadSellerDocument, validateDocumentFile } from "@/utils/storage";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
 // Logo components defined outside of render
-const Logo = () => (
-  <Link
-    to="/seller"
-    className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-  >
-    <img
-      src="/Logo.png"
-      alt="BazaarPH Logo"
-      className="h-5 w-6 flex-shrink-0"
-    />
-    <motion.span
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="font-medium text-black whitespace-pre"
-    >
-      BazaarPH Seller
-    </motion.span>
-  </Link>
-);
 
-const LogoIcon = () => (
-  <Link
-    to="/seller"
-    className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-  >
-    <img
-      src="/Logo.png"
-      alt="BazaarPH Logo"
-      className="h-8 w-8 object-contain flex-shrink-0"
-    />
-  </Link>
-);
 
 export function SellerStoreProfile() {
-  const { seller, updateSellerDetails, logout } = useAuthStore();
+  const { seller, updateSellerDetails } = useAuthStore();
   const { products } = useProductStore();
-  const { orders } = useOrderStore();
-  const [open, setOpen] = useState(false);
   const [editSection, setEditSection] = useState<
     "basic" | "business" | "banking" | "categories" | null
   >(null);
@@ -93,10 +61,7 @@ export function SellerStoreProfile() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/seller/auth");
-  };
+
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -608,78 +573,51 @@ export function SellerStoreProfile() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
-      <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-2">
-              {sellerLinks.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <SidebarLink
-              link={{
-                label: seller?.storeName || "Store",
-                href: "/seller/store-profile",
-                icon: (
-                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-                    <span className="text-white text-xs font-medium">
-                      {seller?.storeName?.charAt(0) || "S"}
-                    </span>
-                  </div>
-                ),
-              }}
-            />
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
-            >
-              <LogOut className="h-5 w-5 flex-shrink-0" />
-              {open && <span>Logout</span>}
-            </button>
-          </div>
-        </SidebarBody>
-      </Sidebar>
+    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
+      <SellerSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
+          <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+        </div>
+
+        <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto relative z-10 scrollbar-hide">
+          <div className="max-w-7xl mx-auto space-y-8">
             {/* Page Title */}
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight">
                 Store Profile
               </h1>
-              <p className="text-sm text-gray-500 mt-1 whitespace-nowrap">
+              <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">
                 Manage your store's complete profile and verification
               </p>
             </div>
             {/* Two Column Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Left Sidebar - Profile Summary */}
               <div className="lg:col-span-4 space-y-6">
 
 
                 {/* Sticky Profile Card */}
                 <div className="lg:sticky lg:top-4">
-                  <Card className="p-6 shadow-md border border-gray-100 bg-white">
-                    <div className="flex flex-col items-start text-left w-full">
+                  <Card className="p-6 shadow-md border-0 bg-white rounded-xl overflow-hidden relative">
+                    <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-orange-50 to-white opacity-50 z-0 pointer-events-none" />
+                    <div className="flex flex-col items-start text-left w-full relative z-10">
                       {/* Avatar */}
-                      <div className="relative mb-4">
+                      <div className="relative mb-6">
                         {seller?.avatar ? (
                           <img
                             src={seller.avatar}
                             alt={seller.storeName}
-                            className="h-24 w-24 rounded-full object-cover shadow-lg ring-4 ring-white"
+                            className="h-28 w-28 rounded-full object-cover shadow-2xl shadow-orange-900/10 ring-4 ring-white"
                           />
                         ) : (
-                          <div className="h-24 w-24 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-3xl font-bold shadow-md ring-4 ring-white">
+                          <div className="h-28 w-28 rounded-full bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] flex items-center justify-center text-white text-4xl font-black shadow-2xl shadow-orange-900/20 ring-4 ring-white">
                             {seller?.storeName?.charAt(0) || "S"}
                           </div>
                         )}
-                        <label className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-[#FF6A00] text-white flex items-center justify-center shadow-md hover:bg-orange-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        <label className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-[var(--brand-primary)] text-white flex items-center justify-center shadow-md hover:bg-[var(--brand-primary-dark)] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                           {avatarLoading ? (
                             <Loader className="h-4 w-4 animate-spin" />
                           ) : (
@@ -741,7 +679,7 @@ export function SellerStoreProfile() {
                             </Badge>
                             <Button
                               size="sm"
-                              className="bg-[#FF6A00] hover:bg-orange-600 text-xs"
+                              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-xs"
                               onClick={handleReapply}
                               disabled={reapplyLoading}
                             >
@@ -768,51 +706,61 @@ export function SellerStoreProfile() {
                       )}
 
                       {/* Quick Stats */}
-                      <div className="w-full bg-none rounded-xl divide-y border-0 divide-gray-200">
+                      <div className="w-full bg-none rounded-2xl divide-y border-0 divide-gray-100/50 mt-6">
                         {/* Followers */}
-                        <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group cursor-default">
+                        <div className="flex items-center justify-between p-4 hover:bg-orange-50/50 transition-all rounded-t-2xl group cursor-default">
                           <div className="flex items-center gap-3">
-                            <Users className="h-5 w-5 text-gray-500 group-hover:text-purple-500 transition-colors" />
-                            <span className="text-sm font-medium text-gray-600">
+                            <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+                              <Users className="h-4 w-4 text-purple-500" />
+                            </div>
+                            <span className="text-sm font-bold text-[var(--text-secondary)]">
                               Followers
                             </span>
                           </div>
-                          <span className="font-bold text-gray-900">0</span>
+                          <span className="font-black text-[var(--text-headline)]">0</span>
                         </div>
 
                         {/* Rating */}
-                        <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group cursor-default">
+                        <div className="flex items-center justify-between p-4 hover:bg-orange-50/50 transition-all group cursor-default">
                           <div className="flex items-center gap-3">
-                            <Star className="h-5 w-5 text-gray-500 group-hover:text-yellow-500 transition-colors" />
-                            <span className="text-sm font-medium text-gray-600">
+                            <div className="w-8 h-8 rounded-full bg-yellow-50 flex items-center justify-center group-hover:bg-yellow-100 transition-colors">
+                              <Star className="h-4 w-4 text-yellow-500" />
+                            </div>
+                            <span className="text-sm font-bold text-[var(--text-secondary)]">
                               Rating
                             </span>
                           </div>
-                          <span className="font-bold text-gray-900">
+                          <span className="font-black text-[var(--text-headline)]">
                             {seller?.rating ? `${seller.rating}/5.0` : "New"}
                           </span>
                         </div>
 
                         {/* Response Rate */}
-                        <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group cursor-default">
+                        <div className="flex items-center justify-between p-4 hover:bg-orange-50/50 transition-all group cursor-default">
                           <div className="flex items-center gap-3">
-                            <MessageCircle className="h-5 w-5 text-gray-500 group-hover:text-blue-500 transition-colors" />
-                            <span className="text-sm font-medium text-gray-600">
+                            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                              <MessageCircle className="h-4 w-4 text-blue-500" />
+                            </div>
+                            <span className="text-sm font-bold text-[var(--text-secondary)]">
                               Response Rate
                             </span>
                           </div>
-                          <span className="font-bold text-gray-900">100%</span>
+                          <span className="font-black text-[var(--text-headline)]">
+                            100%
+                          </span>
                         </div>
 
                         {/* Products */}
-                        <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group cursor-default">
+                        <div className="flex items-center justify-between p-4 hover:bg-orange-50/50 transition-all rounded-b-2xl group cursor-default">
                           <div className="flex items-center gap-3">
-                            <Package className="h-5 w-5 text-gray-500 group-hover:text-orange-500 transition-colors" />
-                            <span className="text-sm font-medium text-gray-600">
+                            <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center group-hover:bg-orange-100 transition-colors">
+                              <Package className="h-4 w-4 text-[var(--brand-primary)]" />
+                            </div>
+                            <span className="text-sm font-bold text-[var(--text-secondary)]">
                               Products
                             </span>
                           </div>
-                          <span className="font-bold text-gray-900">{products.length}</span>
+                          <span className="font-black text-[var(--text-headline)]">{products.length}</span>
                         </div>
                       </div>
                     </div>
@@ -825,19 +773,20 @@ export function SellerStoreProfile() {
 
 
                 {/* Owner & Contact Information (Editable) */}
-                <Card className="p-6 mb-6 shadow-md border-gray-100">
-                  <div className="flex items-center justify-between mb-6">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
+                  <div className="flex items-center justify-between mb-8">
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900">
+                      <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
+                        <User className="h-5 w-5 text-[var(--brand-primary)]" />
                         Owner & Contact Information
                       </h3>
                     </div>
                     {editSection !== "basic" && (
                       <Button
                         onClick={() => setEditSection("basic")}
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="gap-2"
+                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-orange-50 rounded-full font-bold"
                       >
                         <Edit2 className="h-4 w-4" />
                         Edit
@@ -1007,14 +956,15 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Business Information (Locked if Verified) */}
-                <Card className="p-6 mb-6 shadow-md border-gray-100">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-bold text-gray-900">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-[var(--brand-primary)]" />
                         Business Information
                       </h3>
                       {isVerified && (
-                        <Badge className="bg-green-100 text-green-700 ml-2">
+                        <Badge className="bg-green-100 text-green-700 ml-2 border border-green-200 rounded-full px-3">
                           <Lock className="h-3 w-3 mr-1" />
                           Verified & Locked
                         </Badge>
@@ -1023,9 +973,9 @@ export function SellerStoreProfile() {
                     {!isVerified && (
                       <Button
                         onClick={() => setEditSection("business")}
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="gap-2"
+                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-orange-50 rounded-full font-bold"
                       >
                         <Edit2 className="h-4 w-4" />
                         Edit
@@ -1247,14 +1197,15 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Banking Information (Locked if Verified) */}
-                <Card className="p-6 mb-6 shadow-md border-gray-100">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-bold text-gray-900">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
+                        <CreditCard className="h-5 w-5 text-[var(--brand-primary)]" />
                         Banking Information
                       </h3>
                       {isVerified && (
-                        <Badge className="bg-green-100 text-green-700 ml-2">
+                        <Badge className="bg-green-100 text-green-700 ml-2 border border-green-200 rounded-full px-3">
                           <Lock className="h-3 w-3 mr-1" />
                           Verified & Locked
                         </Badge>
@@ -1263,9 +1214,9 @@ export function SellerStoreProfile() {
                     {!isVerified && (
                       <Button
                         onClick={() => setEditSection("banking")}
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="gap-2"
+                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-orange-50 rounded-full font-bold"
                       >
                         <Edit2 className="h-4 w-4" />
                         Edit
@@ -1390,10 +1341,11 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Verification Documents */}
-                <Card className="p-6 mb-6 shadow-md border-gray-100">
-                  <div className="flex items-center justify-between mb-6">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
+                  <div className="flex items-center justify-between mb-8">
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900">
+                      <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-[var(--brand-primary)]" />
                         Verification Documents
                       </h3>
                     </div>
@@ -1681,17 +1633,18 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Store Categories */}
-                <Card className="p-6 mb-6 shadow-md border-gray-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-gray-900">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
+                      <LayoutGrid className="h-5 w-5 text-[var(--brand-primary)]" />
                       Store Categories
                     </h3>
                     {editSection !== "categories" && (
                       <Button
                         onClick={() => setEditSection("categories")}
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="gap-2"
+                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-orange-50 rounded-full font-bold"
                       >
                         <Edit2 className="h-4 w-4" />
                         Edit
@@ -1755,16 +1708,19 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Store Banner */}
-                <Card className="p-6 shadow-md border-gray-100">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">
+                <Card className="p-8 shadow-md border-0 bg-white rounded-xl">
+                  <h3 className="text-xl font-bold text-[var(--text-headline)] mb-6 flex items-center gap-2">
+                    <Image className="h-5 w-5 text-[var(--brand-primary)]" />
                     Store Banner
                   </h3>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-orange-500 transition-colors cursor-pointer">
-                    <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 mb-2">
+                  <div className="border-2 border-dashed border-orange-200 rounded-2xl p-12 text-center hover:border-[var(--brand-primary)] hover:bg-orange-50/50 transition-all cursor-pointer group">
+                    <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                      <Upload className="h-8 w-8 text-[var(--brand-primary)]" />
+                    </div>
+                    <p className="text-[var(--text-secondary)] font-bold mb-2">
                       Click to upload store banner
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-400">
                       Recommended size: 1200x400px (Max 5MB)
                     </p>
                   </div>
@@ -1777,3 +1733,4 @@ export function SellerStoreProfile() {
     </div>
   );
 }
+
