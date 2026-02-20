@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -29,7 +30,8 @@ import {
   Loader2,
   Map,
   LocateFixed,
-  Check
+  Check,
+  ChevronLeft
 } from 'lucide-react';
 import {
   Dialog,
@@ -93,6 +95,7 @@ const mockPaymentMethods = [
 ];
 
 export default function BuyerSettingsPage() {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('addresses');
   const { toast } = useToast();
@@ -299,34 +302,43 @@ export default function BuyerSettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all group mb-4"
+          >
+            <ChevronLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+          </button>
           <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Settings</h1>
           <p className="text-[var(--text-muted)]">Manage your account settings and preferences</p>
         </motion.div>
 
         {/* Settings Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
-            <TabsTrigger value="addresses">
-              <MapPin className="h-4 w-4 mr-2" />
-              Addresses
-            </TabsTrigger>
-            <TabsTrigger value="payment">
-              <CreditCard className="h-4 w-4 mr-2" />
-              Payment
-            </TabsTrigger>
-            <TabsTrigger value="wallet">
-              <Wallet className="h-4 w-4 mr-2" />
-              Wallet
-            </TabsTrigger>
-            <TabsTrigger value="notifications">
-              <Bell className="h-4 w-4 mr-2" />
-              Notifications
-            </TabsTrigger>
-            <TabsTrigger value="security">
-              <Shield className="h-4 w-4 mr-2" />
-              Security
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto scrollbar-hide pb-0.5">
+            <div className="inline-flex items-center p-1 bg-white rounded-full border border-orange-100/50 shadow-sm min-w-full md:min-w-max">
+              {[
+                { value: 'addresses', label: 'Addresses', icon: MapPin },
+                { value: 'payment', label: 'Payment', icon: CreditCard },
+                { value: 'wallet', label: 'Wallet', icon: Wallet },
+                { value: 'notifications', label: 'Notifications', icon: Bell },
+                { value: 'security', label: 'Security', icon: Shield },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setActiveTab(tab.value)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all duration-300",
+                    activeTab === tab.value
+                      ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
+                      : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50"
+                  )}
+                >
+                  <tab.icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Addresses Tab */}
           <TabsContent value="addresses">
