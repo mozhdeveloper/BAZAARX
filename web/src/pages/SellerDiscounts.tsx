@@ -135,6 +135,23 @@ const CountdownTimer = ({ endDate }: { endDate: Date }) => {
 };
 
 export default function SellerDiscounts() {
+  const parseDateTimeLocal = (value: string): Date => {
+    const [datePart, timePart] = value.split("T");
+    if (!datePart || !timePart) return new Date(value);
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hour, minute] = timePart.split(":").map(Number);
+    return new Date(year, (month || 1) - 1, day || 1, hour || 0, minute || 0);
+  };
+
+  const formatDateTimeLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const [open, setOpen] = useState(false);
   const [campaigns, setCampaigns] = useState<DiscountCampaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -258,8 +275,8 @@ export default function SellerDiscounts() {
         minPurchaseAmount: formData.minPurchaseAmount
           ? parseFloat(formData.minPurchaseAmount)
           : 0,
-        startsAt: new Date(formData.startsAt),
-        endsAt: new Date(formData.endsAt),
+        startsAt: parseDateTimeLocal(formData.startsAt),
+        endsAt: parseDateTimeLocal(formData.endsAt),
         badgeText: formData.badgeText,
         badgeColor: formData.badgeColor,
         claimLimit: formData.claimLimit
@@ -304,8 +321,8 @@ export default function SellerDiscounts() {
         minPurchaseAmount: formData.minPurchaseAmount
           ? parseFloat(formData.minPurchaseAmount)
           : 0,
-        startsAt: new Date(formData.startsAt),
-        endsAt: new Date(formData.endsAt),
+        startsAt: parseDateTimeLocal(formData.startsAt),
+        endsAt: parseDateTimeLocal(formData.endsAt),
         badgeText: formData.badgeText,
         badgeColor: formData.badgeColor,
         claimLimit: formData.claimLimit
@@ -416,8 +433,8 @@ export default function SellerDiscounts() {
       discountValue: campaign.discountValue.toString(),
       maxDiscountAmount: campaign.maxDiscountAmount?.toString() || "",
       minPurchaseAmount: campaign.minPurchaseAmount?.toString() || "",
-      startsAt: campaign.startsAt.toISOString().slice(0, 16),
-      endsAt: campaign.endsAt.toISOString().slice(0, 16),
+      startsAt: formatDateTimeLocal(campaign.startsAt),
+      endsAt: formatDateTimeLocal(campaign.endsAt),
       badgeText: campaign.badgeText || "",
       badgeColor: campaign.badgeColor || "#FF6A00",
       claimLimit: campaign.claimLimit?.toString() || "",
