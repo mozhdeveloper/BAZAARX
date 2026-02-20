@@ -516,7 +516,7 @@ export default function ShopPage() {
           </div>
 
           {/* Shop Header */}
-          <div className="py-24 bg-hero-gradient backdrop-blur-md rounded-3xl">
+          <div className="py-24 bg-hero-gradient backdrop-blur-md shadow-md rounded-3xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

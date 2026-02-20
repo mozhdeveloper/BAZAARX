@@ -28,6 +28,7 @@ interface CreateRegistryModalProps {
     delivery: RegistryDeliveryPreference;
   }) => void;
   hideBrowseLink?: boolean;
+  initialCategory?: string;
 }
 
 export const CreateRegistryModal = ({
@@ -35,6 +36,7 @@ export const CreateRegistryModal = ({
   onClose,
   onCreate,
   hideBrowseLink = false,
+  initialCategory = "",
 }: CreateRegistryModalProps) => {
   const navigate = useNavigate();
   const addresses = useBuyerStore((s) => s.addresses || []);
@@ -48,6 +50,15 @@ export const CreateRegistryModal = ({
   const [showAddress, setShowAddress] = useState(false);
   const [addressId, setAddressId] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
+
+  // Sync category when modal opens with initialCategory
+  useEffect(() => {
+    if (isOpen && initialCategory) {
+      setCategory(initialCategory);
+    } else if (isOpen && !initialCategory) {
+      setCategory("");
+    }
+  }, [isOpen, initialCategory]);
 
   // Generate share link based on registry name
   useEffect(() => {
