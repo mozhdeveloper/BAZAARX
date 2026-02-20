@@ -119,7 +119,6 @@ export class CartService {
             name,
             description,
             price,
-            original_price,
             category_id,
             seller_id,
             variant_label_1,
