@@ -84,10 +84,28 @@ export default function MessagesScreen() {
     loadConversations();
   };
 
-  const filteredConversations = conversations.filter(conv =>
-    (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (conv.last_message || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  /* Removed console.log for filtered length */
+    const uniqueConversations = React.useMemo(() => {
+      const uniqueIds = new Set();
+      const unique: Conversation[] = [];
+      
+      conversations.forEach(conv => {
+        if (!uniqueIds.has(conv.id)) {
+          uniqueIds.add(conv.id);
+          unique.push(conv);
+        }
+      });
+  
+      if (unique.length !== conversations.length) {
+        console.warn('[MessagesScreen] Found duplicate conversations!', conversations.length, '->', unique.length);
+      }
+      return unique;
+    }, [conversations]);
+    
+    const filteredConversations = uniqueConversations.filter(conv =>
+      (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (conv.last_message || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);

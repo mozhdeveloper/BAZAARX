@@ -192,13 +192,27 @@ export const useCartStore = create<CartStore>()(
         run();
       },
 
-      removeItem: (productId) => {
+      removeItem: (itemId) => {
         const run = async () => {
           const cartId = get().cartId;
-          if (!cartId) return;
-
+          // If no cartId, try to initialize first
+          if (!cartId) {
+             await get().initializeForCurrentUser();
+             if (!get().cartId) return;
+          }
+          
           try {
-            await cartService.removeItem(cartId, productId);
+            // New logic: Check if itemId looks like a UUID (cart item ID) or try to find by product ID
+            // Ideally we should move to only using cartItemId
+            // For now, if itemId exists in our local items as cartItemId, use that
+            const item = get().items.find(i => i.cartItemId === itemId);
+            if (item) {
+               await cartService.removeFromCart(item.cartItemId);
+            } else {
+               // Fallback for legacy calls using productId: try to find item by productId
+               await cartService.removeItem(get().cartId!, itemId);
+            }
+            
             await get().initializeForCurrentUser();
           } catch (e) {
             console.error('[CartStore] Failed to remove item:', e);
@@ -207,17 +221,28 @@ export const useCartStore = create<CartStore>()(
         run();
       },
 
-      updateQuantity: (productId, quantity) => {
+      updateQuantity: (itemId, quantity) => {
         const run = async () => {
           const cartId = get().cartId;
-          if (!cartId) return;
+           if (!cartId) {
+             await get().initializeForCurrentUser();
+             if (!get().cartId) return;
+          }
 
           if (quantity <= 0) {
-            return get().removeItem(productId);
+            return get().removeItem(itemId);
           }
 
           try {
-            await cartService.updateQuantity(cartId, productId, quantity);
+             // Similar logic: try to find by cartItemId first
+             const item = get().items.find(i => i.cartItemId === itemId);
+             if (item) {
+                await cartService.updateCartItemQuantity(item.cartItemId, quantity);
+             } else {
+                // Fallback: legacy productId
+                await cartService.updateQuantity(get().cartId!, itemId, quantity);
+             }
+            
             await get().initializeForCurrentUser();
           } catch (e) {
             console.error('[CartStore] Failed to update quantity:', e);

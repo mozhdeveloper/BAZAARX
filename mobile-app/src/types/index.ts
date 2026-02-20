@@ -105,6 +105,7 @@ export interface ProductVariant {
 }
 
 export interface CartItem extends Product {
+  cartItemId: string;
   quantity: number;
   selectedVariant?: {
     color?: string;
