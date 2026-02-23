@@ -52,7 +52,7 @@ const CollectionCard: React.FC<CollectionCardProps> = ({ collection, index = 0 }
 
             {/* CTA Button */}
             <motion.button
-              className="flex items-center gap-3 bg-white text-gray-900 px-7 py-3 rounded-full font-bold text-sm shadow-xl hover:bg-orange-500 hover:text-white transition-all duration-300"
+              className="flex items-center gap-3 bg-white text-gray-900 px-7 py-3 rounded-full font-bold text-sm shadow-xl hover:bg-[var(--brand-primary)] hover:text-white transition-all duration-300"
               whileHover={{ x: 5 }}
             >
               Explore Collection

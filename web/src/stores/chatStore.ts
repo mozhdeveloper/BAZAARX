@@ -19,7 +19,7 @@ interface ChatStore {
   chatTarget: ChatTarget | null;
   unreadCount: number;
   position: { x: number; y: number };
-  
+
   // Actions
   openChat: (target: ChatTarget) => void;
   closeChat: () => void;
@@ -36,28 +36,28 @@ export const useChatStore = create<ChatStore>((set) => ({
   chatTarget: null,
   unreadCount: 0,
   position: { x: window.innerWidth - 80, y: window.innerHeight - 120 },
-  
-  openChat: (target) => set({ 
-    isOpen: true, 
-    isMiniMode: false, 
-    chatTarget: target 
+
+  openChat: (target) => set({
+    isOpen: true,
+    isMiniMode: false,
+    chatTarget: target
   }),
-  
-  closeChat: () => set({ 
-    isOpen: false, 
-    isMiniMode: true 
+
+  closeChat: () => set({
+    isOpen: false,
+    isMiniMode: true
   }),
-  
-  toggleChat: () => set((state) => ({ 
+
+  toggleChat: () => set((state) => ({
     isOpen: !state.isOpen,
-    isMiniMode: state.isOpen ? true : false 
+    isMiniMode: state.isOpen ? true : false
   })),
-  
+
   setMiniMode: (isMini) => set({ isMiniMode: isMini }),
-  
+
   setUnreadCount: (count) => set({ unreadCount: count }),
-  
+
   setPosition: (pos) => set({ position: pos }),
-  
+
   clearChatTarget: () => set({ chatTarget: null }),
 }));

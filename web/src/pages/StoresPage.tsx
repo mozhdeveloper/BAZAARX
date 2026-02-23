@@ -12,6 +12,7 @@ import {
   Users,
   Search,
   ChevronDown,
+  ChevronRight,
   Filter,
   ArrowUpRight,
   Loader2
@@ -81,22 +82,27 @@ const StoresPage: React.FC = () => {
 
   // Combine real stores with mock data as fallback
   const displayStores = realStores.length > 0
-    ? realStores.map(store => ({
-      id: store.id,
-      name: store.store_name || store.business_name,
-      logo: `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || store.business_name)}&background=FF5722&color=fff&size=100`,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || store.business_name)}&background=FF5722&color=fff&size=100`,
-      banner: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=200&fit=crop',
-      rating: Number(store.rating || 0),
-      followers: Math.floor(Math.random() * 5000) + 500,
-      products: store.products_count || 0,
-      totalReviews: Number((store as any).total_reviews || store.review_count || 0),
-      isVerified: store.is_verified,
-      description: store.store_description || `Quality products from ${store.store_name || store.business_name}`,
-      location: store.city ? `${store.city}, ${store.province || ''}` : 'Philippines',
-      categories: (store as any).store_category || (store as any).product_categories || ['General'],
-      badges: store.is_verified ? ['Verified Seller'] : []
-    }))
+    ? realStores.map(store => {
+      // Find matching featured store for additional assets like banner/followers
+      const featured = featuredStores.find(f => f.id === store.id || f.name.toLowerCase() === (store.store_name || '').toLowerCase());
+
+      return {
+        id: store.id,
+        name: store.store_name || store.business_name || 'Verified Seller',
+        logo: store.avatar_url || featured?.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || 'S')}&background=FB2F00&color=fff&size=100`,
+        avatar: store.avatar_url || featured?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || 'S')}&background=FB2F00&color=fff&size=100`,
+        banner: featured?.banner || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=200&fit=crop',
+        rating: Number(store.rating || 0) || featured?.rating || 0,
+        followers: featured?.followers || (Math.floor(Math.random() * 2000) + 100), // Fallback if not in featured
+        products: store.products_count || featured?.products || 0,
+        totalReviews: Number((store as any).total_reviews || store.review_count || featured?.totalReviews || 0),
+        isVerified: store.is_verified || featured?.isVerified || false,
+        description: store.store_description || featured?.description || `Quality products from ${store.store_name || store.business_name}`,
+        location: store.city ? `${store.city}, ${store.province || ''}` : featured?.location || 'Philippines',
+        categories: (store as any).store_category || (store as any).product_categories || featured?.categories || ['General'],
+        badges: store.is_verified ? ['Verified Seller'] : featured?.badges || []
+      };
+    })
     : featuredStores;
 
   // Filter by category (client-side since we have all stores)
@@ -211,7 +217,7 @@ const StoresPage: React.FC = () => {
                       className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border
                         ${isActive
                           ? "bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white shadow-sm scale-105"
-                          : "bg-white border-gray-100 text-gray-500 hover:border-orange-200 hover:text-orange-500"
+                          : "bg-white border-gray-100 text-gray-500 hover:border-[var(--brand-primary)]/30 hover:text-[var(--brand-primary)]"
                         }`}
                     >
                       {cat}
@@ -231,10 +237,10 @@ const StoresPage: React.FC = () => {
                 {/* Location Filter */}
                 <div className="flex items-center gap-3">
                   <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-md hover:shadow-lg transition-all px-4 font-medium">
+                    <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-0 hover:shadow-md transition-all px-4 font-medium">
                       <SelectValue placeholder="Location" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-orange-100 shadow-xl bg-white">
+                    <SelectContent className="rounded-xl border-[var(--brand-primary)]/10 shadow-xl bg-white">
                       <SelectItem value="All">
                         All Locations
                       </SelectItem>
@@ -250,10 +256,10 @@ const StoresPage: React.FC = () => {
                 {/* Sort By Filter */}
                 <div className="flex items-center gap-3">
                   <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'featured' | 'rating' | 'newest' | 'popular')}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-md hover:shadow-lg transition-all px-4 font-medium">
+                    <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-0 hover:shadow-md transition-all px-4 font-medium">
                       <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-orange-100 shadow-xl bg-white">
+                    <SelectContent className="rounded-xl border-[var(--brand-primary)]/10 shadow-xl bg-white">
                       <SelectItem value="featured">
                         Featured Stores
                       </SelectItem>
@@ -306,7 +312,7 @@ const StoresPage: React.FC = () => {
               <p className="text-gray-500 text-sm">Try adjusting your filters or search query</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
               {filteredStores.map((store, index) => (
                 <motion.div
                   key={store.id}
@@ -314,86 +320,86 @@ const StoresPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   onClick={() => navigate(`/seller/${store.id}`)}
-                  className="product-card-premium product-card-premium-interactive h-full"
+                  className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 flex flex-col group cursor-pointer"
                 >
-                  {/* Store Header with Background */}
-                  <div className="relative h-[110px] bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] overflow-hidden">
-                    <div className="absolute inset-0 opacity-20">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full -translate-y-16 translate-x-16" />
-                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full translate-y-12 -translate-x-12" />
-                    </div>
-
+                  {/* Store Banner */}
+                  <div className="relative h-40 overflow-hidden">
+                    <img
+                      src={store.banner}
+                      alt={`${store.name} banner`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
                     {store.isVerified && (
-                      <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-medium flex items-center gap-1 text-blue-600">
-                        <Shield className="w-3.5 h-3.5" />
-                        Verified
+                      <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-sm">
+                        <Shield className="w-3.5 h-3.5 text-blue-600" />
                       </div>
                     )}
                   </div>
 
-                  {/* Store Avatar */}
-                  <div className="px-6 pb-6 flex-1 flex flex-col">
-                    <div className="relative -mt-10 mb-3">
-                      <div className="w-20 h-20 rounded-full border-4 border-white bg-white shadow-lg overflow-hidden">
+                  {/* Store Content */}
+                  <div className="p-5 flex-1 flex flex-col">
+                    {/* Header: Avatar + Info */}
+                    <div className="flex items-start gap-4 mb-3">
+                      <div className="w-12 h-12 rounded-full border border-gray-100 overflow-hidden bg-gray-50 flex-shrink-0">
                         <img
                           src={store.avatar}
                           alt={store.name}
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      {store.badges.length > 0 && (
-                        <div className="absolute -bottom-1 -right-1 bg-[var(--brand-primary)] text-white p-2 rounded-full shadow-sm">
-                          <Award className="w-3.5 h-3.5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <h3 className="font-bold text-base text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors line-clamp-2 leading-tight flex-1">
+                            {store.name}
+                          </h3>
+                          <ChevronRight className="group-hover:text-[var(--brand-primary)] w-4 h-4 text-gray-300 mt-1 flex-shrink-0" />
                         </div>
-                      )}
+                      </div>
                     </div>
 
-                    {/* Store Info */}
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <h3 className="text-xl font-bold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors truncate">
-                        {store.name}
-                      </h3>
+                    {/* Address - Aligned above description */}
+                    <div className="flex items-center gap-1.5 text-[11px] text-gray-400 font-medium mb-1.5">
+                      <MapPin className="w-3 h-3 text-gray-300" />
+                      <span className="truncate">{store.location}</span>
                     </div>
 
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">
+                    {/* Description */}
+                    <p className="text-xs text-gray-500 mb-6 line-clamp-2 leading-relaxed">
                       {store.description}
                     </p>
 
-                    {/* Stats */}
-                    <div className="flex items-center gap-4 mb-4 text-xs font-semibold">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                        <span className="text-gray-900">{store.rating}</span>
-                        <span className="text-gray-500 font-normal">({store.totalReviews.toLocaleString()})</span>
+                    {/* Bottom Row: Stats */}
+                    <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
+                            <span className="text-xs font-bold text-gray-900">{store.rating}</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-medium mt-0.5">Rating</div>
+                        </div>
+
+                        <div className="w-px h-6 bg-gray-100" />
+
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1 text-gray-900 font-bold text-xs">
+                            <Users className="w-3 h-3 text-gray-400" />
+                            <span>{store.followers.toLocaleString()}</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-medium mt-0.5">Followers</div>
+                        </div>
+
+                        <div className="w-px h-6 bg-gray-100" />
+
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1 text-gray-900 font-bold text-xs">
+                            <Package className="w-3 h-3 text-gray-400" />
+                            <span>{store.products}</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-medium mt-0.5">Products</div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 text-gray-600">
-                        <Package className="w-3.5 h-3.5" />
-                        <span>{store.products} products</span>
-                      </div>
                     </div>
-
-                    {/* Location */}
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-4 font-medium">
-                      <MapPin className="w-3.5 h-3.5" />
-                      <span>{store.location}</span>
-                    </div>
-
-                    {/* Categories */}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {store.categories.slice(0, 2).map((category, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3.5 py-1 bg-[var(--brand-wash)] text-[var(--brand-primary)] text-[10px] rounded-full font-bold"
-                        >
-                          {category}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Visit Store Button */}
-                    <button className="w-full mt-auto py-3 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all duration-300">
-                      Visit Store
-                    </button>
                   </div>
                 </motion.div>
               ))}

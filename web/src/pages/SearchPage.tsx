@@ -524,7 +524,7 @@ const SearchPage: React.FC = () => {
               </p>
               <div className="w-full sm:w-auto">
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-full sm:w-[160px] h-10 bg-white border border-gray-200 rounded-full text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/10 transition-all hover:border-[var(--brand-primary)]/50">
+                  <SelectTrigger className="w-full sm:w-[160px] h-10 bg-white border border-gray-100 hover:shadow-md -mb-2 rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-0 transition-all hover:border-[var(--brand-primary)]/50">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-gray-100 shadow-xl bg-white p-1">
