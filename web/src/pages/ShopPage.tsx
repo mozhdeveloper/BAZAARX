@@ -38,13 +38,11 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { discountService } from "@/services/discountService";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import ProductCard from "../components/ProductCard";
 // import { useProductQAStore } from "../stores/productQAStore";
 import { ShopProduct } from "../types/shop";
 import type { ActiveDiscount } from "@/types/discount";
 
 // Flash sale products are now derived from real products in the component
-import { bestSellerProducts } from "../data/products";
 
 const categoryOptions = [
   "All Categories",
@@ -291,28 +289,118 @@ export default function ShopPage() {
           : 0,
       }));
 
-    if (autoFlash.length === 0 && pricedProducts.length > 0) {
-      // Fallback: use first 4 real products from the database, assigning them a dummy original price
-      return pricedProducts.slice(0, 4).map(p => ({
-        ...p,
-        originalPrice: p.price * 1.5,
-        endTime: new Date(Date.now() + 3600000 * 5).toISOString(),
-        discount: 33
-      }));
-    }
+    const sampleFlashProducts = [
+      {
+        id: "sample-flash-sale-1",
+        name: "Luxe Radiant Glow Serum",
+        price: 499,
+        originalPrice: 1250,
+        image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&q=80&w=400",
+        rating: 4.9,
+        sold: 2150,
+        category: "Skincare",
+        seller: "BazaarX Official Store",
+        sellerId: "bazaarx-official",
+        isVerified: true,
+        location: "Metro Manila",
+        description: "Advanced radiance-boosting serum for an instant luminous glow.",
+        endTime: new Date(Date.now() + 32400000).toISOString(),
+        discount: 60,
+        isFreeShipping: true,
+      },
+      {
+        id: "sample-flash-sale-2",
+        name: "Ultra-Fast Wireless Charger 2.0",
+        price: 850,
+        originalPrice: 2200,
+        image: "https://images.unsplash.com/photo-1615526675258-56655c1276a2?auto=format&fit=crop&q=80&w=400",
+        rating: 4.8,
+        sold: 1240,
+        category: "Electronics",
+        seller: "TechHub Philippines",
+        sellerId: "tech-hub",
+        isVerified: true,
+        location: "Quezon City",
+        description: "15W fast charging stand for all Qi-enabled devices.",
+        endTime: new Date(Date.now() + 28800000).toISOString(),
+        discount: 61,
+        isFreeShipping: true,
+      },
+      {
+        id: "sample-flash-sale-3",
+        name: "Minimalist Ergonomic Desk Chair",
+        price: 3450,
+        originalPrice: 8500,
+        image: "https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=400",
+        rating: 4.7,
+        sold: 520,
+        category: "Home & Living",
+        seller: "ZenHome Designs",
+        sellerId: "zen-home",
+        isVerified: true,
+        location: "Makati City",
+        description: "Breathable mesh back with adjustable lumbar support.",
+        endTime: new Date(Date.now() + 14400000).toISOString(),
+        discount: 59,
+        isFreeShipping: false,
+      },
+      {
+        id: "sample-flash-sale-4",
+        name: "Premium Noise Cancelling Headphones",
+        price: 1899,
+        originalPrice: 4500,
+        image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400",
+        rating: 4.9,
+        sold: 890,
+        category: "Electronics",
+        seller: "AudioPro Store",
+        sellerId: "audio-pro",
+        isVerified: true,
+        location: "Taguig City",
+        description: "Listen to your music without distractions.",
+        endTime: new Date(Date.now() + 18000000).toISOString(),
+        discount: 58,
+        isFreeShipping: true,
+      },
+      {
+        id: "sample-flash-sale-5",
+        name: "Nordic Ceramic Vases Set",
+        price: 320,
+        originalPrice: 800,
+        image: "https://images.unsplash.com/photo-1581783898377-1c85bf937427?auto=format&fit=crop&q=80&w=400",
+        rating: 4.6,
+        sold: 1560,
+        category: "Home Decor",
+        seller: "BazaarX Official Store",
+        sellerId: "bazaarx-official",
+        isVerified: true,
+        location: "Metro Manila",
+        description: "Modern minimalist ceramic vases for your home.",
+        endTime: new Date(Date.now() + 21600000).toISOString(),
+        discount: 60,
+        isFreeShipping: true,
+      },
+      {
+        id: "sample-flash-sale-6",
+        name: "Eco-Friendly Bamboo Toothbrush Set",
+        price: 150,
+        originalPrice: 350,
+        image: "https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?auto=format&fit=crop&q=80&w=400",
+        rating: 4.8,
+        sold: 3400,
+        category: "Personal Care",
+        seller: "EcoChoice PH",
+        sellerId: "eco-choice",
+        isVerified: true,
+        location: "Davao City",
+        description: "Sustainable bamboo toothbrushes for a greener smile.",
+        endTime: new Date(Date.now() + 7200000).toISOString(),
+        discount: 57,
+        isFreeShipping: true,
+      },
+    ];
 
-    if (autoFlash.length === 0) {
-      // Ultimate fallback if absolutely no real products are found
-      return bestSellerProducts.slice(0, 4).map(p => ({
-        ...p,
-        id: `flash-${p.id}`,
-        originalPrice: p.price * 1.5,
-        endTime: new Date(Date.now() + 3600000 * 5).toISOString(),
-        discount: 33
-      }));
-    }
-
-    return autoFlash.slice(0, 6);
+    return [...sampleFlashProducts, ...autoFlash].slice(0, 6);
   }, [pricedProducts]);
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
@@ -427,50 +515,28 @@ export default function ShopPage() {
 
           <div className="pt-2 pb-0">
             {/* Flash Sale Section */}
-            <div className="mb-2 bg-white rounded-xl py-4 px-8 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
-                <div className="flex items-center gap-4">
-                  <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-destructive uppercase tracking-wide">
+            <div className="mb-2 bg-white/40 relative overflow-hidden rounded-3xl border-0 p-8">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+                <div className="flex items-center gap-4 md:gap-8">
+                  <h2 className="text-3xl font-black text-[var(--brand-primary)] uppercase tracking-tight font-heading">
                     FLASH SALE
                   </h2>
-                  
+
                   {/* Ends in + Timer */}
-                  <div className="bg-[#FFF8F0] rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm border border-[#FDE68A] shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-timer"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
-                    <div className="flex items-center gap-1.5 font-bold font-mono text-base">
-                      <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                        {String(timeLeft.hours).padStart(2, "0")}
-                      </div>
-                      <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
-                      <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                        {String(timeLeft.minutes).padStart(2, "0")}
-                      </div>
-                      <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
-                      <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
+                  <div className="bg-[var(--price-flash)] text-white rounded-2xl px-4 py-2 flex items-center gap-3 shadow-md border border-white/20 transform hover:scale-105 transition-transform duration-300">
+                    <span className="text-xs font-black uppercase tracking-widest opacity-90">
+                      ENDS IN
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl font-black font-mono tracking-widest tabular-nums">
+                        {String(timeLeft.hours).padStart(2, "0")}:
+                        {String(timeLeft.minutes).padStart(2, "0")}:
                         {String(timeLeft.seconds).padStart(2, "0")}
-                      </div>
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 self-end sm:self-auto">
-                  <Link 
-                    to="/flash-sales"
-                    className="shrink-0 text-primary text-sm font-bold hover:underline"
-                  >
-                    See More
-                  </Link>
-                </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-                {flashSales.map((product: any, index: number) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    index={index}
-                    isFlash={true}
-                  />
-                ))}
                 <Button
                   onClick={() => navigate('/shop?flash-sale=true')}
                   variant="ghost"

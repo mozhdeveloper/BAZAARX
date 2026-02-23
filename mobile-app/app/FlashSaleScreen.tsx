@@ -9,7 +9,7 @@ import {
     StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Timer, Zap, Store, BadgeCheck } from 'lucide-react-native';
+import { ArrowLeft, Timer, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProductCard } from '../src/components/ProductCard';
 import { productService } from '../src/services/productService';
@@ -22,16 +22,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'FlashSale'>;
 
 const { width } = Dimensions.get('window');
 
-interface SellerGroup {
-    sellerName: string;
-    sellerId: string;
-    isVerified: boolean;
-    products: Product[];
-}
-
 export default function FlashSaleScreen({ navigation, route }: Props) {
     const insets = useSafeAreaInsets();
-    const [groupedProducts, setGroupedProducts] = useState<SellerGroup[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Countdown timer
@@ -57,42 +50,14 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
 
     const loadProducts = async () => {
         try {
-            const data = await productService.getProducts({ isActive: true, approvalStatus: 'approved' });
-            // Process and group products
-            const productsWithSellers = (data || []).map((row: any) => {
-                const images = row.images?.map((img: any) => typeof img === 'string' ? img : img.image_url) || [];
-                const primaryImage = images[0] || row.primary_image || '';
-                return {
-                    id: row.id,
-                    name: row.name,
-                    price: row.price,
-                    originalPrice: row.original_price,
-                    image: primaryImage,
-                    category: row.category?.name || 'General',
-                    seller: row.seller?.store_name || 'Generic Store',
-                    sellerId: row.seller_id || row.seller?.id,
-                    sellerVerified: !!row.seller?.verified_at,
-                    stock: row.stock || 10,
-                    sold: row.sold || 0,
-                } as any as Product;
-            });
-
-            const groups = productsWithSellers.reduce((acc, product) => {
-                const sName = product.seller || 'Unknown Seller';
-                if (!acc[sName]) {
-                    acc[sName] = {
-                        sellerName: sName,
-                        sellerId: product.sellerId || '',
-                        isVerified: !!product.sellerVerified,
-                        products: []
-                    };
-                }
-                acc[sName].products.push(product);
-                return acc;
-            }, {} as Record<string, SellerGroup>);
-            
-            setGroupedProducts(Object.values(groups).filter(g => g.products.length > 0));
-
+            const data = await productService.getProducts();
+            // Simulate flash sale: show discounted products
+            const flashProducts = data.map(p => ({
+                ...p,
+                original_price: p.original_price || Math.round(p.price * 1.5),
+                category: typeof p.category === 'string' ? p.category : p.category?.name || 'General',
+            })) as any as Product[];
+            setProducts(flashProducts);
         } catch (err) {
             console.error('Failed to load flash sale products:', err);
         } finally {
@@ -127,7 +92,7 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                         <Text style={[styles.headerTitle, { color: '#7C2D12' }]}>Flash Sale</Text>
                     </View>
                     <View style={styles.timerRow}>
-                        <Timer size={16} color="#92400E" strokeWidth={2.5} />
+                        <Timer size={16} color="#7C2D12" />
                         <View style={styles.timerBox}>
                             <Text style={styles.timerDigit}>{pad(timeLeft.hours)}</Text>
                         </View>
@@ -142,31 +107,25 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                     </View>
                 </LinearGradient>
 
-                {/* Products Area */}
+                {/* Products Grid */}
                 <ScrollView
                     style={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.scrollContainer}
+                    contentContainerStyle={styles.gridContainer}
                 >
-                    <View style={styles.heroBox}>
-                        <Zap size={40} color="#EA580C" fill="#EA580C" style={styles.heroZap} />
-                        <Text style={styles.heroTitle}>Limited Time Deals!</Text>
-                        <Text style={styles.heroSub}>Exclusive offers created directly by verified sellers.</Text>
-                    </View>
-
                     {loading ? (
                         <View style={styles.loadingContainer}>
                             <Text style={styles.loadingText}>Loading deals...</Text>
                         </View>
-                    ) : groupedProducts.length === 0 ? (
+                    ) : products.length === 0 ? (
                         <View style={styles.emptyContainer}>
                             <Zap size={48} color="#D1D5DB" />
                             <Text style={styles.emptyText}>No flash sale products at the moment</Text>
                         </View>
                     ) : (
-                        <View style={styles.gridContainer}>
-                            {groupedProducts.flatMap(g => g.products).map((product) => (
-                                <View key={product.id} style={styles.productCardContainer}>
+                        <View style={styles.grid}>
+                            {products.map((product) => (
+                                <View key={product.id} style={styles.productCard}>
                                     <ProductCard
                                         product={product}
                                         variant="flash"
@@ -186,48 +145,32 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     header: {
         paddingHorizontal: 20,
-        paddingBottom: 15,
-        paddingTop: 15,
+        paddingBottom: 12, // Reduced due to gradient
+        paddingTop: 12,
         flexDirection: 'row',
         alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.3)',
     },
-    backBtn: { padding: 4, marginRight: 12, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    backBtn: { padding: 4, marginRight: 12 },
     headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerTitle: { fontSize: 22, fontWeight: '900', color: '#7C2D12' },
-    timerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF8F0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#FDE68A' },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
+    timerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     timerBox: {
-        backgroundColor: '#EA580C',
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        paddingHorizontal: 6,
+        paddingVertical: 3,
         borderRadius: 4,
-        width: 22,
-        height: 22,
-        alignItems: 'center',
-        justifyContent: 'center',
     },
-    timerDigit: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
-    timerSep: { color: '#EA580C', fontSize: 14, fontWeight: 'bold', paddingBottom: 2 },
+    timerDigit: { color: '#7C2D12', fontSize: 14, fontWeight: '800' },
+    timerSep: { color: '#7C2D12', fontSize: 14, fontWeight: '800' },
     scrollContent: { flex: 1 },
-    scrollContainer: { paddingBottom: 40 },
-    heroBox: {
-        padding: 30,
-        alignItems: 'center',
-    },
-    heroZap: { marginBottom: 12, shadowColor: '#EA580C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10 },
-    heroTitle: { fontSize: 26, fontWeight: '900', color: '#7C2D12', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
-    heroSub: { fontSize: 14, color: '#9A3412', textAlign: 'center', paddingHorizontal: 20, fontWeight: '500' },
+    gridContainer: { padding: 20 },
     loadingContainer: { alignItems: 'center', paddingVertical: 60 },
     loadingText: { fontSize: 16, color: '#6B7280' },
     emptyContainer: { alignItems: 'center', paddingVertical: 60, gap: 12 },
     emptyText: { fontSize: 16, color: '#6B7280' },
-    gridContainer: { 
-        flexDirection: 'row', 
-        flexWrap: 'wrap', 
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
+    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+    productCard: {
+        width: (width - 48) / 2,
+        marginBottom: 12,
     },
-    productCardContainer: {
-        width: (width - 40 - 15) / 2, // 40 for container padding, 15 for gap
-        marginBottom: 20,
-    }
 });

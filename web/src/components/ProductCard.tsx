@@ -1,16 +1,15 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BadgeCheck, ShieldCheck, Flame } from 'lucide-react';
+import { BadgeCheck, ShieldCheck } from 'lucide-react';
 
 
 interface ProductCardProps {
   product: any;
   index?: number;
-  isFlash?: boolean;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash = false }) => {
+const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
   const navigate = useNavigate();
   const hasDiscount =
     product.originalPrice && product.originalPrice > product.price;
@@ -37,7 +36,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
         />
-        {hasDiscount && !isFlash && (
+        {hasDiscount && (
           <div
             title={product.discountBadgeTooltip}
             className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider"
@@ -50,7 +49,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
             Free Ship
           </div>
         )}
-        {product.isVerified && !isFlash && (
+        {product.isVerified && (
           <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
             <ShieldCheck className="w-3 h-3 text-[var(--brand-accent)]" />
             <span className="text-[10px] font-bold text-[var(--brand-accent)] uppercase">Verified</span>
@@ -69,7 +68,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
               <span
                 key={i}
                 className={
-                  i < Math.floor(product.rating || 5)
+                  i < Math.floor(product.rating)
                     ? "fill-current"
                     : "text-gray-300"
                 }
@@ -79,7 +78,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
             ))}
           </div>
           <span className="text-[10px] text-[var(--text-muted)] font-medium">
-            ({product.rating || 5.0})
+            ({product.rating})
           </span>
         </div>
 
@@ -94,35 +93,37 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
           )}
         </div>
 
-        {isFlash ? (
-          <div className="mb-4">
-            <div className="w-full h-1.5 bg-red-100 rounded-full mb-1 border border-red-200 overflow-hidden">
-              <div 
-                className="h-full bg-red-500 rounded-full" 
-                style={{ width: '75%' }}
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <Flame className="w-3 h-3 text-red-600 fill-red-600" />
-              <span className="text-[10px] text-red-600 font-bold uppercase tracking-widest flex items-center gap-1">
-                {(product.sold || 0).toLocaleString()} sold
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest mb-4">
-            {(product.sold || 0).toLocaleString()} sold
-          </div>
-        )}
+        <div className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest mb-4">
+          {product.sold.toLocaleString()} sold
+        </div>
 
         <div className="pt-4 border-t border-[var(--brand-accent-light)]/50">
           <div className="flex items-center gap-2">
             <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
-              {product.seller || "BazaarX Store"}
+              {product.seller}
             </p>
             {product.sellerVerified && (
               <BadgeCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
             )}
+          </div>
+          <div className="flex items-center gap-1 mt-1">
+            <div className="flex text-yellow-400" style={{ fontSize: "10px" }}>
+              {[...Array(5)].map((_, i) => (
+                <span
+                  key={i}
+                  className={
+                    i < Math.floor(product.sellerRating)
+                      ? "text-yellow-400"
+                      : "text-gray-300"
+                  }
+                >
+                  ★
+                </span>
+              ))}
+            </div>
+            <span className="text-xs text-[var(--text-secondary)]">
+              ({product.sellerRating})
+            </span>
           </div>
         </div>
       </div>

@@ -9,9 +9,7 @@ interface ProductRailProps {
   subtitle?: string;
   products: any[];
   actionLabel?: string;
-  actionLink?: string;
   onActionClick?: () => void;
-  isFlash?: boolean;
 }
 
 const ProductRail: React.FC<ProductRailProps> = ({
@@ -19,35 +17,32 @@ const ProductRail: React.FC<ProductRailProps> = ({
   subtitle,
   products,
   actionLabel = "View All",
-  actionLink,
-  onActionClick,
-  isFlash
+  onActionClick
 }) => {
   return (
     <section className="py-20 bg-transparent overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="grid lg:grid-cols-12 gap-10 items-center">
-          {/* Left Side: Product Cards (Appears second on mobile) */}
-          <div className="lg:col-span-8 order-2 lg:order-1">
+          {/* Left Side: Product Cards */}
+          <div className="lg:col-span-8">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
               {products.map((product, index) => (
                 <ProductCard
                   key={product.id}
                   product={product}
                   index={index}
-                  isFlash={isFlash}
                 />
               ))}
             </div>
           </div>
 
-          {/* Right Side: Descriptive Content (Appears first on mobile) */}
+          {/* Right Side: Descriptive Content */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="lg:col-span-4 order-1 lg:order-2 mb-8 lg:mb-0"
+            className="lg:col-span-4"
           >
             <motion.div
               initial={{ opacity: 0, y: -20 }}
@@ -65,23 +60,23 @@ const ProductRail: React.FC<ProductRailProps> = ({
             )}
 
             <Link
-              to={actionLink || "#"}
+              to="#"
               onClick={(e) => {
-                if (!actionLink) {
-                  e.preventDefault();
-                  onActionClick?.();
-                }
+                e.preventDefault();
+                onActionClick?.();
               }}
-              className="mt-6 inline-flex items-center gap-2 px-8 py-4 bg-[#EA580C] text-white font-bold text-lg rounded-full hover:bg-orange-700 hover:-translate-y-1 transition-all shadow-lg shadow-orange-500/30"
+              className="group flex items-center gap-2 text-[var(--text-headline)] font-bold text-lg hover:text-[var(--brand-primary)] transition-colors"
             >
-              <span>{actionLabel}</span>
+              <span className="underline underline-offset-8 decoration-2 decoration-[var(--brand-accent)]/30 group-hover:decoration-[var(--brand-primary)] transition-all">
+                {actionLabel}
+              </span>
               <svg
                 width="20" height="20" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                 className="group-hover:translate-x-1 transition-transform"
               >
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-                <polyline points="12 5 19 12 12 19"></polyline>
+                <line x1="7" y1="17" x2="17" y2="7"></line>
+                <polyline points="7 7 17 7 17 17"></polyline>
               </svg>
             </Link>
           </motion.div>

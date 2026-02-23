@@ -9,7 +9,6 @@ import ShopPage from "./pages/ShopPage";
 import SearchPage from "./pages/SearchPage";
 import CollectionsPage from "./pages/CollectionsPage";
 import StoresPage from "./pages/StoresPage";
-import FlashSalesPage from "./pages/FlashSalesPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import OrderConfirmationPage from "./pages/OrderConfirmationPage";
@@ -104,7 +103,6 @@ function App() {
             }
           />
           <Route path="/shop" element={<ShopPage />} />
-          <Route path="/flash-sales" element={<FlashSalesPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
           <Route path="/stores" element={<StoresPage />} />
