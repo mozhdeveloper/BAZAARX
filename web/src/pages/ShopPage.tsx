@@ -427,11 +427,13 @@ export default function ShopPage() {
 
           <div className="pt-2 pb-0">
             {/* Flash Sale Section */}
-            <div className="mb-2 bg-white rounded-xl py-4 px-8 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
-                <div className="flex items-center gap-4">
-                  <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-destructive uppercase tracking-wide">
-                    FLASH SALE
+            <div className="mb-2 bg-gradient-to-br from-white via-white to-[var(--brand-wash)]/30 rounded-2xl py-6 px-8 shadow-[0_4px_25px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_35px_rgba(255,106,0,0.12)] transition-all duration-500 border border-white/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                <div className="flex items-center gap-5">
+                  <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
+                      FLASH SALE
+                    </span>
                   </h2>
                   
                   {/* Ends in + Timer */}
@@ -456,11 +458,13 @@ export default function ShopPage() {
                 <div className="flex items-center gap-3 self-end sm:self-auto">
                   <Link 
                     to="/flash-sales"
-                    className="shrink-0 text-primary text-sm font-bold hover:underline"
+                    className="shrink-0 flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-[var(--brand-primary)]/10 to-transparent hover:from-[var(--brand-primary)]/20 text-[var(--brand-primary)] text-xs font-black uppercase tracking-widest rounded-full transition-all border border-[var(--brand-primary)]/20"
                   >
                     See More
+                    <span className="text-lg">→</span>
                   </Link>
                 </div>
+              </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
                 {flashSales.map((product: any, index: number) => (
@@ -471,78 +475,6 @@ export default function ShopPage() {
                     isFlash={true}
                   />
                 ))}
-                <Button
-                  onClick={() => navigate('/shop?flash-sale=true')}
-                  variant="ghost"
-                  className="hidden sm:flex text-[var(--brand-primary)] font-black hover:text-[var(--brand-primary-dark)] hover:bg-base group gap-2"
-                >
-                  VIEW ALL
-                  <motion.span
-                    animate={{ x: [0, 5, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  >
-                    →
-                  </motion.span>
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-                {flashSales.map((product: any, index: number) => {
-                  const soldPercent = Math.min(Math.floor((product.sold / 5000) * 100) + 20, 95);
-                  return (
-                    <motion.div
-                      key={product.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="bg-white rounded-2xl overflow-hidden cursor-pointer group hover:border-[var(--brand-primary)]/30 hover:shadow-xl transition-all duration-500"
-                      onClick={() => navigate(`/product/${product.id}`)}
-                    >
-                      <div className="relative aspect-[4/3] overflow-hidden">
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                        />
-                        <div className="absolute top-0 right-0 bg-[var(--price-flash)] text-white text-[10px] font-black px-2 py-1 rounded-bl-xl shadow-md z-10">
-                          {product.discount}% OFF
-                        </div>
-                      </div>
-
-                      <div className="p-4">
-                        <h3 className="font-bold text-sm line-clamp-1 mb-2 text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors">
-                          {product.name}
-                        </h3>
-
-                        <div className="flex flex-col gap-0.5 mb-3">
-                          <div className="text-xl font-black text-[var(--price-flash)] leading-tight">
-                            ₱{product.price.toLocaleString()}
-                          </div>
-                          {product.originalPrice && (
-                            <span className="text-[11px] text-[var(--text-muted)] line-through">
-                              ₱{product.originalPrice.toLocaleString()}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-[9px] font-black uppercase">
-                            <span className="text-[var(--price-flash)]">{product.sold.toLocaleString()} SOLD</span>
-                            <span className="text-[var(--text-muted)]">{soldPercent}%</span>
-                          </div>
-                          <div className="h-1.5 w-full bg-[var(--price-flash)]/10 rounded-full overflow-hidden">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              whileInView={{ width: `${soldPercent}%` }}
-                              className="h-full bg-[var(--price-flash)] rounded-full"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
               </div>
             </div>
           </div>
@@ -1010,7 +942,6 @@ export default function ShopPage() {
             </div>
           </div>
         </div>
-        <BazaarFooter />
 
         {addedProduct && showCartModal && (
           <CartModal
@@ -1064,6 +995,7 @@ export default function ShopPage() {
           />
         )}
       </div>
+      <BazaarFooter />
     </>
   );
 }
