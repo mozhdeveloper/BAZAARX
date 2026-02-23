@@ -362,7 +362,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const isFavorite = isInWishlist(product.id);
 
   // Constants
-  const originalPrice = Math.round((product.price ?? 0) * 1.5); // Mock original price
+  const originalPrice = (product as any).original_price ?? (product as any).originalPrice ?? null;
   const cartItemCount = useCartStore((state) => state.items.length);
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);

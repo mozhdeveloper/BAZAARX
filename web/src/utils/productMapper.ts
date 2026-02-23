@@ -359,7 +359,7 @@ export const mapDbProductToNormalized = (
             (p.seller?.business_profile as any)?.city ||
             (p as any).sellerLocation ||
             "Metro Manila",
-        isFreeShipping: p.is_free_shipping ?? true,
+        isFreeShipping: p.is_free_shipping ?? false,
         isVerified: true,
 
         variantLabel1: p.variant_label_1 || undefined,

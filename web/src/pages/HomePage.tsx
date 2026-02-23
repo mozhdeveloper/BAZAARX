@@ -39,6 +39,7 @@ const ConfidenceStats = lazy(() => import("../components/sections/ConfidenceStat
 // Data imports
 import { bestSellerProducts, newArrivals } from "../data/products";
 import { featuredStores } from "../data/stores";
+import { productService } from "../services/productService";
 
 // Loading fallback component
 const SectionLoader = () => (
@@ -63,6 +64,80 @@ const buyerNavItems = [
 ];
 
 const HomePage: React.FC = () => {
+  const [flashSaleProducts, setFlashSaleProducts] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const loadFlashSales = async () => {
+      try {
+        const data = await productService.getProducts({ isActive: true, approvalStatus: 'approved' });
+        const filteredData = (data || []).filter((row: any) => row.original_price && row.original_price > row.price);
+        
+        const validProducts = filteredData.map((row: any) => {
+            const images = row.images?.map((img: any) => typeof img === 'string' ? img : img.image_url) || [];
+            const primaryImage = images[0] || row.primary_image || '';
+
+            return {
+                id: row.id,
+                name: row.name,
+                price: row.price,
+                originalPrice: row.original_price,
+                image: primaryImage,
+                images: images,
+                seller: row.seller?.store_name || 'Generic Store',
+                sellerId: row.seller_id || row.seller?.id,
+                sellerVerified: !!row.seller?.verified_at,
+                category: row.category?.name || 'General',
+                sold: row.sold || 0,
+                stock: row.stock || 10
+            } as any;
+        });
+
+        if (validProducts.length === 0 && data && data.length > 0) {
+          // Fallback: Use real products but add a dummy original price
+          const validRealProducts = data.slice(0, 4).map((row: any) => {
+            const images = row.images?.map((img: any) => typeof img === 'string' ? img : img.image_url) || [];
+            const primaryImage = images[0] || row.primary_image || '';
+
+            return {
+                id: row.id,
+                name: row.name,
+                price: row.price,
+                originalPrice: row.price * 1.5,
+                image: primaryImage,
+                images: images,
+                seller: row.seller?.store_name || 'Generic Store',
+                sellerId: row.seller_id || row.seller?.id,
+                sellerVerified: !!row.seller?.verified_at,
+                category: row.category?.name || 'General',
+                sold: row.sold || 0,
+                stock: row.stock || 10
+            } as any;
+          });
+          setFlashSaleProducts(validRealProducts);
+        } else if (validProducts.length === 0) {
+          // Ultimate fallback
+          const dummyFlashSales = bestSellerProducts.slice(0, 4).map(p => ({
+            ...p,
+            id: `flash-${p.id}`,
+            originalPrice: p.price * 1.5
+          }));
+          setFlashSaleProducts(dummyFlashSales);
+        } else {
+          setFlashSaleProducts(validProducts);
+        }
+      } catch (e) {
+        console.error('Failed to load flash deals', e);
+        const dummyFlashSales = bestSellerProducts.slice(0, 4).map(p => ({
+          ...p,
+          id: `flash-${p.id}`,
+          originalPrice: p.price * 1.5
+        }));
+        setFlashSaleProducts(dummyFlashSales);
+      }
+    };
+    loadFlashSales();
+  }, []);
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--brand-wash)' }}>
       <FloatingNavigation navItems={buyerNavItems} />
@@ -121,6 +196,20 @@ const HomePage: React.FC = () => {
         {/* Featured Collections */}
         <div id="bazaar-collections">
           <FeaturedCollections />
+        </div>
+      </Suspense>
+
+      <Suspense fallback={<SectionLoader />}>
+        {/* Flash Sale Rail */}
+        <div id="bazaar-flash-sales">
+          <ProductRail
+            title="Flash Sales"
+            subtitle="Limited time offers from our trusted sellers!"
+            products={flashSaleProducts.slice(0, 4)} // Uses real flash sale data
+            actionLabel="See More"
+            actionLink="/flash-sales"
+            isFlash={true}
+          />
         </div>
       </Suspense>
 
