@@ -14,6 +14,7 @@ import {
     MapPin,
     ShieldCheck,
     Gift,
+    Heart,
     Ruler,
     X,
 } from "lucide-react";
@@ -72,7 +73,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         setQuickOrder,
         profile,
         registries,
+        createRegistry,
         addToRegistry,
+        removeRegistryItem,
         cartItems,
     } = useBuyerStore();
     const { products: sellerProducts } = useProductStore();
@@ -80,14 +83,14 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [showRegistryModal, setShowRegistryModal] = useState(false);
     const [isCreateRegistryModalOpen, setIsCreateRegistryModalOpen] =
         useState(false);
-    const { createRegistry } = useBuyerStore();
+
 
     const [quantity, setQuantity] = useState(1);
     const [selectedImage, setSelectedImage] = useState(0);
     const [selectedVariantLabel2Index, setSelectedVariantLabel2Index] =
         useState(0);
     const [selectedVariantLabel1, setSelectedVariantLabel1] = useState("");
-    const [activeTab, setActiveTab] = useState("description");
+    const [activeTab, setActiveTab] = useState("Description");
     const [dbProduct, setDbProduct] = useState<ProductWithSeller | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(null);
@@ -143,6 +146,13 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         if (demoProduct) return mapBuyerProductToNormalized(demoProduct as any);
         return null;
     }, [dbProduct, storeProduct, demoProduct]);
+
+    const isInRegistry = useMemo(() => {
+        if (!normalizedProduct) return false;
+        return registries.some(reg =>
+            reg.products?.some(p => p.id === (normalizedProduct as any).id)
+        );
+    }, [registries, normalizedProduct]);
 
     // 4. Derive currentSeller from normalizedProduct
     const currentSeller = useMemo(() => {
@@ -568,15 +578,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-muted/30">
             <Header />
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 md:py-6">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 md:py-6 -mt-6">
                 <button
                     onClick={() => navigate(-1)}
-                    className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
+                    className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
                 >
-                    <div className="p-1.5">
+                    <div className="p-1.5 rounded-full hover:bg-[var(--brand-wash)] transition-colors">
                         <ChevronLeft className="w-4 h-4" />
                     </div>
                     <span className="font-medium text-sm">Back</span>
@@ -593,10 +603,10 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         key={index}
                                         onClick={() => setSelectedImage(index)}
                                         className={cn(
-                                            "flex-shrink-0 w-20 h-20 lg:w-24 lg:h-24 rounded-2xl overflow-hidden border-2 transition-all duration-200",
+                                            "flex-shrink-0 w-20 h-20 lg:w-24 lg:h-24 rounded-2xl overflow-hidden border-2 transition-all duration-200 bg-white focus:outline-none",
                                             selectedImage === index
-                                                ? "border-[#ff6a00] ring-2 ring-[#ff6a00]/20"
-                                                : "border-transparent hover:border-gray-200",
+                                                ? "border-[var(--brand-primary)]"
+                                                : "border-gray-100/50 hover:border-[var(--brand-wash-gold)]/60",
                                         )}
                                     >
                                         <img
@@ -614,7 +624,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             key={selectedImage}
-                            className="flex-1 bg-gray-50 rounded-3xl overflow-hidden aspect-[4/5] lg:aspect-auto relative group"
+                            className="flex-1 bg-white rounded-[2rem] overflow-hidden aspect-[4/5] lg:aspect-auto relative group shadow-md"
                         >
                             <img
                                 src={productData.images[selectedImage]}
@@ -635,7 +645,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         ? `Up to ₱${activeCampaignDiscount.maxDiscountAmount.toLocaleString()} off`
                                         : undefined;
                                 return (
-                                    <Badge title={discountTooltip} className="absolute top-4 left-4 bg-red-500 hover:bg-red-500 text-white text-xs px-2 py-1">
+                                    <Badge title={discountTooltip} className="absolute top-4 left-4 bg-[var(--price-flash)] hover:bg-[var(--price-flash)]/90 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl shadow-md z-10 border-0">
                                         {percentOff}% OFF
                                     </Badge>
                                 );
@@ -646,88 +656,86 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                     {/* Details Section (Right Side) */}
                     <div className="lg:col-span-5 flex flex-col pt-2">
                         {/* Store Profile - Compact Header */}
-                        <div
-                            className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 group cursor-pointer"
-                            onClick={() =>
-                                navigate(
-                                    `/seller/${normalizedProduct?.sellerId || "seller-001"}`,
-                                )
-                            }
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-full bg-gray-50 overflow-hidden border border-gray-100 shrink-0">
+                        <div className="flex items-center justify-between mb-4 pb-4 border-b border-[var(--border)]/60">
+                            <div
+                                className="flex items-center gap-4 group cursor-pointer"
+                                onClick={() =>
+                                    navigate(
+                                        `/seller/${normalizedProduct?.sellerId || "seller-001"}`,
+                                    )
+                                }
+                            >
+                                {/* Avatar */}
+                                <div className="w-14 h-14 rounded-full bg-white overflow-hidden border border-[var(--border)]/40 shrink-0 shadow-sm relative transition-transform duration-300 group-hover:scale-105">
                                     <img
                                         src={currentSeller.avatar}
                                         alt={currentSeller.name}
                                         className="w-full h-full object-cover"
                                     />
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-gray-900 text-base leading-tight">
-                                        {normalizedProduct?.seller &&
-                                            normalizedProduct.seller !==
-                                            "Verified Seller"
-                                            ? normalizedProduct.seller
-                                            : currentSeller.name ||
-                                            "Official Store"}
-                                    </h3>
-                                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-0">
-                                        <span className="flex items-center gap-1">
-                                            <MapPin className="w-3 h-3" />{" "}
-                                            {normalizedProduct?.location ||
-                                                "Metro Manila"}
-                                        </span>
+
+                                {/* Info Container */}
+                                <div className="flex flex-col gap-0.5">
+                                    <div className="flex items-center gap-1.5">
+                                        <h3 className="font-black text-[var(--text-headline)] text-lg leading-tight font-heading group-hover:text-[var(--brand-primary)] transition-colors">
+                                            {normalizedProduct?.seller &&
+                                                normalizedProduct.seller !==
+                                                "Verified Seller"
+                                                ? normalizedProduct.seller
+                                                : currentSeller.name ||
+                                                "Official Store"}
+                                        </h3>
+                                        <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--brand-primary)] transition-colors" />
+                                    </div>
+
+                                    <div className="flex items-center gap-4 text-xs font-medium leading-none">
+                                        <div className="flex items-center gap-1 text-[var(--text-muted)]">
+                                            <MapPin className="w-3.5 h-3.5" />
+                                            <span>{normalizedProduct?.location || "Metro Manila"}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[var(--brand-primary)]">
+                                            <Star className="w-3.5 h-3.5 fill-current" />
+                                            <span>{currentSeller.rating}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        useChatStore.getState().openChat({
-                                            sellerId:
-                                                normalizedProduct?.sellerId ||
-                                                "seller-001",
-                                            sellerName:
-                                                normalizedProduct?.seller ||
-                                                "Official Store",
-                                            sellerAvatar: currentSeller.avatar,
-                                            productId: normalizedProduct?.id,
-                                            productName: productData.name,
-                                            productImage:
-                                                productData.images?.[0] ||
-                                                normalizedProduct?.image,
-                                        });
-                                        useChatStore
-                                            .getState()
-                                            .setMiniMode(false);
-                                    }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs font-medium transition-all border border-orange-200"
-                                >
-                                    <MessageCircle className="w-3.5 h-3.5" />
-                                    Chat
-                                </button>
-                                <div className="flex flex-col items-end gap-1">
-                                    <div className="flex items-center gap-1 text-[#ff6a00] font-medium text-xs whitespace-nowrap">
-                                        <Star className="w-3 h-3 fill-current" />{" "}
-                                        {currentSeller.rating}
-                                    </div>
-                                    <div className="flex items-center gap-1 text-xs text-gray-600 group-hover:text-[#ff6a00] transition-colors">
-                                        <span>Visit Store</span>
-                                        <ChevronRight className="w-4 h-4" />
-                                    </div>
-                                </div>
-                            </div>
+
+                            {/* Chat Button */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    useChatStore.getState().openChat({
+                                        sellerId:
+                                            normalizedProduct?.sellerId ||
+                                            "seller-001",
+                                        sellerName:
+                                            normalizedProduct?.seller ||
+                                            "Official Store",
+                                        sellerAvatar: currentSeller.avatar,
+                                        productId: normalizedProduct?.id,
+                                        productName: productData.name,
+                                        productImage:
+                                            productData.images?.[0] ||
+                                            normalizedProduct?.image,
+                                    });
+                                    useChatStore
+                                        .getState()
+                                        .setMiniMode(false);
+                                }}
+                                className="flex items-center gap-2 px-6 py-2 rounded-full border border-[var(--brand-primary)]/20 bg-[var(--brand-wash)] text-[var(--brand-primary)] text-sm font-black transition-all hover:bg-[var(--brand-primary)]/10 hover:shadow-sm active:scale-95"
+                            >
+                                <MessageCircle className="w-4 h-4" />
+                                Chat
+                            </button>
                         </div>
-                        <span className="text-gray-500 text-sm font-medium mb-1">
-                            {productData.category}
-                        </span>
-                        <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2 tracking-tight leading-tight">
+
+                        <h1 className="text-3xl lg:text-4xl font-black text-[var(--text-headline)] mb-3 tracking-tight leading-tight font-heading">
                             {productData.name}
                         </h1>
 
-                        {/* Price & Rating */}
-                        <div className="flex items-center gap-4 mb-6">
+                        {/* Price Section */}
+                        <div className="flex items-center gap-4 mb-4">
                             <div className="flex items-baseline gap-2">
                                 {(() => {
                                     const currentVariant = getSelectedVariant();
@@ -735,42 +743,44 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         currentVariant?.price ||
                                         productData.price;
                                     return (
-                                        <span className="text-3xl font-bold text-[#ff6a00]">
+                                        <span className="text-3xl font-black text-[var(--brand-primary)]">
                                             ₱{displayPrice.toLocaleString()}
                                         </span>
                                     );
                                 })()}
-                                {productData.originalPrice && (
-                                    <span className="text-lg text-gray-400 line-through decoration-gray-400/50">
-                                        ₱
-                                        {productData.originalPrice.toLocaleString()}
+                                {productData.originalPrice > (getSelectedVariant()?.price || productData.price) && (
+                                    <span className="text-lg text-[var(--text-muted)] line-through decoration-[var(--text-muted)]/50 font-bold">
+                                        ₱{productData.originalPrice.toLocaleString()}
                                     </span>
                                 )}
                             </div>
-                            <div className="h-4 w-px bg-gray-300 mx-2" />
-                            <div className="flex items-center gap-1.5">
-                                <Star className="w-4 h-4 fill-[#ff6a00] text-[#ff6a00]" />
-                                <span className="font-semibold">
+                        </div>
+
+                        {/* Rating & Sold Section */}
+                        <div className="flex items-center gap-3 mb-8 mt-2">
+                            <div className="flex items-center gap-1">
+                                <Star className="w-3.5 h-3.5 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
+                                <span className="font-black text-[var(--text-headline)] text-sm">
                                     {productData.rating}
                                 </span>
                             </div>
+                            <span className="text-[var(--border)] font-light">|</span>
+                            <p className="text-[var(--text-muted)] text-sm">
+                                <span className="text-[var(--brand-primary)] font-bold">
+                                    {productData.sold || 0}
+                                </span>{" "}
+                                products sold
+                            </p>
                         </div>
-
-                        <p className="text-gray-500 text-sm mb-8">
-                            <span className="font-bold text-gray-900">
-                                {productData.sold || 0}
-                            </span>{" "}
-                            products sold
-                        </p>
 
                         {/* Variant Label 2 Selection */}
                         {productData.label2Options &&
                             productData.label2Options.length > 0 && (
                                 <div className="mb-8">
-                                    <p className="text-sm font-semibold text-gray-900 mb-3">
+                                    <p className="text-sm font-black text-[var(--text-headline)] mb-3">
                                         {normalizedProduct?.variantLabel2 ||
                                             "Variant Label"}{" "}
-                                        <span className="text-gray-500 font-normal">
+                                        <span className="text-[var(--text-accent)] font-medium normal-case">
                                             (
                                             {
                                                 productData.label2Options[
@@ -791,11 +801,11 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                                         )
                                                     }
                                                     className={cn(
-                                                        "group relative w-16 h-16 rounded-xl border-2 transition-all overflow-hidden",
+                                                        "group relative w-16 h-16 rounded-xl border transition-all overflow-hidden bg-white shadow-sm",
                                                         selectedVariantLabel2Index ===
                                                             index
-                                                            ? "border-[#ff6a00] ring-1 ring-[#ff6a00] ring-offset-2"
-                                                            : "border-gray-200 hover:border-gray-300",
+                                                            ? "border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)] ring-offset-2"
+                                                            : "border-[var(--border)]/40 hover:border-[var(--brand-primary)]/30",
                                                     )}
                                                     title={option.name}
                                                 >
@@ -809,7 +819,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                                     />
                                                     {selectedVariantLabel2Index ===
                                                         index && (
-                                                            <div className="absolute inset-0 bg-[#ff6a00]/10" />
+                                                            <div className="absolute inset-0 bg-[var(--brand-primary)]/10" />
                                                         )}
                                                 </button>
                                             ),
@@ -823,14 +833,14 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             productData.label1Options.length > 0 && (
                                 <div className="mb-8">
                                     <div className="flex items-center justify-between mb-3">
-                                        <p className="text-sm font-semibold text-gray-900">
+                                        <p className="text-sm font-black text-[var(--text-headline)]">
                                             {normalizedProduct?.variantLabel1 ||
                                                 "Variant Label"}
                                         </p>
                                         {/* If variantLabel1 is "Size", show size guide */}
                                         {productData.variantLabel1 ===
                                             "Size" && (
-                                                <button className="text-xs text-gray-500 hover:text-[#ff6a00] hover:underline flex items-center gap-1">
+                                                <button className="text-xs text-[var(--text-muted)] hover:text-[var(--brand-primary)] hover:underline flex items-center gap-1 font-bold">
                                                     <Ruler className="w-3 h-3" />{" "}
                                                     Size Guide
                                                 </button>
@@ -847,11 +857,11 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                                         )
                                                     }
                                                     className={cn(
-                                                        "min-w-[3rem] w-auto px-3 h-8 flex items-center justify-center rounded-lg border-2 text-xs transition-all",
+                                                        "min-w-[3rem] w-auto px-4 h-9 flex items-center justify-center rounded-xl border text-xs transition-all font-medium shadow-sm",
                                                         selectedVariantLabel1 ===
                                                             option
-                                                            ? "border-[#ff6a00] bg-[#ff6a00] text-white"
-                                                            : "border-gray-200 text-gray-900 hover:border-[#ff6a00]",
+                                                            ? "border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white"
+                                                            : "border-[var(--border)]/40 bg-white text-[var(--text-headline)] hover:border-[var(--brand-primary)]",
                                                     )}
                                                 >
                                                     {option}
@@ -864,31 +874,31 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
                         {/* Composition/Description Preview */}
                         <div className="mb-8">
-                            <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                            <h3 className="text-sm font-black text-[var(--text-headline)] mb-2">
                                 Details
                             </h3>
-                            <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
+                            <p className="text-sm text-[var(--text-primary)] leading-relaxed line-clamp-3 font-medium">
                                 {productData.description}
                             </p>
                         </div>
 
                         {/* Quantity and Stock */}
                         <div className="flex items-center gap-6 mb-8 -mt-4">
-                            <div className="flex items-center border-2 border-gray-200 rounded-full p-1.5 w-32 justify-between">
+                            <div className="flex items-center border border-[var(--border)]/60 bg-white shadow-sm rounded-full p-1 w-32 justify-between">
                                 <button
                                     onClick={() =>
                                         setQuantity(Math.max(1, quantity - 1))
                                     }
-                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 transition-colors"
+                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--brand-wash)] text-[var(--text-primary)] transition-colors"
                                 >
-                                    <Minus className="w-4 h-4" />
+                                    <Minus className="w-3.5 h-3.5" />
                                 </button>
                                 <input
                                     type="number"
                                     value={quantity}
                                     onChange={handleQuantityInput}
                                     onBlur={handleQuantityBlur}
-                                    className="w-12 text-center font-semibold text-gray-900 text-lg bg-transparent border-none focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    className="w-12 text-center font-black text-[var(--text-headline)] text-lg bg-transparent border-none focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                                 <button
                                     onClick={() => {
@@ -902,9 +912,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                             Math.min(maxStock, quantity + 1),
                                         );
                                     }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 transition-colors"
+                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--brand-wash)] text-[var(--text-primary)] transition-colors"
                                 >
-                                    <Plus className="w-4 h-4" />
+                                    <Plus className="w-3.5 h-3.5" />
                                 </button>
                             </div>
                             {/* Stock Display */}
@@ -920,10 +930,10 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                             <>
                                                 <span
                                                     className={cn(
-                                                        "text-sm font-medium",
+                                                        "text-xs font-medium px-1 py-1",
                                                         stockQty <= 5
-                                                            ? "text-orange-500"
-                                                            : "text-green-600",
+                                                            ? "text-[var(--price-flash)]"
+                                                            : "text-[var(--color-success)]",
                                                     )}
                                                 >
                                                     {stockQty <= 5
@@ -932,7 +942,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                                 </span>
                                             </>
                                         ) : (
-                                            <span className="text-sm font-medium text-red-500">
+                                            <span className="text-xs font-medium text-red-500 px-1 py-1">
                                                 Out of stock
                                             </span>
                                         )}
@@ -942,31 +952,48 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex flex-col sm:flex-row gap-4 -mt-4 mb-8">
-                            <Button
+                        <div className="flex flex-row items-center gap-4 mb-10">
+                            <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    if (
-                                        !registries ||
-                                        registries.length === 0
-                                    ) {
-                                        setIsCreateRegistryModalOpen(true);
+                                    if (isInRegistry) {
+                                        // Remove from all registries it belongs to
+                                        registries.forEach(reg => {
+                                            if (reg.products?.some(p => p.id === (normalizedProduct as any).id)) {
+                                                removeRegistryItem(reg.id, (normalizedProduct as any).id);
+                                            }
+                                        });
+                                        toast({
+                                            title: "Removed from Registry",
+                                            description: "The item has been removed from your registries.",
+                                        });
                                     } else {
-                                        setShowRegistryModal(true);
+                                        if (!registries || registries.length === 0) {
+                                            setIsCreateRegistryModalOpen(true);
+                                        } else {
+                                            setShowRegistryModal(true);
+                                        }
                                     }
                                 }}
-                                className="h-12 sm:h-14 w-12 sm:w-14 rounded-full bg-orange-100/50 hover:bg-orange-100 text-[#ff6a00] border-2 border-[#ff6a00] p-0 flex items-center justify-center font-bold shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
-                                title="Add to Registry"
+                                className="p-3 text-[var(--brand-primary)] hover:scale-110 transition-transform active:scale-95"
+                                title={isInRegistry ? "In Registry" : "Add to Registry"}
                             >
-                                <Gift className="w-6 h-6" />
-                            </Button>
+                                <Heart
+                                    className={cn(
+                                        "w-8 h-8 transition-colors duration-300",
+                                        isInRegistry ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]" : "text-[var(--brand-primary)]"
+                                    )}
+                                />
+                            </button>
+
                             <Button
                                 onClick={handleAddToCart}
-                                className="flex-1 h-12 sm:h-14 rounded-full bg-white hover:bg-orange-50 text-[#ff6a00] border-2 border-[#ff6a00] text-sm sm:text-base font-bold shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
+                                className="flex-1 h-14 rounded-2xl bg-white hover:bg-[var(--brand-wash)] text-[var(--brand-primary)] border border-[var(--brand-primary)] text-base font-bold transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2"
                             >
-                                <ShoppingCart className="w-5 h-5 mr-2" />
+                                <ShoppingCart className="w-5 h-5" />
                                 Add to Cart
                             </Button>
+
                             <Button
                                 onClick={handleBuyNow}
                                 disabled={(() => {
@@ -974,7 +1001,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                     const stockQty = currentVariant?.stock || normalizedProduct?.stock || 0;
                                     return stockQty === 0;
                                 })()}
-                                className="flex-1 h-12 sm:h-14 rounded-full bg-[#ff6a00] hover:bg-[#e65f00] text-white text-sm sm:text-base font-bold shadow-xl shadow-[#ff6a00]/20 hover:shadow-2xl hover:shadow-[#ff6a00]/30 transition-all active:scale-[0.98] border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex-1 h-14 rounded-2xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white text-base font-bold transition-all active:scale-[0.98] shadow-lg shadow-[var(--brand-primary)]/30 border-0 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {(() => {
                                     const currentVariant = getSelectedVariant();
@@ -987,20 +1014,20 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 </div>
 
                 {/* Tabs / Reviews / Full Desc Section */}
-                <div className="mt-4 border-t border-gray-100 pt-4">
-                    {/* Tab Navigation */}
-                    <div className="flex justify-center mb-4 sticky top-20 z-50 bg-gray-50/95 backdrop-blur-md py-4">
-                        <nav className="inline-flex bg-gray-100/50 p-1 rounded-full">
-                            {["description", "reviews", "support"].map(
+                <div className="mt-6 pt-2">
+                    {/* Tab Navigation - Sticky Container */}
+                    <div className="sticky top-16 sm:top-18 z-50 py-4 mb-2 flex justify-center">
+                        <nav className="inline-flex items-center bg-white p-1 rounded-full border border-gray-100 shadow-md">
+                            {["Description", "Reviews", "Support"].map(
                                 (tab) => (
                                     <button
                                         key={tab}
                                         onClick={() => setActiveTab(tab)}
                                         className={cn(
-                                            "px-8 py-3 rounded-full text-sm font-medium capitalize transition-all duration-300",
+                                            "px-6 sm:px-10 py-2.5 rounded-full text-sm transition-all duration-300 whitespace-nowrap",
                                             activeTab === tab
-                                                ? "bg-white text-[#ff6a00] shadow-lg shadow-gray-200/50"
-                                                : "text-gray-500 hover:text-gray-700",
+                                                ? "bg-[var(--brand-primary)] text-white shadow-lg shadow-[var(--brand-primary)]/30 scale-[1.02] font-bold"
+                                                : "text-[var(--text-muted)] hover:text-[var(--brand-primary)] font-medium"
                                         )}
                                     >
                                         {tab}
@@ -1010,34 +1037,20 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         </nav>
                     </div>
 
-                    <div className="max-w-4xl mx-auto">
-                        {activeTab === "description" && (
-                            <div className="prose prose-lg mx-auto text-gray-600">
-                                <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                    <div className="max-w-4xl mx-auto px-4">
+                        {activeTab === "Description" && (
+                            <div className="prose prose-lg">
+                                <h3 className="text-xl font-bold text-[var(--text-headline)] mb-6 -mt-2">
                                     Product Details
                                 </h3>
-                                <p className="leading-relaxed">
+                                <p className="text-[var(--text-primary)] leading-relaxed mb-8">
                                     {productData.description}
                                 </p>
-                                <div className="grid grid-cols-2 gap-y-4 mt-8">
-                                    {productData.features?.map(
-                                        (feature: any, idx: number) => (
-                                            <div
-                                                key={idx}
-                                                className="flex items-center gap-3"
-                                            >
-                                                <div className="w-2 h-2 rounded-full bg-[#ff6a00]" />
-                                                <span className="text-gray-700 font-medium">
-                                                    {feature}
-                                                </span>
-                                            </div>
-                                        ),
-                                    )}
-                                </div>
+
                             </div>
                         )}
 
-                        {activeTab === "reviews" && (
+                        {activeTab === "Reviews" && (
                             <ProductReviews
                                 productId={normalizedProduct.id}
                                 rating={productData.rating}
@@ -1045,16 +1058,16 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             />
                         )}
 
-                        {activeTab === "support" && (
+                        {activeTab === "Support" && (
                             <div className="max-w-2xl mx-auto py-0 text-center sm:text-left">
-                                <div className="bg-gray-50 rounded-2xl p-8 border border-gray-100">
-                                    <p className="text-gray-600 leading-relaxed mb-6">
+                                <div className="bg-[var(--brand-wash)]/40 rounded-3xl p-8 border border-[var(--border)]/50 shadow-sm">
+                                    <p className="text-[var(--text-primary)] leading-relaxed mb-6 font-medium">
                                         We offer a 7-day return policy for
                                         defective items. Please contact our
                                         support team for assistance.
                                     </p>
-                                    <div className="flex items-center justify-center sm:justify-start gap-2 text-gray-900 font-medium bg-white p-4 rounded-xl border border-gray-100 inline-flex">
-                                        <ShieldCheck className="w-5 h-5 text-[#ff6a00]" />
+                                    <div className="flex items-center justify-center sm:justify-start gap-3 text-[var(--text-headline)] font-black bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-[var(--border)]/40 inline-flex shadow-sm">
+                                        <ShieldCheck className="w-5 h-5 text-[var(--brand-primary)]" />
                                         Warranty: 1 Year Manufacturer Warranty
                                     </div>
                                 </div>
@@ -1068,18 +1081,18 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             {/* Registry Selection Modal */}
             {showRegistryModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-gray-900">Add to Registry</h2>
+                    <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200 border border-[var(--border)]/40">
+                        <div className="flex items-center justify-between mb-8">
+                            <h2 className="text-2xl font-black text-[var(--text-headline)] font-heading uppercase tracking-tight">Add to Registry</h2>
                             <button
                                 onClick={() => setShowRegistryModal(false)}
-                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                className="p-2 hover:bg-[var(--brand-wash)] rounded-full transition-colors text-[var(--text-muted)] hover:text-[var(--brand-primary)]"
                             >
-                                <X className="w-5 h-5" />
+                                <X className="w-6 h-6" />
                             </button>
                         </div>
 
-                        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+                        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-[var(--border)] scrollbar-track-transparent">
                             {registries.map((registry) => (
                                 <button
                                     key={registry.id}
@@ -1100,23 +1113,23 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                             description: `${productData.name} has been added to ${registry.title}.`,
                                         });
                                     }}
-                                    className="w-full flex items-center gap-4 p-4 rounded-2xl border border-gray-100 hover:border-orange-200 hover:bg-orange-50/50 transition-all group text-left"
+                                    className="w-full flex items-center gap-4 p-4 rounded-2xl border border-[var(--border)]/40 hover:border-[var(--brand-primary)]/40 hover:bg-[var(--brand-wash)]/40 transition-all group text-left shadow-sm hover:shadow-md"
                                 >
-                                    <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden shrink-0">
+                                    <div className="w-14 h-14 rounded-xl bg-[var(--brand-wash)] overflow-hidden shrink-0 border border-[var(--border)]/20 shadow-inner">
                                         <img
                                             src={
                                                 registry.imageUrl ||
                                                 "/public/gradGift.jpeg"
                                             }
                                             alt={registry.title}
-                                            className="w-full h-full object-cover"
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                         />
                                     </div>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                                    <div className="flex-1">
+                                        <h3 className="font-black text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors text-base uppercase tracking-tight">
                                             {registry.title}
                                         </h3>
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-[var(--text-muted)] font-bold mt-0.5">
                                             {registry.products?.length || 0}{" "}
                                             items • Shared {registry.sharedDate}
                                         </p>
@@ -1125,15 +1138,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             ))}
                         </div>
 
-                        <div className="mt-6 pt-4 border-t border-gray-100">
+                        <div className="mt-8 pt-6 border-t border-[var(--border)]/40">
                             <button
                                 onClick={() => {
                                     setShowRegistryModal(false);
                                     setIsCreateRegistryModalOpen(true);
                                 }}
-                                className="w-full py-3 px-4 rounded-xl border border-dashed border-gray-300 text-gray-600 font-medium hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
+                                className="w-full py-4 px-4 rounded-xl border-2 border-dashed border-[var(--border)] text-[var(--text-muted)] font-black uppercase tracking-tight hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] transition-all flex items-center justify-center gap-2 transform active:scale-[0.98]"
                             >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-5 h-5" />
                                 Create New Registry
                             </button>
                         </div>
@@ -1145,7 +1158,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 isOpen={isCreateRegistryModalOpen}
                 onClose={() => setIsCreateRegistryModalOpen(false)}
                 hideBrowseLink={true}
-                onCreate={(name, category) => {
+                onCreate={({ name, category }) => {
                     const newRegistry = {
                         id: `reg-${Date.now()}`,
                         title: name,

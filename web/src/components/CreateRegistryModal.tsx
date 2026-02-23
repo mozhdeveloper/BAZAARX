@@ -324,13 +324,13 @@ export const CreateRegistryModal = ({
                 <Button
                   variant="ghost"
                   onClick={onClose}
-                  className="text-[var(--text-secondary)]"
+                  className="text-[var(--text-secondary)] bg-base hover:bg-base hover:text-red-600"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleCreate}
-                  className="btn-primary"
+                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-lg px-8 h-10 font-bold transition-all active:scale-[0.98] shadow-lg shadow-[var(--brand-primary)]/20 border-0 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={
                     !registryName ||
                     !category ||

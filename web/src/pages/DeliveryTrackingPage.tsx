@@ -799,7 +799,7 @@ function DeliveryTrackingPage() {
 
                   <Button
                     variant="outline"
-                    className="w-full border-orange-200 text-orange-600 hover:bg-orange-50"
+                    className="w-full border-[var(--brand-primary)]/30 text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
                     onClick={() => alert("Opening support chat...")}
                   >
                     <MessageCircle className="w-4 h-4 mr-2" />
@@ -830,7 +830,7 @@ function DeliveryTrackingPage() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modern Receipt Header */}
-              <div className="relative p-6 bg-gradient-to-br from-orange-500 via-red-500 to-pink-500 text-white text-center">
+              <div className="relative p-6 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white text-center">
                 <button
                   onClick={() => setShowReceipt(false)}
                   className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
@@ -855,10 +855,10 @@ function DeliveryTrackingPage() {
                   </div>
                 </div>
                 <h2 className="text-2xl font-bold mb-1">BazaarPH</h2>
-                <p className="text-orange-100">Your Premium Marketplace</p>
+                <p className="text-white/80">Your Premium Marketplace</p>
                 <div className="mt-4 p-3 bg-white/20 rounded-lg backdrop-blur-sm">
                   <p className="font-medium">Official Receipt</p>
-                  <p className="text-sm text-orange-100">Order #{order.orderNumber || order.id}</p>
+                  <p className="text-sm text-white/80">Order #{order.orderNumber || order.id}</p>
                 </div>
               </div>
 
@@ -886,7 +886,7 @@ function DeliveryTrackingPage() {
                 {/* Items with Enhanced Design */}
                 <div className="space-y-4">
                   <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <Package className="w-5 h-5 text-orange-500" />
+                    <Package className="w-5 h-5 text-[var(--brand-primary)]" />
                     Items Purchased
                   </h4>
                   <div className="space-y-3 max-h-60 overflow-y-auto">
@@ -896,8 +896,8 @@ function DeliveryTrackingPage() {
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                            <Package className="w-5 h-5 text-orange-500" />
+                          <div className="w-10 h-10 bg-[var(--brand-primary)]/10 rounded-lg flex items-center justify-center">
+                            <Package className="w-5 h-5 text-[var(--brand-primary)]" />
                           </div>
                           <div>
                             <p className="font-medium text-gray-900 text-sm">
@@ -943,7 +943,7 @@ function DeliveryTrackingPage() {
                 </div>
 
                 {/* Payment Summary */}
-                <div className="space-y-3 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg">
+                <div className="space-y-3 p-4 bg-[var(--brand-wash)] border border-[var(--brand-primary)]/10 rounded-lg">
                   <h4 className="font-semibold text-gray-900">
                     Payment Summary
                   </h4>
@@ -958,12 +958,12 @@ function DeliveryTrackingPage() {
                       <span className="text-gray-600">Delivery Fee</span>
                       <span className="font-medium">₱50</span>
                     </div>
-                    <div className="border-t border-orange-200 pt-2">
+                    <div className="border-t border-[var(--brand-primary)]/20 pt-2">
                       <div className="flex justify-between text-base">
                         <span className="font-bold text-gray-900">
                           Total Amount
                         </span>
-                        <span className="font-bold text-orange-600 text-lg">
+                        <span className="font-bold text-[var(--brand-primary)] text-lg">
                           ₱{(order.total || 0).toLocaleString()}
                         </span>
                       </div>
@@ -997,7 +997,7 @@ function DeliveryTrackingPage() {
                           text: `Receipt for order #${order.id}`,
                         })
                       }
-                      className="bg-orange-500 hover:bg-orange-600"
+                      className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                     >
                       <Share2 className="w-4 h-4 mr-2" />
                       Share

@@ -308,7 +308,7 @@ export default function OrdersPage() {
   // Always show orders page with sample orders - users should see this immediately
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -346,18 +346,18 @@ export default function OrdersPage() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-4 -mt-2"
+          className="mb-4 -mt-8"
         >
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
+            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <div className="p-1.5">
               <ChevronLeft className="w-4 h-4 mt-4" />
             </div>
             <span className="font-medium text-sm mt-4">Back</span>
           </button>
-          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Orders</h1>
+          <h1 className="text-xl lg:text-3xl font-bold text-gray-900">My Orders</h1>
           <p className="text-gray-500 text-sm">Track and manage all your orders</p>
         </motion.div>
 
@@ -378,8 +378,8 @@ export default function OrdersPage() {
                     className={cn(
                       "px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all duration-300",
                       statusFilter === option.value
-                        ? "bg-white text-[#FF5722] shadow-md shadow-orange-500/10 ring-1 ring-orange-500/10"
-                        : "text-gray-500 hover:text-[#FF5722] hover:bg-white/50",
+                        ? "bg-[var(--brand-primary)] text-white shadow-md ring-1 ring-[var(--brand-primary)]"
+                        : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-white/50",
                     )}
                   >
                     {option.label}
@@ -391,13 +391,13 @@ export default function OrdersPage() {
 
           {/* Search bar */}
           <div className="relative w-full lg:w-64 xl:w-72 flex-shrink-0 self-center">
-            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[#FF5722] w-3.5 h-3.5" />
+            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[var(--brand-primary)] w-3.5 h-3.5" />
             <input
               type="text"
               placeholder="Search orders..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-1.5 border-2 border-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#FF6a00]/10 focus:border-[#FF6a00] bg-white text-xs sm:text-sm text-gray-900 placeholder-gray-400 shadow-sm transition-all hover:border-[#FF5722]/30"
+              className="w-full pl-10 pr-4 py-1.5 border border-gray-100 rounded-full focus:outline-none focus:ring-0 focus:border-[var(--brand-primary)] bg-white text-xs sm:text-sm text-gray-900 placeholder-gray-400 shadow-sm transition-all"
             />
           </div>
         </motion.div>
@@ -425,7 +425,7 @@ export default function OrdersPage() {
                   setSearchQuery("");
                   setStatusFilter("all");
                 }}
-                className="mt-4 px-4 py-2 bg-[#FF5722] text-white rounded-lg hover:bg-[#E64A19] transition-colors"
+                className="mt-4 px-4 py-2 bg-[var(--brand-primary)] text-white rounded-lg hover:bg-[var(--brand-primary-dark)] transition-colors"
               >
                 Clear Filters
               </button>
@@ -440,7 +440,7 @@ export default function OrdersPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
+                className="bg-white shadow-sm rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
               >
                 {order.status === "reviewed" ? (
                   <div className="flex flex-col gap-2">
@@ -497,7 +497,7 @@ export default function OrdersPage() {
                       ))}
                       <div className="flex justify-end items-center pt-2 border-t border-gray-50">
                         <span className="text-sm text-gray-500 mr-2">Order Total:</span>
-                        <span className="text-lg font-bold text-[#FF5722]">₱{order.total.toLocaleString()}</span>
+                        <span className="text-lg font-bold text-[var(--price-standard)]">₱{order.total.toLocaleString()}</span>
                       </div>
                     </div>
                     {order.review && (
@@ -553,8 +553,8 @@ export default function OrdersPage() {
                         e.stopPropagation();
                         navigate(`/seller/${(order as any).sellerId}`);
                       }}>
-                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722] transition-colors">{(order as any).storeName}</span>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover/store:text-[#FF5722] transition-colors" />
+                        <span className="font-bold text-gray-900 group-hover/store:text-[var(--brand-primary)] transition-colors">{(order as any).storeName}</span>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover/store:text-[var(--brand-primary)] transition-colors" />
                       </div>
 
                       <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
@@ -614,7 +614,7 @@ export default function OrdersPage() {
                       ))}
                       <div className="flex justify-end items-center pt-2 border-t border-gray-50">
                         <span className="text-sm text-gray-500 mr-2">Order Total:</span>
-                        <span className="text-lg font-bold text-[#FF5722]">₱{order.total.toLocaleString()}</span>
+                        <span className="text-lg font-bold text-[var(--price-standard)]">₱{order.total.toLocaleString()}</span>
                       </div>
                     </div>
 
@@ -630,7 +630,7 @@ export default function OrdersPage() {
                             }}
                             size="sm"
                             variant="ghost"
-                            className="text-gray-400 hover:text-red-700 hover:bg-red-50 text-xs font-normal px-2"
+                            className="text-gray-400 hover:text-red-700 hover:bg-base text-xs font-normal px-2"
                           >
                             <RotateCcw className="w-3.5 h-3.5 mr-1" />
                             Return or Refund
@@ -672,7 +672,7 @@ export default function OrdersPage() {
                                   }}
                                   size="sm"
                                   variant="outline"
-                                  className="border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722] hover:text-white hover:border-[#FF5722]"
+                                  className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)]"
                                 >
                                   Write Review
                                 </Button>
@@ -719,7 +719,7 @@ export default function OrdersPage() {
                                   });
                                 }}
                                 size="sm"
-                                className="bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-md shadow-orange-500/20"
+                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md shadow-orange-500/20"
                               >
                                 Buy Again
                               </Button>
