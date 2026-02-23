@@ -121,6 +121,7 @@ Deno.serve(async (req) => {
         const encoded = await cropped.encodeJPEG(80); 
         crops.push({
           label: det.label,
+          bbox: det.bbox_2d,
           base64: encodeBase64(encoded)
         });
       }
@@ -161,7 +162,7 @@ Deno.serve(async (req) => {
 
       const { data: matches } = await supabase.rpc('match_products', {
         query_embedding: d.embedding,
-        match_threshold: 0.10, // Kept low to catch all valid variations
+        match_threshold: 0.50, // Kept low to catch all valid variations
         match_count: 4,        // Limit to top 4 for a clean UI grid
         filter_keyword: detectedLabel // Sending the label to your new SQL function!
       });
@@ -169,7 +170,7 @@ Deno.serve(async (req) => {
       console.log(`\n--- Matches for ${crops[i].label} (Filtered by '${detectedLabel}') ---`);
       matches?.forEach((m: any) => console.log(`${m.name} | Score: ${m.similarity}`));
 
-      return { object_label: crops[i].label, matches: matches || [] };
+      return { object_label: crops[i].label, bbox: crops[i].bbox, matches: matches || [] };
     }));
 
     return new Response(JSON.stringify({ detected_objects: results }), { 

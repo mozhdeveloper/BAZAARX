@@ -9,7 +9,7 @@ export const visualSearchService = {
     
     if (error) throw error;
 
-    // The new response structure: { detected_objects: [ { object_label, matches: [] } ] }
+    // The new response structure: { detected_objects: [ { object_label, bbox, matches: [] } ] }
     const detectedObjects = data?.detected_objects || [];
     
     if (detectedObjects.length === 0) return { objects: [] };
@@ -18,7 +18,14 @@ export const visualSearchService = {
     const enrichedObjects = await Promise.all(detectedObjects.map(async (obj: any) => {
       const productIds = obj.matches.map((m: any) => m.id);
       
-      if (productIds.length === 0) return { label: obj.object_label, products: [] };
+      if (productIds.length === 0) {
+        // FIX: Keep the exact property names expected by the UI
+        return { 
+          object_label: obj.object_label, 
+          bbox: obj.bbox, 
+          matches: [] 
+        };
+      }
 
       // Fetch full details from DB
       const { data: fullProducts } = await supabase
@@ -32,7 +39,7 @@ export const visualSearchService = {
         .in('id', productIds)
         .is('deleted_at', null);
 
-      // Map back to maintain rank and add total_sold (similar to your previous logic)
+      // Map back to maintain rank and add total_sold
       const mapped = obj.matches.map((match: any) => {
         const p = fullProducts?.find(fp => fp.id === match.id);
         if (!p) return null;
@@ -43,9 +50,11 @@ export const visualSearchService = {
         };
       }).filter(Boolean);
 
+      // FIX: Pass the bbox through and keep original names!
       return {
-        label: obj.object_label,
-        products: mapped
+        object_label: obj.object_label,
+        bbox: obj.bbox,
+        matches: mapped
       };
     }));
 
