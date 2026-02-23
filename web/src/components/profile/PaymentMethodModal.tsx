@@ -27,7 +27,7 @@ export const PaymentMethodModal = ({
   onAddPaymentMethod
 }: PaymentMethodModalProps) => {
   const [isSaving, setIsSaving] = useState(false);
-  
+
   const [newPaymentMethod, setNewPaymentMethod] = useState({
     type: 'card' as 'card' | 'wallet',
     brand: 'Visa',
@@ -56,15 +56,15 @@ export const PaymentMethodModal = ({
       const added = await onAddPaymentMethod(cardData);
       if (added) {
         onClose();
-        setNewPaymentMethod({ 
-          type: 'card', 
-          brand: 'Visa', 
-          number: '', 
-          expiry: '', 
-          cvv: '', 
-          name: '', 
-          accountNumber: '', 
-          isDefault: false 
+        setNewPaymentMethod({
+          type: 'card',
+          brand: 'Visa',
+          number: '',
+          expiry: '',
+          cvv: '',
+          name: '',
+          accountNumber: '',
+          isDefault: false
         });
       }
     } finally {
@@ -76,8 +76,8 @@ export const PaymentMethodModal = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[420px] rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Add Payment Method</DialogTitle>
-          <DialogDescription>Choose your preferred payment type.</DialogDescription>
+          <DialogTitle className="text-xl font-bold text-[var(--text-headline)]">Add Payment Method</DialogTitle>
+          <DialogDescription className="text-[var(--text-muted)]">Choose your preferred payment type.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -85,22 +85,20 @@ export const PaymentMethodModal = ({
           <div className="flex p-1 bg-gray-100 rounded-xl">
             <button
               onClick={() => setNewPaymentMethod({ ...newPaymentMethod, type: 'card', brand: 'Visa' })}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded-lg transition-all ${
-                newPaymentMethod.type === 'card' 
-                  ? 'bg-white text-[#ff6a00] shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded-lg transition-all ${newPaymentMethod.type === 'card'
+                ? 'bg-white text-[var(--brand-accent)] shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
             >
               <CreditCard className="w-4 h-4" />
               Card
             </button>
             <button
               onClick={() => setNewPaymentMethod({ ...newPaymentMethod, type: 'wallet', brand: 'GCash' })}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded-lg transition-all ${
-                newPaymentMethod.type === 'wallet' 
-                  ? 'bg-white text-[#ff6a00] shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded-lg transition-all ${newPaymentMethod.type === 'wallet'
+                ? 'bg-white text-[var(--brand-accent)] shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
             >
               <Smartphone className="w-4 h-4" />
               Digital Wallet
@@ -110,12 +108,12 @@ export const PaymentMethodModal = ({
           {newPaymentMethod.type === 'card' ? (
             <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Card Brand</Label>
-                <Select 
-                  value={newPaymentMethod.brand} 
+                <Label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Card Brand</Label>
+                <Select
+                  value={newPaymentMethod.brand}
                   onValueChange={(val) => setNewPaymentMethod({ ...newPaymentMethod, brand: val })}
                 >
-                  <SelectTrigger className="rounded-xl border-gray-100 bg-gray-50/50">
+                  <SelectTrigger className="rounded-xl border-gray-100 bg-gray-50/50 focus:ring-0 focus:border-[var(--brand-primary)] transition-all">
                     <SelectValue placeholder="Select Brand" />
                   </SelectTrigger>
                   <SelectContent>
@@ -128,13 +126,13 @@ export const PaymentMethodModal = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Card Number</Label>
+                <Label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Card Number</Label>
                 <div className="relative">
                   <Input
                     placeholder="0000 0000 0000 0000"
                     value={newPaymentMethod.number}
                     onChange={e => setNewPaymentMethod({ ...newPaymentMethod, number: e.target.value })}
-                    className="rounded-xl border-gray-100 bg-gray-50/50 pl-10"
+                    className="rounded-xl border-gray-100 bg-gray-50/50 pl-10 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
                   />
                   <CreditCard className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 </div>
@@ -142,45 +140,45 @@ export const PaymentMethodModal = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Expiry (MM/YY)</Label>
+                  <Label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Expiry (MM/YY)</Label>
                   <Input
                     placeholder="MM/YY"
                     value={newPaymentMethod.expiry}
                     onChange={e => setNewPaymentMethod({ ...newPaymentMethod, expiry: e.target.value })}
-                    className="rounded-xl border-gray-100 bg-gray-50/50"
+                    className="rounded-xl border-gray-100 bg-gray-50/50 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">CVV</Label>
+                  <Label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">CVV</Label>
                   <Input
                     type="password"
                     placeholder="***"
                     value={newPaymentMethod.cvv}
                     onChange={e => setNewPaymentMethod({ ...newPaymentMethod, cvv: e.target.value })}
-                    className="rounded-xl border-gray-100 bg-gray-50/50"
+                    className="rounded-xl border-gray-100 bg-gray-50/50 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Cardholder Name</Label>
+                <Label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Cardholder Name</Label>
                 <Input
                   placeholder="Full Name as shown on card"
                   value={newPaymentMethod.name}
                   onChange={e => setNewPaymentMethod({ ...newPaymentMethod, name: e.target.value })}
-                  className="rounded-xl border-gray-100 bg-gray-50/50"
+                  className="rounded-xl border-gray-100 bg-gray-50/50 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
                 />
               </div>
             </div>
           ) : (
             <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Wallet Provider</Label>
-                <Select 
-                  value={newPaymentMethod.brand} 
+                <Label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Wallet Provider</Label>
+                <Select
+                  value={newPaymentMethod.brand}
                   onValueChange={(val) => setNewPaymentMethod({ ...newPaymentMethod, brand: val })}
                 >
-                  <SelectTrigger className="rounded-xl border-gray-100 bg-gray-50/50">
+                  <SelectTrigger className="rounded-xl border-gray-100 bg-gray-50/50 focus:ring-0 focus:border-[var(--brand-primary)] transition-all">
                     <SelectValue placeholder="Select Wallet" />
                   </SelectTrigger>
                   <SelectContent>
@@ -191,17 +189,17 @@ export const PaymentMethodModal = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Mobile Number</Label>
+                <Label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Mobile Number</Label>
                 <div className="relative">
                   <Input
                     placeholder="09XX XXX XXXX"
                     value={newPaymentMethod.accountNumber}
                     onChange={e => setNewPaymentMethod({ ...newPaymentMethod, accountNumber: e.target.value })}
-                    className="rounded-xl border-gray-100 bg-gray-50/50 pl-10"
+                    className="rounded-xl border-gray-100 bg-gray-50/50 pl-10 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
                   />
                   <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 </div>
-                <p className="text-[10px] text-gray-400 italic">
+                <p className="text-[10px] text-[var(--text-muted)] italic">
                   Enter the registered number for your {newPaymentMethod.brand} account.
                 </p>
               </div>
@@ -210,21 +208,22 @@ export const PaymentMethodModal = ({
 
           <div className="flex items-center justify-between pt-2 border-t border-gray-100">
             <div className="space-y-0.5">
-              <Label className="text-sm font-bold text-gray-700">Set as default</Label>
-              <p className="text-[10px] text-gray-500">Make this your primary payment method</p>
+              <Label className="text-sm font-bold text-[var(--text-headline)]">Set as default</Label>
+              <p className="text-[10px] text-[var(--text-muted)]">Make this your primary payment method</p>
             </div>
             <Switch
               checked={newPaymentMethod.isDefault}
               onCheckedChange={(checked) => setNewPaymentMethod({ ...newPaymentMethod, isDefault: checked })}
+              className="data-[state=checked]:bg-[var(--brand-primary)]"
             />
           </div>
         </div>
 
         <DialogFooter className="sm:justify-between gap-3">
-          <Button variant="ghost" className="rounded-xl" onClick={onClose}>Cancel</Button>
-          <Button 
-            className="bg-[#ff6a00] hover:bg-[#e65e00] rounded-xl px-8" 
-            onClick={handleAddCard} 
+          <Button variant="ghost" className="rounded-xl text-[var(--text-muted)] hover:bg-base hover:text-red-700" onClick={onClose}>Cancel</Button>
+          <Button
+            className="bg-[var(--brand-accent)] hover:bg-[var(--brand-primary)] text-white shadow-lg shadow-amber-600/20 rounded-xl px-8 transition-all active:scale-95"
+            onClick={handleAddCard}
             disabled={isSaving}
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}

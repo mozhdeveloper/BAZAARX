@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useBuyerStore } from "../stores/buyerStore";
 import Header from "../components/Header";
@@ -26,6 +26,7 @@ import {
 
 export default function BuyerProfilePage() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { profile, followedShops, updateProfile } = useBuyerStore();
 
     const userId = profile?.id || "";
@@ -34,6 +35,16 @@ export default function BuyerProfilePage() {
     const [activeTab, setActiveTab] = useState("personal");
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isSeller, setIsSeller] = useState(false);
+
+    // Read tab from query param
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const tab = params.get("tab");
+        const validTabs = ["personal", "addresses", "payments", "following"];
+        if (tab && validTabs.includes(tab)) {
+            setActiveTab(tab);
+        }
+    }, [location.search]);
 
     // Check if user is also a seller
     const checkIfSeller = async () => {
@@ -71,7 +82,7 @@ export default function BuyerProfilePage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => navigate(-1)}
-                            className="hover:bg-white/10 px-3 -ml-2 text-white/80 hover:text-white transition-all rounded-full backdrop-blur-md bg-white/5"
+                            className="hover:bg-base px-3 -ml-2 text-white/80 hover:text-[var(--brand-primary)] transition-all"
                         >
                             <ChevronLeft className="w-5 h-5 mr-1" />
                             Back
@@ -123,36 +134,7 @@ export default function BuyerProfilePage() {
                             <div className="flex flex-col gap-1 mb-5">
                                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-white/80 text-sm font-medium">
                                     <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            width="14"
-                                            height="14"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
-                                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                                        </svg>
                                         {profile.email}
-                                    </span>
-                                    <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            width="14"
-                                            height="14"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
-                                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                                        </svg>
-                                        {profile.phone}
                                     </span>
                                 </div>
 
@@ -216,36 +198,30 @@ export default function BuyerProfilePage() {
                     className="-mt-4 space-y-4"
                 >
                     <div className="sticky top-20 z-30 flex justify-center w-full mb-4 py-2 backdrop-blur-[2px]">
-                        <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-[var(--brand-wash)] p-1 shadow-sm border border-[var(--brand-wash-gold)]/20">
+                        <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-white p-1 shadow-md border-0">
                             <TabsTrigger
                                 value="personal"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
+                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
                             >
                                 Personal Info
                             </TabsTrigger>
                             <TabsTrigger
                                 value="addresses"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
+                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
                             >
                                 Addresses
                             </TabsTrigger>
                             <TabsTrigger
                                 value="payments"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
+                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
                             >
                                 Payment Methods
                             </TabsTrigger>
                             <TabsTrigger
                                 value="following"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
+                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
                             >
                                 Following
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="settings"
-                                className="rounded-full px-8 py-1.5 text-sm font-medium text-[var(--text-muted)] data-[state=active]:bg-[var(--bg-secondary)] data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm transition-all"
-                            >
-                                Settings
                             </TabsTrigger>
                         </TabsList>
                     </div>
@@ -274,13 +250,6 @@ export default function BuyerProfilePage() {
                     <TabsContent value="payments">
                         <PaymentMethodsSection userId={userId} />
                     </TabsContent>
-
-                    <TabsContent value="settings">
-                        <NotificationSettingsSection
-                            profile={profile}
-                            onUpdatePreferences={(preferences) => updateProfile({ preferences })}
-                        />
-                    </TabsContent>
                 </Tabs>
             </div>
 
@@ -291,6 +260,6 @@ export default function BuyerProfilePage() {
                 profile={profile}
                 onAvatarUpdated={uploadAvatar}
             />
-        </div>
+        </div >
     );
 }

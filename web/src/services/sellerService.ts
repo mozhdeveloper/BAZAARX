@@ -18,64 +18,64 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // Matches actual sellers table structure
 export interface SellerCoreData {
-  id: string;
-  store_name: string;
-  store_description: string | null;
-  avatar_url: string | null;
-  owner_name: string | null;
-  approval_status: 'pending' | 'verified' | 'rejected';
-  verified_at: string | null;
-  created_at: string;
-  updated_at: string;
+    id: string;
+    store_name: string;
+    store_description: string | null;
+    avatar_url: string | null;
+    owner_name: string | null;
+    approval_status: 'pending' | 'verified' | 'rejected';
+    verified_at: string | null;
+    created_at: string;
+    updated_at: string;
 }
 
 // Extended seller data with joins
 export interface SellerData extends SellerCoreData {
-  // Computed/joined fields (not in sellers table)
-  business_profile?: {
-    business_type: string | null;
-    business_registration_number: string | null;
-    tax_id_number: string | null;
-    address_line_1: string | null;
-    city: string | null;
-    province: string | null;
-    postal_code: string | null;
-  };
-  payout_account?: {
-    bank_name: string | null;
-    account_name: string | null;
-    account_number: string | null;
-  };
-  verification_documents?: {
-    business_permit_url: string | null;
-    valid_id_url: string | null;
-  };
-  // Legacy compatibility (computed)
-  business_name?: string;
-  is_verified?: boolean;
-  rating?: number;
-  total_reviews?: number;
-  review_count?: number;
-  products_count?: number;
-  total_sales?: number;
-  rejection_reason?: string;
-  // Legacy aliases
-  city?: string;
-  province?: string;
-  postal_code?: string;
-  business_type?: string;
-  bank_name?: string;
-  account_name?: string;
-  account_number?: string;
+    // Computed/joined fields (not in sellers table)
+    business_profile?: {
+        business_type: string | null;
+        business_registration_number: string | null;
+        tax_id_number: string | null;
+        address_line_1: string | null;
+        city: string | null;
+        province: string | null;
+        postal_code: string | null;
+    };
+    payout_account?: {
+        bank_name: string | null;
+        account_name: string | null;
+        account_number: string | null;
+    };
+    verification_documents?: {
+        business_permit_url: string | null;
+        valid_id_url: string | null;
+    };
+    // Legacy compatibility (computed)
+    business_name?: string;
+    is_verified?: boolean;
+    rating?: number;
+    total_reviews?: number;
+    review_count?: number;
+    products_count?: number;
+    total_sales?: number;
+    rejection_reason?: string;
+    // Legacy aliases
+    city?: string;
+    province?: string;
+    postal_code?: string;
+    business_type?: string;
+    bank_name?: string;
+    account_name?: string;
+    account_number?: string;
 }
 
 export type SellerInsert = {
-  id: string;
-  store_name: string;
-  store_description?: string | null;
-  avatar_url?: string | null;
-  owner_name?: string | null;
-  approval_status?: 'pending' | 'verified' | 'rejected';
+    id: string;
+    store_name: string;
+    store_description?: string | null;
+    avatar_url?: string | null;
+    owner_name?: string | null;
+    approval_status?: 'pending' | 'verified' | 'rejected';
 };
 
 export type SellerUpdate = Partial<Omit<SellerInsert, 'id'>>;
@@ -449,6 +449,8 @@ export class SellerService {
         searchQuery?: string;
         sortBy?: 'featured' | 'rating' | 'newest' | 'popular';
         limit?: number;
+        ids?: string[];
+        includeUnverified?: boolean;
     }): Promise<(SellerData & { products_count?: number })[]> {
         if (!isSupabaseConfigured()) {
             console.warn('Supabase not configured - cannot fetch stores');
@@ -466,8 +468,17 @@ export class SellerService {
                         postal_code,
                         business_type
                     )
-                `)
-                .eq('approval_status', 'verified');
+                `);
+
+            // Only filter by verified if not explicitly requested to include unverified
+            if (!filters?.includeUnverified) {
+                query = query.eq('approval_status', 'verified');
+            }
+
+            // Apply ID filter if provided
+            if (filters?.ids && filters.ids.length > 0) {
+                query = query.in('id', filters.ids);
+            }
 
             // Apply search filter
             if (filters?.searchQuery) {
