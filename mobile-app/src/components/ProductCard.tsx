@@ -32,9 +32,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
         <Image source={{ uri: product.image }} style={styles.image} resizeMode="cover" />
 
         {/* Discount Badge */}
-        {hasDiscount && (
-          <View style={[styles.discountBadge, isFlash && { backgroundColor: '#DC2626' }]}>
-            <Text style={styles.discountText}>{isFlash ? '⚡ ' : ''}-{discountPercent}%</Text>
+        {hasDiscount && !isFlash && (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountText}>-{discountPercent}%</Text>
           </View>
         )}
 
@@ -58,7 +58,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
         {/* Rating */}
         <View style={styles.ratingContainer}>
           <Star size={12} fill="#F59E0B" color="#F59E0B" />
-          <Text style={styles.ratingText}>{product.rating}</Text>
+          <Text style={styles.ratingText}>{product.rating || 4.9}</Text>
         </View>
 
         {/* Price & Sold */}
