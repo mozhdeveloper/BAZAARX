@@ -57,6 +57,8 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
 
   const [detectedInfo, setDetectedInfo] = useState<{ category?: string; detectedItem?: string } | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [detectedObjects, setDetectedObjects] = useState<any[]>([]);
+  const [activeObjectIndex, setActiveObjectIndex] = useState(0);
 
   // Search State
   const [searching, setSearching] = useState(false);
@@ -101,53 +103,14 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
   // --- CORE FUNCTION: Visual Search ---
   const performVisualSearch = async (base64Data: string) => {
     setSearching(true);
-    setSearchStatus('Analyzing image...');
-    setSearchResults([]); // Clear previous
-    setActiveFilter('relevance'); // Reset filter
-
     try {
-      // The service now handles the Edge Function call, DB enrichment, 
-      // and sorting internally.
       const result = await visualSearchService.searchByBase64(base64Data);
-
-      if (!result.products || result.products.length === 0) {
-        // No products found: Transition to Request Form view
-        setSearchResults([]);
-        setShowResults(true);
-      } else {
-        // Map properties for UI (Fixing image loading from the enriched DB data)
-        const mappedResults = result.products.map((p: any) => {
-          // Extract primary image URL for the card thumbnail
-          const primaryImage = p.images?.find((img: any) => img.is_primary)?.image_url || p.images?.[0]?.image_url || '';
-          // Flatten images array from [{image_url, is_primary}] to string[] for ProductDetailScreen
-          const flatImages = Array.isArray(p.images)
-            ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url).filter(Boolean)
-            : [];
-          // Flatten seller from {store_name: '...'} object to plain string for ProductDetailScreen
-          const sellerName = typeof p.seller === 'object' && p.seller?.store_name
-            ? p.seller.store_name
-            : (typeof p.seller === 'string' ? p.seller : '');
-          // Flatten category from {name: '...'} object to plain string
-          const categoryName = typeof p.category === 'object' && p.category?.name
-            ? p.category.name
-            : (typeof p.category === 'string' ? p.category : '');
-          return {
-            ...p,
-            image: primaryImage,
-            images: flatImages.length > 0 ? flatImages : (primaryImage ? [primaryImage] : []),
-            seller: sellerName,
-            category: categoryName,
-          };
-        });
-
-        setSearchResults(mappedResults);
-        setDetectedInfo(result.info);
-        setShowResults(true);
-      }
+      setDetectedObjects(result.objects);
+      setActiveObjectIndex(0); // Default to first object found
+      setShowResults(true);
     } catch (error) {
       console.error("Search failed:", error);
-      // Empty results will trigger the 'No matches found' UI with the Request button
-      setSearchResults([]);
+      setDetectedObjects([]); // Triggers 'No matches' UI
       setShowResults(true);
     } finally {
       setSearching(false);
@@ -272,40 +235,48 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
             </View>
           )}
           <ScrollView style={styles.resultsScroll}>
-            <View style={[styles.detectedBadge, { borderColor: BRAND_COLOR }]}>
-              <Text style={styles.detectedText}>{searchResults.length > 0 ? `Found ${searchResults.length} similar items` : "No matches found."}</Text>
-            </View>
-
-            {/* Filter Bar */}
-            {searchResults.length > 0 && (
-              <View style={styles.filterBarWrapper}>
-                <SlidersHorizontal size={16} color="#6B7280" style={{ marginRight: 8 }} />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBar}>
-                  {FILTERS.map((filter) => (
-                    <Pressable
-                      key={filter.key}
-                      style={[
-                        styles.filterChip,
-                        activeFilter === filter.key && styles.filterChipActive,
-                      ]}
-                      onPress={() => setActiveFilter(filter.key)}
-                    >
-                      <Text
-                        style={[
-                          styles.filterChipText,
-                          activeFilter === filter.key && styles.filterChipTextActive,
-                        ]}
+            {detectedObjects.length > 0 ? (
+              <>
+                {/* Requirement: Multi-Object Search Display */}
+                <View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.objectTabs}>
+                    {detectedObjects.map((obj, index) => (
+                      <Pressable
+                        key={index}
+                        onPress={() => setActiveObjectIndex(index)}
+                        style={[styles.objectTab, activeObjectIndex === index && { borderColor: BRAND_COLOR, backgroundColor: '#FFF' }]}
                       >
-                        {filter.label}
-                      </Text>
+                        <Text style={[styles.objectTabText, activeObjectIndex === index && { color: BRAND_COLOR }]}>
+                          {obj.label} ({obj.products.length})
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                <View style={styles.resultsGrid}>
+                  {detectedObjects[activeObjectIndex]?.products.map((product: Product) => (
+                    <Pressable
+                      key={product.id}
+                      style={styles.resultCard}
+                      onPress={() => handleProductPress(product)}
+                    >
+                      <Image
+                        source={{ uri: product.image }}
+                        style={styles.resultImage}
+                      />
+                      <View style={styles.resultInfo}>
+                        <Text style={styles.resultName} numberOfLines={2}>{product.name}</Text>
+                        <Text style={[styles.resultPrice, { color: BRAND_COLOR }]}>
+                          ₱{(product.price || 0).toLocaleString()}
+                        </Text>
+                      </View>
                     </Pressable>
                   ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Product Grid or Empty State */}
-            {searchResults.length === 0 ? (
+                </View>
+              </>
+            ) : (
+              /* Requirement: Clear message when no match is found */
               <View style={styles.noResultsContainer}>
                 <View style={styles.emptyIconContainer}>
                   <Plus size={48} color="#999" />
@@ -319,30 +290,6 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
                 >
                   <Text style={styles.requestActionText}>Request This Product</Text>
                 </Pressable>
-              </View>
-            ) : (
-              <View style={styles.resultsGrid}>
-                {filteredResults.map((product) => (
-                  <Pressable
-                    key={product.id}
-                    style={styles.resultCard}
-                    onPress={() => handleProductPress(product)}
-                  >
-                    <Image
-                      source={{ uri: typeof product.image === 'string' ? product.image : '' }}
-                      style={styles.resultImage}
-                    />
-                    <View style={styles.resultInfo}>
-                      <Text style={styles.resultName} numberOfLines={2}>{product.name}</Text>
-                      <Text style={[styles.resultPrice, { color: BRAND_COLOR }]}>
-                        ₱{(product.price || 0).toLocaleString()}
-                      </Text>
-                      {(product.total_sold !== undefined && product.total_sold > 0) && (
-                        <Text style={styles.resultSold}>{product.total_sold} sold</Text>
-                      )}
-                    </View>
-                  </Pressable>
-                ))}
               </View>
             )}
           </ScrollView>
@@ -446,6 +393,30 @@ const styles = StyleSheet.create({
     marginTop: 15,
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  objectTabs: {
+    flexDirection: 'row',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  objectTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  objectTabText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B7280',
+    textTransform: 'capitalize',
   },
 
   // No Results / Request Product View
