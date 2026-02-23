@@ -92,7 +92,7 @@ const CollectionsPage: React.FC = () => {
                     className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border
                       ${isActive
                         ? "bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white shadow-sm scale-105"
-                        : "bg-white border-gray-100 text-gray-500 hover:border-orange-200 hover:text-orange-500"
+                        : "bg-white border-gray-100 text-gray-500 hover:border-[var(--brand-primary)]/30 hover:text-[var(--brand-primary)]"
                       }`}
                   >
                     {filter}
@@ -122,7 +122,7 @@ const CollectionsPage: React.FC = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-orange-500 to-red-500 p-12 text-center text-white mb-16"
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] p-12 text-center text-white mb-16"
         >
           <div className="relative z-10">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -135,10 +135,10 @@ const CollectionsPage: React.FC = () => {
               onClick={() => navigate('/shop')}
               className="group bg-white pl-5 pr-1.5 py-1.5 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2 mx-auto"
             >
-              <span className="bg-gradient-to-r from-[#ff6a00] to-red-600 bg-clip-text text-transparent font-semibold text-base pl-2">
+              <span className="text-[var(--brand-primary)] font-semibold text-base pl-2">
                 Browse All Products
               </span>
-              <div className="w-8 h-8 bg-[#ff6a00] rounded-full flex items-center justify-center group-hover:bg-[#e65e00] transition-colors">
+              <div className="w-8 h-8 bg-[var(--brand-primary)] rounded-full flex items-center justify-center group-hover:bg-[var(--brand-primary-dark)] transition-colors">
                 <ArrowRight className="w-4 h-4 text-white" />
               </div>
             </button>
@@ -147,54 +147,6 @@ const CollectionsPage: React.FC = () => {
           {/* Decorative Elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32" />
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full translate-y-48 -translate-x-48" />
-        </motion.div>
-
-        {/* Why Shop Collections */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          className="mb-16"
-        >
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">
-            Why Shop Our Collections?
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: "✨",
-                title: "Handpicked Quality",
-                description: "Every collection is carefully curated by our team to ensure you get the best products"
-              },
-              {
-                icon: "🎯",
-                title: "Themed Selection",
-                description: "Find exactly what you need with collections organized by theme, occasion, or style"
-              },
-              {
-                icon: "🇵🇭",
-                title: "Support Local",
-                description: "All collections feature authentic products from verified Filipino sellers"
-              }
-            ].map((benefit, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 + index * 0.1 }}
-                className="bg-white rounded-xl p-8 shadow-lg hover:shadow-xl transition-shadow"
-              >
-                <div className="text-4xl mb-4">{benefit.icon}</div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">
-                  {benefit.title}
-                </h3>
-                <p className="text-gray-600">
-                  {benefit.description}
-                </p>
-              </motion.div>
-            ))}
-          </div>
         </motion.div>
       </div>
 
