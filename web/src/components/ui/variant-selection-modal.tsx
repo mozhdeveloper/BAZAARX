@@ -23,6 +23,8 @@ interface VariantSelectionModalProps {
     };
     onConfirm: (variant: ProductVariant | any, quantity: number) => void;
     buttonText?: string;
+    initialSelectedVariant?: any;
+    initialQuantity?: number;
 }
 
 export function VariantSelectionModal({
@@ -31,6 +33,8 @@ export function VariantSelectionModal({
     product,
     onConfirm,
     buttonText = '🛒 Add to Cart',
+    initialSelectedVariant,
+    initialQuantity,
 }: VariantSelectionModalProps) {
     console.log('🎨 NEW MODAL LOADED - v2.0 with separate variant sections');
     console.log('Product data:', {
@@ -107,20 +111,27 @@ export function VariantSelectionModal({
     // Reset when modal opens
     useEffect(() => {
         if (isOpen) {
-            setQuantity(1);
+            setQuantity(initialQuantity || 1);
             setCurrentImage(product.image);
             setCurrentPrice(product.price);
             setCurrentOriginalPrice((product as any).originalPrice || null);
-            
-            // Auto-select first options
-            if (uniqueColors.length > 0) {
-                setSelectedColor(uniqueColors[0]);
-            }
-            if (uniqueSizes.length > 0) {
-                setSelectedSize(uniqueSizes[0]);
+
+            // Auto-select based on initial variant if provided, otherwise first options
+            if (initialSelectedVariant) {
+                const label1 = getVariantLabel1(initialSelectedVariant);
+                const label2 = getVariantLabel2(initialSelectedVariant);
+                if (label2) setSelectedColor(label2);
+                if (label1) setSelectedSize(label1);
+            } else {
+                if (uniqueColors.length > 0) {
+                    setSelectedColor(uniqueColors[0]);
+                }
+                if (uniqueSizes.length > 0) {
+                    setSelectedSize(uniqueSizes[0]);
+                }
             }
         }
-    }, [isOpen, product]);
+    }, [isOpen, product, initialSelectedVariant, initialQuantity]);
 
     // Update variant info when selection changes
     useEffect(() => {
@@ -153,7 +164,7 @@ export function VariantSelectionModal({
             const newImage = matchedVariant.thumbnail_url || product.image;
             setCurrentImage(newImage);
             console.log('✅ Image updated to:', newImage);
-            
+
             // Reset quantity if exceeds stock
             if (quantity > matchedVariant.stock) {
                 setQuantity(Math.min(1, matchedVariant.stock));
@@ -179,7 +190,7 @@ export function VariantSelectionModal({
     const handleIncrement = () => {
         setQuantity(q => Math.min(q + 1, currentStock || 999));
     };
-    
+
     const handleDecrement = () => {
         setQuantity(q => Math.max(1, q - 1));
     };
@@ -221,7 +232,7 @@ export function VariantSelectionModal({
                 {/* Product Image - Compact at top */}
                 <div className="w-full h-64 bg-gray-50 relative flex-shrink-0">
 
-                    
+
                     <img
                         src={currentImage}
                         alt={product.name}
@@ -267,16 +278,15 @@ export function VariantSelectionModal({
                                         (v) => getVariantLabel2(v) === color,
                                     );
                                     const isSelected = selectedColor === color;
-                                    
+
                                     return (
                                         <button
                                             key={color}
                                             onClick={() => handleColorSelect(color)}
-                                            className={`relative overflow-hidden rounded-lg border-2 transition-all ${
-                                                isSelected
+                                            className={`relative overflow-hidden rounded-lg border-2 transition-all ${isSelected
                                                     ? 'border-[#FF5722] ring-2 ring-[#FF5722]/20'
                                                     : 'border-gray-200 hover:border-gray-300'
-                                            }`}
+                                                }`}
                                         >
                                             {colorVariant?.thumbnail_url ? (
                                                 <div className="w-16 h-16">
@@ -309,11 +319,10 @@ export function VariantSelectionModal({
                                     <button
                                         key={size}
                                         onClick={() => handleSizeSelect(size)}
-                                        className={`px-5 py-2.5 text-sm font-medium rounded-lg border-2 transition-all ${
-                                            selectedSize === size
+                                        className={`px-5 py-2.5 text-sm font-medium rounded-lg border-2 transition-all ${selectedSize === size
                                                 ? 'border-[#FF5722] bg-[#FF5722]/5 text-[#FF5722]'
                                                 : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                                        }`}
+                                            }`}
                                     >
                                         {size}
                                     </button>

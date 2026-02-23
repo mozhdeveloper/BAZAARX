@@ -52,6 +52,7 @@ export default function EnhancedCartPage() {
     toggleItemSelection,
     toggleSellerSelection,
     selectAllItems,
+    selectItemsExclusively,
     getSelectedTotal,
     getSelectedCount,
     removeSelectedItems,
@@ -94,27 +95,19 @@ export default function EnhancedCartPage() {
         return;
       }
 
-      // Small timeout to ensure store state is settled
-      const timer = setTimeout(() => {
-        // Then select the requested items
-        state.selectedItems.forEach(id => {
-          // Find all matching items (handling variants)
-          const items = cartItems.filter(i => i.id === id);
-          items.forEach(item => {
-            // Select if not already selected
-            if (!item.selected) {
-              toggleItemSelection(item.id, item.selectedVariant?.id);
-            }
-          });
-        });
-      }, 500);
+      // Check if all requested items are now present in the cart
+      const allItemsPresent = state.selectedItems.every(id =>
+        cartItems.some(item => item.id === id)
+      );
 
-      // Mark this navigation as processed
-      processedKeyRef.current = location.key;
-
-      return () => clearTimeout(timer);
+      if (allItemsPresent) {
+        // Select exclusively the requested items
+        selectItemsExclusively(state.selectedItems);
+        // Mark as processed so user can still manually toggle afterwards
+        processedKeyRef.current = location.key;
+      }
     }
-  }, [location.state, cartItems, location.key]); // Depend on cartItems to ensure fresh state
+  }, [location.state, cartItems, location.key, selectItemsExclusively]);
 
   const totalItems = getCartItemCount();
   const selectedCount = getSelectedCount();
@@ -229,7 +222,7 @@ export default function EnhancedCartPage() {
               <div className="p-1.5">
                 <ChevronLeft className="w-4 h-4 mt-2" />
               </div>
-              <span className="font-medium text-sm mt-2">Continue Shopping</span>
+              <span className="font-medium text-sm mt-2">Back</span>
             </button>
             <div className="flex flex-wrap items-baseline gap-3">
               <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-1">
@@ -257,7 +250,7 @@ export default function EnhancedCartPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="text-red-500 hover:text-red-600 hover:bg-red-50 text-xs h-8 px-2"
+                  className="text-red-500 hover:text-red-700 hover:bg-base text-xs h-6 px-2"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" />
                   Delete ({selectedCount})
@@ -586,6 +579,8 @@ export default function EnhancedCartPage() {
             price: editingItem.price,
             image: editingItem.image,
             variants: editingItem.variants || [],
+            variantLabel1Values: editingItem.variantLabel1Values || [],
+            variantLabel2Values: editingItem.variantLabel2Values || [],
           }}
           initialSelectedVariant={editingItem.selectedVariant}
           initialQuantity={editingItem.quantity}

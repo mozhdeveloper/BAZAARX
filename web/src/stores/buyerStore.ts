@@ -208,6 +208,7 @@ export interface Address {
   province: string;
   region: string;
   postalCode: string;
+  country?: string;
   isDefault: boolean;
   coordinates?: {
     lat: number;
@@ -320,6 +321,7 @@ interface BuyerStore {
   toggleItemSelection: (productId: string, variantId?: string) => void;
   toggleSellerSelection: (sellerId: string, selected: boolean) => void;
   selectAllItems: (selected: boolean) => void;
+  selectItemsExclusively: (productId: string[]) => void;
   removeSelectedItems: () => void;
   getSelectedTotal: () => number;
   getSelectedCount: () => number;
@@ -435,7 +437,7 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
     selectedVariant,
     notes: item.notes,
     createdAt: item.created_at,
-    selected: true // Default to selected so they appear in checkout
+    selected: false // Default to unselected, selection to be managed by store actions or navigation state
   } as CartItem;
 };
 
@@ -679,7 +681,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     })),
 
     // Following Shops
-    followedShops: ['seller-001', 'seller-003'],
+    followedShops: [],
 
     followShop: (sellerId) => set((state) => ({
       followedShops: [...state.followedShops, sellerId]
@@ -740,10 +742,33 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             // Refetch cart items from database to sync state
             const dbItems = await cartService.getCartItems(cart.id);
 
+            // Capture current selection state to preserve it after DB sync
+            const currentItems = get().cartItems;
+            const selectionMap = new Map<string, boolean>();
+            currentItems.forEach(item => {
+              if (item.selected) {
+                const key = `${item.id}-${item.selectedVariant?.id || 'none'}`;
+                selectionMap.set(key, true);
+              }
+            });
+
             // Map DB items to store items
             const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
 
-            set({ cartItems: mappedItems });
+            // Restore selection state OR select if it's the item we just added
+            const itemsWithSelection = mappedItems.map(item => {
+              const key = `${item.id}-${item.selectedVariant?.id || 'none'}`;
+              // Select if it was already selected OR if it's the newly added product/variant
+              const isNewlyAdded = item.id === product.id &&
+                (!variant || item.selectedVariant?.id === variant.id);
+
+              return {
+                ...item,
+                selected: selectionMap.has(key) || isNewlyAdded
+              };
+            });
+
+            set({ cartItems: itemsWithSelection });
             get().groupCartBySeller();
             return;
           }
@@ -878,9 +903,9 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     updateItemVariant: async (productId, oldVariantId, newVariant, quantity) => {
       const user = await getCurrentUser();
       const cartItems = get().cartItems;
-      
+
       // Find the item to update
-      const itemIndex = cartItems.findIndex(item => 
+      const itemIndex = cartItems.findIndex(item =>
         item.id === productId && item.selectedVariant?.id === oldVariantId
       );
 
@@ -901,15 +926,15 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           const cart = await cartService.getOrCreateCart(user.id);
           if (cart) {
             const dbItems = await cartService.getCartItems(cart.id);
-            const dbItem = dbItems.find(i => 
-              i.product_id === productId && 
+            const dbItem = dbItems.find(i =>
+              i.product_id === productId &&
               (oldVariantId ? (i as any).variant_id === oldVariantId : !(i as any).variant_id)
             );
 
             if (dbItem) {
               // Update variant
               await cartService.updateCartItemVariant(dbItem.id, newVariant.id);
-              
+
               // Update quantity if different
               if (quantity !== undefined && quantity !== dbItem.quantity) {
                 await cartService.updateCartItemQuantity(dbItem.id, quantity);
@@ -1185,11 +1210,21 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       get().groupCartBySeller();
     },
 
+    selectItemsExclusively: (productIds) => {
+      set((state) => ({
+        cartItems: state.cartItems.map(item => ({
+          ...item,
+          selected: productIds.includes(item.id)
+        }))
+      }));
+      get().groupCartBySeller();
+    },
+
     removeSelectedItems: async () => {
       const user = await getCurrentUser();
       const cartItems = get().cartItems;
       const selectedItems = cartItems.filter(item => item.selected);
-      
+
       if (selectedItems.length === 0) return;
 
       if (user) {
@@ -1200,8 +1235,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             // Collect all DB IDs for matching selected items
             const idsToDelete = selectedItems
               .map(item => {
-                const dbItem = dbItems.find(i => 
-                  i.product_id === item.id && 
+                const dbItem = dbItems.find(i =>
+                  i.product_id === item.id &&
                   (item.selectedVariant ? (i as any).variant_id === item.selectedVariant.id : !(i as any).variant_id)
                 );
                 return dbItem?.id;

@@ -680,7 +680,7 @@ export default function OrdersPage() {
 
                               { /* Buy Again - Primary Action */}
                               <Button
-                                onClick={() => {
+                                onClick={async () => {
                                   if (!order.items || order.items.length === 0) {
                                     toast({
                                       title: "Cannot buy again",
@@ -690,38 +690,54 @@ export default function OrdersPage() {
                                     return;
                                   }
 
+                                  setIsLoading(true);
                                   toast({
-                                    title: "Redirecting to Checkout",
+                                    title: "Adding to Cart",
                                     description: "Preparing your items for repurchase...",
                                   });
 
-                                  // Map order items to CartItem structure for direct checkout
-                                  const buyAgainItems = (order.items as any[]).map(item => ({
-                                    ...item,
-                                    id: item.id, // Product ID
-                                    selected: true,
-                                    seller: {
-                                      id: item.sellerId || "unknown",
-                                      name: item.seller || "Verified Seller",
-                                      avatar: "",
-                                      rating: 5,
-                                      isVerified: true,
-                                    },
-                                  }));
+                                  try {
+                                    const productIds: string[] = [];
 
-                                  // Set items in store before navigating
-                                  const { setBuyAgainItems } = useBuyerStore.getState();
-                                  setBuyAgainItems(buyAgainItems);
+                                    // Add each item to the cart
+                                    for (const item of order.items) {
+                                      // Reconstruct product object for addToCart
+                                      const product = {
+                                        id: item.id,
+                                        name: item.name,
+                                        price: item.price,
+                                        image: item.image,
+                                        seller_id: (item as any).sellerId || (order as any).sellerId
+                                      };
 
-                                  // Navigate directly to checkout
-                                  navigate("/checkout", {
-                                    state: { fromBuyAgain: true }
-                                  });
+                                      await addToCart(product as any, 1, item.variant as any);
+                                      productIds.push(item.id);
+                                    }
+
+                                    // Navigate to enhanced-cart with selection state
+                                    navigate("/enhanced-cart", {
+                                      state: { selectedItems: productIds }
+                                    });
+                                  } catch (error) {
+                                    console.error("Buy again error:", error);
+                                    toast({
+                                      title: "Repurchase failed",
+                                      description: "Could not add items to cart. Please try again.",
+                                      variant: "destructive"
+                                    });
+                                  } finally {
+                                    setIsLoading(false);
+                                  }
                                 }}
                                 size="sm"
+                                disabled={isLoading}
                                 className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md shadow-orange-500/20"
                               >
-                                Buy Again
+                                {isLoading ? (
+                                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  "Buy Again"
+                                )}
                               </Button>
                             </>
                           ) : order.status === "cancelled" ? (

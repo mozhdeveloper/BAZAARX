@@ -119,7 +119,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                 <input
                   type="text"
                   placeholder={location.pathname === "/stores" ? "Search for stores..." : "Search for products, brands, categories"}
-                  className="w-full pl-11 pr-12 py-3 bg-white border border-gray-100 rounded-full text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] transition-all text-sm shadow-md hover:shadow-lg"
+                  className="w-full pl-11 pr-12 py-3 bg-white border border-gray-100 rounded-full text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-0 focus:border-[var(--brand-primary)] transition-all text-sm shadow-md hover:shadow-lg"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       const query = (e.target as HTMLInputElement).value;
@@ -329,7 +329,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
                         <button
                           onClick={() => {
-                            navigate("/following");
+                            navigate("/profile?tab=following");
                             setShowProfileMenu(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"

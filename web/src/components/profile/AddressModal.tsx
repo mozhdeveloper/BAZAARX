@@ -311,84 +311,89 @@ export const AddressModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto border-0 shadow-2xl rounded-2xl">
         <DialogHeader>
-          <DialogTitle>
-            {editingId ? "Edit Address" : "Add Shipping Address"}
+          <DialogTitle className="text-xl font-bold text-[var(--text-headline)]">
+            {editingId ? "Edit Address" : "Add Address"}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-5 py-4">
           {/* Name */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                First Name <span className="text-red-500">*</span>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                First Name <span className="text-red-500 font-bold">*</span>
               </Label>
               <Input
                 value={newAddress.firstName}
                 onChange={(e) => updateField("firstName", e.target.value)}
+                className="border-gray-200 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
               />
               {errors.firstName && (
-                <p className="text-xs text-red-500">{errors.firstName}</p>
+                <p className="text-xs text-red-500 mt-1 font-medium">{errors.firstName}</p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>
-                Last Name <span className="text-red-500">*</span>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                Last Name <span className="text-red-500 font-bold">*</span>
               </Label>
               <Input
                 value={newAddress.lastName}
                 onChange={(e) => updateField("lastName", e.target.value)}
+                className="border-gray-200 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
               />
               {errors.lastName && (
-                <p className="text-xs text-red-500">{errors.lastName}</p>
+                <p className="text-xs text-red-500 mt-1 font-medium">{errors.lastName}</p>
               )}
             </div>
           </div>
 
           {/* Phone and Label */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                Phone Number <span className="text-red-500">*</span>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                Phone Number <span className="text-red-500 font-bold">*</span>
               </Label>
               <Input
                 value={newAddress.phone}
                 onChange={(e) => updateField("phone", e.target.value)}
+                className="border-gray-200 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
               />
               {errors.phone && (
-                <p className="text-xs text-red-500">{errors.phone}</p>
+                <p className="text-xs text-red-500 mt-1 font-medium">{errors.phone}</p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>Address Label</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Address Label</Label>
               <Input
                 placeholder="Home, Office, etc."
                 value={newAddress.label}
                 onChange={(e) => updateField("label", e.target.value)}
+                className="border-gray-200 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>
-              Street Name, House No. <span className="text-red-500">*</span>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+              Street Name, House No. <span className="text-red-500 font-bold">*</span>
             </Label>
             <Input
               value={newAddress.street}
               onChange={(e) => updateField("street", e.target.value)}
+              className="border-gray-200 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
             />
             {errors.street && (
-              <p className="text-xs text-red-500">{errors.street}</p>
+              <p className="text-xs text-red-500 mt-1 font-medium">{errors.street}</p>
             )}
           </div>
 
           {/* Region and Province */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                Region <span className="text-red-500">*</span>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                Region <span className="text-red-500 font-bold">*</span>
               </Label>
               <Select
                 value={
@@ -397,21 +402,21 @@ export const AddressModal = ({
                 }
                 onValueChange={onRegionChange}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-gray-200 focus:ring-0 focus:border-[var(--brand-primary)] transition-all">
                   <SelectValue placeholder="Select Region" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-gray-100 shadow-xl">
                   {regionList.map((r) => (
-                    <SelectItem key={r.region_code} value={r.region_code}>
+                    <SelectItem key={r.region_code} value={r.region_code} className="focus:bg-[var(--brand-primary)] focus:text-white rounded-md">
                       {r.region_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>
-                Province <span className="text-red-500">*</span>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                Province <span className="text-red-500 font-bold">*</span>
               </Label>
               <Select
                 value={
@@ -422,12 +427,12 @@ export const AddressModal = ({
                 onValueChange={onProvinceChange}
                 disabled={!provinceList.length}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-gray-200 focus:ring-0 focus:border-[var(--brand-primary)] transition-all">
                   <SelectValue placeholder="Select Province" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-gray-100 shadow-xl">
                   {provinceList.map((p) => (
-                    <SelectItem key={p.province_code} value={p.province_code}>
+                    <SelectItem key={p.province_code} value={p.province_code} className="focus:bg-[var(--brand-primary)] focus:text-white rounded-md">
                       {p.province_name}
                     </SelectItem>
                   ))}
@@ -435,18 +440,18 @@ export const AddressModal = ({
               </Select>
             </div>
           </div>
-          {errors.region && (
-            <p className="text-xs text-red-500">{errors.region}</p>
-          )}
-          {errors.province && (
-            <p className="text-xs text-red-500">{errors.province}</p>
+          {(errors.region || errors.province) && (
+            <div className="flex flex-col gap-1">
+              {errors.region && <p className="text-xs text-red-500 font-medium">{errors.region}</p>}
+              {errors.province && <p className="text-xs text-red-500 font-medium">{errors.province}</p>}
+            </div>
           )}
 
           {/* City and Barangay */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                City / Municipality <span className="text-red-500">*</span>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                City / Municipality <span className="text-red-500 font-bold">*</span>
               </Label>
               <Select
                 value={
@@ -456,31 +461,31 @@ export const AddressModal = ({
                 onValueChange={onCityChange}
                 disabled={!cityList.length}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-gray-200 focus:ring-0 focus:border-[var(--brand-primary)] transition-all">
                   <SelectValue placeholder="Select City" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-gray-100 shadow-xl">
                   {cityList.map((c) => (
-                    <SelectItem key={c.city_code} value={c.city_code}>
+                    <SelectItem key={c.city_code} value={c.city_code} className="focus:bg-[var(--brand-primary)] focus:text-white rounded-md">
                       {c.city_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Barangay</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Barangay</Label>
               <Select
                 disabled={!barangayList.length}
                 value={newAddress.barangay}
                 onValueChange={(val) => updateField("barangay", val)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-gray-200 focus:ring-0 focus:border-[var(--brand-primary)] transition-all">
                   <SelectValue placeholder="Select Barangay" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-gray-100 shadow-xl">
                   {barangayList.map((b) => (
-                    <SelectItem key={b.brgy_code} value={b.brgy_name}>
+                    <SelectItem key={b.brgy_code} value={b.brgy_name} className="focus:bg-[var(--brand-primary)] focus:text-white rounded-md">
                       {b.brgy_name}
                     </SelectItem>
                   ))}
@@ -488,55 +493,65 @@ export const AddressModal = ({
               </Select>
             </div>
           </div>
-          {errors.city && <p className="text-xs text-red-500">{errors.city}</p>}
+          {errors.city && <p className="text-xs text-red-500 font-medium">{errors.city}</p>}
 
           {/* Postal Code & Country */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                Postal Code <span className="text-red-500">*</span>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                Postal Code <span className="text-red-500 font-bold">*</span>
               </Label>
               <Input
                 value={newAddress.postalCode}
                 onChange={(e) => updateField("postalCode", e.target.value)}
+                className="border-gray-200 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all"
               />
               {errors.postalCode && (
-                <p className="text-xs text-red-500">{errors.postalCode}</p>
+                <p className="text-xs text-red-500 mt-1 font-medium">{errors.postalCode}</p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>
-                Country <span className="text-red-500">*</span>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                Country <span className="text-red-500 font-bold">*</span>
               </Label>
-              <Input value={newAddress.country} disabled />
+              <Input
+                value={newAddress.country}
+                disabled
+                className="bg-gray-50 border-gray-200 text-[var(--text-muted)] cursor-not-allowed"
+              />
             </div>
           </div>
 
           {/* Default Switch */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-2 pt-8">
-              <Switch
-                id="default-addr"
-                checked={newAddress.isDefault}
-                onCheckedChange={(checked) =>
-                  setNewAddress({ ...newAddress, isDefault: checked })
-                }
-              />
-              <Label htmlFor="default-addr">Set as Default</Label>
-            </div>
+          <div className="flex items-center gap-3 pt-4">
+            <Switch
+              id="default-addr"
+              checked={newAddress.isDefault}
+              onCheckedChange={(checked) =>
+                setNewAddress({ ...newAddress, isDefault: checked })
+              }
+              className="data-[state=checked]:bg-[var(--brand-primary)]"
+            />
+            <Label htmlFor="default-addr" className="font-semibold text-gray-700 cursor-pointer">Set as Default</Label>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+        <DialogFooter className="gap-3 sm:gap-0 mt-6 pb-2">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          >
             Cancel
           </Button>
           <Button
             onClick={handleSaveAddress}
-            disabled={isSaving || Object.keys(validateAddress()).length > 0}
-            className="bg-[#ff6a00] hover:bg-[#e65e00] text-white"
+            disabled={isSaving}
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-lg shadow-amber-600/20 px-8 transition-all active:scale-95"
           >
-            {isSaving && <Loader2 className="animate-spin w-4 h-4 mr-2" />}
+            {isSaving ? (
+              <Loader2 className="animate-spin w-4 h-4 mr-2" />
+            ) : null}
             {editingId ? "Update Address" : "Save Address"}
           </Button>
         </DialogFooter>

@@ -22,7 +22,7 @@ export const PaymentMethodsSection = ({
 
   const handleDeleteCard = async (id: string) => {
     if (!confirm("Are you sure you want to remove this payment method?")) return;
-    
+
     const result = await deletePaymentMethod(id);
     if (result) {
       toast({
@@ -122,13 +122,13 @@ export const PaymentMethodsSection = ({
       {/* Add New Card Button */}
       <button
         onClick={() => setIsModalOpen(true)}
-        className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 rounded-2xl hover:border-[#ff6a00] hover:bg-orange-50/50 transition-all duration-300 min-h-[180px] group"
+        className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 rounded-2xl hover:border-[var(--brand-primary)] hover:bg-orange-50/50 transition-all duration-300 min-h-[180px] group"
       >
-        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3 group-hover:bg-[#ff6a00] transition-colors">
-          <Plus className="w-6 h-6 text-gray-400 group-hover:text-white transition-colors" />
+        <div className="w-12 h-12 flex items-center justify-center mb-3 transition-colors">
+          <Plus className="w-6 h-6 text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors" />
         </div>
-        <span className="font-bold text-gray-600 group-hover:text-[#ff6a00] transition-colors">Add New Payment Method</span>
-        <p className="text-xs text-gray-400 mt-1">Visa, Mastercard, etc.</p>
+        <span className="font-bold text-gray-600 group-hover:text-[var(--brand-primary)] uppercase text-xs tracking-widest transition-colors">Add New Payment Method</span>
+        <p className="text-xs text-[var(--text-muted)] mt-1">Visa, Mastercard, etc.</p>
       </button>
 
       <PaymentMethodModal
