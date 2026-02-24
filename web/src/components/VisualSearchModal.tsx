@@ -320,7 +320,6 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                     </div>
                   )}
                 </div>
-
               </div>
             )}
           </div>
