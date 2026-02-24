@@ -15,8 +15,8 @@ import {
 
 interface GetBuyerOrdersInput {
   buyerId: string;
-  startDate?: Date | null; 
-  endDate?: Date | null; 
+  startDate?: Date | null;
+  endDate?: Date | null;
 }
 
 // 1. Updated interface to include optional date filters
@@ -43,10 +43,10 @@ export class OrderReadService {
   }
 
   // 2. Updated method to pass date filters to orderService
-  async getSellerOrders({ 
-    sellerId, 
-    startDate, 
-    endDate 
+  async getSellerOrders({
+    sellerId,
+    startDate,
+    endDate
   }: GetSellerOrdersInput): Promise<SellerOrderSnapshot[]> {
     const rows = await orderService.getSellerOrders(sellerId, startDate, endDate);
     return rows.map((row: any) => mapOrderRowToSellerSnapshot(row));
@@ -86,7 +86,8 @@ export class OrderReadService {
         *,
         order_items (
           *,
-          variant:product_variants(id, variant_name, size, color, sku, price, thumbnail_url)
+          variant:product_variants(id, variant_name, size, color, sku, price, thumbnail_url),
+          product:products(id, name)
         ),
         recipient:order_recipients (
           first_name,

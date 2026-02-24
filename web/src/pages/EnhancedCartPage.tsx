@@ -225,7 +225,7 @@ export default function EnhancedCartPage() {
   return (
     <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
-      <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="max-w-7xl mx-auto px-4 py-4 -mt-6">
         <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <button

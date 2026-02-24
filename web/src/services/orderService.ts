@@ -268,10 +268,10 @@ const normalizeReviewRows = (reviews: any[]) => {
             ...review,
             review_images: Array.isArray(review.review_images)
                 ? [...review.review_images].sort(
-                      (a: any, b: any) =>
-                          Number(a?.sort_order || 0) -
-                          Number(b?.sort_order || 0),
-                  )
+                    (a: any, b: any) =>
+                        Number(a?.sort_order || 0) -
+                        Number(b?.sort_order || 0),
+                )
                 : [],
         }))
         .sort((a: any, b: any) => {
@@ -522,9 +522,9 @@ export class OrderService {
             personalized_options:
                 item.selectedVariantLabel1 || item.selectedVariantLabel2
                     ? {
-                          variantLabel1: item.selectedVariantLabel1,
-                          variantLabel2: item.selectedVariantLabel2,
-                      }
+                        variantLabel1: item.selectedVariantLabel1,
+                        variantLabel2: item.selectedVariantLabel2,
+                    }
                     : null,
             rating: null,
         }));
@@ -609,7 +609,7 @@ export class OrderService {
                 .select("payment_status, shipment_status, order_type")
                 .eq("id", orderId)
                 .single();
-            
+
             console.log(`[OrderService] Verification - Order status:`, verifyOrder);
 
             // Verify order items were created
@@ -617,7 +617,7 @@ export class OrderService {
                 .from("order_items")
                 .select("product_id, quantity", { count: 'exact' })
                 .eq("order_id", orderId);
-            
+
             console.log(`[OrderService] Verification - Created ${count} order items:`, verifyItems);
 
             // Insert payment record with method
@@ -736,8 +736,8 @@ export class OrderService {
      * Get orders for a buyer with optional date filtering
      */
     async getBuyerOrders(
-        buyerId: string, 
-        startDate?: Date | null, 
+        buyerId: string,
+        startDate?: Date | null,
         endDate?: Date | null
     ): Promise<Order[]> {
         if (!isSupabaseConfigured()) {
@@ -788,6 +788,8 @@ export class OrderService {
                             thumbnail_url
                         ),
                         product:products!order_items_product_id_fkey (
+                            id,
+                            name,
                             seller_id,
                             seller:sellers!products_seller_id_fkey (
                                 id,
@@ -878,12 +880,13 @@ export class OrderService {
                     latestReview?.review_images,
                 )
                     ? latestReview.review_images
-                          .map((image: any) => image?.image_url)
-                          .filter(isHttpUrl)
+                        .map((image: any) => image?.image_url)
+                        .filter(isHttpUrl)
                     : [];
 
                 const normalizedItems = (order.order_items || []).map((item: any) => ({
                     ...item,
+                    product_name: item?.product?.name || item.product_name,
                     seller_id: item?.product?.seller_id || null,
                     seller_name: item?.product?.seller?.store_name || "Unknown Store",
                 }));
@@ -1115,8 +1118,8 @@ export class OrderService {
                     latestReview?.review_images,
                 )
                     ? latestReview.review_images
-                          .map((image: any) => image?.image_url)
-                          .filter(isHttpUrl)
+                        .map((image: any) => image?.image_url)
+                        .filter(isHttpUrl)
                     : [];
 
                 const totalAmount = sellerItems.reduce(
@@ -1340,13 +1343,13 @@ export class OrderService {
                 address: (data as any).address || null,
                 shipment: latestShipment
                     ? {
-                          id: latestShipment.id,
-                          status: latestShipment.status,
-                          tracking_number: latestShipment.tracking_number,
-                          shipped_at: latestShipment.shipped_at,
-                          delivered_at: latestShipment.delivered_at,
-                          created_at: latestShipment.created_at,
-                      }
+                        id: latestShipment.id,
+                        status: latestShipment.status,
+                        tracking_number: latestShipment.tracking_number,
+                        shipped_at: latestShipment.shipped_at,
+                        delivered_at: latestShipment.delivered_at,
+                        created_at: latestShipment.created_at,
+                    }
                     : null,
             };
         } catch (error) {
@@ -1500,7 +1503,7 @@ export class OrderService {
                     sellerId,
                     order.buyer_id,
                 );
-                
+
                 const statusMessages: Record<string, string> = {
                     confirmed: `Your order #${order.order_number} has been confirmed by the seller.`,
                     processing: `Your order #${order.order_number} is now being prepared.`,
@@ -1861,7 +1864,7 @@ export class OrderService {
 
             const nextPaymentStatus: PaymentStatus =
                 existingOrder.payment_status === "paid" ||
-                existingOrder.payment_status === "partially_refunded"
+                    existingOrder.payment_status === "partially_refunded"
                     ? "refunded"
                     : "pending_payment";
 

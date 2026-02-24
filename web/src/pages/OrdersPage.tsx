@@ -1153,6 +1153,7 @@ export default function OrdersPage() {
             id: item.id,
             name: item.name,
             image: item.image,
+            variant: item.variant,
           }))}
           sellerId={orderToReview.sellerId || orderToReview.items[0]?.sellerId}
         />
