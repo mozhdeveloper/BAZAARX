@@ -18,11 +18,12 @@ import {
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { SellerSidebar } from "@/components/seller/SellerSidebar";
+import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
 import { useSupportStore } from "../stores/supportStore";
 import { useAuthStore } from "@/stores/sellerStore";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
+import { isSellerApproved } from "@/utils/sellerAccess";
 
 interface TicketData {
   subject: string;
@@ -46,6 +47,7 @@ export function SellerHelpCenter() {
   const navigate = useNavigate();
 
   const { seller } = useAuthStore();
+  const isApprovedSeller = isSellerApproved(seller);
   const { submitTicket, fetchCategories, categories, tickets, fetchUserTickets, loading } = useSupportStore();
 
   // Fetch categories and user tickets on mount
@@ -150,8 +152,7 @@ export function SellerHelpCenter() {
   const openTicketCount = tickets.filter(t => t.status === 'Open' || t.status === 'In Review').length;
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
-      <SellerSidebar />
+    <SellerWorkspaceLayout>
 
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* Background Decor */}
@@ -207,17 +208,20 @@ export function SellerHelpCenter() {
                     label="My Tickets"
                     onClick={() => navigate("/seller/my-tickets")}
                     badge={openTicketCount > 0 ? openTicketCount : undefined}
+                    disabled={!isApprovedSeller}
                   />
                   <QuickActionCard
                     icon={<AlertTriangle size={24} />}
                     label="Buyer Reports"
                     onClick={() => navigate("/seller/buyer-reports")}
                     badge={buyerReportCount > 0 ? buyerReportCount : undefined}
+                    disabled={!isApprovedSeller}
                   />
                   <QuickActionCard
                     icon={<Wallet size={24} />}
                     label="Payout Help"
                     onClick={() => navigate("/seller/earnings")}
+                    disabled={!isApprovedSeller}
                   />
                   <QuickActionCard
                     icon={<FileText size={24} />}
@@ -283,7 +287,9 @@ export function SellerHelpCenter() {
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-bold text-gray-900">Recent Tickets</h2>
                       <button
-                        onClick={() => navigate("/seller/my-tickets")}
+                        onClick={() =>
+                          navigate(isApprovedSeller ? "/seller/my-tickets" : "/seller/unverified")
+                        }
                         className="text-xs text-orange-500 hover:text-orange-600 font-medium"
                       >
                         View All →
@@ -294,7 +300,9 @@ export function SellerHelpCenter() {
                         <div
                           key={t.id}
                           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                          onClick={() => navigate("/seller/my-tickets")}
+                          onClick={() =>
+                            navigate(isApprovedSeller ? "/seller/my-tickets" : "/seller/unverified")
+                          }
                         >
                           <div className="flex items-center gap-3">
                             <Ticket size={16} className="text-orange-500" />
@@ -470,12 +478,14 @@ export function SellerHelpCenter() {
                     Our support team will respond within 24-48 hours.
                   </p>
                   <div className="flex gap-3">
-                    <button
-                      onClick={() => navigate("/seller/my-tickets")}
-                      className="flex-1 py-3 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                    >
-                      View My Tickets
-                    </button>
+                      <button
+                        onClick={() =>
+                          navigate(isApprovedSeller ? "/seller/my-tickets" : "/seller/unverified")
+                        }
+                        className="flex-1 py-3 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        View My Tickets
+                      </button>
                     <button
                       onClick={handleCloseModal}
                       className="flex-1 py-3 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 transition-colors"
@@ -489,7 +499,7 @@ export function SellerHelpCenter() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </SellerWorkspaceLayout>
   );
 }
 
@@ -499,20 +509,24 @@ function QuickActionCard({
   label,
   onClick,
   highlight = false,
-  badge
+  badge,
+  disabled = false,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick?: () => void;
   highlight?: boolean;
   badge?: number;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`relative flex flex-col items-center gap-4 p-6 rounded-xl transition-all group duration-300 ${highlight
         ? "bg-gradient-to-b from-orange-50 to-white hover:to-orange-50/50 border border-orange-200 shadow-[0_8px_30px_rgba(255,100,0,0.1)] hover:-translate-y-1"
         : "bg-gray-50/50 hover:bg-white border border-transparent hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/50 hover:-translate-y-1"
+        } ${disabled ? "opacity-45 cursor-not-allowed hover:translate-y-0 hover:shadow-none" : ""}
         }`}
     >
       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-sm ${highlight

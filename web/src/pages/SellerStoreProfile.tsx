@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuthStore, useProductStore, useOrderStore } from "@/stores/sellerStore";
-import { SellerSidebar } from "@/components/seller/SellerSidebar";
+import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
 import {
   Camera,
   Globe,
@@ -644,9 +644,7 @@ export function SellerStoreProfile() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
-      <SellerSidebar />
-
+    <SellerWorkspaceLayout>
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
           <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
@@ -1875,6 +1873,6 @@ export function SellerStoreProfile() {
           </div>
         </div>
       </div>
-    </div>
+    </SellerWorkspaceLayout>
   );
 }

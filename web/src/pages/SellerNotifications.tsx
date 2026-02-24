@@ -15,7 +15,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SellerSidebar } from "@/components/seller/SellerSidebar";
+import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ import {
   notificationService,
   type Notification as DbNotification,
 } from "@/services/notificationService";
+import { getSellerAccessTier, isPathAllowedForTier } from "@/utils/sellerAccess";
 
 
 function getNotificationIcon(type: string) {
@@ -81,6 +82,7 @@ function formatTimeAgo(dateStr: string): string {
 export function SellerNotifications() {
   const navigate = useNavigate();
   const { seller } = useAuthStore();
+  const accessTier = getSellerAccessTier(seller);
   const [notifications, setNotifications] = useState<DbNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -176,22 +178,32 @@ export function SellerNotifications() {
     // 1. For Order Notifications: Force the correct query param format "?ID"
     // This fixes both new and existing notifications in the database
     if (targetId && (n.type === "seller_new_order" || n.type.includes("order"))) {
-      navigate(`/seller/orders?${targetId}`);
+      if (accessTier === "approved") {
+        navigate(`/seller/orders?${targetId}`);
+      } else {
+        navigate("/seller/unverified");
+      }
       return;
     }
 
     // 2. Fallback: Use explicit Action URL
     if (n.action_url) {
+      const actionPath = n.action_url.split("?")[0];
+
+      if (!isPathAllowedForTier(actionPath, accessTier)) {
+        navigate(accessTier === "blocked" ? "/seller/account-blocked" : "/seller/unverified");
+        return;
+      }
+
       navigate(n.action_url);
     } else {
       // 3. Final Fallback
-      navigate("/seller/orders");
+      navigate(accessTier === "approved" ? "/seller/orders" : "/seller/unverified");
     }
   };
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
-      <SellerSidebar />
+    <SellerWorkspaceLayout>
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
           <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
@@ -369,7 +381,7 @@ export function SellerNotifications() {
           </div>
         </div>
       </div>
-    </div>
+    </SellerWorkspaceLayout>
   );
 }
 
