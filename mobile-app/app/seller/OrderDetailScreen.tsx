@@ -92,14 +92,14 @@ export default function SellerOrderDetailScreen() {
         switch (status) {
             case 'delivered': return { color: '#10B981', bg: '#D1FAE5' };
             case 'shipped': return { color: '#3B82F6', bg: '#DBEAFE' };
-            case 'confirmed': return { color: '#FF5722', bg: '#FFF5F0' };
+            case 'confirmed': return { color: '#D97706', bg: '#FFF4EC' };
             case 'pending': return { color: '#FBBF24', bg: '#FEF3C7' };
-            case 'cancelled': return { color: '#DC2626', bg: '#FEE2E2' };
+            case 'cancelled': return { color: '#DC2626', bg: '#FEF2F2' };
             default: return { color: '#6B7280', bg: '#F3F4F6' };
         }
     };
 
-    if (loading) return <ActivityIndicator style={styles.loader} color="#FF5722" />;
+    if (loading) return <ActivityIndicator style={styles.loader} color="#D97706" />;
     if (!order) return <View style={styles.empty}><Text>Order not found</Text></View>;
 
     const statusStyle = getStatusStyles(order.status);
@@ -193,12 +193,12 @@ export default function SellerOrderDetailScreen() {
                 <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={styles.footerActionRow}>
                         {order.status === 'pending' && (
-                            <Pressable style={[styles.primaryButton, { backgroundColor: '#FF5722' }]} onPress={() => handleStatusUpdate('confirmed')}>
+                            <Pressable style={[styles.primaryButton, { backgroundColor: '#D97706' }]} onPress={() => handleStatusUpdate('confirmed')}>
                                 <Text style={styles.buttonText}>Confirm Order</Text>
                             </Pressable>
                         )}
                         {order.status === 'confirmed' && (
-                            <Pressable style={[styles.primaryButton, { backgroundColor: '#FF5722' }]} onPress={() => handleStatusUpdate('shipped')}>
+                            <Pressable style={[styles.primaryButton, { backgroundColor: '#D97706' }]} onPress={() => handleStatusUpdate('shipped')}>
                                 <Text style={styles.buttonText}>Ship Order</Text>
                             </Pressable>
                         )}
@@ -227,13 +227,13 @@ export default function SellerOrderDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F9FAFB' },
+    container: { flex: 1, backgroundColor: '#FFF4EC' },
     loader: { flex: 1, justifyContent: 'center' },
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     customHeader: {
         backgroundColor: '#FFE5D9',
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 20,
         paddingBottom: 15,
         elevation: 2,
     },
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
     statusText: { fontSize: 11, fontWeight: '800' },
     detailCard: { backgroundColor: '#FFF', borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden' },
-    detailCardHeader: { padding: 12, backgroundColor: '#F9FAFB', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+    detailCardHeader: { padding: 12, backgroundColor: '#FFF4EC', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
     detailCardTitle: { fontSize: 13, fontWeight: '700', color: '#4B5563' },
     detailCardContent: { padding: 16 },
     itemRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
     totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     totalLabel: { fontSize: 15, fontWeight: '800' },
-    totalValue: { fontSize: 19, fontWeight: '900', color: '#FF5722' },
+    totalValue: { fontSize: 19, fontWeight: '900', color: '#D97706' },
     custName: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
     custEmail: { fontSize: 13, color: '#6B7280' },
     infoLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },

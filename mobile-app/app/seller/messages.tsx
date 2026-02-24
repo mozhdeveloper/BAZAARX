@@ -403,13 +403,13 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#FFFBF0',
   },
   headerContainer: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+        borderBottomRightRadius: 20,
     paddingBottom: 20,
     marginBottom: 10,
     elevation: 4,
@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   unreadBadge: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -511,11 +511,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   chatHeader: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+        borderBottomRightRadius: 20,
   },
   chatHeaderContent: {
     flexDirection: 'row',
@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   messagesContent: {
     padding: 16,
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
   },
   messageSeller: {
     alignSelf: 'flex-end',
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     borderTopRightRadius: 4,
   },
   messageBuyer: {
@@ -642,10 +642,10 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FF5722',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

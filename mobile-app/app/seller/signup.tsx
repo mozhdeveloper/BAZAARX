@@ -241,7 +241,7 @@ export default function SellerSignupScreen() {
                                                 if (error) setError("");
                                             }}
                                         />
-                                        {emailStatus === 'checking' && <ActivityIndicator size="small" color="#FF6A00" />}
+                                        {emailStatus === 'checking' && <ActivityIndicator size="small" color="#D97706" />}
                                         {emailStatus === 'available' && <CheckCircle2 size={18} color="#10B981" />}
                                         {emailStatus === 'taken' && <XCircle size={18} color="#EF4444" />}
                                     </View>
@@ -289,7 +289,7 @@ export default function SellerSignupScreen() {
 
                                 <Pressable style={styles.primaryButton} onPress={handleNextStep}>
                                     <LinearGradient
-                                        colors={['#FF6A00', '#FF8C42']}
+                                        colors={['#D97706', '#B45309']}
                                         style={styles.buttonGradient}
                                     >
                                         <Text style={styles.buttonText}>Next: Store Info</Text>
@@ -312,7 +312,7 @@ export default function SellerSignupScreen() {
                                                 if (error) setError("");
                                             }}
                                         />
-                                        {storeStatus === 'checking' && <ActivityIndicator size="small" color="#FF6A00" />}
+                                        {storeStatus === 'checking' && <ActivityIndicator size="small" color="#D97706" />}
                                         {storeStatus === 'available' && <CheckCircle2 size={18} color="#10B981" />}
                                         {storeStatus === 'taken' && <XCircle size={18} color="#EF4444" />}
                                     </View>
@@ -368,7 +368,7 @@ export default function SellerSignupScreen() {
                                         disabled={loading}
                                     >
                                         <LinearGradient
-                                            colors={['#FF6A00', '#FF8C42']}
+                                            colors={['#D97706', '#B45309']}
                                             style={styles.buttonGradient}
                                         >
                                             {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Create Account</Text>}
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#FF6A00',
+        shadowColor: '#D97706',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.15,
         shadowRadius: 12,
@@ -444,8 +444,8 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     activeCircle: {
-        backgroundColor: '#FF6A00',
-        shadowColor: '#FF6A00',
+        backgroundColor: '#D97706',
+        shadowColor: '#D97706',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
         marginHorizontal: -5,
     },
     activeLine: {
-        backgroundColor: '#FF6A00',
+        backgroundColor: '#D97706',
     },
     progressLabels: {
         flexDirection: 'row',
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
         color: '#9CA3AF',
     },
     activeLabel: {
-        color: '#FF6A00',
+        color: '#D97706',
     },
 
     errorCard: {
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
         gap: 10,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: '#FEE2E2',
+        borderColor: '#FEF2F2',
     },
     errorText: {
         fontSize: 13,
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
+        backgroundColor: '#FFF4EC',
         borderRadius: 16,
         paddingHorizontal: 16,
         height: 56,
@@ -522,17 +522,17 @@ const styles = StyleSheet.create({
     },
     input: { flex: 1, fontSize: 16, color: '#111827', fontWeight: '600' },
 
-    primaryButton: { borderRadius: 16, overflow: 'hidden', marginTop: 10, elevation: 4, shadowColor: '#FF6A00', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 12 },
+    primaryButton: { borderRadius: 16, overflow: 'hidden', marginTop: 10, elevation: 4, shadowColor: '#D97706', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 12 },
     buttonGradient: { height: 56, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 10 },
     buttonText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
 
     buttonRow: { flexDirection: 'row', gap: 12, marginTop: 10 },
-    backButton: { flex: 1, height: 56, justifyContent: 'center', alignItems: 'center', borderRadius: 16, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB' },
+    backButton: { flex: 1, height: 56, justifyContent: 'center', alignItems: 'center', borderRadius: 16, backgroundColor: '#FFF4EC', borderWidth: 1, borderColor: '#E5E7EB' },
     backButtonText: { fontSize: 16, color: '#6B7280', fontWeight: '700' },
 
     footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 30 },
     footerText: { fontSize: 15, color: '#6B7280', fontWeight: '500' },
-    loginLink: { fontSize: 15, color: '#FF6A00', fontWeight: '700' },
+    loginLink: { fontSize: 15, color: '#D97706', fontWeight: '700' },
 
     backToHome: { alignItems: 'center', marginTop: 20 },
     backLink: { fontSize: 14, color: '#9CA3AF', fontWeight: '700' },

@@ -34,7 +34,7 @@ const SelectionModal = ({ visible, onClose, options, current, onSelect, title }:
             <Text style={[styles.optionText, current === opt && styles.optionTextActive]}>
               {opt.toUpperCase()}
             </Text>
-            {current === opt && <Check size={18} color="#FF5722" />}
+            {current === opt && <Check size={18} color="#D97706" />}
           </Pressable>
         ))}
       </View>
@@ -116,7 +116,7 @@ export default function SellerNotificationsScreen() {
       ]}
     >
       <View style={styles.notificationIcon}>
-        <Bell size={20} color={item.is_read ? '#9CA3AF' : '#FF5722'} />
+        <Bell size={20} color={item.is_read ? '#9CA3AF' : '#D97706'} />
       </View>
       <View style={styles.notificationContent}>
         <View style={styles.cardHeader}>
@@ -190,8 +190,8 @@ export default function SellerNotificationsScreen() {
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FF5722']} />}
-        ListEmptyComponent={loading ? <ActivityIndicator size="large" color="#FF5722" style={{ marginTop: 40 }} /> : null}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D97706']} />}
+        ListEmptyComponent={loading ? <ActivityIndicator size="large" color="#D97706" style={{ marginTop: 40 }} /> : null}
       />
 
       {/* Sticky Footer Summary */}
@@ -211,14 +211,16 @@ export default function SellerNotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { backgroundColor: '#FFE5CC', paddingHorizontal: 20, paddingBottom: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, elevation: 3 },
+  header: { backgroundColor: '#FFF4EC', paddingHorizontal: 20, paddingBottom: 10,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 20, elevation: 3 },
   headerContent: { flexDirection: 'row', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconContainer: { backgroundColor: 'rgba(0,0,0,0.05)', padding: 10, borderRadius: 12 },
   titleContainer: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerTitle: { fontSize: 24, fontWeight: '800', color: '#1F2937' },
-  titleBadge: { backgroundColor: '#FF5722', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  titleBadge: { backgroundColor: '#D97706', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
   headerSubtitle: { fontSize: 13, color: '#4B5563', fontWeight: '500', marginTop: 4 },
   searchSection: { paddingHorizontal: 20, marginTop: 15 },
@@ -232,14 +234,14 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 20 },
   notificationCard: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', alignItems: 'flex-start' },
   unreadCard: { backgroundColor: '#FFFFFF' }, // White for Unread
-  readCard: { backgroundColor: '#F9FAFB' }, // Gray for Read
+  readCard: { backgroundColor: '#FFF4EC' }, // Gray for Read
   cardPressed: { opacity: 0.7 },
   notificationIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   notificationContent: { flex: 1 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   notificationTitle: { fontSize: 15, color: '#374151', fontWeight: '400', flex: 1, marginRight: 8 },
   boldText: { fontWeight: '700', color: '#111827' },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF5722' },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#D97706' },
   notificationMessage: { fontSize: 13, color: '#6B7280', lineHeight: 18, marginBottom: 6 },
   timeText: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
   summaryContainer: { padding: 12, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB', alignItems: 'center' },
@@ -249,5 +251,5 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 15, color: '#1F2937' },
   optionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   optionText: { fontSize: 15, color: '#4B5563', fontWeight: '600' },
-  optionTextActive: { color: '#FF5722', fontWeight: '800' },
+  optionTextActive: { color: '#D97706', fontWeight: '800' },
 });

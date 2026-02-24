@@ -677,9 +677,9 @@ export default function FlashSalesScreen() {
               ]}>
                 <Zap 
                   size={24} 
-                  color={isActive ? '#FF5722' : '#3B82F6'} 
+                  color={isActive ? '#D97706' : '#3B82F6'} 
                   strokeWidth={2.5} 
-                  fill={isActive ? '#FF5722' : '#3B82F6'}
+                  fill={isActive ? '#D97706' : '#3B82F6'}
                 />
               </View>
               <View style={styles.saleInfo}>
@@ -763,10 +763,10 @@ export default function FlashSalesScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
             </Pressable>
             <Text style={styles.headerTitle}>Flash Sales</Text>
             <View style={{ width: 40 }} />
@@ -821,25 +821,30 @@ export default function FlashSalesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   
   // Header Styles
   headerContainer: {
+    backgroundColor: '#FFF4EC',
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     paddingBottom: 20,
     marginBottom: 10,
-    elevation: 4,
+    elevation: 3,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
     zIndex: 10,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerIconButton: { 
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    padding: 10,
+    borderRadius: 12,
+  },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937' },
   
   // Scroll View
   scrollView: {
@@ -856,14 +861,14 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   joinButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
     borderRadius: 16,
     gap: 8,
-    shadowColor: '#FF5722',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -915,12 +920,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconContainerActive: {
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
   },
   iconContainerScheduled: {
     backgroundColor: '#EFF6FF',
@@ -951,7 +956,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   timeTextActive: {
-    color: '#F97316',
+    color: '#D97706',
   },
   timeTextScheduled: {
     color: '#3B82F6',
@@ -994,7 +999,7 @@ const styles = StyleSheet.create({
   
   // Product Card
   productCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 16,
     padding: 14,
     flexDirection: 'row',
@@ -1028,7 +1033,7 @@ const styles = StyleSheet.create({
   flashPrice: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#FF5722',
+    color: '#D97706',
   },
   originalPrice: {
     fontSize: 12,
@@ -1050,7 +1055,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     borderRadius: 3,
   },
   progressText: {
@@ -1273,7 +1278,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 5,
-    borderColor: '#FF5722',
+    borderColor: '#D97706',
   },
   inputContainer: {
     gap: 12,
@@ -1310,7 +1315,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 14,
     borderRadius: 12,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     alignItems: 'center',
   },
   cancelButtonText: {

@@ -315,7 +315,7 @@ export default function AdminVouchersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20 },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
   headerSubtitle: { fontSize: 13, color: '#FFFFFF', opacity: 0.9 },

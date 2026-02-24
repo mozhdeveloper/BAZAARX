@@ -324,7 +324,7 @@ export default function SellerOrdersScreen() {
           style={[styles.actionBtn, activeFilterCount > 0 && styles.actionBtnActive]}
           onPress={() => setShowFilterModal(true)}
         >
-          <ListFilter size={20} color={activeFilterCount > 0 ? "#FF5722" : "#4B5563"} />
+          <ListFilter size={20} color={activeFilterCount > 0 ? "#D97706" : "#4B5563"} />
           {activeFilterCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{activeFilterCount}</Text>
@@ -361,7 +361,7 @@ export default function SellerOrdersScreen() {
       {/* Orders List */}
       <ScrollView
         refreshControl={
-          <RefreshControl refreshing={refreshing || ordersLoading} onRefresh={onRefresh} colors={['#FF5722']} />
+          <RefreshControl refreshing={refreshing || ordersLoading} onRefresh={onRefresh} colors={['#D97706']} />
         }
         contentContainerStyle={styles.scrollViewContent}
       >
@@ -550,31 +550,31 @@ export default function SellerOrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F7' },
+  container: { flex: 1, backgroundColor: '#FFFBF0' },
 
   // Header
-  header: { backgroundColor: '#FFE5CC', paddingHorizontal: 20, paddingBottom: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, elevation: 3 },
+  header: { backgroundColor: '#FFF4EC', paddingHorizontal: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, elevation: 3 },
   headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconContainer: { backgroundColor: 'rgba(0,0,0,0.05)', padding: 10, borderRadius: 12 },
   headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937' },
   headerSubtitle: { fontSize: 13, color: '#4B5563', fontWeight: '500' },
   notificationButton: { position: 'relative' },
-  notificationBadge: { position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#FFE5CC' },
+  notificationBadge: { position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#FFF4EC' },
 
   // Action Bar
   actionBar: { flexDirection: 'row', paddingHorizontal: 20, marginTop: 15, gap: 10 },
   searchBar: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 12, height: 44, borderWidth: 1, borderColor: '#E5E7EB' },
   searchInput: { flex: 1, fontSize: 14, color: '#1F2937', marginLeft: 8 },
   actionBtn: { width: 44, height: 44, backgroundColor: '#FFF', borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
-  actionBtnActive: { borderColor: '#FF5722', backgroundColor: '#FFF0E6' },
-  badge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#FF5722', width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#F5F5F7' },
+  actionBtnActive: { borderColor: '#D97706', backgroundColor: '#FFF0E6' },
+  badge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#D97706', width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFFBF0' },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
   // Summary Row
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 10, marginBottom: 5 },
   summaryText: { fontSize: 12, color: '#6B7280' },
-  clearText: { fontSize: 12, color: '#FF5722', fontWeight: '600' },
+  clearText: { fontSize: 12, color: '#D97706', fontWeight: '600' },
 
   // List
   scrollViewContent: { paddingBottom: 40, paddingTop: 10 },
@@ -592,11 +592,11 @@ const styles = StyleSheet.create({
   customerName: { fontSize: 13, fontWeight: '600', color: '#4B5563', maxWidth: 120 },
   orderDate: { fontSize: 12, color: '#9CA3AF' },
   statusWord: { fontSize: 11, fontWeight: '900' },
-  cardBody: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F9FAFB' },
+  cardBody: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#FFF4EC' },
   thumbnailStack: { flexDirection: 'row', gap: 8 },
   thumbWrapper: { position: 'relative' },
-  thumbnail: { width: 50, height: 50, borderRadius: 10, backgroundColor: '#F9FAFB' },
-  qtyBadge: { position: 'absolute', top: -6, right: -6, backgroundColor: '#FF5722', paddingHorizontal: 5, borderRadius: 10, borderWidth: 2, borderColor: '#FFF', zIndex: 10 },
+  thumbnail: { width: 50, height: 50, borderRadius: 10, backgroundColor: '#FFF4EC' },
+  qtyBadge: { position: 'absolute', top: -6, right: -6, backgroundColor: '#D97706', paddingHorizontal: 5, borderRadius: 10, borderWidth: 2, borderColor: '#FFF', zIndex: 10 },
   qtyText: { fontSize: 9, fontWeight: '900', color: '#FFF' },
   moreItemsBox: { width: 50, height: 50, borderRadius: 10, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: '#D1D5DB' },
   moreItemsText: { fontSize: 14, fontWeight: '700', color: '#9CA3AF' },
@@ -606,7 +606,7 @@ const styles = StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
   detailsBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   detailsBtnText: { fontSize: 13, color: '#9CA3AF', fontWeight: '600' },
-  actionBtnPrimary: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#FF5722' },
+  actionBtnPrimary: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#D97706' },
   actionBtnText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
 
   // Modal
@@ -621,13 +621,13 @@ const styles = StyleSheet.create({
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chipRow: { flexDirection: 'row', gap: 10 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: 'transparent' },
-  chipActive: { backgroundColor: '#FFF0E6', borderColor: '#FF5722' },
+  chipActive: { backgroundColor: '#FFF0E6', borderColor: '#D97706' },
   chipText: { fontSize: 13, color: '#4B5563', fontWeight: '600' },
-  chipTextActive: { color: '#FF5722', fontWeight: '700' },
+  chipTextActive: { color: '#D97706', fontWeight: '700' },
 
   // Custom Date Input Styles
   customDateContainer: { flexDirection: 'row', marginTop: 15, alignItems: 'center', gap: 10 },
-  dateInput: { flex: 1, padding: 12, backgroundColor: '#F9FAFB', borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
+  dateInput: { flex: 1, padding: 12, backgroundColor: '#FFF4EC', borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
   dateLabel: { fontSize: 10, color: '#6B7280', marginBottom: 4, textTransform: 'uppercase' },
   dateValue: { fontSize: 14, color: '#1F2937', fontWeight: '600' },
   dateDivider: { width: 8, height: 1, backgroundColor: '#9CA3AF' },
@@ -635,6 +635,6 @@ const styles = StyleSheet.create({
   modalFooter: { flexDirection: 'row', padding: 20, borderTopWidth: 1, borderTopColor: '#F3F4F6', gap: 15 },
   resetBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
   resetBtnText: { color: '#4B5563', fontWeight: '700', fontSize: 15 },
-  applyBtn: { flex: 2, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#FF5722' },
+  applyBtn: { flex: 2, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#D97706' },
   applyBtnText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
 });

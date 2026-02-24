@@ -39,7 +39,7 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
   if (!returnRequest || !order) {
     return (
       <View style={styles.container}>
-        <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#D97706' }]}>
             <View style={styles.headerTop}>
                 <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
                     <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
@@ -102,7 +102,7 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#D97706' }]}>
         <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
                 <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+        borderBottomRightRadius: 20,
     paddingBottom: 20,
     marginBottom: 10,
     elevation: 4,
