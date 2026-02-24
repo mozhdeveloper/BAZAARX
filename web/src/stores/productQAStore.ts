@@ -20,6 +20,7 @@ export interface QAProductVariant {
 
 export interface QAProduct {
   id: string;
+  assessmentId?: string; // Unique assessment UUID (product_assessments.id)
   name: string;
   description?: string;
   vendor: string;
@@ -46,6 +47,7 @@ export interface QAProduct {
 interface ProductQAStore {
   products: QAProduct[];
   isLoading: boolean;
+  _lastSellerId?: string; // Track the last seller ID used for reload after actions
   
   // Actions
   loadProducts: (sellerId?: string) => Promise<void>;
@@ -117,6 +119,7 @@ export const useProductQAStore = create<ProductQAStore>()(
     (set, get) => ({
       products: initialProducts,
       isLoading: false,
+      _lastSellerId: undefined,
 
       // Load products from database (for admin) or by seller (for seller)
       loadProducts: async (sellerId?: string) => {
@@ -125,10 +128,16 @@ export const useProductQAStore = create<ProductQAStore>()(
           return;
         }
 
+        // Remember sellerId for reload after actions
+        if (sellerId !== undefined) {
+          set({ _lastSellerId: sellerId });
+        }
+        const effectiveSellerId = sellerId ?? get()._lastSellerId;
+
         set({ isLoading: true });
         try {
-          const qaEntries = sellerId 
-            ? await qaService.getQAEntriesBySeller(sellerId)
+          const qaEntries = effectiveSellerId 
+            ? await qaService.getQAEntriesBySeller(effectiveSellerId)
             : await qaService.getAllQAEntries();
 
           const qaProducts: QAProduct[] = qaEntries.map((entry: any) => {
@@ -158,6 +167,7 @@ export const useProductQAStore = create<ProductQAStore>()(
 
             return {
               id: entry.product_id,
+              assessmentId: entry.id, // Keep the unique assessment ID for React keys
               name: entry.product?.name || 'Unknown Product',
               description: entry.product?.description,
               vendor: entry.vendor,
@@ -181,7 +191,15 @@ export const useProductQAStore = create<ProductQAStore>()(
             };
           });
 
-          set({ products: qaProducts, isLoading: false });
+          // Deduplicate by product_id (keep latest assessment per product to avoid React duplicate key warnings)
+          const seen = new Set<string>();
+          const deduped = qaProducts.filter(p => {
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
+            return true;
+          });
+
+          set({ products: deduped, isLoading: false });
         } catch (error) {
           console.error('Error loading QA products:', error);
           set({ isLoading: false });
@@ -449,6 +467,24 @@ export const useProductQAStore = create<ProductQAStore>()(
     }),
     {
       name: 'bazaarx-product-qa-shared',
+      partialize: (state) => ({
+        products: state.products,
+        isLoading: state.isLoading,
+        // Exclude _lastSellerId from persistence (runtime-only)
+      }),
+      merge: (persistedState: any, currentState: any) => {
+        const merged = { ...currentState, ...persistedState };
+        // Deduplicate products on rehydration to prevent duplicate key warnings
+        if (merged.products && Array.isArray(merged.products)) {
+          const seen = new Set<string>();
+          merged.products = merged.products.filter((p: QAProduct) => {
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
+            return true;
+          });
+        }
+        return merged;
+      },
     }
   )
 );

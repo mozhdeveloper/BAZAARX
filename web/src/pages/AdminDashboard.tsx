@@ -266,8 +266,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-80" style={{ minHeight: 320 }}>
+                    <ResponsiveContainer width="100%" height={300} minWidth={0}>
                       <AreaChart data={revenueChart}>
                         <defs>
                           <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
@@ -324,8 +324,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 mb-4">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-64 mb-4" style={{ minHeight: 256 }}>
+                    <ResponsiveContainer width="100%" height={240} minWidth={0}>
                       <PieChart>
                         <Pie
                           data={pieData}

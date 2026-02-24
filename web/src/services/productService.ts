@@ -169,8 +169,6 @@ export class ProductService {
             // Count only COMPLETED orders (paid + delivered)
             const productIds = data.map(p => p.id);
             
-            console.log(`[ProductService] Querying sold counts for ${productIds.length} products...`);
-            
             const { data: soldCountsData, error: soldCountsError } = await supabase
                 .from('order_items')
                 .select('product_id, quantity, order:orders!inner(payment_status, shipment_status, order_type)')
@@ -182,21 +180,12 @@ export class ProductService {
                 console.error('[ProductService] Error fetching sold counts:', soldCountsError);
             }
 
-            console.log(`[ProductService] Sold counts query returned ${soldCountsData?.length || 0} order items`);
-            if (soldCountsData && soldCountsData.length > 0) {
-                console.log('[ProductService] Sample sold count data:', soldCountsData.slice(0, 3));
-            }
-
             // Calculate sold counts per product
             const soldCountsMap = new Map<string, number>();
             soldCountsData?.forEach(item => {
                 const currentCount = soldCountsMap.get(item.product_id) || 0;
-                const newCount = currentCount + (item.quantity || 0);
-                soldCountsMap.set(item.product_id, newCount);
-                console.log(`[ProductService] Product ${item.product_id.substring(0, 8)}: +${item.quantity} (total: ${newCount})`);
+                soldCountsMap.set(item.product_id, currentCount + (item.quantity || 0));
             });
-
-            console.log(`[ProductService] Fetched ${data.length} products. Sold counts map has ${soldCountsMap.size} entries`);
 
             // Transform to add legacy compatibility fields
             return data.map((p) => this.transformProduct(p, soldCountsMap.get(p.id) || 0));

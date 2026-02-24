@@ -315,7 +315,7 @@ export function SellerStoreProfile() {
           .from("seller_verification_documents")
           .select("business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url")
           .eq("seller_id", seller.id)
-          .single();
+          .maybeSingle();
 
         if (docError && docError.code !== 'PGRST116') { // PGRST116 = no rows
           console.error("Error fetching seller documents:", docError);
