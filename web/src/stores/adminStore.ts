@@ -323,7 +323,7 @@ export const useAdminAuth = create<AdminAuthState>()(
               email: profile.email || email,
               name: fullName,
               role: 'admin',
-              avatar: `https://ui-avatars.io/api/?name=${encodeURIComponent(fullName)}&background=FF6A00&color=fff`,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=FF6A00&color=fff`,
               lastLogin: new Date(),
               permissions: [
                 { id: '1', name: 'Full Access', resource: 'users', actions: ['read', 'write', 'delete'] },
@@ -363,7 +363,7 @@ export const useAdminAuth = create<AdminAuthState>()(
               email: 'admin@bazaarph.com',
               name: 'Admin User',
               role: 'super_admin' as const,
-              avatar: 'https://ui-avatars.io/api/?name=Admin+User&background=FF6A00&color=fff',
+              avatar: 'https://ui-avatars.com/api/?name=Admin+User&background=FF6A00&color=fff',
               lastLogin: new Date(),
               permissions: [
                 { id: '1', name: 'Full Access', resource: 'users' as const, actions: ['read', 'write', 'delete'] as ('read' | 'write' | 'delete' | 'approve')[] },
@@ -774,7 +774,9 @@ export const useAdminSellers = create<SellersState>()(
                 description: seller.store_description || '',
                 logo:
                   seller.avatar_url ||
-                  `https://ui-avatars.io/api/?name=${encodeURIComponent(seller.store_name || 'S')}&background=FF6A00&color=fff`,
+                  profile?.avatar_url ||
+                  seller.logo_url ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.store_name || seller.business_name || 'S')}&background=FF6A00&color=fff`,
                 ownerName: seller.owner_name || profileName || seller.business_name || seller.store_name || 'Unknown Owner',
                 email: profile?.email || seller.email || 'No email',
                 phone: profile?.phone || seller.phone || 'No phone',
@@ -854,7 +856,7 @@ export const useAdminSellers = create<SellersState>()(
             bankName: 'BDO',
             accountName: 'TechHub Electronics Corp.',
             accountNumber: '1234567890',
-            logo: 'https://ui-avatars.io/api/?name=TechHub&background=FF6A00&color=fff',
+            logo: 'https://ui-avatars.com/api/?name=TechHub&background=FF6A00&color=fff',
             status: 'approved',
             documents: [
               {
@@ -1548,7 +1550,7 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
         firstName: 'Anna',
         lastName: 'Reyes',
         phone: '+63 917 111 2222',
-        avatar: 'https://ui-avatars.io/api/?name=Anna+Reyes&background=FF6A00&color=fff',
+        avatar: 'https://ui-avatars.com/api/?name=Anna+Reyes&background=FF6A00&color=fff',
         dateOfBirth: new Date('1990-05-15'),
         gender: 'female',
         isEmailVerified: true,
@@ -1582,7 +1584,7 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
         firstName: 'Miguel',
         lastName: 'Cruz',
         phone: '+63 917 333 4444',
-        avatar: 'https://ui-avatars.io/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
+        avatar: 'https://ui-avatars.com/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
         dateOfBirth: new Date('1985-08-20'),
         gender: 'male',
         isEmailVerified: true,
@@ -2069,7 +2071,7 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
         productImage: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=200',
         buyerId: 'buyer_1',
         buyerName: 'Anna Reyes',
-        buyerAvatar: 'https://ui-avatars.io/api/?name=Anna+Reyes&background=FF6A00&color=fff',
+        buyerAvatar: 'https://ui-avatars.com/api/?name=Anna+Reyes&background=FF6A00&color=fff',
         sellerId: 'seller_1',
         sellerName: 'TechHub Philippines',
         rating: 5,
@@ -2089,7 +2091,7 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
         productImage: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200',
         buyerId: 'buyer_2',
         buyerName: 'Miguel Cruz',
-        buyerAvatar: 'https://ui-avatars.io/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
+        buyerAvatar: 'https://ui-avatars.com/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
         sellerId: 'seller_2',
         sellerName: 'Fashion Forward Store',
         rating: 1,
@@ -2110,7 +2112,7 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
         productImage: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
         buyerId: 'buyer_3',
         buyerName: 'Sofia Lim',
-        buyerAvatar: 'https://ui-avatars.io/api/?name=Sofia+Lim&background=FF6A00&color=fff',
+        buyerAvatar: 'https://ui-avatars.com/api/?name=Sofia+Lim&background=FF6A00&color=fff',
         sellerId: 'seller_1',
         sellerName: 'TechHub Philippines',
         rating: 4,
@@ -2132,7 +2134,7 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
         productImage: 'https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?w=200',
         buyerId: 'buyer_4',
         buyerName: 'Carlos Tan',
-        buyerAvatar: 'https://ui-avatars.io/api/?name=Carlos+Tan&background=FF6A00&color=fff',
+        buyerAvatar: 'https://ui-avatars.com/api/?name=Carlos+Tan&background=FF6A00&color=fff',
         sellerId: 'seller_3',
         sellerName: 'Home Essentials',
         rating: 3,

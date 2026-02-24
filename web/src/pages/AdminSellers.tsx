@@ -60,6 +60,8 @@ import {
 } from "lucide-react";
 
 const AdminSellers: React.FC = () => {
+  const SHOW_BANKING_INFO = false;
+
   const { isAuthenticated } = useAdminAuth();
   const {
     sellers,
@@ -318,6 +320,38 @@ const AdminSellers: React.FC = () => {
     }
   };
 
+  const SellerAvatar = ({
+    logo,
+    name,
+    sizeClass,
+    iconClass,
+  }: {
+    logo?: string;
+    name: string;
+    sizeClass: string;
+    iconClass: string;
+  }) => {
+    const [hasImageError, setHasImageError] = useState(false);
+    const canRenderImage = Boolean(logo) && !hasImageError;
+
+    return (
+      <div
+        className={`${sizeClass} bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0`}
+      >
+        {canRenderImage ? (
+          <img
+            src={logo}
+            alt={name}
+            className={`${sizeClass} rounded-xl object-cover`}
+            onError={() => setHasImageError(true)}
+          />
+        ) : (
+          <Store className={iconClass} />
+        )}
+      </div>
+    );
+  };
+
   const SellerCard = React.memo(
     ({
       seller,
@@ -336,17 +370,12 @@ const AdminSellers: React.FC = () => {
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  {seller.logo ? (
-                    <img
-                      src={seller.logo}
-                      alt={seller.businessName}
-                      className="w-12 h-12 rounded-xl object-cover"
-                    />
-                  ) : (
-                    <Store className="w-6 h-6 text-white" />
-                  )}
-                </div>
+                <SellerAvatar
+                  logo={seller.logo}
+                  name={seller.businessName}
+                  sizeClass="w-12 h-12"
+                  iconClass="w-6 h-6 text-white"
+                />
                 <div className="ml-4">
                   <h3 className="font-semibold text-lg text-gray-900">
                     {seller.businessName}
@@ -731,16 +760,13 @@ const AdminSellers: React.FC = () => {
               {/* Header with Status */}
               <div className="flex items-start justify-between border-b pb-4">
                 <div className="flex items-center">
-                  <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0 mr-4">
-                    {selectedSeller.logo ? (
-                      <img
-                        src={selectedSeller.logo}
-                        alt={selectedSeller.businessName}
-                        className="w-16 h-16 rounded-xl object-cover"
-                      />
-                    ) : (
-                      <Store className="w-8 h-8 text-white" />
-                    )}
+                  <div className="mr-4">
+                    <SellerAvatar
+                      logo={selectedSeller.logo}
+                      name={selectedSeller.businessName}
+                      sizeClass="w-16 h-16"
+                      iconClass="w-8 h-8 text-white"
+                    />
                   </div>
                   <div>
                     <h3 className="font-semibold text-xl text-gray-900">
@@ -897,6 +923,7 @@ const AdminSellers: React.FC = () => {
               </div>
 
               {/* Banking Information */}
+              {SHOW_BANKING_INFO && (
               <div>
                 <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-orange-500" />
@@ -929,6 +956,7 @@ const AdminSellers: React.FC = () => {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Status Information */}
               {(selectedSeller.status === "rejected" ||
