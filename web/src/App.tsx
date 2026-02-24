@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import "./styles/globals.css";
 import { Toaster } from "./components/ui/toaster";
 import ScrollToTop from "./components/ScrollToTop";
@@ -41,7 +41,7 @@ import TrackingForm from "./components/TrackingForm";
 import { SellerLogin, SellerRegister } from "./pages/SellerAuth";
 import { SellerAuthChoice } from "./pages/SellerAuthChoice";
 import { SellerOnboarding } from "./pages/SellerOnboarding";
-import { SellerPendingApproval } from "./pages/SellerPendingApproval";
+import { UnverifiedSellerPortal } from "./pages/UnverifiedSellerPortal";
 import { SellerDashboard } from "./pages/SellerDashboard";
 import { SellerStoreProfile } from "./pages/SellerStoreProfile";
 import { SellerEarnings } from "./pages/SellerEarnings";
@@ -61,6 +61,7 @@ import SellerPOSSettings from "./pages/SellerPOSSettings";
 import SellerHelpCenter from "./pages/SellerHelpCenter";
 import SellerMyTickets from "./pages/SellerMyTickets";
 import SellerBuyerReports from "./pages/SellerBuyerReports";
+import { SellerAccountBlocked } from "./pages/SellerAccountBlocked";
 import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
 
 // Admin Pages
@@ -249,7 +250,23 @@ function App() {
           />
           <Route
             path="/seller/pending-approval"
-            element={<SellerPendingApproval />}
+            element={<Navigate to="/seller/unverified" replace />}
+          />
+          <Route
+            path="/seller/unverified"
+            element={
+              <ProtectedSellerRoute>
+                <UnverifiedSellerPortal />
+              </ProtectedSellerRoute>
+            }
+          />
+          <Route
+            path="/seller/account-blocked"
+            element={
+              <ProtectedSellerRoute>
+                <SellerAccountBlocked />
+              </ProtectedSellerRoute>
+            }
           />
           <Route
             path="/seller"

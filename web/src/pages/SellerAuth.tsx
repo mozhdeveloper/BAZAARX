@@ -40,7 +40,7 @@ export function SellerLogin() {
           currentSeller?.approvalStatus === 'verified' ||
           currentSeller?.approvalStatus === 'approved';
 
-        navigate(hasSellerAccess ? '/seller' : '/seller/pending-approval');
+        navigate(hasSellerAccess ? '/seller' : '/seller/unverified');
       } else {
         setError('Invalid email or password');
       }
