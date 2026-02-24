@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { uploadSellerDocument, validateDocumentFile } from "@/utils/storage";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import type { BusinessType } from "@/types/database.types";
 
 // Logo components defined outside of render
 
@@ -209,6 +210,28 @@ export function SellerStoreProfile() {
     createdAt: string;
     items: { documentField: string; reason?: string }[];
   } | null>(null);
+
+  const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string }[] = [
+    { value: "sole_proprietor", label: "Sole Proprietorship" },
+    { value: "partnership", label: "Partnership" },
+    { value: "corporation", label: "Corporation" },
+  ];
+
+  const normalizeBusinessType = (value: string): BusinessType | null => {
+    const normalized = value.trim().toLowerCase().replace(/\s+/g, "_");
+
+    if (normalized === "sole_proprietor" || normalized === "sole_proprietorship") {
+      return "sole_proprietor";
+    }
+    if (normalized === "partnership") {
+      return "partnership";
+    }
+    if (normalized === "corporation") {
+      return "corporation";
+    }
+
+    return null;
+  };
 
   // Helper: determine if a string field is effectively empty
   const isEmptyField = (value?: string | null) => {
@@ -525,26 +548,36 @@ export function SellerStoreProfile() {
       alert("Unable to save: seller ID missing.");
       return;
     }
+
+    const normalizedBusinessType = normalizeBusinessType(businessForm.businessType);
+    if (!normalizedBusinessType) {
+      alert("Please select a valid business type: Sole Proprietorship, Partnership, or Corporation.");
+      return;
+    }
+
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseClient: any = supabase;
       const { error } = await supabaseClient
-        .from("sellers")
-        .update({
-          business_name: businessForm.businessName,
-          business_type: businessForm.businessType,
+        .from("seller_business_profiles")
+        .upsert({
+          seller_id: seller.id,
+          business_type: normalizedBusinessType,
           business_registration_number: businessForm.businessRegistrationNumber,
           tax_id_number: businessForm.taxIdNumber,
-          business_address: businessForm.businessAddress,
+          address_line_1: businessForm.businessAddress,
+          address_line_2: null,
           city: businessForm.city,
           province: businessForm.province,
           postal_code: businessForm.postalCode,
-        })
-        .eq("id", seller.id);
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: "seller_id",
+        });
       if (error) throw error;
       updateSellerDetails({
         businessName: businessForm.businessName,
-        businessType: businessForm.businessType,
+        businessType: normalizedBusinessType,
         businessRegistrationNumber: businessForm.businessRegistrationNumber,
         taxIdNumber: businessForm.taxIdNumber,
         businessAddress: businessForm.businessAddress,
@@ -569,13 +602,16 @@ export function SellerStoreProfile() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseClient: any = supabase;
       const { error } = await supabaseClient
-        .from("sellers")
-        .update({
+        .from("seller_payout_accounts")
+        .upsert({
+          seller_id: seller.id,
           bank_name: bankingForm.bankName,
           account_name: bankingForm.accountName,
           account_number: bankingForm.accountNumber,
-        })
-        .eq("id", seller.id);
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: "seller_id",
+        });
       if (error) throw error;
       updateSellerDetails({
         bankName: bankingForm.bankName,
@@ -1087,15 +1123,23 @@ export function SellerStoreProfile() {
                         </div>
                         <div>
                           <Label>Business Type</Label>
-                          <Input
-                            value={businessForm.businessType}
+                          <select
+                            value={normalizeBusinessType(businessForm.businessType) ?? ""}
                             onChange={(e) =>
                               setBusinessForm({
                                 ...businessForm,
                                 businessType: e.target.value,
                               })
                             }
-                          />
+                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          >
+                            <option value="">Select business type</option>
+                            {BUSINESS_TYPE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
