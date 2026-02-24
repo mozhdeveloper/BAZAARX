@@ -467,6 +467,7 @@ export const useAdminSellers = create<SellersState>()(
 // Product QA Store - Matching Web Flow
 export interface ProductQA {
   id: string;
+  productId?: string; // actual products.id (separate from assessment id)
   name: string;
   description: string;
   price: number;
@@ -562,6 +563,7 @@ export const useAdminProductQA = create<AdminProductQAState>()(
         // Convert QA products to admin ProductQA format
         const adminProducts: ProductQA[] = qaProducts.map(qp => ({
           id: qp.id,
+          productId: qp.productId, // real products.id — used for DB QA operations
           name: qp.name,
           description: qp.description || '',
           price: qp.price,
@@ -607,11 +609,11 @@ export const useAdminProductQA = create<AdminProductQAState>()(
         // Sync with seller productQAStore (now using database)
         try {
           const productQAStore = useProductQAStore.getState();
-          // Find the product to get its productId
+          // Find the product and use productId (real products.id) for DB operations
           const product = get().products.find(p => p.id === id);
           if (product) {
-            // Use productId for database operations
-            await productQAStore.approveForSampleSubmission(product.id);
+            const realProductId = product.productId || product.id;
+            await productQAStore.approveForSampleSubmission(realProductId);
           }
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
@@ -631,7 +633,8 @@ export const useAdminProductQA = create<AdminProductQAState>()(
           const productQAStore = useProductQAStore.getState();
           const product = get().products.find(p => p.id === id);
           if (product) {
-            await productQAStore.rejectProduct(product.id, reason, 'digital');
+            const realProductId = product.productId || product.id;
+            await productQAStore.rejectProduct(realProductId, reason, 'digital');
           }
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
@@ -651,7 +654,8 @@ export const useAdminProductQA = create<AdminProductQAState>()(
           const productQAStore = useProductQAStore.getState();
           const product = get().products.find(p => p.id === id);
           if (product) {
-            await productQAStore.submitSample(product.id, logisticsMethod);
+            const realProductId = product.productId || product.id;
+            await productQAStore.submitSample(realProductId, logisticsMethod);
           }
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
@@ -671,7 +675,8 @@ export const useAdminProductQA = create<AdminProductQAState>()(
           const productQAStore = useProductQAStore.getState();
           const product = get().products.find(p => p.id === id);
           if (product) {
-            await productQAStore.passQualityCheck(product.id);
+            const realProductId = product.productId || product.id;
+            await productQAStore.passQualityCheck(realProductId);
           }
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
@@ -691,7 +696,8 @@ export const useAdminProductQA = create<AdminProductQAState>()(
           const productQAStore = useProductQAStore.getState();
           const product = get().products.find(p => p.id === id);
           if (product) {
-            await productQAStore.rejectProduct(product.id, reason, 'physical');
+            const realProductId = product.productId || product.id;
+            await productQAStore.rejectProduct(realProductId, reason, 'physical');
           }
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
