@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LogOut, Users } from "lucide-react";
@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/stores/sellerStore";
 import { sellerLinks } from "@/config/sellerLinks";
+import { roleSwitchService } from "@/services/roleSwitchService";
 
 const SellerLogo = ({ open }: { open: boolean }) => (
     <Link to="/seller" className={cn(
@@ -33,8 +34,28 @@ const SellerLogo = ({ open }: { open: boolean }) => (
 
 export const SellerSidebar = () => {
     const [open, setOpen] = useState(false);
-    const { seller, logout } = useAuthStore();
+    const { seller, logout, hydrateSellerFromSession } = useAuthStore();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (seller?.id) return;
+
+        let isMounted = true;
+
+        const hydrate = async () => {
+            const hydrated = await hydrateSellerFromSession();
+            if (!isMounted) return;
+            if (!hydrated) {
+                navigate("/seller/auth", { replace: true });
+            }
+        };
+
+        hydrate();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [seller?.id, hydrateSellerFromSession, navigate]);
 
     const handleLogout = () => {
         logout();
@@ -68,8 +89,15 @@ export const SellerSidebar = () => {
                     />
                     <button
                         onClick={async () => {
-                            const hasBuyerAccount = await useAuthStore.getState().createBuyerAccount();
-                            if (hasBuyerAccount) navigate('/profile');
+                            const result =
+                                await roleSwitchService.switchToBuyerMode();
+                            if (result.navigationState) {
+                                navigate(result.route, {
+                                    state: result.navigationState,
+                                });
+                            } else {
+                                navigate(result.route);
+                            }
                         }}
                         className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-xl transition-all group overflow-hidden"
                     >
