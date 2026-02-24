@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { qaService, type ProductQAStatus } from '@/services/qaService';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useProductStore } from './sellerStore';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 
 export type { ProductQAStatus };
 
@@ -146,6 +147,35 @@ export const useProductQAStore = create<ProductQAStore>()(
 
           console.log(`[QA Store] loadProducts(${sellerId}) → ${qaEntries.length} entries from DB`);
 
+          // Admin mode: auto-create assessments for orphan products
+          // (products that exist but have no assessment — e.g. when createQAEntry failed earlier)
+          if (!effectiveSellerId) {
+            try {
+              const orphans = await qaService.getOrphanProducts();
+              if (orphans.length > 0) {
+                console.log(`[QA Store] Reconciling ${orphans.length} orphan product(s)...`);
+                await Promise.allSettled(
+                  orphans.map(async (orphan: any) => {
+                    try {
+                      await qaService.createQAEntry(
+                        orphan.id,
+                        orphan.seller?.store_name || 'Unknown',
+                        orphan.seller_id || ''
+                      );
+                    } catch (e) {
+                      console.warn(`[QA Store] Orphan reconcile failed for ${orphan.id}:`, e);
+                    }
+                  })
+                );
+                // Re-fetch with newly created assessments
+                qaEntries = await qaService.getAllQAEntries();
+                console.log(`[QA Store] Post-reconciliation: ${qaEntries.length} entries`);
+              }
+            } catch (orphanError) {
+              console.warn('[QA Store] Orphan reconciliation error:', orphanError);
+            }
+          }
+
           const qaProducts: QAProduct[] = qaEntries.map((entry: any) => {
             // Extract category name from nested object or use string directly
             const categoryValue = entry.product?.category;
@@ -153,11 +183,14 @@ export const useProductQAStore = create<ProductQAStore>()(
               ? categoryValue.name 
               : (typeof categoryValue === 'string' ? categoryValue : 'Uncategorized');
             
-            // Extract image URL from nested image objects
+            // Extract image URL from nested image objects; sanitize social-media CDN URLs
             const imageList = entry.product?.images || [];
             const primaryImage = imageList.find((img: any) => img.is_primary) || imageList[0];
-            const imageUrl = primaryImage?.image_url || primaryImage || 'https://placehold.co/100?text=Product';
-            const imageUrls = imageList.map((img: any) => img.image_url || img).filter(Boolean);
+            const rawImageUrl = primaryImage?.image_url || primaryImage || 'https://placehold.co/100?text=Product';
+            const imageUrl = getSafeImageUrl(rawImageUrl);
+            const imageUrls = imageList
+              .map((img: any) => getSafeImageUrl(img.image_url || img))
+              .filter(Boolean);
 
             // Extract variants
             const variants = (entry.product?.variants || []).map((v: any) => ({
@@ -453,8 +486,8 @@ export const useProductQAStore = create<ProductQAStore>()(
               productData.vendor,
               productData.sellerId
             );
-            // Reload products to get fresh data
-            await get().loadProducts();
+            // Reload using this seller's ID specifically so seller sees their own updated list
+            await get().loadProducts(productData.sellerId);
           } else {
             // Fallback to local state
             const newQAProduct: QAProduct = {
