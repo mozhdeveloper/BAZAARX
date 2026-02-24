@@ -604,7 +604,6 @@ export const useAdminSellers = create<SellersState>()(
               .from('sellers')
               .select(`
                 *,
-                profiles(email, first_name, last_name, phone)
                 profiles(*),
                 business_profile:seller_business_profiles(*),
                 payout_account:seller_payout_accounts(*),
@@ -636,8 +635,23 @@ export const useAdminSellers = create<SellersState>()(
 
             const sellerIds = (sellersData || []).map((seller) => seller.id).filter(Boolean);
             const latestRejectionsBySeller = new Map<string, SellerRejectionRecord>();
+            const verificationDocsBySeller = new Map<string, any>();
 
             if (sellerIds.length > 0) {
+              const { data: verificationRows, error: verificationError } = await supabase
+                .from('seller_verification_documents')
+                .select('*')
+                .in('seller_id', sellerIds);
+
+              if (verificationError) {
+                console.warn('[AdminSellers] Could not load seller verification documents:', verificationError.message);
+              } else {
+                for (const row of verificationRows || []) {
+                  if (!row?.seller_id) continue;
+                  verificationDocsBySeller.set(row.seller_id, row);
+                }
+              }
+
               const { data: rejectionRows, error: rejectionError } = await supabase
                 .from('seller_rejections')
                 .select(`
@@ -669,7 +683,12 @@ export const useAdminSellers = create<SellersState>()(
               const profile = Array.isArray(profileRaw) ? profileRaw[0] : profileRaw;
               const businessProfile = seller.business_profile || seller.seller_business_profiles || {};
               const payoutAccount = seller.payout_account || seller.seller_payout_accounts || {};
-              const verificationDocuments = seller.verification_documents || seller.seller_verification_documents || {};
+              const embeddedVerificationDocuments =
+                seller.verification_documents || seller.seller_verification_documents || null;
+              const verificationDocuments = Array.isArray(embeddedVerificationDocuments)
+                ? embeddedVerificationDocuments[0]
+                : embeddedVerificationDocuments;
+              const fallbackVerificationDocuments = verificationDocsBySeller.get(seller.id) || {};
               const latestRejection = latestRejectionsBySeller.get(seller.id);
               const status = toUiSellerStatus(seller.approval_status, latestRejection?.rejection_type);
 
@@ -706,7 +725,10 @@ export const useAdminSellers = create<SellersState>()(
                   : ['General'];
 
               const documents: SellerDocument[] = SELLER_DOCUMENT_CONFIG.reduce((acc, config) => {
-                const url = verificationDocuments?.[config.field] || seller?.[config.field];
+                const url =
+                  verificationDocuments?.[config.field] ||
+                  fallbackVerificationDocuments?.[config.field] ||
+                  seller?.[config.field];
                 if (!url) return acc;
 
                 const rejectionReason = rejectionItemsMap.get(config.field);
@@ -716,7 +738,12 @@ export const useAdminSellers = create<SellersState>()(
                   type: config.type,
                   fileName: config.fileName,
                   url,
-                  uploadDate: new Date(verificationDocuments?.created_at || seller.created_at || Date.now()),
+                  uploadDate: new Date(
+                    verificationDocuments?.created_at ||
+                      fallbackVerificationDocuments?.created_at ||
+                      seller.created_at ||
+                      Date.now(),
+                  ),
                   isVerified: status === 'approved',
                   isRejected: Boolean(rejectionReason),
                   rejectionReason,
