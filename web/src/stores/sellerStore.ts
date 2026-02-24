@@ -217,6 +217,8 @@ interface AuthStore {
     updateSellerDetails: (details: Partial<Seller>) => void;
     authenticateSeller: () => void;
     createBuyerAccount: () => Promise<boolean>;
+    hydrateSellerContext: (userId: string) => Promise<boolean>;
+    hydrateSellerFromSession: () => Promise<boolean>;
 }
 
 interface ProductStore {
@@ -393,13 +395,14 @@ const fallbackSellerId = (
 const mapDbSellerToSeller = (s: any): Seller => {
     const bp = s.business_profile || s.seller_business_profiles || {};
     const pa = s.payout_account || s.seller_payout_accounts || {};
+    const profile = s.profile || {};
 
     return {
         id: s.id,
         name: s.owner_name || s.store_name || "Seller",
         ownerName: s.owner_name || s.store_name || "Seller",
-        email: "",
-        phone: "",
+        email: profile.email || "",
+        phone: profile.phone || "",
         businessName: s.owner_name || "",
         storeName: s.store_name || "",
         storeDescription: s.store_description || "",
@@ -516,28 +519,7 @@ export const useAuthStore = create<AuthStore>()(
                     }
 
                     const { user } = result;
-
-                    const sellerProfile = await authService.getSellerProfile(
-                        user.id,
-                    );
-                    if (!sellerProfile) {
-                        console.error("No seller profile found for user");
-                        return false;
-                    }
-
-                    // Fetch email from profiles table and merge with seller profile
-                    const userEmail = await authService.getEmailFromProfile(
-                        user.id,
-                    );
-                    const mappedSeller = mapDbSellerToSeller(sellerProfile);
-
-                    // Ensure email is set from profiles table
-                    if (userEmail) {
-                        mappedSeller.email = userEmail;
-                    }
-
-                    set({ seller: mappedSeller, isAuthenticated: true });
-                    return true;
+                    return get().hydrateSellerContext(user.id);
                 } catch (err) {
                     console.error("Login error:", err);
                     return false;
@@ -598,17 +580,11 @@ export const useAuthStore = create<AuthStore>()(
                             user = signInResult.user;
                             isExistingUser = true;
 
-                            // Check if they're already a seller
-                            const { data: existingProfile } = await supabase
-                                .from("profiles")
-                                .select("user_type")
-                                .eq("id", user.id)
-                                .single();
+                            const isAlreadySeller = await authService.isUserSeller(
+                                user.id,
+                            );
 
-                            if (
-                                existingProfile &&
-                                existingProfile.user_type === "seller"
-                            ) {
+                            if (isAlreadySeller) {
                                 console.error(
                                     "User is already registered as a seller",
                                 );
@@ -629,8 +605,8 @@ export const useAuthStore = create<AuthStore>()(
                                 {
                                     full_name:
                                         sellerData.ownerName ||
-                                        sellerData.storeName ||
-                                        sellerData.email?.split("@")[0],
+                                        sellerData.email?.split("@")[0] ||
+                                        "Seller",
                                     phone: sellerData.phone,
                                     user_type: "seller",
                                     email: sellerData.email!,
@@ -667,18 +643,10 @@ export const useAuthStore = create<AuthStore>()(
                                     user = signInResult.user;
                                     isExistingUser = true;
 
-                                    // Check if they're already a seller
-                                    const { data: existingProfile } =
-                                        await supabase
-                                            .from("profiles")
-                                            .select("user_type")
-                                            .eq("id", user.id)
-                                            .single();
+                                    const isAlreadySeller =
+                                        await authService.isUserSeller(user.id);
 
-                                    if (
-                                        existingProfile &&
-                                        existingProfile.user_type === "seller"
-                                    ) {
+                                    if (isAlreadySeller) {
                                         console.error(
                                             "User is already registered as a seller",
                                         );
@@ -705,6 +673,46 @@ export const useAuthStore = create<AuthStore>()(
                         await authService.upgradeUserType(user.id, "seller");
                     }
 
+                    let resolvedOwnerName = sellerData.ownerName?.trim() || "";
+                    if (!resolvedOwnerName) {
+                        try {
+                            const existingProfile =
+                                await authService.getUserProfile(user.id);
+                            resolvedOwnerName = [
+                                existingProfile?.first_name,
+                                existingProfile?.last_name,
+                            ]
+                                .filter(Boolean)
+                                .join(" ")
+                                .trim();
+                        } catch (ownerProfileError) {
+                            console.warn(
+                                "Failed to resolve owner name from profile:",
+                                ownerProfileError,
+                            );
+                        }
+                    }
+
+                    // Keep profile contact aligned with seller registration inputs.
+                    const normalizedRegisterEmail = sellerData.email?.trim();
+                    const normalizedRegisterPhone =
+                        sellerData.phone?.trim() || null;
+                    if (normalizedRegisterEmail || normalizedRegisterPhone) {
+                        try {
+                            await authService.updateProfile(user.id, {
+                                ...(normalizedRegisterEmail
+                                    ? { email: normalizedRegisterEmail }
+                                    : {}),
+                                phone: normalizedRegisterPhone,
+                            });
+                        } catch (profileSyncError) {
+                            console.warn(
+                                "Failed to sync seller contact to profile:",
+                                profileSyncError,
+                            );
+                        }
+                    }
+
                     // 2) Create or update seller record (use upsert to handle conflicts)
                     const { sellerService } =
                         await import("@/services/sellerService");
@@ -717,6 +725,7 @@ export const useAuthStore = create<AuthStore>()(
                             "My Store",
                         store_name: sellerData.storeName || "My Store",
                         store_description: sellerData.storeDescription || "",
+                        owner_name: resolvedOwnerName || null,
                         store_category: sellerData.storeCategory || ["General"],
                         business_type:
                             sellerData.businessType || "sole_proprietor",
@@ -755,9 +764,15 @@ export const useAuthStore = create<AuthStore>()(
                         return false;
                     }
 
+                    const mappedSeller = mapDbSellerToSeller(savedSeller);
+                    mappedSeller.email =
+                        normalizedRegisterEmail || mappedSeller.email;
+                    mappedSeller.phone =
+                        normalizedRegisterPhone || mappedSeller.phone;
+
                     // 3) Set local auth state as pending (awaiting approval)
                     set({
-                        seller: mapDbSellerToSeller(savedSeller),
+                        seller: mappedSeller,
                         isAuthenticated: false,
                     });
                     return true;
@@ -798,7 +813,14 @@ export const useAuthStore = create<AuthStore>()(
 
                 try {
                     const authStoreState = useAuthStore.getState();
-                    const userId = authStoreState.seller?.id;
+                    let userId = authStoreState.seller?.id;
+
+                    if (!userId) {
+                        const {
+                            data: { user },
+                        } = await supabase.auth.getUser();
+                        userId = user?.id;
+                    }
 
                     if (!userId) {
                         console.error(
@@ -813,6 +835,62 @@ export const useAuthStore = create<AuthStore>()(
                     return true;
                 } catch (error) {
                     console.error("Error creating buyer account:", error);
+                    return false;
+                }
+            },
+            hydrateSellerContext: async (userId: string) => {
+                if (!isSupabaseConfigured()) {
+                    return false;
+                }
+
+                if (!userId) {
+                    return false;
+                }
+
+                try {
+                    const sellerProfile = await authService.getSellerProfile(
+                        userId,
+                    );
+                    if (!sellerProfile) {
+                        return false;
+                    }
+
+                    const mappedSeller = mapDbSellerToSeller(sellerProfile);
+                    const profileContact =
+                        await authService.getProfileContact(userId);
+
+                    if (profileContact) {
+                        mappedSeller.email =
+                            profileContact.email || mappedSeller.email;
+                        mappedSeller.phone =
+                            profileContact.phone || mappedSeller.phone;
+                    }
+
+                    set({ seller: mappedSeller, isAuthenticated: true });
+                    return true;
+                } catch (error) {
+                    console.error("Failed to hydrate seller context:", error);
+                    return false;
+                }
+            },
+            hydrateSellerFromSession: async () => {
+                if (!isSupabaseConfigured()) {
+                    return false;
+                }
+
+                try {
+                    const {
+                        data: { user },
+                        error,
+                    } = await supabase.auth.getUser();
+
+                    if (error || !user?.id) {
+                        return false;
+                    }
+
+                    return get().hydrateSellerContext(user.id);
+                } catch (error) {
+                    console.error("Failed to hydrate seller from session:", error);
                     return false;
                 }
             },

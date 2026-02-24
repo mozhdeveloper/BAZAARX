@@ -17,25 +17,29 @@ export const useSellerCheck = (userEmail: string | undefined) => {
             setError(null);
 
             try {
-                // Check if the user exists in the profiles table with user_type = 'seller'
-                const { data, error: fetchError } = await supabase
+                const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('id, user_type')
+                    .select('id')
                     .eq('email', userEmail)
-                    .single();
+                    .maybeSingle();
 
-                if (fetchError) {
-                    // If error is due to no rows found, that's fine - user is not registered as seller
-                    if (fetchError.code === 'PGRST116') { // Row not found
-                        setIsSeller(false);
-                    } else {
-                        throw fetchError;
-                    }
-                } else if (data && data.user_type === 'seller') {
-                    setIsSeller(true);
-                } else {
+                if (profileError) throw profileError;
+
+                if (!profile?.id) {
                     setIsSeller(false);
+                    return;
                 }
+
+                const { data: sellerRole, error: roleError } = await supabase
+                    .from('user_roles')
+                    .select('id')
+                    .eq('user_id', profile.id)
+                    .eq('role', 'seller')
+                    .maybeSingle();
+
+                if (roleError) throw roleError;
+
+                setIsSeller(Boolean(sellerRole?.id));
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Failed to check seller status';
                 setError(errorMessage);

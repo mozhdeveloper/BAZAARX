@@ -1477,20 +1477,50 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
 
         // Now fetch the complete profile data
-        const { data: buyerData, error: buyerError } = await supabase
+        let buyerData: any = null;
+        let profileInfo: any = null;
+
+        const { data: buyerWithProfile, error: buyerJoinError } = await supabase
           .from('buyers')
           .select(`
             *,
             profile:profiles!id (
-              id, email, full_name, phone, avatar_url, user_type, created_at
+              id, email, first_name, last_name, phone, created_at
             )
           `)
           .eq('id', userId)
           .single();
 
-        if (buyerError) {
-          console.error('Error fetching buyer profile:', buyerError);
-          throw buyerError;
+        if (!buyerJoinError && buyerWithProfile) {
+          buyerData = buyerWithProfile;
+          profileInfo = buyerWithProfile.profile;
+        } else {
+          console.warn('Buyer/profile join failed, falling back to separate queries:', buyerJoinError);
+
+          const [{ data: buyerOnly, error: buyerOnlyError }, { data: profileOnly, error: profileOnlyError }] = await Promise.all([
+            supabase
+              .from('buyers')
+              .select('*')
+              .eq('id', userId)
+              .single(),
+            supabase
+              .from('profiles')
+              .select('id, email, first_name, last_name, phone, created_at')
+              .eq('id', userId)
+              .maybeSingle(),
+          ]);
+
+          if (buyerOnlyError) {
+            console.error('Error fetching buyer profile:', buyerOnlyError);
+            throw buyerOnlyError;
+          }
+
+          if (profileOnlyError && profileOnlyError.code !== 'PGRST116') {
+            console.error('Error fetching linked profile:', profileOnlyError);
+          }
+
+          buyerData = buyerOnly;
+          profileInfo = profileOnly || null;
         }
 
         // Fetch shipping addresses from the separate table
@@ -1501,16 +1531,18 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           .order('is_default', { ascending: false })
           .order('created_at', { ascending: false });
 
-        // Extract profile info from the joined data
-        const profileInfo = buyerData.profile;
+        // Extract profile info from joined/fallback data
+        const firstName = profileInfo?.first_name || '';
+        const lastName = profileInfo?.last_name || '';
+
         const buyerInfo = {
           ...buyerData,
-          firstName: profileInfo.full_name?.split(' ')[0] || '',
-          lastName: profileInfo.full_name?.split(' ').slice(1).join(' ') || '',
-          email: profileInfo.email,
-          phone: profileInfo.phone || '',
-          avatar: profileInfo.avatar_url || '/placeholder-avatar.jpg',
-          memberSince: new Date(profileInfo.created_at),
+          firstName,
+          lastName,
+          email: profileInfo?.email || '',
+          phone: profileInfo?.phone || '',
+          avatar: buyerData.avatar_url || '/placeholder-avatar.jpg',
+          memberSince: profileInfo?.created_at ? new Date(profileInfo.created_at) : new Date(),
           totalSpent: buyerData.total_spent || 0,
           bazcoins: buyerData.bazcoins || 0,
           totalOrders: 0,
