@@ -43,7 +43,7 @@ const mapOrderItems = (orderItems: any[], fallbackStoreName: string, fallbackSel
     return {
       id: item.product_id || item.id,
       orderItemId: item.id,
-      name: item.product_name,
+      name: item.product?.name || item.product_name,
       image: variantData?.thumbnail_url || item.primary_image_url || "https://placehold.co/100?text=Product",
       price: effectivePrice,
       originalPrice: discountPerUnit > 0 ? basePrice : undefined,
@@ -52,22 +52,22 @@ const mapOrderItems = (orderItems: any[], fallbackStoreName: string, fallbackSel
       sellerId: item.seller_id || fallbackSellerId,
       variant: variantData
         ? {
-            id: variantData.id,
-            name: variantData.variant_name,
-            size: variantData.size,
-            color: variantData.color,
-            sku: variantData.sku,
-          }
+          id: variantData.id,
+          name: variantData.variant_name,
+          size: variantData.size,
+          color: variantData.color,
+          sku: variantData.sku,
+        }
         : undefined,
       selectedVariant: variantData
         ? {
-            id: variantData.id,
-            name: variantData.variant_name,
-            size: variantData.size,
-            color: variantData.color,
-          }
+          id: variantData.id,
+          name: variantData.variant_name,
+          size: variantData.size,
+          color: variantData.color,
+        }
         : null,
-      variantDisplay: variantParts.length > 0 ? variantParts.join(" / ") : null,
+      variantDisplay: variantParts.length > 0 ? variantParts.join(" | ") : null,
       rating: 5,
       category: "General",
     };
@@ -383,7 +383,7 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
     posNote: order.pos_note || undefined,
     notes: order.notes || undefined,
     // Payment method - derive from order_payments or default based on order type
-    paymentMethod: order.payment_method?.type || 
+    paymentMethod: order.payment_method?.type ||
       (order.order_type === "OFFLINE" ? "cash" : "online") as "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online",
   };
 };
@@ -412,7 +412,7 @@ export const mapOrderRowToOrderDetailSnapshot = (orderData: any): OrderDetailSna
     buyer_id: orderData.buyer_id,
     is_reviewed: Boolean(
       buyerSnapshot.review ||
-        (Array.isArray(buyerSnapshot.reviews) && buyerSnapshot.reviews.length > 0),
+      (Array.isArray(buyerSnapshot.reviews) && buyerSnapshot.reviews.length > 0),
     ),
     shipping_cost: Number(orderData.shipping_cost || 0),
     sellerId: orderData.seller_id || null,
