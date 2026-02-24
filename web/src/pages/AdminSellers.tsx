@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Navigate } from "react-router-dom";
-import { useAdminAuth, useAdminSellers, Seller } from "../stores/adminStore";
+import {
+  useAdminAuth,
+  useAdminSellers,
+  Seller,
+  type SellerDocumentField,
+} from "../stores/adminStore";
 import AdminSidebar from "../components/AdminSidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -62,6 +69,7 @@ const AdminSellers: React.FC = () => {
     loadSellers,
     approveSeller,
     rejectSeller,
+    partiallyRejectSeller,
     suspendSeller,
     selectSeller,
     hasCompleteRequirements,
@@ -73,8 +81,13 @@ const AdminSellers: React.FC = () => {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showPartialRejectDialog, setShowPartialRejectDialog] = useState(false);
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [partialRejectNote, setPartialRejectNote] = useState("");
+  const [partialRejectionSelections, setPartialRejectionSelections] = useState<
+    Record<string, { checked: boolean; reason: string }>
+  >({});
   const [suspendReason, setSuspendReason] = useState("");
 
   useEffect(() => {
@@ -109,6 +122,10 @@ const AdminSellers: React.FC = () => {
     () => getFilteredSellers("rejected"),
     [getFilteredSellers],
   );
+  const resubmissionSellers = useMemo(
+    () => getFilteredSellers("needs_resubmission"),
+    [getFilteredSellers],
+  );
   const suspendedSellers = useMemo(
     () => getFilteredSellers("suspended"),
     [getFilteredSellers],
@@ -116,6 +133,21 @@ const AdminSellers: React.FC = () => {
   const filteredPendingSellers = useMemo(
     () => getFilteredSellers("pending"),
     [getFilteredSellers],
+  );
+  const needsResubmissionCount = useMemo(
+    () => sellers.filter((seller) => seller.status === "needs_resubmission").length,
+    [sellers],
+  );
+
+  const selectedPartialRejections = useMemo(
+    () =>
+      Object.entries(partialRejectionSelections)
+        .filter(([, value]) => value.checked)
+        .map(([field, value]) => ({
+          documentField: field,
+          reason: value.reason.trim() || undefined,
+        })),
+    [partialRejectionSelections],
   );
 
   const handleViewDetails = useCallback(
@@ -136,17 +168,93 @@ const AdminSellers: React.FC = () => {
     await approveSeller(selectedSeller.id);
     setShowApproveDialog(false);
     selectSeller(null);
+    await loadSellers();
   };
 
   const handleReject = async () => {
-    if (!selectedSeller || !rejectReason) return;
-    await rejectSeller(selectedSeller.id, rejectReason);
+    if (!selectedSeller) return;
+    await rejectSeller(selectedSeller.id, rejectReason.trim() || undefined);
     setShowRejectDialog(false);
     setRejectReason("");
     selectSeller(null);
     // Reload sellers to refresh the UI
     await loadSellers();
   };
+
+  const initializePartialReject = useCallback((seller: Seller) => {
+    const initialSelections = seller.documents.reduce(
+      (acc, document) => {
+        acc[document.field] = {
+          checked: false,
+          reason: "",
+        };
+        return acc;
+      },
+      {} as Record<string, { checked: boolean; reason: string }>,
+    );
+
+    setPartialRejectionSelections(initialSelections);
+    setPartialRejectNote("");
+  }, []);
+
+  const handlePartialReject = async () => {
+    if (!selectedSeller || selectedPartialRejections.length === 0) return;
+
+    await partiallyRejectSeller(selectedSeller.id, {
+      note: partialRejectNote.trim() || undefined,
+      items: selectedPartialRejections.map((item) => ({
+        documentField: item.documentField as SellerDocumentField,
+        reason: item.reason,
+      })),
+    });
+
+    setShowPartialRejectDialog(false);
+    setPartialRejectNote("");
+    setPartialRejectionSelections({});
+    selectSeller(null);
+    await loadSellers();
+  };
+
+  const updatePartialSelection = useCallback(
+    (field: string, checked: boolean) => {
+      setPartialRejectionSelections((prev) => ({
+        ...prev,
+        [field]: {
+          checked,
+          reason: checked ? prev[field]?.reason || "" : "",
+        },
+      }));
+    },
+    [],
+  );
+
+  const updatePartialReason = useCallback((field: string, reason: string) => {
+    setPartialRejectionSelections((prev) => ({
+      ...prev,
+      [field]: {
+        checked: prev[field]?.checked || false,
+        reason,
+      },
+    }));
+  }, []);
+
+  const handlePreviewDocument = useCallback((url: string) => {
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, []);
+
+  const handleDownloadDocument = useCallback((url: string, fileName: string) => {
+    if (!url) return;
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, []);
 
   const handleSuspend = async () => {
     if (!selectedSeller || !suspendReason) return;
@@ -182,6 +290,12 @@ const AdminSellers: React.FC = () => {
             Pending
           </Badge>
         );
+      case "needs_resubmission":
+        return (
+          <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+            Needs Resubmission
+          </Badge>
+        );
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -197,6 +311,8 @@ const AdminSellers: React.FC = () => {
         return <Ban className="w-4 h-4 text-orange-600" />;
       case "pending":
         return <Clock className="w-4 h-4 text-yellow-600" />;
+      case "needs_resubmission":
+        return <AlertTriangle className="w-4 h-4 text-amber-700" />;
       default:
         return <AlertTriangle className="w-4 h-4 text-gray-600" />;
     }
@@ -300,7 +416,7 @@ const AdminSellers: React.FC = () => {
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -336,6 +452,19 @@ const AdminSellers: React.FC = () => {
                       Incomplete
                     </Button>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      selectSeller(seller);
+                      initializePartialReject(seller);
+                      setShowPartialRejectDialog(true);
+                    }}
+                    className="text-amber-700 border-amber-300 hover:bg-amber-50"
+                  >
+                    <AlertTriangle className="w-4 h-4 mr-1" />
+                    Partial Reject
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -416,7 +545,7 @@ const AdminSellers: React.FC = () => {
                 Refresh
               </Button>
               <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
-                {pendingSellers.length} Pending Approvals
+                {pendingSellers.length + needsResubmissionCount} In Review
               </Badge>
               <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
                 <UserCheck className="w-5 h-5 text-white" />
@@ -445,10 +574,17 @@ const AdminSellers: React.FC = () => {
             onValueChange={setActiveTab}
             className="space-y-6"
           >
-            <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+            <TabsList className="grid w-full grid-cols-5 lg:w-auto">
               <TabsTrigger value="pending" className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 Pending ({filteredPendingSellers.length})
+              </TabsTrigger>
+              <TabsTrigger
+                value="needs_resubmission"
+                className="flex items-center gap-2"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                Resubmission ({resubmissionSellers.length})
               </TabsTrigger>
               <TabsTrigger value="approved" className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
@@ -512,6 +648,27 @@ const AdminSellers: React.FC = () => {
                   </h3>
                   <p className="text-gray-600">
                     No sellers have been approved yet.
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="needs_resubmission">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AnimatePresence mode="popLayout">
+                  {resubmissionSellers.map((seller) => (
+                    <SellerCard key={seller.id} seller={seller} />
+                  ))}
+                </AnimatePresence>
+              </div>
+              {resubmissionSellers.length === 0 && (
+                <div className="text-center py-12">
+                  <AlertTriangle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No resubmissions pending
+                  </h3>
+                  <p className="text-gray-600">
+                    Sellers needing document updates will appear here.
                   </p>
                 </div>
               )}
@@ -775,12 +932,15 @@ const AdminSellers: React.FC = () => {
 
               {/* Status Information */}
               {(selectedSeller.status === "rejected" ||
+                selectedSeller.status === "needs_resubmission" ||
                 selectedSeller.status === "suspended") && (
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-red-500" />
                       {selectedSeller.status === "rejected"
                         ? "Rejection"
+                        : selectedSeller.status === "needs_resubmission"
+                          ? "Resubmission"
                         : "Suspension"}{" "}
                       Details
                     </h4>
@@ -789,14 +949,16 @@ const AdminSellers: React.FC = () => {
                         Reason:
                       </p>
                       <p className="text-sm text-red-800">
-                        {selectedSeller.status === "rejected"
+                        {selectedSeller.status === "rejected" ||
+                          selectedSeller.status === "needs_resubmission"
                           ? selectedSeller.rejectionReason
                           : selectedSeller.suspensionReason}
                       </p>
-                      {selectedSeller.status === "rejected" &&
+                      {(selectedSeller.status === "rejected" ||
+                        selectedSeller.status === "needs_resubmission") &&
                         selectedSeller.rejectedAt && (
                           <p className="text-xs text-red-600 mt-2">
-                            Rejected on{" "}
+                            Reviewed on{" "}
                             {new Date(
                               selectedSeller.rejectedAt,
                             ).toLocaleDateString()}{" "}
@@ -824,31 +986,63 @@ const AdminSellers: React.FC = () => {
                 </h4>
                 <div className="space-y-2">
                   {selectedSeller.documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="flex items-center">
-                        <FileText className="w-5 h-5 text-gray-400 mr-3" />
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {doc.fileName}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {doc.type.replace("_", " ").toUpperCase()}
-                          </p>
+                    <div key={doc.id} className="space-y-1">
+                      <div
+                        className={`flex items-center justify-between p-3 rounded-lg ${
+                          doc.isRejected
+                            ? "bg-red-50 border border-red-200"
+                            : "bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-center">
+                          <FileText className="w-5 h-5 text-gray-400 mr-3" />
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {doc.fileName}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {doc.type.replace("_", " ").toUpperCase()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {doc.isRejected ? (
+                            <Badge className="bg-red-100 text-red-700 border-red-200">
+                              Needs Update
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant={doc.isVerified ? "default" : "secondary"}
+                            >
+                              {doc.isVerified ? "Verified" : "Pending"}
+                            </Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handlePreviewDocument(doc.url)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              handleDownloadDocument(
+                                doc.url,
+                                `${doc.fileName || doc.type}.pdf`,
+                              )
+                            }
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={doc.isVerified ? "default" : "secondary"}
-                        >
-                          {doc.isVerified ? "Verified" : "Pending"}
-                        </Badge>
-                        <Button size="sm" variant="outline">
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {doc.rejectionReason && (
+                        <p className="text-xs text-red-700 mt-2">
+                          {doc.rejectionReason}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -962,13 +1156,13 @@ const AdminSellers: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Reject Seller Application</DialogTitle>
             <DialogDescription>
-              Please provide a reason for rejecting "
-              {selectedSeller?.businessName}".
+              Add an optional reason for rejecting "{selectedSeller?.businessName}".
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Input
-              placeholder="Enter rejection reason..."
+            <Textarea
+              rows={4}
+              placeholder="Optional: add a note to help the seller understand what to fix"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
             />
@@ -985,7 +1179,7 @@ const AdminSellers: React.FC = () => {
             </Button>
             <Button
               onClick={handleReject}
-              disabled={!rejectReason.trim() || isLoading}
+              disabled={isLoading}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               {isLoading ? (
@@ -995,6 +1189,118 @@ const AdminSellers: React.FC = () => {
                 </>
               ) : (
                 "Reject Application"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Partial Reject Seller Dialog */}
+      <Dialog
+        open={showPartialRejectDialog}
+        onOpenChange={(openValue) => {
+          setShowPartialRejectDialog(openValue);
+          if (!openValue) {
+            setPartialRejectionSelections({});
+            setPartialRejectNote("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[680px]">
+          <DialogHeader>
+            <DialogTitle>Partially Reject Documents</DialogTitle>
+            <DialogDescription>
+              Select specific documents from "{selectedSeller?.businessName}" that need correction.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+            {selectedSeller?.documents.map((document) => {
+              const selection = partialRejectionSelections[document.field] || {
+                checked: false,
+                reason: "",
+              };
+
+              return (
+                <div
+                  key={document.id}
+                  className="border rounded-lg p-4 bg-gray-50/70 space-y-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={selection.checked}
+                      onCheckedChange={(checked) =>
+                        updatePartialSelection(document.field, checked === true)
+                      }
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{document.fileName}</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">
+                        {document.type.replace("_", " ")}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePreviewDocument(document.url)}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Preview
+                    </Button>
+                  </div>
+
+                  {selection.checked && (
+                    <Textarea
+                      rows={3}
+                      placeholder="Optional: specify what's wrong with this file"
+                      value={selection.reason}
+                      onChange={(event) =>
+                        updatePartialReason(document.field, event.target.value)
+                      }
+                    />
+                  )}
+                </div>
+              );
+            })}
+
+            {selectedSeller?.documents.length === 0 && (
+              <p className="text-sm text-gray-600">No documents found for this seller.</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-gray-900">Optional overall note</p>
+            <Textarea
+              rows={3}
+              placeholder="Add context that applies to all selected documents"
+              value={partialRejectNote}
+              onChange={(event) => setPartialRejectNote(event.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPartialRejectDialog(false);
+                setPartialRejectionSelections({});
+                setPartialRejectNote("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePartialReject}
+              disabled={selectedPartialRejections.length === 0 || isLoading}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                `Partial Reject (${selectedPartialRejections.length})`
               )}
             </Button>
           </DialogFooter>

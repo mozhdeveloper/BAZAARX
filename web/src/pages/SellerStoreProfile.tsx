@@ -200,9 +200,15 @@ export function SellerStoreProfile() {
 
   const [isVerified, setIsVerified] = useState(seller?.isVerified || false);
   const [approvalStatus, setApprovalStatus] = useState<
-    "pending" | "approved" | "rejected"
+    "pending" | "approved" | "verified" | "rejected" | "needs_resubmission"
   >(seller?.approvalStatus || "pending");
   const [reapplyLoading, setReapplyLoading] = useState(false);
+  const [latestRejection, setLatestRejection] = useState<{
+    rejectionType: "full" | "partial";
+    description?: string;
+    createdAt: string;
+    items: { documentField: string; reason?: string }[];
+  } | null>(null);
 
   // Helper: determine if a string field is effectively empty
   const isEmptyField = (value?: string | null) => {
@@ -281,6 +287,7 @@ export function SellerStoreProfile() {
       if (error) throw error;
 
       setApprovalStatus("pending");
+      setLatestRejection(null);
       alert("Reapplication submitted. Your profile is now pending review.");
     } catch (err) {
       console.error("Failed to set approval_status to pending:", err);
@@ -306,8 +313,17 @@ export function SellerStoreProfile() {
         if (sellerError) {
           console.error("Error fetching seller status:", sellerError);
         } else if (sellerData) {
-          setApprovalStatus(sellerData.approval_status || "pending");
-          setIsVerified(sellerData.approval_status === "verified");
+          const normalizedStatus = (sellerData.approval_status || "pending") as
+            | "pending"
+            | "approved"
+            | "verified"
+            | "rejected"
+            | "needs_resubmission";
+
+          setApprovalStatus(normalizedStatus);
+          setIsVerified(
+            normalizedStatus === "verified" || normalizedStatus === "approved",
+          );
         }
 
         // Fetch verification documents from separate table
@@ -327,6 +343,37 @@ export function SellerStoreProfile() {
             dtiRegistrationUrl: docData.dti_registration_url || undefined,
             taxIdUrl: docData.tax_id_url || undefined,
           });
+        }
+
+        const { data: rejectionData, error: rejectionError } = await supabase
+          .from("seller_rejections")
+          .select(
+            "description, rejection_type, created_at, items:seller_rejection_items(document_field, reason)",
+          )
+          .eq("seller_id", seller.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (rejectionError && rejectionError.code !== "PGRST116") {
+          console.warn("Unable to load rejection details:", rejectionError.message);
+        } else if (rejectionData) {
+          setLatestRejection({
+            rejectionType: (rejectionData.rejection_type || "full") as
+              | "full"
+              | "partial",
+            description: rejectionData.description || undefined,
+            createdAt: rejectionData.created_at,
+            items: (rejectionData.items || []).map((item: {
+              document_field: string;
+              reason: string | null;
+            }) => ({
+              documentField: item.document_field,
+              reason: item.reason || undefined,
+            })),
+          });
+        } else {
+          setLatestRejection(null);
         }
       } catch (error) {
         console.error("Error fetching seller data:", error);
@@ -416,6 +463,30 @@ export function SellerStoreProfile() {
   const isImageFile = (url?: string) => {
     if (!url) return false;
     return /\.(jpg|jpeg|png|webp)$/i.test(url);
+  };
+
+  const getDocumentRejectionReason = (columnName: string) => {
+    if (latestRejection?.rejectionType !== "partial") return undefined;
+
+    const item = latestRejection.items.find(
+      (entry) => entry.documentField === columnName,
+    );
+
+    if (!item) return undefined;
+
+    return item?.reason || latestRejection.description;
+  };
+
+  const requiresResubmission =
+    approvalStatus === "needs_resubmission" ||
+    (approvalStatus === "rejected" && latestRejection?.rejectionType === "partial");
+
+  const documentFieldLabels: Record<string, string> = {
+    business_permit_url: "Business Permit",
+    valid_id_url: "Government-Issued ID",
+    proof_of_address_url: "Proof of Address",
+    dti_registration_url: "DTI/SEC Registration",
+    tax_id_url: "BIR Tax ID (TIN)",
   };
 
   const handleSaveBasic = async () => {
@@ -671,7 +742,23 @@ export function SellerStoreProfile() {
                             Pending Approval
                           </Badge>
                         )}
-                        {approvalStatus === "rejected" && (
+                        {requiresResubmission && (
+                          <div className="flex flex-col items-center gap-2">
+                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Needs Resubmission
+                            </Badge>
+                            <Button
+                              size="sm"
+                              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-xs"
+                              onClick={handleReapply}
+                              disabled={reapplyLoading}
+                            >
+                              {reapplyLoading ? "Submitting..." : "Resubmit Documents"}
+                            </Button>
+                          </div>
+                        )}
+                        {approvalStatus === "rejected" && !requiresResubmission && (
                           <div className="flex flex-col items-center gap-2">
                             <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
                               <AlertCircle className="h-3 w-3 mr-1" />
@@ -687,10 +774,12 @@ export function SellerStoreProfile() {
                             </Button>
                           </div>
                         )}
-                        {approvalStatus === "approved" && !isVerified && (
-                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                        {(approvalStatus === "approved" ||
+                          approvalStatus === "verified" ||
+                          isVerified) && (
+                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Approved
+                            Verified
                           </Badge>
                         )}
                       </div>
@@ -1362,6 +1451,29 @@ export function SellerStoreProfile() {
                     )}
                   </div>
 
+                  {requiresResubmission && (
+                    <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                      <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        Some documents need to be updated before approval.
+                      </p>
+                      {latestRejection?.description && (
+                        <p className="text-sm text-amber-800">{latestRejection.description}</p>
+                      )}
+
+                      {latestRejection?.items?.length ? (
+                        <div className="space-y-1">
+                          {latestRejection.items.map((item) => (
+                            <p key={item.documentField} className="text-xs text-amber-900">
+                              - {documentFieldLabels[item.documentField] || item.documentField}
+                              {item.reason ? `: ${item.reason}` : ""}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
                   <div className="space-y-4">
                     {/* Document Helper Function */}
                     {[
@@ -1406,15 +1518,22 @@ export function SellerStoreProfile() {
                     ].map((doc) => {
                       const hasDocument =
                         documents[doc.key as keyof typeof documents];
+                      const rejectionReason = getDocumentRejectionReason(
+                        doc.column,
+                      );
+                      const needsUpdate =
+                        requiresResubmission && Boolean(rejectionReason);
                       const Icon = doc.icon;
                       const isUploading = uploadingDoc === doc.key;
 
                       return (
                         <div
                           key={doc.key}
-                          className={`p-4 border rounded-lg transition-colors ${hasDocument
-                            ? "border-green-200 bg-green-50/50 hover:border-green-300"
-                            : "border-gray-200 hover:border-orange-300"
+                          className={`p-4 border rounded-lg transition-colors ${needsUpdate
+                            ? "border-red-300 bg-red-50/60"
+                            : hasDocument
+                              ? "border-green-200 bg-green-50/50 hover:border-green-300"
+                              : "border-gray-200 hover:border-orange-300"
                             }`}
                         >
                           <div className="flex items-center justify-between mb-3">
@@ -1423,7 +1542,11 @@ export function SellerStoreProfile() {
                                 className="h-10 w-10 rounded-lg flex items-center justify-center"
                               >
                                 <Icon
-                                  className={`h-5 w-5 ${hasDocument ? "text-green-600" : "text-gray-500"
+                                  className={`h-5 w-5 ${needsUpdate
+                                    ? "text-red-600"
+                                    : hasDocument
+                                      ? "text-green-600"
+                                      : "text-gray-500"
                                     }`}
                                 />
                               </div>
@@ -1592,7 +1715,19 @@ export function SellerStoreProfile() {
                             )}
                           </div>
 
-                          {hasDocument && isVerified && (
+                          {hasDocument && needsUpdate && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 px-3 py-2 rounded">
+                                <AlertCircle className="h-4 w-4" />
+                                Needs resubmission
+                              </div>
+                              {rejectionReason && (
+                                <p className="text-xs text-red-700 px-1">{rejectionReason}</p>
+                              )}
+                            </div>
+                          )}
+
+                          {hasDocument && isVerified && !needsUpdate && (
                             <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
                               <CheckCircle2 className="h-4 w-4" />
                               Verified on{" "}
@@ -1602,7 +1737,7 @@ export function SellerStoreProfile() {
                             </div>
                           )}
 
-                          {hasDocument && !isVerified && (
+                          {hasDocument && !isVerified && !needsUpdate && (
                             <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded">
                               <Clock className="h-4 w-4" />
                               Pending verification
@@ -1620,13 +1755,23 @@ export function SellerStoreProfile() {
                     })}
                   </div>
 
-                  {!isVerified && (
+                  {!isVerified && !requiresResubmission && (
                     <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-sm text-amber-700 flex items-center gap-2">
                         <AlertCircle className="h-4 w-4" />
                         Your documents are currently being reviewed by our team.
                         This usually takes 1-2 business days. You'll be notified
                         once verification is complete.
+                      </p>
+                    </div>
+                  )}
+
+                  {requiresResubmission && (
+                    <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-700 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        Replace the flagged files above, then click "Resubmit Documents"
+                        in your profile header.
                       </p>
                     </div>
                   )}
@@ -1733,4 +1878,3 @@ export function SellerStoreProfile() {
     </div>
   );
 }
-

@@ -33,8 +33,17 @@ export function SellerLogin() {
     try {
       await new Promise(resolve => setTimeout(resolve, 800)); // Simulate loading for effect
       const success = await login(email, password);
-      if (success) navigate('/seller');
-      else setError('Invalid email or password');
+      if (success) {
+        const currentSeller = useAuthStore.getState().seller;
+        const hasSellerAccess =
+          Boolean(currentSeller?.isVerified) ||
+          currentSeller?.approvalStatus === 'verified' ||
+          currentSeller?.approvalStatus === 'approved';
+
+        navigate(hasSellerAccess ? '/seller' : '/seller/pending-approval');
+      } else {
+        setError('Invalid email or password');
+      }
     } catch (err) {
       setError("Something went wrong. Please try again.");
     } finally {

@@ -8,7 +8,12 @@
 // ============================================================================
 
 export type UserRole = 'buyer' | 'seller' | 'admin';
-export type ApprovalStatus = 'pending' | 'verified' | 'rejected';
+export type ApprovalStatus =
+  | 'pending'
+  | 'verified'
+  | 'approved'
+  | 'rejected'
+  | 'needs_resubmission';
 export type ProductApprovalStatus = 'pending' | 'approved' | 'rejected' | 'reclassified';
 export type OrderType = 'ONLINE' | 'OFFLINE';
 
@@ -835,7 +840,9 @@ export interface AdminAuditLog {
 
 export interface SellerRejection {
   id: string;
-  description: string;
+  seller_id: string;
+  description: string | null;
+  rejection_type: 'full' | 'partial';
   created_by: string | null;
   created_at: string;
 }

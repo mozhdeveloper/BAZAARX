@@ -54,7 +54,12 @@ interface Seller {
 
     // Status
     isVerified: boolean;
-    approvalStatus: "pending" | "approved" | "rejected";
+    approvalStatus:
+        | "pending"
+        | "approved"
+        | "verified"
+        | "rejected"
+        | "needs_resubmission";
     rating: number;
     totalSales: number;
     joinDate: string;
@@ -393,6 +398,11 @@ const fallbackSellerId = (
 const mapDbSellerToSeller = (s: any): Seller => {
     const bp = s.business_profile || s.seller_business_profiles || {};
     const pa = s.payout_account || s.seller_payout_accounts || {};
+    const normalizedApprovalStatus =
+        (s.approval_status as Seller["approvalStatus"]) || "pending";
+    const isApprovedStatus =
+        normalizedApprovalStatus === "verified" ||
+        normalizedApprovalStatus === "approved";
 
     return {
         id: s.id,
@@ -415,9 +425,8 @@ const mapDbSellerToSeller = (s: any): Seller => {
         bankName: pa.bank_name || "",
         accountName: pa.account_name || "",
         accountNumber: pa.account_number || "",
-        isVerified: s.approval_status === "verified",
-        approvalStatus:
-            (s.approval_status as Seller["approvalStatus"]) || "pending",
+        isVerified: Boolean(s.is_verified) || isApprovedStatus,
+        approvalStatus: normalizedApprovalStatus,
         rating: 0, // Computed from reviews
         totalSales: 0, // Computed from orders
         joinDate:

@@ -61,7 +61,7 @@ import SellerPOSSettings from "./pages/SellerPOSSettings";
 import SellerHelpCenter from "./pages/SellerHelpCenter";
 import SellerMyTickets from "./pages/SellerMyTickets";
 import SellerBuyerReports from "./pages/SellerBuyerReports";
-// import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
+import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
 
 // Admin Pages
 import AdminAuth from "./pages/AdminAuth";
@@ -254,169 +254,169 @@ function App() {
           <Route
             path="/seller"
             element={
-              //<ProtectedSellerRoute>
-              <SellerDashboard />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerDashboard />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/profile"
             element={
-              //<ProtectedSellerRoute>
-              <SellerStoreProfile />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerStoreProfile />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/store-profile"
             element={
-              //<ProtectedSellerRoute>
-              <SellerStoreProfile />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerStoreProfile />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/earnings"
             element={
-              //<ProtectedSellerRoute>
-              <SellerEarnings />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerEarnings />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/products"
             element={
-              //<ProtectedSellerRoute>
-              <SellerProducts />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerProducts />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/products/add"
             element={
-              //<ProtectedSellerRoute>
-              <AddProduct />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <AddProduct />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/product-status-qa"
             element={
-              //<ProtectedSellerRoute>
-              <SellerProductStatus />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerProductStatus />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/orders"
             element={
-              //<ProtectedSellerRoute>
-              <SellerOrders />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerOrders />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/notifications"
             element={
-              //<ProtectedSellerRoute>
-              <SellerNotifications />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerNotifications />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/returns"
             element={
-              //<ProtectedSellerRoute>
-              <SellerReturns />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerReturns />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/pos"
             element={
-              //<ProtectedSellerRoute>
-              <SellerPOS />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerPOS />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/pos-settings"
             element={
-              //<ProtectedSellerRoute>
-              <SellerPOSSettings />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerPOSSettings />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/flash-sales"
             element={
-              //<ProtectedSellerRoute>
-              <SellerFlashSales />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerFlashSales />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/discounts"
             element={
-              //<ProtectedSellerRoute>
-              <SellerDiscounts />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerDiscounts />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/messages"
             element={
-              //<ProtectedSellerRoute>
-              <SellerMessages />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerMessages />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/reviews"
             element={
-              //<ProtectedSellerRoute>
-              <SellerReviews />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerReviews />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/analytics"
             element={
-              //<ProtectedSellerRoute>
-              <SellerAnalytics />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerAnalytics />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/settings"
             element={
-              //<ProtectedSellerRoute>
-              <SellerSettings />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerSettings />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/help-center"
             element={
-              //<ProtectedSellerRoute>
-              <SellerHelpCenter />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerHelpCenter />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/my-tickets"
             element={
-              //<ProtectedSellerRoute>
-              <SellerMyTickets />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerMyTickets />
+              </ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/buyer-reports"
             element={
-              //<ProtectedSellerRoute>
-              <SellerBuyerReports />
-              //</ProtectedSellerRoute>
+              <ProtectedSellerRoute>
+                <SellerBuyerReports />
+              </ProtectedSellerRoute>
             }
           />
 
