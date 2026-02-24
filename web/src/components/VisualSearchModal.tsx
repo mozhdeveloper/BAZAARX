@@ -72,13 +72,17 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
     setIsSearching(true);
     setHasSearched(false);
     setSearchError(null);
-    setActiveObjectIndex(null);
+    setActiveObjectIndex(null); // Clear previous selection while loading
 
     try {
-      // productService automatically converts WebP/HEIC to JPEG via Canvas!
       const result = await productService.visualSearch(imageFile);
       setDetectedObjects(result.objects || []);
       setHasSearched(true);
+
+      // AUTO-SELECT THE FIRST ITEM
+      if (result.objects && result.objects.length > 0) {
+        setActiveObjectIndex(0);
+      }
     } catch (error) {
       setSearchError("Visual search failed. Please try again or use a different image.");
       setDetectedObjects([]);
@@ -98,13 +102,18 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
     setIsSearching(true);
     setHasSearched(false);
     setSearchError(null);
-    setActiveObjectIndex(null);
+    setActiveObjectIndex(null); // Clear previous selection while loading
     setPreviewUrl(imageUrlInput);
 
     try {
       const result = await productService.visualSearchByUrl(imageUrlInput);
       setDetectedObjects(result.objects || []);
       setHasSearched(true);
+
+      // AUTO-SELECT THE FIRST ITEM
+      if (result.objects && result.objects.length > 0) {
+        setActiveObjectIndex(0);
+      }
     } catch (error) {
       setSearchError("Visual search failed. Ensure the URL links directly to an image (.jpg/.png).");
       setDetectedObjects([]);
@@ -211,14 +220,14 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
               // --- RESULTS STATE ---
               <div className="flex flex-col md:flex-row gap-8">
 
-                {/* LEFT SIDE: Image & Bounding Boxes */}
+                {/* LEFT SIDE: Image & Detected Item Tabs */}
                 <div className="w-full md:w-1/2 flex flex-col items-center">
-                  <div className="relative inline-block rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-gray-50 max-w-full">
-                    {/* The Base Image */}
+                  <div className="relative inline-block rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-gray-50 max-w-full w-full">
+                    {/* The Base Image (NO BOUNDING BOXES) */}
                     <img
                       src={previewUrl}
                       alt="Search preview"
-                      className="max-w-full h-auto max-h-[500px] object-contain block"
+                      className="w-full h-auto max-h-[400px] object-contain block mx-auto"
                     />
 
                     {/* Loading Overlay */}
@@ -230,40 +239,37 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                         </div>
                       </div>
                     )}
-
-                    {/* Interactive Bounding Boxes */}
-                    {!isSearching && hasSearched && detectedObjects.map((obj, index) => {
-                      if (!obj.bbox || obj.bbox.length !== 4) return null;
-                      const [x1, y1, x2, y2] = obj.bbox;
-
-                      const left = `${(x1 / 1000) * 100}%`;
-                      const top = `${(y1 / 1000) * 100}%`;
-                      const width = `${((x2 - x1) / 1000) * 100}%`;
-                      const height = `${((y2 - y1) / 1000) * 100}%`;
-
-                      const isActive = activeObjectIndex === index;
-
-                      return (
-                        <div
-                          key={index}
-                          onClick={() => setActiveObjectIndex(isActive ? null : index)}
-                          className={cn(
-                            "absolute border-2 rounded-md cursor-pointer transition-all duration-200",
-                            isActive ? "border-orange-500 bg-orange-500/20 z-40 shadow-[0_0_0_2px_white]" : "border-white/80 hover:border-white bg-white/10 hover:bg-white/20 z-10"
-                          )}
-                          style={{ left, top, width, height }}
-                        >
-                          {isActive && (
-                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded shadow-lg whitespace-nowrap capitalize">
-                              {obj.object_label}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
                   </div>
 
-                  <Button onClick={handleReset} variant="outline" className="mt-4 w-full max-w-[200px]">
+                  {/* NEW: Clickable Tabs for Detected Objects instead of boxes */}
+                  {!isSearching && hasSearched && detectedObjects.length > 0 && (
+                    <div className="w-full mt-4">
+                      <p className="text-sm font-semibold text-gray-500 mb-2 uppercase tracking-wider text-center">
+                        Detected Items
+                      </p>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {detectedObjects.map((obj, index) => {
+                          const isActive = activeObjectIndex === index;
+                          return (
+                            <button
+                              key={index}
+                              onClick={() => setActiveObjectIndex(index)}
+                              className={cn(
+                                "px-4 py-2 rounded-full text-sm font-bold transition-all capitalize",
+                                isActive
+                                  ? "bg-orange-500 text-white shadow-md"
+                                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                              )}
+                            >
+                              {obj.object_label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <Button onClick={handleReset} variant="outline" className="mt-6 w-full max-w-[200px]">
                     <Search className="w-4 h-4 mr-2" /> Scan New Image
                   </Button>
                 </div>
@@ -271,13 +277,13 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                 {/* RIGHT SIDE: Dynamic Results */}
                 <div className="w-full md:w-1/2">
                   {!hasSearched || isSearching ? null : activeObjectIndex === null ? (
-                    // State: Nothing Selected
+                    // State: Nothing Selected (Failsafe)
                     <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                       <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4">
                         <Tag className="w-8 h-8 text-orange-400" />
                       </div>
                       <h3 className="text-xl font-bold text-gray-800 mb-2">Select an Item</h3>
-                      <p className="text-gray-500">Click on any of the highlighted bounding boxes on the image to view similar products from our catalog.</p>
+                      <p className="text-gray-500">Select one of the detected item tabs below the image to view similar products from our catalog.</p>
                     </div>
                   ) : hasMatches ? (
                     // State: Item Selected, Show Matches
