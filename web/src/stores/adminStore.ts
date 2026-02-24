@@ -496,7 +496,7 @@ export const useAdminSellers = create<SellersState>()(
               .from('sellers')
               .select(`
                 *,
-                profiles(email, full_name, phone)
+                profiles(email, first_name, last_name, phone)
               `)
               .order('created_at', { ascending: false });
 
@@ -584,7 +584,7 @@ export const useAdminSellers = create<SellersState>()(
                 taxIdNumber: seller.tax_id_number || 'N/A',
                 description: seller.store_description || '',
                 logo: `https://ui-avatars.io/api/?name=${encodeURIComponent(seller.store_name || 'S')}&background=FF6A00&color=fff`,
-                ownerName: seller.profiles?.full_name || seller.business_name || 'Unknown Owner',
+                ownerName: [seller.profiles?.first_name, seller.profiles?.last_name].filter(Boolean).join(' ') || seller.business_name || 'Unknown Owner',
                 email: seller.profiles?.email || 'No email',
                 phone: seller.profiles?.phone || 'No phone',
                 businessAddress: seller.business_address || 'Not provided',
