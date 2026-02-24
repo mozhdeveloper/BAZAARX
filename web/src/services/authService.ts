@@ -27,6 +27,26 @@ export interface AuthResult {
   session?: any;
 }
 
+export interface ProfileContact {
+  email: string | null;
+  phone: string | null;
+}
+
+const defaultBuyerPreferences = {
+  language: 'en',
+  currency: 'PHP',
+  notifications: {
+    email: true,
+    sms: false,
+    push: true,
+  },
+  privacy: {
+    showProfile: true,
+    showPurchases: false,
+    showFollowing: true,
+  },
+};
+
 export class AuthService {
   /**
    * Sign up a new user
@@ -220,12 +240,17 @@ export class AuthService {
     if (!isSupabaseConfigured()) return;
 
     // Check if role already exists
-    const { data: existingRole } = await supabase
+    const { data: existingRole, error: existingRoleError } = await supabase
       .from('user_roles')
       .select('id')
       .eq('user_id', userId)
       .eq('role', role)
-      .single();
+      .maybeSingle();
+
+    if (existingRoleError) {
+      console.error('Error checking existing user role:', existingRoleError);
+      throw existingRoleError;
+    }
 
     if (existingRole) return; // Role already exists
 
@@ -492,11 +517,11 @@ export class AuthService {
   }
 
   /**
-   * Get email from profile by user ID
+   * Get profile contact info by user ID
    * @param userId - User ID
-   * @returns Promise<string | null>
+   * @returns Promise<ProfileContact | null>
    */
-  async getEmailFromProfile(userId: string): Promise<string | null> {
+  async getProfileContact(userId: string): Promise<ProfileContact | null> {
     if (!isSupabaseConfigured()) {
       return null;
     }
@@ -504,16 +529,29 @@ export class AuthService {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('email')
+        .select('email, phone')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      return data?.email || null;
+      return {
+        email: data?.email || null,
+        phone: data?.phone || null,
+      };
     } catch (error) {
-      console.error('Error fetching email from profile:', error);
+      console.error('Error fetching profile contact:', error);
       return null;
     }
+  }
+
+  /**
+   * Get email from profile by user ID
+   * @param userId - User ID
+   * @returns Promise<string | null>
+   */
+  async getEmailFromProfile(userId: string): Promise<string | null> {
+    const contact = await this.getProfileContact(userId);
+    return contact?.email || null;
   }
 
   /**
@@ -604,9 +642,14 @@ export class AuthService {
         .from('buyers')
         .select('id')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (!fetchError && existingBuyer) {
+      if (fetchError) {
+        console.error('Error checking buyer record:', fetchError);
+        throw fetchError;
+      }
+
+      if (existingBuyer) {
         // Buyer record already exists
         return true;
       }
@@ -616,20 +659,7 @@ export class AuthService {
         {
           id: userId,
           avatar_url: null,
-          preferences: {
-            language: 'en',
-            currency: 'PHP',
-            notifications: {
-              email: true,
-              sms: false,
-              push: true,
-            },
-            privacy: {
-              showProfile: true,
-              showPurchases: false,
-              showFollowing: true,
-            },
-          },
+          preferences: defaultBuyerPreferences,
           bazcoins: 0,
         },
         { onConflict: 'id' }
@@ -648,6 +678,141 @@ export class AuthService {
       console.error('Error in createBuyerAccount:', error);
       throw new Error('Failed to create buyer account. Please try again.');
     }
+  }
+
+  /**
+   * Upgrade currently authenticated user to seller role/profile.
+   * Used by role switch flow to avoid password re-entry.
+   */
+  async upgradeCurrentUserToSeller(payload: {
+    store_name: string;
+    store_description?: string;
+    phone?: string;
+    owner_name?: string;
+  }): Promise<{ userId: string }> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const user = authData.user;
+
+    if (authError || !user?.id) {
+      throw new Error('Auth session missing');
+    }
+
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name, last_name, phone')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const ownerNameFromProfile = [existingProfile?.first_name, existingProfile?.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const ownerName = payload.owner_name?.trim() || ownerNameFromProfile || null;
+
+    await this.addUserRole(user.id, 'seller');
+
+    const { error: sellerError } = await supabase
+      .from('sellers')
+      .upsert(
+        {
+          id: user.id,
+          store_name: payload.store_name,
+          store_description: payload.store_description || null,
+          owner_name: ownerName,
+          approval_status: 'pending',
+        },
+        { onConflict: 'id' },
+      );
+
+    if (sellerError) {
+      console.error('Error creating/updating seller during role switch:', sellerError);
+      throw new Error('Failed to initialize seller profile.');
+    }
+
+    const phoneToSave = payload.phone?.trim();
+    if (phoneToSave && (!existingProfile?.phone || existingProfile.phone.trim().length === 0)) {
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update({ phone: phoneToSave })
+        .eq('id', user.id);
+
+      if (profileUpdateError) {
+        console.error('Error updating profile phone during seller upgrade:', profileUpdateError);
+      }
+    }
+
+    return { userId: user.id };
+  }
+
+  /**
+   * Upgrade currently authenticated user to buyer role/profile.
+   * Used by role switch flow to avoid password re-entry.
+   */
+  async upgradeCurrentUserToBuyer(payload: {
+    first_name: string;
+    last_name: string;
+    phone?: string;
+    email?: string;
+  }): Promise<{ userId: string }> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const user = authData.user;
+
+    if (authError || !user?.id) {
+      throw new Error('Auth session missing');
+    }
+
+    await this.addUserRole(user.id, 'buyer');
+
+    const { error: buyerError } = await supabase
+      .from('buyers')
+      .upsert(
+        {
+          id: user.id,
+          avatar_url: null,
+          preferences: defaultBuyerPreferences,
+          bazcoins: 0,
+        },
+        { onConflict: 'id' },
+      );
+
+    if (buyerError) {
+      console.error('Error creating/updating buyer during role switch:', buyerError);
+      throw new Error('Failed to initialize buyer profile.');
+    }
+
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('email, phone')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const profileUpsert = {
+      id: user.id,
+      email: existingProfile?.email || payload.email || user.email || null,
+      first_name: payload.first_name.trim(),
+      last_name: payload.last_name.trim(),
+      phone: existingProfile?.phone || payload.phone || null,
+      last_login_at: new Date().toISOString(),
+    };
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert(profileUpsert, { onConflict: 'id' });
+
+    if (profileError) {
+      console.error('Error updating profile during buyer upgrade:', profileError);
+      throw new Error('Failed to update profile details.');
+    }
+
+    return { userId: user.id };
   }
 
   /**
