@@ -26,7 +26,7 @@ const SellerLogo = ({
       open ? "justify-start px-2 gap-3" : "justify-center px-0 gap-0"
     )}
   >
-    <div className="w-10 h-10 bg-gradient-to-tr from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
+    <div className="w-10 h-10 bg-gradient-to-tr from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
       <img
         src="/BazaarX.png"
         alt="BazaarX Logo"
@@ -85,7 +85,7 @@ export const BaseSellerSidebar = ({
               label: seller?.storeName || seller?.ownerName || "Seller",
               href: "/seller/profile",
               icon: (
-                <div className="h-8 w-8 flex-shrink-0 rounded-xl bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] flex items-center justify-center shadow-lg shadow-orange-500/20">
+                <div className="h-8 w-8 flex-shrink-0 rounded-xl bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] flex items-center justify-center shadow-lg shadow-amber-500/20">
                   <span className="text-white text-xs font-bold">
                     {(seller?.storeName || "S").charAt(0).toUpperCase()}
                   </span>
@@ -100,7 +100,7 @@ export const BaseSellerSidebar = ({
                 await useAuthStore.getState().createBuyerAccount();
               if (hasBuyerAccount) navigate("/profile");
             }}
-            className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-xl transition-all group overflow-hidden"
+            className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-amber-50 rounded-xl transition-all group overflow-hidden"
           >
             <Users className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors" />
             <motion.span

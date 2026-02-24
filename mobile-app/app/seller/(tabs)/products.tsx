@@ -683,7 +683,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
           <Switch
             value={item.isActive}
             onValueChange={() => handleToggleProductStatus(item.id)}
-            trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+            trackColor={{ false: '#E5E7EB', true: '#D97706' }}
             thumbColor="#FFFFFF"
             ios_backgroundColor="#E5E7EB"
           />
@@ -693,7 +693,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               onPress={() => handleEditProduct(item)}
               activeOpacity={0.7}
             >
-              <Edit size={20} color="#FF5722" strokeWidth={2.5} />
+              <Edit size={20} color="#D97706" strokeWidth={2.5} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.deleteButton}
@@ -767,7 +767,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               onPress={() => setIsBulkUploadModalOpen(true)}
               activeOpacity={0.8}
             >
-              <Upload size={20} color="#FF5722" strokeWidth={2.5} />
+              <Upload size={20} color="#D97706" strokeWidth={2.5} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.addButton}
@@ -1150,7 +1150,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                         style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
                         onPress={handleAddColor}
                       >
-                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                        <Plus size={20} color="#D97706" strokeWidth={2.5} />
                       </TouchableOpacity>
                     </View>
 
@@ -1184,7 +1184,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                         style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
                         onPress={handleAddSize}
                       >
-                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                        <Plus size={20} color="#D97706" strokeWidth={2.5} />
                       </TouchableOpacity>
                     </View>
 
@@ -1269,7 +1269,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                     <View style={styles.previewHeader}>
                       <Text style={styles.previewTitle}>Preview ({bulkPreviewProducts.length} items)</Text>
                       <TouchableOpacity onPress={() => setIsPreviewMode(false)}>
-                        <Text style={{ color: '#FF5722', fontWeight: '600' }}>Change File</Text>
+                        <Text style={{ color: '#D97706', fontWeight: '600' }}>Change File</Text>
                       </TouchableOpacity>
                     </View>
 
@@ -1291,7 +1291,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                     {/* CSV Format Instructions */}
                     <View style={styles.csvInstructionsCard}>
                       <View style={styles.csvHeader}>
-                        <FileText size={20} color="#FF5722" strokeWidth={2.5} />
+                        <FileText size={20} color="#D97706" strokeWidth={2.5} />
                         <Text style={styles.csvHeaderText}>CSV Format Requirements</Text>
                       </View>
 
@@ -1320,7 +1320,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                       onPress={downloadCSVTemplate}
                       activeOpacity={0.9}
                     >
-                      <FileText size={20} color="#FF5722" strokeWidth={2.5} />
+                      <FileText size={20} color="#D97706" strokeWidth={2.5} />
                       <Text style={styles.csvDownloadButtonText}>Download CSV Template</Text>
                     </TouchableOpacity>
 
@@ -1340,7 +1340,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                       onPress={showCSVFormat}
                       activeOpacity={0.7}
                     >
-                      <Info size={16} color="#FF5722" strokeWidth={2.5} />
+                      <Info size={16} color="#D97706" strokeWidth={2.5} />
                       <Text style={styles.csvHelpButtonText}>Show CSV Format Help</Text>
                     </TouchableOpacity>
                   </View>
@@ -1357,15 +1357,15 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   // Bright Orange Edge-to-Edge Header
   header: {
-    backgroundColor: '#FFE5CC', // Peach Background
+    backgroundColor: '#FFF4EC', // Peach Background
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 24, // Consistent rounding
-    borderBottomRightRadius: 24,
+    paddingBottom: 10,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 20,
     elevation: 3,
   },
   headerRow: {
@@ -1410,7 +1410,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FF5722', // Primary Action Brand Color
+    backgroundColor: '#D97706', // Primary Action Brand Color
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -1512,7 +1512,7 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FF5722',
+    color: '#D97706',
   },
   productStock: {
     fontSize: 12,
@@ -1536,7 +1536,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1544,7 +1544,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1652,7 +1652,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   modeButtonActive: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
   },
   modeButtonText: {
     fontSize: 12,
@@ -1668,7 +1668,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     borderRadius: 16,
     borderStyle: 'dashed',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -1747,7 +1747,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
     borderRadius: 8,
   },
   removeImageButtonText: {
@@ -1758,7 +1758,7 @@ const styles = StyleSheet.create({
   removeUrlButton: {
     width: 40,
     height: 52,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1791,8 +1791,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   pillChipSelected: {
-    backgroundColor: '#FF5722',
-    borderColor: '#FF5722',
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
   },
   pillChipText: {
     fontSize: 14,
@@ -1808,7 +1808,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   variantEditorCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
@@ -1866,7 +1866,7 @@ const styles = StyleSheet.create({
   qaNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FFF4EC',
     borderRadius: 12,
     padding: 14,
     gap: 10,
@@ -1906,7 +1906,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     flex: 1.5,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -1930,7 +1930,7 @@ const styles = StyleSheet.create({
   },
   // CSV Bulk Upload Modal Styles
   csvInstructionsCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -1985,7 +1985,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   csvCategories: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FFF4EC',
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
@@ -2012,19 +2012,19 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#FF5722',
+    borderColor: '#D97706',
   },
   csvDownloadButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FF5722',
+    color: '#D97706',
   },
   csvUploadButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     borderRadius: 14,
     paddingVertical: 16,
     marginBottom: 12,
@@ -2047,7 +2047,7 @@ const styles = StyleSheet.create({
   csvHelpButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FF5722',
+    color: '#D97706',
   },
   // Enhanced Add Product Modal Styles
   addModalHeader: {
@@ -2066,7 +2066,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   addModalIconContainer: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FFF4EC',
     width: 40,
     height: 40,
     borderRadius: 12,
@@ -2119,7 +2119,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: '#FEF2F2',
   },
   requiredBadgeText: {
     fontSize: 11,
@@ -2143,7 +2143,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FFF4EC',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,

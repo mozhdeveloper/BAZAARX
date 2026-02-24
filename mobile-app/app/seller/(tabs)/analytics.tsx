@@ -34,7 +34,7 @@ export default function SellerAnalyticsScreen() {
 
   const pieData = categorySales.map((item, index) => ({
     value: item.value ?? 0,
-    color: item.color ?? '#FF5722',
+    color: item.color ?? '#D97706',
     text: `${item.value ?? 0}%`,
   }));
 
@@ -63,7 +63,7 @@ export default function SellerAnalyticsScreen() {
               onPress={() => navigation.goBack()}
             >
               {/* Replace ArrowLeft with Menu or SettingsIcon depending on the screen */}
-              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2} />
+              <ArrowLeft size={24} color="#1F2937" strokeWidth={2} />
             </TouchableOpacity>
             
             <View style={{ flex: 1 }}>
@@ -78,7 +78,7 @@ export default function SellerAnalyticsScreen() {
           style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
           onPress={() => navigation.getParent()?.navigate('Notifications')}
         >
-          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
+          <Bell size={22} color="#1F2937" strokeWidth={2.5} />
           <View style={styles.notificationBadge} />
         </Pressable>
       </View>
@@ -124,7 +124,7 @@ export default function SellerAnalyticsScreen() {
               data={chartData}
               height={180}
               width={width - 100}
-              color="#FF5722"
+              color="#D97706"
               thickness={3}
               startFillColor="rgba(255, 87, 34, 0.4)"
               endFillColor="rgba(255, 87, 34, 0.1)"
@@ -143,7 +143,7 @@ export default function SellerAnalyticsScreen() {
               areaChart
               focusEnabled
               hideDataPoints={false}
-              dataPointsColor="#FF5722"
+              dataPointsColor="#D97706"
               dataPointsRadius={6}
             />
           </View>
@@ -231,19 +231,15 @@ export default function SellerAnalyticsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#FFFBF0',
   },
   header: {
-    backgroundColor: '#FF5722', // Theme Primary Orange
+    backgroundColor: '#FFF4EC', // Theme Primary Peach
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderBottomLeftRadius: 20, 
-    borderBottomRightRadius: 20, // Rounded bottom corners for the "Card" look
+    paddingBottom: 20,
+    elevation: 3,
+    borderBottomLeftRadius: 24, 
+    borderBottomRightRadius: 24, // Rounded bottom corners for the "Card" look
   },
   headerContent: {
     flexDirection: 'row',
@@ -251,20 +247,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)', // Translucent white background
-    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    padding: 10,
     borderRadius: 12,
   },
   headerTitle: {
     fontSize: 22, // Large bold title
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#1F2937',
     letterSpacing: 0.3,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
+    color: '#4B5563',
     fontWeight: '500',
   },
   notificationButton: {
@@ -284,7 +279,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#EF4444', // Red badge
     borderWidth: 1.5,
-    borderColor: '#FF5722', // Border matches header background to prevent cutoff look
+    borderColor: '#D97706', // Border matches header background to prevent cutoff look
   },
   exportButton: {
     width: 40,
@@ -313,8 +308,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pillButtonActive: {
-    backgroundColor: '#FF5722',
-    borderColor: '#FF5722',
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
   },
   pillButtonText: {
     fontSize: 13,
@@ -335,7 +330,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   viewAllText: {
-    color: '#FF5722',
+    color: '#D97706',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -349,7 +344,7 @@ const styles = StyleSheet.create({
   tableCellRevenue: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#FF5722',
+    color: '#D97706',
     textAlign: 'right',
   },
   // Update sectionTitle to remove bottom margin since it's now in sectionHeaderRow
@@ -430,7 +425,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -438,7 +433,7 @@ const styles = StyleSheet.create({
   rankText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FF5722',
+    color: '#D97706',
   },
   tableCell: {
     fontSize: 13,

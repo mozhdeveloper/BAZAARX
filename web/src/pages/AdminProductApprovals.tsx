@@ -83,7 +83,7 @@ const AdminProductApprovals = () => {
 
   // Load all QA products on mount (admin sees all)
   useEffect(() => {
-    loadProducts(); // No seller ID = load all
+    loadProducts(null); // Explicit null = load ALL products (admin mode), ignoring any cached seller filter
   }, [loadProducts]);
 
   // Predefined rejection/revision templates

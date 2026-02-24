@@ -604,6 +604,7 @@ export const useAdminSellers = create<SellersState>()(
               .from('sellers')
               .select(`
                 *,
+                profiles(email, first_name, last_name, phone)
                 profiles(*),
                 business_profile:seller_business_profiles(*),
                 payout_account:seller_payout_accounts(*),

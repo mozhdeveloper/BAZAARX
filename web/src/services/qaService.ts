@@ -440,6 +440,40 @@ export class QAService {
   }
 
   /**
+   * Find products that exist in the products table but have NO product_assessment record.
+   * These are "orphans" — products whose QA entry creation failed or was skipped.
+   */
+  async getOrphanProducts(): Promise<any[]> {
+    if (!isSupabaseConfigured()) return [];
+
+    try {
+      // Get all product IDs that already have assessments
+      const { data: assessed, error: assessedError } = await supabase
+        .from('product_assessments')
+        .select('product_id');
+
+      if (assessedError) throw assessedError;
+
+      const assessedIds = new Set((assessed || []).map((a: any) => a.product_id));
+
+      // Get all products
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('id, name, price, seller_id, seller:sellers (store_name)')
+        .order('created_at', { ascending: false });
+
+      if (productsError) throw productsError;
+
+      // Return products without assessments
+      const orphans = (products || []).filter((p: any) => !assessedIds.has(p.id));
+      return orphans;
+    } catch (error) {
+      console.error('[QA Service] Error finding orphan products:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get all assessment entries (for admin)
    */
   async getAllQAEntries(): Promise<QAProductDB[]> {

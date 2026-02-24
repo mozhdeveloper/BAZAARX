@@ -180,7 +180,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
           <View style={styles.drawerHeader}>
             <TouchableOpacity style={styles.profileSection} onPress={() => handleNavigation('StoreProfile')} activeOpacity={0.8}>
               <View style={styles.avatarCircle}>
-                <User size={28} color="#FF5722" strokeWidth={2} />
+                <User size={28} color="#D97706" strokeWidth={2} />
               </View>
               <View style={styles.profileInfo}>
                 <Text style={styles.storeName} numberOfLines={1} ellipsizeMode="tail">{seller?.store_name || 'Store'}</Text>
@@ -214,7 +214,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
                     >
                       <View style={styles.menuItemContent}>
                         <View style={styles.iconContainer}>
-                          <Icon size={20} color="#FF5722" strokeWidth={2} />
+                          <Icon size={20} color="#D97706" strokeWidth={2} />
                         </View>
                         <Text style={styles.menuItemLabel}>{item.label}</Text>
                       </View>
@@ -312,11 +312,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#FF5722',
+    borderColor: '#D97706',
   },
   profileInfo: {
     marginLeft: 12,
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,

@@ -270,7 +270,7 @@ export class CartService {
   }
 
   /**
-   * Update cart item variant
+   * Update cart item variant with duplicate merging logic
    */
   async updateCartItemVariant(
     itemId: string,
@@ -281,14 +281,50 @@ export class CartService {
     }
 
     try {
-      const { error } = await supabase
+      // 1. Get the current item's details (to get cart_id, product_id, and current quantity)
+      const { data: currentItem, error: fetchError } = await supabase
         .from('cart_items')
-        .update({ variant_id: newVariantId })
-        .eq('id', itemId);
+        .select('cart_id, product_id, quantity')
+        .eq('id', itemId)
+        .single();
 
-      if (error) throw error;
+      if (fetchError || !currentItem) throw fetchError || new Error('Item not found');
+
+      // 2. Check if an item with the NEW variant already exists in this cart
+      const { data: existingItem, error: checkError } = await supabase
+        .from('cart_items')
+        .select('id, quantity')
+        .eq('cart_id', currentItem.cart_id)
+        .eq('product_id', currentItem.product_id)
+        .eq('variant_id', newVariantId)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingItem) {
+        // MERGE: New variant exists elsewhere. Add quantities to the target and delete the current row.
+        const newTotalQuantity = existingItem.quantity + currentItem.quantity;
+        
+        const { error: updateError } = await supabase
+          .from('cart_items')
+          .update({ quantity: newTotalQuantity })
+          .eq('id', existingItem.id);
+
+        if (updateError) throw updateError;
+
+        // Delete the "old" row that we just changed the variant of
+        await this.removeFromCart(itemId);
+      } else {
+        // UPDATE: No duplicate found. Proceed with a standard variant update.
+        const { error: updateError } = await supabase
+          .from('cart_items')
+          .update({ variant_id: newVariantId })
+          .eq('id', itemId);
+
+        if (updateError) throw updateError;
+      }
     } catch (error) {
-      console.error('Error updating cart item variant:', error);
+      console.error('Error updating/merging cart item variant:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to update item variant.');
     }
   }

@@ -192,7 +192,7 @@ export default function SellerHelpCenterScreen() {
       icon: Ticket,
       title: 'Submit Ticket',
       subtitle: 'Get help from support',
-      color: '#FF6A00',
+      color: '#D97706',
       onPress: () => navigation.navigate('SellerCreateTicket'),
     },
     {
@@ -302,7 +302,7 @@ export default function SellerHelpCenterScreen() {
             {/* Hero Section */}
             <View style={styles.heroSection}>
               <View style={styles.heroIcon}>
-                <Headphones size={32} color="#FF6A00" />
+                <Headphones size={32} color="#D97706" />
               </View>
               <Text style={styles.heroTitle}>Seller Support</Text>
               <Text style={styles.heroSubtitle}>
@@ -430,12 +430,12 @@ export default function SellerHelpCenterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   headerContainer: {
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+        borderBottomRightRadius: 20,
     paddingBottom: 20,
     elevation: 4,
     shadowColor: '#000',

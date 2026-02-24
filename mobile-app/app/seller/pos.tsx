@@ -579,7 +579,7 @@ export default function POSScreen() {
           <View style={styles.productsGridContainer}>
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FF5722" />
+                <ActivityIndicator size="large" color="#D97706" />
                 <Text style={styles.loadingText}>Loading products...</Text>
               </View>
             ) : filteredProducts.length === 0 ? (
@@ -694,7 +694,7 @@ export default function POSScreen() {
           {/* Cart Header */}
           <View style={styles.cartHeader}>
             <View style={styles.cartHeaderLeft}>
-              <ShoppingCart size={22} color="#FF5722" />
+              <ShoppingCart size={22} color="#D97706" />
               <Text style={styles.cartTitle}>Current Sale</Text>
               {cart.length > 0 && (
                 <View style={styles.cartItemCount}>
@@ -987,7 +987,7 @@ export default function POSScreen() {
                   }
                 }}
               >
-                <Receipt size={18} color="#FF5722" />
+                <Receipt size={18} color="#D97706" />
                 <Text style={styles.receiptViewOrdersBtnText}>View Orders</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1153,7 +1153,7 @@ export default function POSScreen() {
                             style={styles.cartModalQuantityBtn}
                             onPress={() => updateQuantity(item.variantKey || item.productId, -1)}
                           >
-                            <Minus size={16} color="#FF5722" strokeWidth={2.5} />
+                            <Minus size={16} color="#D97706" strokeWidth={2.5} />
                           </TouchableOpacity>
                           <Text style={styles.cartModalQuantityText}>{item.quantity}</Text>
                           <TouchableOpacity
@@ -1161,7 +1161,7 @@ export default function POSScreen() {
                             onPress={() => updateQuantity(item.variantKey || item.productId, 1)}
                             disabled={item.quantity >= item.maxStock}
                           >
-                            <Plus size={16} color="#FF5722" strokeWidth={2.5} />
+                            <Plus size={16} color="#D97706" strokeWidth={2.5} />
                           </TouchableOpacity>
                         </View>
                         <TouchableOpacity
@@ -1342,10 +1342,10 @@ export default function POSScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   header: {
-    backgroundColor: '#FFE5CC', // Peach Background
+    backgroundColor: '#FFF4EC', // Peach Background
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomLeftRadius: 24, // Consistent curvature
@@ -1397,13 +1397,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   barcodeScanButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     width: 48,
     height: 48,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FF5722',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -1430,7 +1430,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: '#FFE5CC', // Matches peach header for the "cut-out" look
+    borderColor: '#FFF4EC', // Matches peach header for the "cut-out" look
   },
   cartCountText: {
     color: '#FFF',
@@ -1474,7 +1474,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   filterTabActive: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
   },
   filterTabText: {
     fontSize: 12,
@@ -1535,7 +1535,7 @@ const styles = StyleSheet.create({
   },
   productImageContainer: {
     aspectRatio: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     position: 'relative',
   },
   productImage: {
@@ -1568,7 +1568,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     width: 28,
     height: 28,
     borderRadius: 14,
@@ -1628,10 +1628,10 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FF5722',
+    color: '#D97706',
   },
   addButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     width: 28,
     height: 28,
     borderRadius: 6,
@@ -1683,7 +1683,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cartItemCount: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -1750,7 +1750,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 6,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   cartItemInfo: {
     flex: 1,
@@ -1845,8 +1845,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   paymentMethodOptionActive: {
-    backgroundColor: '#FF5722',
-    borderColor: '#FF5722',
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
   },
   paymentMethodText: {
     fontSize: 12,
@@ -1859,7 +1859,7 @@ const styles = StyleSheet.create({
   totals: {
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     marginTop: 12,
     gap: 8,
   },
@@ -1898,12 +1898,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     marginHorizontal: 16,
     marginVertical: 16,
     paddingVertical: 16,
     borderRadius: 8,
-    shadowColor: '#FF5722',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1960,7 +1960,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   orderDetails: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 8,
     padding: 16,
     gap: 12,
@@ -1984,7 +1984,7 @@ const styles = StyleSheet.create({
   orderDetailValueAmount: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#FF5722',
+    color: '#D97706',
   },
   paidBadge: {
     backgroundColor: '#10B981',
@@ -2009,7 +2009,7 @@ const styles = StyleSheet.create({
   },
   viewOrdersButton: {
     flex: 1,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -2053,7 +2053,7 @@ const styles = StyleSheet.create({
   },
   variantProductInfo: {
     flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
@@ -2077,7 +2077,7 @@ const styles = StyleSheet.create({
   variantProductPrice: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FF5722',
+    color: '#D97706',
     marginBottom: 4,
   },
   variantProductStock: {
@@ -2107,8 +2107,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
   },
   variantOptionActive: {
-    backgroundColor: '#FF5722',
-    borderColor: '#FF5722',
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
   },
   variantOptionText: {
     fontSize: 14,
@@ -2122,7 +2122,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     paddingVertical: 14,
     borderRadius: 12,
     gap: 8,
@@ -2136,7 +2136,7 @@ const styles = StyleSheet.create({
   // Cart Modal Styles
   cartModalContainer: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   cartModalHeader: {
     flexDirection: 'row',
@@ -2154,7 +2154,7 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   cartModalBadge: {
-    backgroundColor: '#FF572220',
+    backgroundColor: '#D9770620',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -2162,7 +2162,7 @@ const styles = StyleSheet.create({
   cartModalBadgeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FF5722',
+    color: '#D97706',
   },
   cartModalItems: {
     flex: 1,
@@ -2187,7 +2187,7 @@ const styles = StyleSheet.create({
   },
   cartModalBrowseBtn: {
     marginTop: 20,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 10,
@@ -2259,7 +2259,7 @@ const styles = StyleSheet.create({
   cartModalItemTotal: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FF5722',
+    color: '#D97706',
     alignSelf: 'center',
   },
   cartModalNoteContainer: {
@@ -2318,8 +2318,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   cartModalPaymentOptionActive: {
-    backgroundColor: '#FF5722',
-    borderColor: '#FF5722',
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
   },
   cartModalPaymentText: {
     fontSize: 11,
@@ -2361,7 +2361,7 @@ const styles = StyleSheet.create({
   cartModalGrandValue: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#FF5722',
+    color: '#D97706',
   },
   cartModalActions: {
     flexDirection: 'row',
@@ -2385,7 +2385,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     paddingVertical: 14,
     borderRadius: 12,
     gap: 8,
@@ -2407,7 +2407,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   receiptHeader: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     paddingVertical: 16,
     alignItems: 'center',
   },
@@ -2498,7 +2498,7 @@ const styles = StyleSheet.create({
   receiptGrandValue: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#FF5722',
+    color: '#D97706',
   },
   receiptPaidBadge: {
     flexDirection: 'row',
@@ -2544,18 +2544,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#FF5722',
+    borderColor: '#D97706',
     gap: 6,
   },
   receiptViewOrdersBtnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FF5722',
+    color: '#D97706',
   },
   receiptCloseBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     paddingVertical: 12,
     borderRadius: 10,
   },
@@ -2581,13 +2581,13 @@ const styles = StyleSheet.create({
   // Settings Modal Styles
   settingsModalContainer: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   settingsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FF6A00',
+    backgroundColor: '#D97706',
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
