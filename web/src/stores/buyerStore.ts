@@ -457,16 +457,39 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const currentProfile = get().profile;
       if (!currentProfile) return;
 
+      // Map UI fields to the correct DB columns (profiles vs buyers)
+      const profileUpdates: Record<string, unknown> = {};
+      const buyerUpdates: Record<string, unknown> = {};
+
+      if (updates.firstName !== undefined) profileUpdates.first_name = updates.firstName;
+      if (updates.lastName !== undefined) profileUpdates.last_name = updates.lastName;
+      if (updates.phone !== undefined) profileUpdates.phone = updates.phone;
+      if (updates.avatar !== undefined) profileUpdates.avatar_url = updates.avatar;
+
+      // Buyer-owned fields live on buyers table
+      if (updates.preferences !== undefined) buyerUpdates.preferences = updates.preferences;
+      if (updates.bazcoins !== undefined) buyerUpdates.bazcoins = updates.bazcoins;
+
       try {
-        // 1. Update Supabase database
-        const { error } = await supabase
-          .from('buyers')
-          .update(updates) // This will update the 'bazcoins' column if included in updates
-          .eq('id', currentProfile.id);
+        // 1) Update profiles table when applicable
+        if (Object.keys(profileUpdates).length > 0) {
+          const { error } = await supabase
+            .from('profiles')
+            .update(profileUpdates)
+            .eq('id', currentProfile.id);
+          if (error) throw error;
+        }
 
-        if (error) throw error;
+        // 2) Update buyers table for buyer-specific fields
+        if (Object.keys(buyerUpdates).length > 0) {
+          const { error } = await supabase
+            .from('buyers')
+            .update(buyerUpdates)
+            .eq('id', currentProfile.id);
+          if (error) throw error;
+        }
 
-        // 2. Update local Zustand state only if DB update succeeds
+        // 3) Update local Zustand state only after remote writes succeed
         set((state) => ({
           profile: state.profile ? { ...state.profile, ...updates } : null
         }));
