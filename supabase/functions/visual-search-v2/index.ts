@@ -48,20 +48,45 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { image_base64 } = await req.json();
-    if (!image_base64) throw new Error("No image_base64 provided");
+    const body = await req.json();
+    const { image_base64, image_url } = body;
 
-    const pureBase64 = image_base64.split(',')[1] || image_base64;
-    const imageBytes = decodeBase64(pureBase64);
+    if (!image_base64 && !image_url) throw new Error("No image provided");
+
+    let pureBase64 = "";
+    let imageBytes: Uint8Array;
+
+    // --- HANDLE UPLOAD VS URL ---
+    if (image_base64) {
+      pureBase64 = image_base64.split(',')[1] || image_base64;
+      imageBytes = decodeBase64(pureBase64);
+    } else {
+      console.log(`Downloading URL: ${image_url}`);
+      const res = await fetch(image_url);
+      if (!res.ok) throw new Error("Failed to download image from URL");
+      const buffer = await res.arrayBuffer();
+      imageBytes = new Uint8Array(buffer);
+      pureBase64 = encodeBase64(imageBytes); // Encode so we can use it for crops later
+    }
 
     // 1. Decode and IMMEDIATELY resize to save memory
-    let img = await Image.decode(imageBytes);
+    let img;
+    try {
+      img = await Image.decode(imageBytes);
+    } catch(e) {
+      throw new Error("Unsupported image format. If using a URL, please ensure it points directly to a JPG or PNG.");
+    }
+    
     img = img.resize(800, Image.RESIZE_AUTO); 
     const { width, height } = img;
     console.log(`Image prepared: ${width}x${height}`);
 
     // --- STAGE 1: Qwen-VL Detection ---
     console.log("Requesting object detection...");
+    
+    // Use direct URL for Qwen if provided, otherwise use base64
+    const qwenImageUrl = image_url ? image_url : `data:image/jpeg;base64,${pureBase64}`;
+    
     const qwenResponse = await fetch('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -73,17 +98,20 @@ Deno.serve(async (req) => {
         messages: [{
           role: "user",
           content: [
-            // Updated Prompt with EXPLICIT EXAMPLE
             { type: "text", text: 'Detect all distinct e-commerce products. Output ONLY a valid JSON array. Strict double quotes. Labels in English. Bounding box in [x1, y1, x2, y2] thousandths. Tight crop. Completely exclude background. Do not use markdown formatting. Example format: [{"label": "Watch", "bbox_2d": [100, 200, 300, 400]}]' },
-            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${pureBase64}` } }
+            { type: "image_url", image_url: { url: qwenImageUrl } }
           ]
         }]
       })
     });
 
     const qwenData = await qwenResponse.json();
-    let qwenContent = qwenData.choices[0].message.content;
+    let qwenContent = qwenData.choices?.[0]?.message?.content;
     
+    if (!qwenContent) {
+        throw new Error("AI returned an empty or invalid response.");
+    }
+
     // Strip markdown formatting
     qwenContent = qwenContent.replace(/```json/g, '').replace(/```/g, '').trim();
     
@@ -98,7 +126,6 @@ Deno.serve(async (req) => {
     console.log(`Detected ${detections.length} objects.`);
 
     if (detections.length === 0) {
-       // Graceful exit if AI returns garbage even after repair
        return new Response(JSON.stringify({ detected_objects: [] }), { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
        });
@@ -107,7 +134,6 @@ Deno.serve(async (req) => {
     // --- STAGE 2: Cropping ---
     const crops = [];
     for (const det of detections.slice(0, 3)) {
-      // Safety check for malformed bbox
       if (!Array.isArray(det.bbox_2d) || det.bbox_2d.length !== 4) continue;
 
       const [x1, y1, x2, y2] = det.bbox_2d;
@@ -157,14 +183,13 @@ Deno.serve(async (req) => {
     );
 
     const results = await Promise.all(jinaData.data.map(async (d: any, i: number) => {
-      // Clean the AI label to use as our database filter (e.g., "Charger")
       const detectedLabel = crops[i].label.replace(/['"]/g, "").trim();
 
       const { data: matches } = await supabase.rpc('match_products', {
         query_embedding: d.embedding,
-        match_threshold: 0.50, // Kept low to catch all valid variations
-        match_count: 4,        // Limit to top 4 for a clean UI grid
-        filter_keyword: detectedLabel // Sending the label to your new SQL function!
+        match_threshold: 0.50, 
+        match_count: 4,        
+        filter_keyword: detectedLabel 
       });
       
       console.log(`\n--- Matches for ${crops[i].label} (Filtered by '${detectedLabel}') ---`);
