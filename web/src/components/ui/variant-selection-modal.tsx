@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Minus, Plus } from 'lucide-react';
 import { ProductVariant } from '@/types/database.types';
+import { cn } from '@/lib/utils';
 
 interface VariantSelectionModalProps {
     isOpen: boolean;
@@ -32,7 +33,7 @@ export function VariantSelectionModal({
     onClose,
     product,
     onConfirm,
-    buttonText = '🛒 Add to Cart',
+    buttonText = 'Add to Cart',
     initialSelectedVariant,
     initialQuantity,
 }: VariantSelectionModalProps) {
@@ -225,7 +226,7 @@ export function VariantSelectionModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-lg bg-white p-0 overflow-hidden max-h-[90vh] flex flex-col">
+            <DialogContent className="sm:max-w-md bg-white p-0 overflow-hidden max-h-[90vh] flex flex-col">
                 <DialogTitle className="sr-only">
                     {buttonText} - {product.name}
                 </DialogTitle>
@@ -242,34 +243,34 @@ export function VariantSelectionModal({
                 </div>
 
                 {/* Content - Scrollable */}
-                <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                <div className="p-5 space-y-3 overflow-y-auto flex-1 scrollbar-hide">
                     {/* Title and Price */}
                     <div>
                         <h3 className="text-lg font-bold text-gray-900 line-clamp-2">
                             {product.name}
                         </h3>
-                        <p className="text-xl font-bold text-[#FF5722] mt-1">
-                            ₱{currentPrice.toLocaleString()}
-                        </p>
+                        <div className="flex items-baseline justify-between mt-1">
+                            <p className="text-xl font-bold text-[var(--brand-accent)]">
+                                ₱{currentPrice.toLocaleString()}
+                            </p>
+                            {hasVariants && currentStock > 0 && (
+                                <p className="text-sm text-green-600">
+                                    {currentStock} pieces available
+                                </p>
+                            )}
+                            {hasVariants && currentStock === 0 && (
+                                <p className="text-sm text-red-600 font-medium">
+                                    Out of stock
+                                </p>
+                            )}
+                        </div>
                     </div>
-
-                    {/* Stock indicator */}
-                    {hasVariants && currentStock > 0 && (
-                        <p className="text-sm text-green-600">
-                            {currentStock} pieces available
-                        </p>
-                    )}
-                    {hasVariants && currentStock === 0 && (
-                        <p className="text-sm text-red-600 font-medium">
-                            Out of stock
-                        </p>
-                    )}
 
                     {/* Color Selection */}
                     {uniqueColors.length > 0 && (
                         <div>
-                            <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                                Color {selectedColor && <span className="font-normal text-gray-500">({selectedColor})</span>}
+                            <h4 className="text-xs font-bold tracking-wider text-gray-900 mb-2">
+                                Color
                             </h4>
                             <div className="flex flex-wrap gap-2">
                                 {uniqueColors.map((color) => {
@@ -283,13 +284,13 @@ export function VariantSelectionModal({
                                         <button
                                             key={color}
                                             onClick={() => handleColorSelect(color)}
-                                            className={`relative overflow-hidden rounded-lg border-2 transition-all ${isSelected
-                                                    ? 'border-[#FF5722] ring-2 ring-[#FF5722]/20'
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                            className={`relative overflow-hidden rounded-lg border transition-all focus:outline-none ${isSelected
+                                                ? 'border-[var(--brand-accent)]'
+                                                : 'border-gray-200 hover:border-gray-300'
                                                 }`}
                                         >
                                             {colorVariant?.thumbnail_url ? (
-                                                <div className="w-16 h-16">
+                                                <div className="w-12 h-12">
                                                     <img
                                                         src={colorVariant.thumbnail_url}
                                                         alt={color}
@@ -297,7 +298,10 @@ export function VariantSelectionModal({
                                                     />
                                                 </div>
                                             ) : (
-                                                <div className="px-4 py-2 text-sm font-medium text-gray-900">
+                                                <div className={cn(
+                                                    "px-3 py-1.5 text-xs font-semibold transition-colors",
+                                                    isSelected ? "text-[var(--brand-accent)]" : "text-gray-900"
+                                                )}>
                                                     {color}
                                                 </div>
                                             )}
@@ -311,17 +315,17 @@ export function VariantSelectionModal({
                     {/* Size Selection */}
                     {uniqueSizes.length > 0 && (
                         <div>
-                            <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                                Size {selectedSize && <span className="font-normal text-gray-500">({selectedSize})</span>}
+                            <h4 className="text-xs font-bold tracking-wider text-gray-900 mb-2">
+                                Size
                             </h4>
                             <div className="flex flex-wrap gap-2">
                                 {uniqueSizes.map((size) => (
                                     <button
                                         key={size}
                                         onClick={() => handleSizeSelect(size)}
-                                        className={`px-5 py-2.5 text-sm font-medium rounded-lg border-2 transition-all ${selectedSize === size
-                                                ? 'border-[#FF5722] bg-[#FF5722]/5 text-[#FF5722]'
-                                                : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all focus:outline-none ${selectedSize === size
+                                            ? 'border-[var(--brand-accent)] bg-[var(--brand-accent)]/5 text-[var(--brand-accent)]'
+                                            : 'border-gray-200 text-gray-700 hover:border-gray-300'
                                             }`}
                                     >
                                         {size}
@@ -331,43 +335,39 @@ export function VariantSelectionModal({
                         </div>
                     )}
 
-                    {/* Quantity */}
-                    <div className="flex items-center justify-between py-3 border-t">
-                        <span className="text-sm font-semibold text-gray-900">Quantity</span>
+                    {/* Quantity & Total Row */}
+                    <div className="flex items-center justify-between py-4 pb-2 border-t border-gray-100">
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={handleDecrement}
-                                className="w-9 h-9 rounded-lg border-2 border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                                className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-base transition-colors focus:outline-none"
                                 disabled={quantity <= 1}
                             >
-                                <Minus className="w-4 h-4 text-gray-600" />
+                                <Minus className="w-4 h-4 text-gray-600 hover:text-red-500" />
                             </button>
                             <span className="text-base font-semibold text-gray-900 min-w-[2rem] text-center">
                                 {quantity}
                             </span>
                             <button
                                 onClick={handleIncrement}
-                                className="w-9 h-9 rounded-lg border-2 border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-base transition-colors disabled:opacity-50 focus:outline-none"
                                 disabled={quantity >= currentStock}
                             >
-                                <Plus className="w-4 h-4 text-gray-600" />
+                                <Plus className="w-4 h-4 text-gray-600 hover:text-green-500" />
                             </button>
                         </div>
-                    </div>
-
-                    {/* Total Price */}
-                    <div className="flex items-center justify-between py-2">
-                        <span className="text-sm font-medium text-gray-600">Total:</span>
-                        <span className="text-xl font-bold text-[#FF5722]">
-                            ₱{(currentPrice * quantity).toLocaleString()}
-                        </span>
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-xl font-bold text-[var(--price-standard)]">
+                                ₱{(currentPrice * quantity).toLocaleString()}
+                            </span>
+                        </div>
                     </div>
 
                     {/* Action Button */}
                     <Button
                         onClick={handleConfirm}
                         disabled={isDisabled}
-                        className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white py-6 text-base font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white py-6 text-base font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {buttonText}
                     </Button>

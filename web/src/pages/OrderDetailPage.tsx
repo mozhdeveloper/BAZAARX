@@ -1214,14 +1214,14 @@ export default function OrderDetailPage() {
                   <div>
                     <div className="flex justify-between">
                       <span className="font-semibold text-gray-900">Order Total</span>
-                      <span className="font-bold text-lg text-[var(--brand-primary)]">
+                      <span className="font-bold text-lg text-[var(--brand-accent)]">
                         {"\u20B1"}{totalAmount.toLocaleString()}
                       </span>
                     </div>
                   </div>
                   <div className="pt-3 mt-4 border-t border-dashed border-[var(--btn-border)]">
                     <div className="flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-orange-500" />
+                      <CreditCard className="w-4 h-4 text-[var(--brand-accent)]" />
                       <span className="text-sm font-semibold text-gray-900">Payment</span>
                     </div>
                     <div className="mt-2 flex items-center gap-2">

@@ -59,7 +59,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
       </div>
 
       <div className="p-4">
-        <h3 className="product-title-premium text-sm mb-2 min-h-[2.5rem]">
+        <h3 className="product-title-premium text-sm mb-1 line-clamp-2">
           {product.name}
         </h3>
 
@@ -84,7 +84,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
         </div>
 
         <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-xl product-price-premium">
+          <span className={isFlash ? "text-xl font-bold text-[var(--price-flash)]" : "text-xl product-price-premium"}>
             ₱{product.price.toLocaleString()}
           </span>
           {hasDiscount && (
@@ -97,8 +97,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
         {isFlash ? (
           <div className="mb-4">
             <div className="w-full h-1.5 bg-red-100 rounded-full mb-1 border border-red-200 overflow-hidden">
-              <div 
-                className="h-full bg-red-500 rounded-full" 
+              <div
+                className="h-full bg-red-500 rounded-full"
                 style={{ width: '75%' }}
               />
             </div>
