@@ -44,6 +44,7 @@ import type { BusinessType } from "@/types/database.types";
 
 
 export function SellerStoreProfile() {
+  const SHOW_BANKING_INFO = false;
   const { seller, updateSellerDetails } = useAuthStore();
   const { products } = useProductStore();
   const [editSection, setEditSection] = useState<
@@ -268,10 +269,12 @@ export function SellerStoreProfile() {
       missing.push("Business Address (address, city, province, postal code)");
     }
 
-    // Banking info
-    if (isEmptyField(seller?.bankName)) missing.push("Bank Name");
-    if (isEmptyField(seller?.accountName)) missing.push("Account Name");
-    if (isEmptyField(seller?.accountNumber)) missing.push("Account Number");
+    // Banking info is temporarily hidden from seller profile UI
+    if (SHOW_BANKING_INFO) {
+      if (isEmptyField(seller?.bankName)) missing.push("Bank Name");
+      if (isEmptyField(seller?.accountName)) missing.push("Account Name");
+      if (isEmptyField(seller?.accountNumber)) missing.push("Account Number");
+    }
 
     // Documents
     if (!documents.businessPermitUrl) missing.push("Business Permit");
@@ -1328,7 +1331,8 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Banking Information (Locked if Verified) */}
-                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
+                {SHOW_BANKING_INFO && (
+                  <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
                   <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-3">
                       <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
@@ -1469,7 +1473,8 @@ export function SellerStoreProfile() {
                       </p>
                     </div>
                   )}
-                </Card>
+                  </Card>
+                )}
 
                 {/* Verification Documents */}
                 <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
