@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { qaService, QAProductWithDetails, ProductQAStatus as QAStatus } from '../services/qaService';
+import { safeImageUri } from '../utils/imageUtils';
 
 export type ProductQAStatus = 
   | 'PENDING_DIGITAL_REVIEW'    // Step 1: Needs Admin Digital Approval
@@ -54,7 +55,7 @@ interface ProductQAStore {
 
 // Convert database entry to store format
 const convertDBToStore = (entry: QAProductWithDetails): QAProduct => {
-  // Handle image extraction safely
+  // Handle image extraction safely, sanitize social-media CDN URLs
   let imageUrl = 'https://placehold.co/100?text=Product';
   let images: string[] = [];
 
@@ -62,13 +63,18 @@ const convertDBToStore = (entry: QAProductWithDetails): QAProduct => {
     // Check if it's an array of strings or objects
     const firstImg = entry.product.images[0];
     if (typeof firstImg === 'string') {
-      imageUrl = firstImg;
-      images = entry.product.images as string[];
+      imageUrl = safeImageUri(firstImg);
+      images = (entry.product.images as string[]).map(img => safeImageUri(img));
     } else if (typeof firstImg === 'object' && firstImg !== null && 'image_url' in firstImg) {
       // It's from product_images table join
-      imageUrl = (firstImg as any).image_url;
-      images = entry.product.images.map((img: any) => img.image_url).filter(Boolean);
+      imageUrl = safeImageUri((firstImg as any).image_url);
+      images = entry.product.images.map((img: any) => safeImageUri(img.image_url)).filter(Boolean);
     }
+  }
+
+  // Ensure images array has at least a fallback
+  if (images.length === 0) {
+    images = [imageUrl];
   }
 
   return {
@@ -111,6 +117,33 @@ export const useProductQAStore = create<ProductQAStore>()(
             entries = await qaService.getQAEntriesBySeller(sellerId);
           } else {
             entries = await qaService.getAllQAEntries();
+          }
+
+          // Admin mode: auto-create assessments for orphan products
+          if (!sellerId) {
+            try {
+              const orphans = await qaService.getOrphanProducts();
+              if (orphans.length > 0) {
+                console.log(`[QA Store Mobile] Reconciling ${orphans.length} orphan product(s)...`);
+                await Promise.allSettled(
+                  orphans.map(async (orphan: any) => {
+                    try {
+                      await qaService.createQAEntry(
+                        orphan.id,
+                        orphan.seller?.store_name || 'Unknown',
+                        orphan.seller_id || ''
+                      );
+                    } catch (e) {
+                      console.warn(`[QA Store Mobile] Orphan reconcile failed for ${orphan.id}:`, e);
+                    }
+                  })
+                );
+                // Re-fetch with newly created assessments
+                entries = await qaService.getAllQAEntries();
+              }
+            } catch (orphanError) {
+              console.warn('[QA Store Mobile] Orphan reconciliation error:', orphanError);
+            }
           }
 
           
@@ -322,13 +355,14 @@ export const useProductQAStore = create<ProductQAStore>()(
       addProductToQA: async (productId: string, vendorName: string, sellerId?: string) => {
         set({ isLoading: true });
         try {
-          const entry = await qaService.createQAEntry(productId, vendorName, sellerId || 'unknown');
-          if (!entry) {
-            throw new Error('Failed to create QA entry');
-          }
+          await qaService.createQAEntry(productId, vendorName, sellerId || 'unknown');
 
-          // Reload products to get the full data
-          await get().loadProducts();
+          // Reload products for this seller so the new product appears
+          if (sellerId) {
+            await get().loadProducts(sellerId);
+          } else {
+            await get().loadProducts();
+          }
         } catch (error) {
           console.error('Error adding product to QA:', error);
           set({ isLoading: false, error: error instanceof Error ? error.message : 'Unknown error' });

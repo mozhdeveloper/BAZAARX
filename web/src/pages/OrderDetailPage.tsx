@@ -7,8 +7,6 @@ import {
   Truck,
   CheckCircle,
   Clock,
-  MapPin,
-  Phone,
   CreditCard,
   MessageCircle,
   Send,
@@ -17,7 +15,6 @@ import {
   Share2,
   AlertCircle,
   Store,
-  Receipt,
   X,
 } from "lucide-react";
 import { useCartStore, Order } from "../stores/cartStore";
@@ -37,7 +34,8 @@ import { chatService, Message, Conversation } from "../services/chatService";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "@/lib/utils";
-import { ShippingAddressCard } from "../components/orders/ShippingAddressCard";
+import { ReviewModal } from "../components/ReviewModal";
+import { useToast } from "../hooks/use-toast";
 
 interface ChatMessage {
   id: string;
@@ -57,7 +55,9 @@ interface DbOrderData {
 export default function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const isFirstLoad = useRef(true);
   const { profile } = useBuyerStore();
 
@@ -77,9 +77,6 @@ export default function OrderDetailPage() {
 
   // Review modal state
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState("");
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   // Load order + seller info through shared read service.
   useEffect(() => {
@@ -190,8 +187,23 @@ export default function OrderDetailPage() {
         };
 
         setChatMessages(prev => {
-          // Avoid duplicates
+          // Avoid duplicates by final ID
           if (prev.some(m => m.id === newMessage.id)) return prev;
+
+          // If this is a buyer message, check if we have a matching optimistic message
+          if (newMessage.sender_type === 'buyer') {
+            const optimisticIndex = prev.findIndex(m =>
+              m.id.toString().startsWith('temp-') &&
+              m.message === newMessage.content
+            );
+
+            if (optimisticIndex !== -1) {
+              const newMessages = [...prev];
+              newMessages[optimisticIndex] = formattedMessage;
+              return newMessages;
+            }
+          }
+
           return [...prev, formattedMessage];
         });
 
@@ -214,14 +226,21 @@ export default function OrderDetailPage() {
   }, [dbOrder, navigate, isLoading]);
 
   useEffect(() => {
-    // Skip scroll on initial load
-    if (isFirstLoad.current) {
-      isFirstLoad.current = false;
-      return;
-    }
+    if (chatContainerRef.current) {
+      const isInitial = isFirstLoad.current && chatMessages.length > 0;
 
-    // Auto scroll to bottom when new messages arrive
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (isInitial) {
+        // Instant scroll for first load
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        isFirstLoad.current = false;
+      } else if (!isFirstLoad.current) {
+        // Smooth scroll for subsequent messages
+        chatContainerRef.current.scrollTo({
+          top: chatContainerRef.current.scrollHeight,
+          behavior: "smooth"
+        });
+      }
+    }
   }, [chatMessages]);
 
   if (isLoading) {
@@ -312,8 +331,8 @@ export default function OrderDetailPage() {
         order.status === "reviewed",
       date:
         order.status === "shipped" ||
-        order.status === "delivered" ||
-        order.status === "reviewed"
+          order.status === "delivered" ||
+          order.status === "reviewed"
           ? order.createdAt
           : null,
     },
@@ -377,16 +396,23 @@ export default function OrderDetailPage() {
       );
 
       if (sentMessage) {
-        // Replace temp message with real one
-        setChatMessages(prev =>
-          prev.map(m => m.id === tempId ? {
-            id: sentMessage.id,
-            sender: 'buyer',
-            message: sentMessage.content,
-            timestamp: new Date(sentMessage.created_at),
-            read: true,
-          } : m)
-        );
+        const serverMessage: ChatMessage = {
+          id: sentMessage.id,
+          sender: 'buyer',
+          message: sentMessage.content,
+          timestamp: new Date(sentMessage.created_at),
+          read: true,
+        };
+
+        setChatMessages(prev => {
+          // If subscription already added this message (with final ID)
+          if (prev.some(m => m.id === sentMessage.id)) {
+            // Just remove the temp message
+            return prev.filter(m => m.id !== tempId);
+          }
+          // Otherwise replace temp with real message
+          return prev.map(m => m.id === tempId ? serverMessage : m);
+        });
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -754,75 +780,23 @@ export default function OrderDetailPage() {
     doc.save(`BazaarX_Receipt_${order.orderNumber || (dbOrder as any)?.order_number || order.id}.pdf`);
   };
 
-  const handleSubmitReview = async () => {
-    if (reviewRating === 0) {
-      alert("Please select a rating");
-      return;
-    }
-    if (!reviewComment.trim()) {
-      alert("Please write a review comment");
-      return;
-    }
 
-    setIsSubmittingReview(true);
-    try {
-      const success = await orderMutationService.submitOrderReview({
-        orderId: order.id,
-        buyerId: dbOrder?.buyer_id || "",
-        rating: reviewRating,
-        comment: reviewComment,
-        images: [],
-      });
-
-      if (success) {
-        alert("✅ Review submitted successfully! Thank you for your feedback.");
-        setShowReviewModal(false);
-        setReviewRating(0);
-        setReviewComment("");
-
-        // Refresh order data to show is_reviewed status
-        if (orderId) {
-          const detail = await orderReadService.getOrderDetail({
-            orderIdOrNumber: orderId,
-            buyerId: profile?.id,
-          });
-
-          if (detail) {
-            const refreshedOrder: Order & DbOrderData = {
-              ...(detail.order as unknown as Order),
-              buyer_id: detail.buyer_id,
-              is_reviewed: detail.is_reviewed || false,
-              shipping_cost: detail.shipping_cost || 0,
-            };
-            setDbOrder(refreshedOrder);
-          }
-        }
-      } else {
-        alert("Failed to submit review. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error submitting review:", error);
-      alert("An error occurred. Please try again.");
-    } finally {
-      setIsSubmittingReview(false);
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 -mt-8">
         {/* Header */}
         <div className="mb-6">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
+            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <div className="p-1.5">
               <ChevronLeft className="w-4 h-4 mt-3" />
             </div>
-            <span className="font-medium text-sm mt-3">Back to Orders</span>
+            <span className="font-medium text-sm mt-3">Back</span>
           </button>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -840,7 +814,7 @@ export default function OrderDetailPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleShareOrder}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 hover:bg-[var(--brand-primary)] hover:text-white hover:border-[var(--brand-primary)] transition-colors"
               >
                 <Share2 className="w-4 h-4" />
                 Share
@@ -849,7 +823,7 @@ export default function OrderDetailPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleDownloadReceipt}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 hover:bg-[var(--brand-primary)] hover:text-white hover:border-[var(--brand-primary)] transition-colors"
               >
                 <Download className="w-4 h-4" />
                 Receipt
@@ -862,172 +836,150 @@ export default function OrderDetailPage() {
           {/* Left Column - Order Details */}
           <div className="lg:col-span-2 space-y-6">
             {/* Status Timeline */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Truck className="w-5 h-5 text-orange-500" />
-                  Order Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {statusTimeline.map((item, index) => (
-                    <div key={item.status} className="flex items-start gap-4">
-                      <div className="flex flex-col items-center">
-                        <div
-                          className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center border-2",
-                            item.completed
-                              ? "bg-green-500 border-green-500 text-white"
-                              : "bg-gray-100 border-gray-300 text-gray-400",
-                          )}
-                        >
-                          {item.completed ? (
-                            <CheckCircle className="w-5 h-5" />
-                          ) : (
-                            <Clock className="w-5 h-5" />
-                          )}
-                        </div>
-                        {index < statusTimeline.length - 1 && (
-                          <div
-                            className={cn(
-                              "w-0.5 h-12 mt-2",
-                              item.completed ? "bg-green-500" : "bg-gray-300",
-                            )}
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-8">
-                        <h4
-                          className={cn(
-                            "font-semibold",
-                            item.completed ? "text-gray-900" : "text-gray-500",
-                          )}
-                        >
-                          {item.label}
-                        </h4>
-                        {item.date && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            {formatDate(item.date)}
+            <Card className="border-0 shadow-md">
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
+                  {/* Left Column: Delivery Information */}
+                  <div className="lg:pr-10 pb-8 lg:pb-0">
+                    <div className="flex items-center gap-3 text-gray-900 font-bold mb-6">
+                      <span className="text-lg">Delivery Information</span>
+                    </div>
+
+                    <div className="bg-[var(--brand-wash)]/30">
+                      <div className="space-y-4">
+                        {/* Name */}
+                        <div>
+                          <p className="font-medium text-gray-700 text-sm">
+                            {order.shippingAddress.fullName}
                           </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                        </div>
 
-                {order.status === "shipped" && (
-                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-semibold text-blue-900">
-                          Track Your Package
-                        </h4>
-                        <p className="text-sm text-blue-800 mt-1">
-                          Your order is on its way! Expected delivery:{" "}
-                          {formatDate(order.estimatedDelivery)}
-                        </p>
-                        <Button
-                          onClick={() =>
-                            navigate(`/delivery-tracking/${order.orderNumber}`)
-                          }
-                          className="mt-3 bg-blue-600 hover:bg-blue-700 text-white"
-                          size="sm"
-                        >
-                          <Truck className="w-4 h-4 mr-2" />
-                          Track Delivery
-                        </Button>
+                        {/* Contact/Phone Number */}
+                        <div className="flex items-center gap-2.5 text-gray-600">
+                          <p className="text-xs text-[var(--text-muted)]">{order.shippingAddress.phone}</p>
+                        </div>
+
+                        {/* Full Address */}
+                        <div>
+                          <div className="flex items-start gap-2.5">
+                            <div className="text-[var(--text-muted)] text-xs">
+                              <p>{order.shippingAddress.street}</p>
+                              <p>{order.shippingAddress.city}, {order.shippingAddress.province} {order.shippingAddress.postalCode}</p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
+
+                    {order.status === "shipped" && (
+                      <div className="mt-8 p-5 bg-gradient-to-br from-blue-50 to-[var(--brand-wash)] rounded-2xl">
+                        <div className="flex items-start gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                            <Truck className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-bold text-blue-900 text-sm">
+                              Package En Route
+                            </h4>
+                            <p className="text-xs text-blue-700/80 mt-1 leading-relaxed">
+                              Estimated Arrival: <span className="font-bold text-blue-900">{formatDate(order.estimatedDelivery)}</span>
+                            </p>
+                            <Button
+                              onClick={() =>
+                                navigate(`/delivery-tracking/${order.orderNumber}`)
+                              }
+                              className="mt-4 bg-blue-600 hover:bg-blue-700 text-white w-full rounded-xl shadow-md shadow-blue-200"
+                              size="sm"
+                            >
+                              Track in Real-time
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
 
-            {/* Order Items */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-orange-500" />
-                  Items ({order.items.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {order.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-20 h-20 object-cover rounded-lg"
-                      />
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">
-                          {item.name}
-                        </h4>
-                        {item.variant && (item.variant.size || item.variant.color) && (
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {item.variant.size && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                                Size: {item.variant.size}
-                              </span>
-                            )}
-                            {item.variant.color && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                                Color: {item.variant.color}
-                              </span>
+                  {/* Right Column: Order Status Timeline */}
+                  <div className="lg:col-span-2 lg:pl-10 space-y-2 mt-8 lg:mt-0">
+                    <div className="relative pt-4">
+                      {statusTimeline.map((item, index) => (
+                        <div key={item.status} className="flex items-start gap-6 group">
+                          <div className="flex flex-col items-center">
+                            <div
+                              className={cn(
+                                "w-6 h-6 rounded-full flex items-center justify-center transition-all duration-500",
+                                item.completed
+                                  ? "bg-green-500 border-green-500 text-white shadow-lg shadow-green-100 scale-100"
+                                  : "bg-white border-gray-200 text-gray-300 scale-90",
+                              )}
+                            >
+                              {item.completed ? (
+                                <CheckCircle className="w-4 h-4" />
+                              ) : (
+                                <Clock className="w-4 h-4" />
+                              )}
+                            </div>
+                            {index < statusTimeline.length - 1 && (
+                              <div
+                                className={cn(
+                                  "w-0.5 h-14 my-1 transition-colors duration-500",
+                                  item.completed ? "bg-green-500" : "bg-gray-100",
+                                )}
+                              />
                             )}
                           </div>
-                        )}
-                        <p className="text-sm text-gray-600 mt-1">
-                          Qty: {item.quantity}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          ₱{item.price.toLocaleString()} each
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-gray-900">
-                          ₱{(item.price * item.quantity).toLocaleString()}
-                        </p>
-                        {(order.status === "delivered" ||
-                          order.status === "reviewed") &&
-                          !dbOrder?.is_reviewed && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowReviewModal(true)}
-                              className="mt-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+                          <div className="flex-1 pb-10">
+                            <h4
+                              className={cn(
+                                "font-bold text-base transition-colors duration-300",
+                                item.completed ? "text-gray-900" : "text-gray-400 font-medium",
+                              )}
                             >
-                              <Star className="w-3 h-3 mr-1" />
-                              Review
-                            </Button>
-                          )}
-                        {(order.status === "delivered" ||
-                          order.status === "reviewed") &&
-                          dbOrder?.is_reviewed && (
-                            <div className="mt-2 flex items-center gap-1 text-sm text-green-600">
-                              <CheckCircle className="w-4 h-4" />
-                              <span>Reviewed</span>
-                            </div>
-                          )}
-                      </div>
+                              {item.label}
+                            </h4>
+                            {item.completed && item.date && (
+                              <p className="text-xs text-[var(--text-muted)] mt-1">
+                                {formatDate(item.date)}
+                              </p>
+                            )}
+                            {item.status === 'shipped' && order.trackingNumber && (
+                              <div className="mt-2 flex items-center gap-2 text-[10px] sm:text-xs">
+                                <span className="font-mono font-semibold text-[var(--text-muted)]">Tracking Number:</span>
+                                <span className="font-mono font-semibold text-[var(--text-muted)]">{order.trackingNumber}</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(order.trackingNumber!);
+                                    toast({
+                                      title: "Copied",
+                                      description: "Tracking number copied to clipboard",
+                                    });
+                                  }}
+                                  className="text-xs text-[var(--brand-primary)] hover:underline ml-1"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            )}
+                            {!item.completed && (
+                              <p className="text-xs text-gray-300 mt-1">Pending update...</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
+
+
             {/* Order-based Chat */}
-            <Card>
+            <Card className="border-0 shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <MessageCircle className="w-5 h-5 text-orange-500" />
                     Chat with Seller
                   </div>
                   <div className="flex items-center gap-2">
@@ -1038,11 +990,11 @@ export default function OrderDetailPage() {
               </CardHeader>
               <CardContent>
                 {/* Chat Messages */}
-                <div className="mb-4 h-80 overflow-y-auto space-y-3 p-4 bg-gray-50 rounded-lg">
+                <div ref={chatContainerRef} className="mb-4 h-80 overflow-y-auto space-y-3 p-4 bg-gray-50 rounded-lg scrollbar-hide">
                   {isLoadingChat ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-2"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--brand-primary)] mx-auto mb-2"></div>
                         <p className="text-sm text-gray-500">Loading messages...</p>
                       </div>
                     </div>
@@ -1069,7 +1021,7 @@ export default function OrderDetailPage() {
                           className={cn(
                             "max-w-[70%] rounded-lg px-4 py-2",
                             msg.sender === "buyer"
-                              ? "bg-orange-500 text-white"
+                              ? "bg-[var(--brand-primary)] text-white"
                               : msg.sender === "seller"
                                 ? "bg-white border border-gray-200 text-gray-900"
                                 : "bg-blue-50 border border-blue-200 text-blue-900 text-sm",
@@ -1096,7 +1048,7 @@ export default function OrderDetailPage() {
                             className={cn(
                               "text-xs mt-1",
                               msg.sender === "buyer"
-                                ? "text-orange-100"
+                                ? "text-white/70"
                                 : "text-gray-500",
                             )}
                           >
@@ -1116,13 +1068,13 @@ export default function OrderDetailPage() {
                     onChange={(e) => setChatMessage(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && !isSendingMessage && handleSendMessage()}
                     placeholder="Type your message..."
-                    className="flex-1"
+                    className="flex-1 focus-visible:ring-1 focus-visible:ring-[var(--brand-primary)]"
                     disabled={!conversation || isSendingMessage}
                   />
                   <Button
                     onClick={handleSendMessage}
                     disabled={!chatMessage.trim() || !conversation || isSendingMessage}
-                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                    className="bg-[var(--brand-primary)] hover:opacity-90 text-white"
                   >
                     {isSendingMessage ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1138,85 +1090,142 @@ export default function OrderDetailPage() {
           {/* Right Column - Summary & Details */}
           <div className="space-y-6">
             {/* Order Summary */}
-            <Card>
+            <Card className="border-0 shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-orange-500" />
                   Order Summary
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">
-                    {"\u20B1"}{subtotalAmount.toLocaleString()}
-                  </span>
-                </div>
-                {campaignDiscountAmount > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Campaign Discount</span>
-                    <span className="font-medium text-green-600">
-                      -{"\u20B1"}{campaignDiscountAmount.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {voucherDiscountAmount > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Voucher Discount</span>
-                    <span className="font-medium text-green-600">
-                      -{"\u20B1"}{voucherDiscountAmount.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {bazcoinDiscountAmount > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">BazCoins Applied</span>
-                    <span className="font-medium text-green-600">
-                      -{"\u20B1"}{bazcoinDiscountAmount.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {taxAmount > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Tax (12% VAT)</span>
-                    <span className="font-medium">{"\u20B1"}{taxAmount.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Shipping</span>
-                  {shippingAmount === 0 ? (
-                    <span className="font-medium text-green-600">Free</span>
-                  ) : (
-                    <span className="font-medium">{"\u20B1"}{shippingAmount.toLocaleString()}</span>
-                  )}
-                </div>
-                <div className="pt-3 border-t">
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-900">Total</span>
-                    <span className="font-bold text-lg text-orange-600">
-                      {"\u20B1"}{totalAmount.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              <CardContent className="space-y-4">
+                {/* Items List */}
+                <div className="space-y-3 mb-6">
+                  {order.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-start gap-3 cursor-pointer hover:bg-gray-50/50 p-1.5 -m-1.5 rounded-xl transition-colors group/item"
+                      onClick={() => navigate(`/product/${item.id}`)}
+                    >
+                      <div className="relative group flex-shrink-0">
+                        <div className="w-16 h-16 overflow-hidden border border-gray-100 bg-gray-50">
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="w-16 h-16 object-cover transition-transform group-hover/item:scale-110"
+                          />
+                        </div>
+                        <div className="absolute -top-2 -right-2 w-5 h-5 bg-[var(--brand-accent)] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-sm z-10">
+                          {item.quantity}
+                        </div>
+                      </div>
 
-            {/* Payment Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-orange-500" />
-                  Payment
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
-                      <CreditCard className="w-4 h-4 text-gray-600" />
+                      <div className="flex-1 min-w-0 py-0.5">
+                        <h4 className="text-sm font-bold text-gray-900 line-clamp-1 group-hover/item:text-[var(--brand-primary)] transition-colors">
+                          {item.name}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
+                          {item.variant?.size && (
+                            <span className="text-xs text-[var(--text-muted)]">
+                              {item.variant.size}
+                            </span>
+                          )}
+                          {item.variant?.size && item.variant?.color && (
+                            <span className="text-[10px] text-gray-300">|</span>
+                          )}
+                          {item.variant?.color && (
+                            <span className="text-xs text-[var(--text-muted)]">
+                              {item.variant.color}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-xs text-[var(--text-muted)]">
+                            ₱{item.price.toLocaleString()}
+                          </p>
+                          <p className="text-sm font-bold text-gray-900">
+                            ₱{(item.price * item.quantity).toLocaleString()}
+                          </p>
+                        </div>
+
+                        {(order.status === "delivered" || order.status === "reviewed") && (
+                          <div className="mt-2 text-right">
+                            {!dbOrder?.is_reviewed && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowReviewModal(true);
+                                }}
+                                className="text-[10px] font-bold text-[var(--brand-primary)] flex items-center gap-1 ml-auto hover:underline"
+                              >
+                                Rate & Review
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">
+                  ))}
+                </div>
+
+                <div className="pt-4 border-t border-dashed border-[var(--btn-border)] space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Subtotal</span>
+                    <span className="font-medium">
+                      {"\u20B1"}{subtotalAmount.toLocaleString()}
+                    </span>
+                  </div>
+                  {campaignDiscountAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Campaign Discount</span>
+                      <span className="font-medium text-green-600">
+                        -{"\u20B1"}{campaignDiscountAmount.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {voucherDiscountAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Voucher Discount</span>
+                      <span className="font-medium text-green-600">
+                        -{"\u20B1"}{voucherDiscountAmount.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {bazcoinDiscountAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">BazCoins Applied</span>
+                      <span className="font-medium text-green-600">
+                        -{"\u20B1"}{bazcoinDiscountAmount.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {taxAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Tax (12% VAT)</span>
+                      <span className="font-medium">{"\u20B1"}{taxAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Shipping</span>
+                    {shippingAmount === 0 ? (
+                      <span className="font-medium text-green-600">Free</span>
+                    ) : (
+                      <span className="font-medium">{"\u20B1"}{shippingAmount.toLocaleString()}</span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-gray-900">Order Total</span>
+                      <span className="font-bold text-lg text-[var(--brand-primary)]">
+                        {"\u20B1"}{totalAmount.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-3 mt-4 border-t border-dashed border-[var(--btn-border)]">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-orange-500" />
+                      <span className="text-sm font-semibold text-gray-900">Payment</span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <p className="text-sm text-[var(--text-muted)]">
                         {order.paymentMethod.type === 'cod' ? 'Cash on Delivery (COD)' :
                           order.paymentMethod.type === 'gcash' ? 'GCash' :
                             order.paymentMethod.type === 'paymaya' ? 'PayMaya' :
@@ -1229,159 +1238,60 @@ export default function OrderDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Tracking Number */}
-            {order.trackingNumber && (
-              <Card className="border-green-200 bg-green-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-green-900">
-                    <Truck className="w-5 h-5 text-green-600" />
-                    Tracking Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">
-                      Tracking Number
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-white border border-green-200 rounded px-3 py-2 text-sm font-mono text-green-900">
-                        {order.trackingNumber}
-                      </code>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-green-200 text-green-700 hover:bg-green-100"
-                        onClick={() => {
-                          navigator.clipboard.writeText(order.trackingNumber!);
-                          alert("Tracking number copied to clipboard!");
-                        }}
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                  </div>
-                  {order.status === "shipped" && (
-                    <p className="text-sm text-green-700 flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Your package is on the way!
-                    </p>
-                  )}
-                  {(order.status === "delivered" ||
-                    order.status === "reviewed") && (
-                    <p className="text-sm text-green-700 flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Package delivered successfully!
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
 
-            <ShippingAddressCard address={order.shippingAddress} />
 
-            {/* Need Help */}
-            <Card className="bg-orange-50 border-orange-200">
-              <CardContent className="p-4">
-                <h4 className="font-semibold text-orange-900 mb-2">
-                  Need Help?
-                </h4>
-                <p className="text-sm text-orange-800 mb-3">
-                  Have questions about your order? Our support team is here to
-                  help!
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full border-orange-300 text-orange-700 hover:bg-orange-100"
-                >
-                  Contact Support
-                </Button>
-              </CardContent>
-            </Card>
+
           </div>
         </div>
       </div>
 
       {/* Review Modal */}
-      {showReviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-gray-900">
-                Write a Review
-              </h3>
-              <button
-                onClick={() => setShowReviewModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {
+        showReviewModal && order && (
+          <ReviewModal
+            isOpen={showReviewModal}
+            onClose={() => setShowReviewModal(false)}
+            onSubmitted={async () => {
+              toast({
+                title: "Review Submitted",
+                description: "Thank you for your feedback!",
+                duration: 5000,
+              });
 
-            <div className="space-y-4">
-              {/* Rating Stars */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Rating
-                </label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setReviewRating(star)}
-                      className="focus:outline-none transition-transform hover:scale-110"
-                    >
-                      <Star
-                        className={cn(
-                          "w-8 h-8",
-                          star <= reviewRating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-gray-300",
-                        )}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
+              // Refresh order data to show is_reviewed status
+              if (orderId) {
+                const detail = await orderReadService.getOrderDetail({
+                  orderIdOrNumber: orderId,
+                  buyerId: profile?.id,
+                });
 
-              {/* Review Comment */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your Review
-                </label>
-                <textarea
-                  value={reviewComment}
-                  onChange={(e) => setReviewComment(e.target.value)}
-                  placeholder="Share your experience with this product..."
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowReviewModal(false)}
-                  className="flex-1"
-                  disabled={isSubmittingReview}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSubmitReview}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                  disabled={isSubmittingReview}
-                >
-                  {isSubmittingReview ? "Submitting..." : "Submit Review"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                if (detail) {
+                  const refreshedOrder: Order & DbOrderData = {
+                    ...(detail.order as unknown as Order),
+                    buyer_id: detail.buyer_id,
+                    is_reviewed: detail.is_reviewed || false,
+                    shipping_cost: detail.shipping_cost || 0,
+                  };
+                  setDbOrder(refreshedOrder);
+                }
+              }
+              setShowReviewModal(false);
+            }}
+            orderId={order.dbId || order.id}
+            displayOrderId={order.orderNumber || order.id}
+            sellerName={storeName}
+            items={order.items.map((item: any) => ({
+              id: item.id,
+              name: item.name,
+              image: item.image,
+              variant: item.variant,
+            }))}
+            sellerId={sellerId || ""}
+          />
+        )
+      }
 
       <BazaarFooter />
-    </div>
+    </div >
   );
 }
-

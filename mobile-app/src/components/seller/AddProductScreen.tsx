@@ -16,7 +16,6 @@ import { ArrowLeft, Camera, Package as PackageIcon, X, Info, Layers, Trash2, Tag
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore, SellerProduct } from '../../../src/stores/sellerStore';
-import { useProductQAStore } from '../../../src/stores/productQAStore';
 import VariantManager, { Variant } from '../../../src/components/VariantManager'; 
 
 // Generate a proper UUID
@@ -32,7 +31,6 @@ export default function AddProductScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { seller, addProduct } = useSellerStore();
-  const { addProductToQA } = useProductQAStore();
 
   const [variants, setVariants] = useState<Variant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
@@ -201,8 +199,8 @@ export default function AddProductScreen() {
         variants: variantsForSubmit && variantsForSubmit.length > 0 ? variantsForSubmit : undefined,
       } as any;
 
-      const dbProductId = await addProduct(newProduct);
-      await addProductToQA(dbProductId, seller?.store_name || 'Store');
+      // addProduct internally creates the QA entry — no need to call addProductToQA separately
+      await addProduct(newProduct);
 
       Alert.alert('Success', 'Product submitted for review.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
 

@@ -80,6 +80,15 @@ export interface Order {
     images: string[];
     submittedAt: Date;
   };
+  pricing?: {
+    subtotal: number;
+    shipping: number;
+    tax?: number;
+    campaignDiscount: number;
+    voucherDiscount: number;
+    bazcoinDiscount?: number;
+    total: number;
+  };
 }
 
 export interface OrderNotification {
@@ -416,28 +425,28 @@ export const useCartStore = create<CartStore>()(
 
       addToCart: (product: Product) => {
         const cartId = get().cartId;
-        
+
         if (cartId && isSupabaseConfigured()) {
           // DB-backed add
           (async () => {
             try {
               const variantId = (product as any).variant?.id || (product as any).selectedVariant?.variantId || null;
-              
+
               // Check for existing item
               let query = supabase
                 .from('cart_items')
                 .select('id, quantity')
                 .eq('cart_id', cartId)
                 .eq('product_id', product.id);
-              
+
               if (variantId) {
                 query = query.eq('variant_id', variantId);
               } else {
                 query = query.is('variant_id', null);
               }
-              
+
               const { data: existing } = await query.maybeSingle();
-              
+
               if (existing) {
                 await supabase
                   .from('cart_items')
@@ -453,7 +462,7 @@ export const useCartStore = create<CartStore>()(
                     variant_id: variantId,
                   });
               }
-              
+
               // Re-fetch items to get full product details
               // Get the user from supabase auth
               const { data: { user } } = await supabase.auth.getUser();
@@ -472,7 +481,7 @@ export const useCartStore = create<CartStore>()(
 
       removeFromCart: (productId: string) => {
         const cartId = get().cartId;
-        
+
         if (cartId && isSupabaseConfigured()) {
           (async () => {
             try {
@@ -508,7 +517,7 @@ export const useCartStore = create<CartStore>()(
         }
 
         const cartId = get().cartId;
-        
+
         if (cartId && isSupabaseConfigured()) {
           (async () => {
             try {
