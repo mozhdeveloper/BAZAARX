@@ -79,6 +79,7 @@ export interface ProductAssessment {
     category?: { name: string };
     images?: { image_url: string; is_primary: boolean }[];
     variants?: ProductVariant[];
+    seller?: { store_name?: string; owner_name?: string };
   };
   // Computed from related tables
   logistics?: string;
@@ -124,44 +125,70 @@ export class QAService {
 
   /**
    * Transform new assessment to legacy format
+   * Uses pre-joined data when available, falls back to individual queries with maybeSingle()
    */
-  private async transformToLegacy(assessment: ProductAssessment): Promise<QAProductDB> {
-    // Get logistics from assessment_logistics
-    const { data: logistics } = await supabase
-      .from('product_assessment_logistics')
-      .select('details')
-      .eq('assessment_id', assessment.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+  private async transformToLegacy(assessment: ProductAssessment & { 
+    logistics_records?: any[]; 
+    rejection_records?: any[]; 
+    revision_records?: any[];
+    seller?: { store_name?: string; owner_name?: string } | null;
+  }): Promise<QAProductDB> {
+    // Use pre-joined data if available (from enriched queries), otherwise fetch individually
+    let logisticsDetails: string | null = null;
+    let rejectionDesc: string | null = null;
+    let revisionDesc: string | null = null;
 
-    // Get rejection info from product_rejections
-    const { data: rejection } = await supabase
-      .from('product_rejections')
-      .select('description, vendor_submitted_category, admin_reclassified_category')
-      .eq('assessment_id', assessment.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    if (assessment.logistics_records !== undefined) {
+      // Data was pre-joined in the query
+      logisticsDetails = assessment.logistics_records?.[0]?.details || null;
+      rejectionDesc = assessment.rejection_records?.[0]?.description || null;
+      revisionDesc = assessment.revision_records?.[0]?.description || null;
+    } else {
+      // Fallback: fetch individually using maybeSingle() to avoid 406 errors
+      const { data: logistics } = await supabase
+        .from('product_assessment_logistics')
+        .select('details')
+        .eq('assessment_id', assessment.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    // Get revision info
-    const { data: revision } = await supabase
-      .from('product_revisions')
-      .select('description')
-      .eq('assessment_id', assessment.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      const { data: rejection } = await supabase
+        .from('product_rejections')
+        .select('description, vendor_submitted_category, admin_reclassified_category')
+        .eq('assessment_id', assessment.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const { data: revision } = await supabase
+        .from('product_revisions')
+        .select('description')
+        .eq('assessment_id', assessment.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      logisticsDetails = logistics?.details || null;
+      rejectionDesc = rejection?.description || null;
+      revisionDesc = revision?.description || null;
+    }
 
     const legacyStatus = NEW_TO_LEGACY_STATUS[assessment.status] || 'PENDING_DIGITAL_REVIEW';
+
+    // Resolve vendor name: prefer seller.store_name, fallback to product name
+    const vendor = (assessment as any).seller?.store_name 
+      || assessment.product?.seller?.store_name
+      || assessment.product?.name 
+      || 'Unknown';
     
     return {
       id: assessment.id,
       product_id: assessment.product_id,
-      vendor: assessment.product?.name || 'Unknown',
+      vendor,
       status: legacyStatus,
-      logistics: logistics?.details || null,
-      rejection_reason: rejection?.description || revision?.description || null,
+      logistics: logisticsDetails,
+      rejection_reason: rejectionDesc || revisionDesc || null,
       rejection_stage: assessment.status === 'rejected' ? 'digital' : null,
       submitted_at: assessment.submitted_at,
       approved_at: assessment.status === 'waiting_for_sample' ? assessment.submitted_at : null,
@@ -319,6 +346,8 @@ export class QAService {
           )
         `)
         .eq('product_id', productId)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
@@ -349,6 +378,8 @@ export class QAService {
           product_id: productId,
           status: 'pending_digital_review',
           submitted_at: new Date().toISOString(),
+          // sellers.id → profiles.id → auth.users.id, so sellerId is a valid auth user UUID
+          created_by: sellerId || null,
         })
         .select()
         .single();
@@ -372,11 +403,12 @@ export class QAService {
     }
 
     try {
+      // Use !inner join so PostgREST actually filters (without !inner, it returns all rows with null product)
       const { data, error } = await supabase
         .from('product_assessments')
         .select(`
           *,
-          product:products (
+          product:products!inner (
             id,
             name,
             description,
@@ -387,8 +419,12 @@ export class QAService {
             variant_label_2,
             category:categories (name),
             images:product_images (image_url, is_primary),
-            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url)
-          )
+            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url),
+            seller:sellers (store_name, owner_name)
+          ),
+          logistics_records:product_assessment_logistics (details),
+          rejection_records:product_rejections (description),
+          revision_records:product_revisions (description)
         `)
         .eq('product.seller_id', sellerId)
         .order('created_at', { ascending: false });
@@ -396,7 +432,7 @@ export class QAService {
       if (error) throw error;
       
       const assessments = data || [];
-      return Promise.all(assessments.map(a => this.transformToLegacy(a)));
+      return Promise.all(assessments.map(a => this.transformToLegacy(a as any)));
     } catch (error) {
       console.error('Error fetching QA entries by seller:', error);
       return [];
@@ -413,6 +449,7 @@ export class QAService {
     }
 
     try {
+      // Enriched query: join related tables to avoid N+1 queries in transformToLegacy
       const { data, error } = await supabase
         .from('product_assessments')
         .select(`
@@ -428,15 +465,19 @@ export class QAService {
             variant_label_2,
             category:categories (name),
             images:product_images (image_url, is_primary),
-            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url)
-          )
+            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url),
+            seller:sellers (store_name, owner_name)
+          ),
+          logistics_records:product_assessment_logistics (details),
+          rejection_records:product_rejections (description),
+          revision_records:product_revisions (description)
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
       const assessments = data || [];
-      return Promise.all(assessments.map(a => this.transformToLegacy(a)));
+      return Promise.all(assessments.map(a => this.transformToLegacy(a as any)));
     } catch (error) {
       console.error('Error fetching all QA entries:', error);
       return [];
@@ -470,11 +511,14 @@ export class QAService {
         .eq('id', productId)
         .single();
 
+      // Use maybeSingle() + order to safely handle 0 or multiple assessments (no unique constraint)
       const { data: assessment } = await supabase
         .from('product_assessments')
         .select('id')
         .eq('product_id', productId)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (!assessment) {
         throw new Error('Assessment not found for product');
@@ -681,12 +725,11 @@ export class QAService {
           )
         `)
         .eq('product_id', productId)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error) {
-        if (error.code === 'PGRST116') return null; // Not found
-        throw error;
-      }
+      if (error) throw error;
       return data ? this.transformToLegacy(data) : null;
     } catch (error) {
       console.error('Error fetching QA entry:', error);

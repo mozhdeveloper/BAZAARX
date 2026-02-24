@@ -444,7 +444,7 @@ const AdminProductApprovals = () => {
                 </div>
               ) : (
                 filteredProducts.map((product) => (
-                  <div key={product.id} className="p-5 hover:bg-gray-50 transition-colors">
+                  <div key={product.assessmentId || product.id} className="p-5 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-5">
                       {/* Product Image - Clickable */}
                       <div 

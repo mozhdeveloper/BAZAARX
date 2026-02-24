@@ -244,11 +244,11 @@ const DashboardContent = () => {
               </div>
             </div>
 
-            <div className="h-[320px] w-full">
+            <div className="h-[320px] w-full" style={{ minHeight: 320 }}>
               {ordersLoading ? (
                 <div className="h-full flex items-center justify-center text-gray-400 font-medium italic">Loading trends...</div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={300} minWidth={0}>
                   <AreaChart data={revenueData}>
                     <defs>
                       <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
@@ -292,8 +292,8 @@ const DashboardContent = () => {
             <h3 className="text-xl font-bold text-[var(--text-headline)] font-heading mb-1">Top Categories</h3>
             <p className="text-sm text-[var(--text-muted)] font-medium mb-6">Yours sales distribution by category</p>
 
-            <div className="h-[220px] w-full flex-1">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[220px] w-full flex-1" style={{ minHeight: 220 }}>
+              <ResponsiveContainer width="100%" height={200} minWidth={0}>
                 <PieChart>
                   <Pie
                     data={categoryData}
