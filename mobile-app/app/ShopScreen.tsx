@@ -482,21 +482,21 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   return (
     <View
-      style={[styles.container, { backgroundColor: '#FFF6E5' }]}
+      style={[styles.container, { backgroundColor: COLORS.background }]}
     >
       <StatusBar barStyle="dark-content" />
 
       <View
-        style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FFF6E5' }]}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.background }]}
       >
         {/* Location Row */}
         <View style={styles.locationRow}>
           <Pressable onPress={() => setShowLocationModal(true)}>
             <Text style={styles.locationLabel}>Location</Text>
             <View style={styles.locationSelector}>
-              <MapPin size={16} color="#FF8A00" fill="#FF8A00" />
-              <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200 }]}>{deliveryAddress}</Text>
-              <ChevronDown size={16} color="#431407" />
+              <MapPin size={16} color={COLORS.primary} fill={COLORS.primary} />
+              <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: COLORS.textHeadline }]}>{deliveryAddress}</Text>
+              <ChevronDown size={16} color={COLORS.textHeadline} />
             </View>
           </Pressable>
 
@@ -510,7 +510,7 @@ export default function ShopScreen({ navigation, route }: Props) {
             }}
             style={styles.headerIconButton}
           >
-            <Bell size={24} color="#FF8A00" />
+            <Bell size={24} color={COLORS.primary} />
             {!isGuest && unreadCount > 0 && (
               <View style={styles.notifBadge}>
                 <Text style={styles.notifBadgeText}>
@@ -524,18 +524,18 @@ export default function ShopScreen({ navigation, route }: Props) {
         {/* Search Row */}
         <View style={styles.headerTop}>
           <View style={[styles.searchBarWrapper, (isSearchFocused || !showFiltersModal) && { marginRight: 0 }]}>
-            <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: '#FF8A00', shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
-              <Search size={18} color="#FF8A00" />
+            <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: COLORS.primary, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
+              <Search size={18} color={COLORS.primary} />
               <TextInput
-                style={[styles.searchInput, { color: '#431407' }]}
+                style={[styles.searchInput, { color: COLORS.textHeadline }]}
                 placeholder="Search products..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={COLORS.textMuted}
                 onFocus={() => setIsSearchFocused(true)}
               />
               <Pressable onPress={() => setShowCameraSearch(true)}>
-                <Camera size={18} color="#FF8A00" />
+                <Camera size={18} color={COLORS.primary} />
               </Pressable>
             </View>
           </View>
@@ -547,7 +547,7 @@ export default function ShopScreen({ navigation, route }: Props) {
           ) : (
             <View style={styles.headerRight}>
               <Pressable style={styles.headerIconButton} onPress={() => setShowFiltersModal(true)}>
-                <SlidersHorizontal size={24} color="#1F2937" />
+                <SlidersHorizontal size={24} color={COLORS.textHeadline} />
               </Pressable>
             </View>
           )}
@@ -636,7 +636,7 @@ export default function ShopScreen({ navigation, route }: Props) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filter & Sort</Text>
-              <Pressable onPress={() => setShowFiltersModal(false)}><X size={24} color="#1F2937" /></Pressable>
+              <Pressable onPress={() => setShowFiltersModal(false)}><X size={24} color={COLORS.textHeadline} /></Pressable>
             </View>
             <View style={styles.modalBody}>
               <Text style={styles.filterSectionTitle}>Price Range</Text>
@@ -704,9 +704,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20 },
   locationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  locationLabel: { color: '#6B7280', fontSize: 14, paddingBottom: 5 },
+  locationLabel: { color: COLORS.textMuted, fontSize: 14, paddingBottom: 5 },
   locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  locationText: { color: '#1F2937', fontWeight: 'bold', fontSize: 16 },
+  locationText: { color: COLORS.textHeadline, fontWeight: 'bold', fontSize: 16 },
   notifBadge: {
     position: 'absolute',
     top: -2,
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   searchBarWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 24, paddingHorizontal: 15, height: 48, gap: 10 },
-  searchInput: { flex: 1, fontSize: 14, color: '#1F2937' },
+  searchInput: { flex: 1, fontSize: 14, color: COLORS.textHeadline },
   headerRight: { flexDirection: 'row', gap: 10, paddingLeft: 5 },
   headerIconButton: { padding: 4, position: 'relative' },
   badge: { position: 'absolute', top: 0, right: 0, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
@@ -732,10 +732,10 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   categoryScroll: { paddingHorizontal: 20, paddingVertical: 8, gap: 10 },
   chip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 25, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' },
-  chipText: { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
+  chipText: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
   storesSection: { marginTop: 5 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
-  sectionTitle: { fontSize: 19, fontWeight: '900', color: '#D97706' },
+  sectionTitle: { fontSize: 18, fontWeight: '900', color: '#D97706' }, // Amber standard
   storesScroll: { paddingHorizontal: 20, paddingVertical: 15, gap: 15 },
   storeCard: { width: 260, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
@@ -744,15 +744,15 @@ const styles = StyleSheet.create({
   storeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   storeName: { fontSize: 14, fontWeight: '700' },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  ratingText: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
+  ratingText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
   storeProducts: { flexDirection: 'row', gap: 8 },
   storeProductThumb: { flex: 1, height: 60, borderRadius: 8, backgroundColor: '#F3F4F6' },
   productsSection: { paddingHorizontal: 20, marginTop: 15 },
   productsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 0 },
   cardWrapper: { width: (width - 48) / 2, marginBottom: 12 },
   emptyBox: { width: '100%', alignItems: 'center', paddingVertical: 40 },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
-  emptyText: { fontSize: 13, color: '#6B7280', marginTop: 5 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textHeadline },
+  emptyText: { fontSize: 13, color: COLORS.textMuted, marginTop: 5 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 24, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
@@ -761,11 +761,11 @@ const styles = StyleSheet.create({
   filterSectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 15 },
   priceInputsRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   priceInputContainer: { flex: 1, backgroundColor: '#F9FAFB', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#E5E7EB' },
-  priceInputLabel: { fontSize: 10, color: '#6B7280' },
-  priceTextInput: { fontSize: 14, fontWeight: '700', marginTop: 2 },
+  priceInputLabel: { fontSize: 10, color: COLORS.textMuted },
+  priceTextInput: { fontSize: 14, fontWeight: '700', marginTop: 2, color: COLORS.textHeadline },
   sliderContainer: { alignItems: 'center', marginVertical: 10 },
   filterOption: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
-  filterText: { fontSize: 15, fontWeight: '600' },
+  filterText: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
   applyButton: { marginTop: 25, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
   applyButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' }
 });

@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckSquare, Square, ArrowLeft } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS } from '../../src/constants/theme';
 import { StatusBar } from 'expo-status-bar';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
@@ -28,16 +30,21 @@ export default function TermsScreen({ navigation, route }: Props) {
     <View style={styles.container}>
       <StatusBar style="dark" />
       {/* STANDARD HEADER */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <LinearGradient
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+      >
          <View style={styles.headerTop}>
              <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-                <ArrowLeft size={24} color="#111827" />
+                <ArrowLeft size={24} color={COLORS.textHeadline} />
              </Pressable>
-             <Text style={styles.headerTitle}>Terms & Conditions</Text>
+             <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Terms & Conditions</Text>
              <View style={{ width: 24 }} />
         </View>
-        <Text style={styles.headerSubtitle}>Please review and accept our terms</Text>
-      </View>
+        <Text style={[styles.headerSubtitle, { color: COLORS.textMuted }]}>Please review and accept our terms</Text>
+      </LinearGradient>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.sectionTitle}>1. Introduction</Text>
@@ -98,7 +105,7 @@ export default function TermsScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
   },
   header: {
     paddingHorizontal: 20,
@@ -166,7 +173,7 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   button: {
-    backgroundColor: '#FF6A00',
+    backgroundColor: COLORS.primary,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',

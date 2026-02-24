@@ -97,16 +97,16 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
       <StatusBar barStyle="dark-content" />
       {/* Header */}
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
       >
         <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
             </Pressable>
-            <Text style={styles.headerTitle}>Payment Methods</Text>
+            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Payment Methods</Text>
             <View style={{ width: 40 }} />
         </View>
       </LinearGradient>
@@ -274,19 +274,17 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFBF0', // Warm Ivory
+    backgroundColor: COLORS.background,
   },
   headerContainer: {
     paddingHorizontal: 20,
+    paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    paddingBottom: 20,
-    marginBottom: 10,
-    elevation: 4,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    zIndex: 10,
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
@@ -302,12 +300,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FB8C00', // Warm Orange
+    backgroundColor: COLORS.primary,
     marginHorizontal: 20,
     marginBottom: 20,
     paddingVertical: 14,
     borderRadius: 12,
-    shadowColor: '#FB8C00',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

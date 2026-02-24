@@ -103,31 +103,26 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
     const pad = (n: number) => n.toString().padStart(2, '0');
 
     return (
-        <LinearGradient
-            colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={styles.container}
-        >
+        <View style={styles.container}>
             <View style={{ flex: 1, paddingTop: insets.top }}>
                 <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
                 {/* Header */}
                 <LinearGradient
-                    colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+                    colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
                     start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
+                    end={{ x: 1, y: 1 }}
                     style={styles.header}
                 >
                     <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-                        <ArrowLeft size={24} color="#7C2D12" />
+                        <ArrowLeft size={24} color={COLORS.textHeadline} />
                     </Pressable>
                     <View style={styles.headerCenter}>
-                        <Zap size={20} color="#7C2D12" fill="#7C2D12" />
-                        <Text style={[styles.headerTitle, { color: '#7C2D12' }]}>Flash Sale</Text>
+                        <Zap size={20} color={COLORS.primary} fill={COLORS.primary} />
+                        <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Flash Sale</Text>
                     </View>
                     <View style={styles.timerRow}>
-                        <Timer size={16} color="#92400E" strokeWidth={2.5} />
+                        <Timer size={16} color={COLORS.primary} strokeWidth={2.5} />
                         <View style={styles.timerBox}>
                             <Text style={styles.timerDigit}>{pad(timeLeft.hours)}</Text>
                         </View>
@@ -178,12 +173,12 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                     )}
                 </ScrollView>
             </View>
-        </LinearGradient>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
+    container: { flex: 1, backgroundColor: COLORS.background },
     header: {
         paddingHorizontal: 20,
         paddingBottom: 15,
@@ -195,10 +190,10 @@ const styles = StyleSheet.create({
     },
     backBtn: { padding: 4, marginRight: 12, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerTitle: { fontSize: 22, fontWeight: '900', color: '#7C2D12' },
+    headerTitle: { fontSize: 22, fontWeight: '900', color: COLORS.textHeadline },
     timerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF8F0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#FDE68A' },
     timerBox: {
-        backgroundColor: '#EA580C',
+        backgroundColor: COLORS.primary,
         borderRadius: 4,
         width: 22,
         height: 22,
@@ -206,7 +201,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     timerDigit: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
-    timerSep: { color: '#EA580C', fontSize: 14, fontWeight: 'bold', paddingBottom: 2 },
+    timerSep: { color: COLORS.primary, fontSize: 14, fontWeight: 'bold', paddingBottom: 2 },
     scrollContent: { flex: 1 },
     scrollContainer: { paddingBottom: 40 },
     heroBox: {

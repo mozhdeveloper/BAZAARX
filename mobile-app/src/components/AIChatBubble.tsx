@@ -326,7 +326,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
         style={[
           styles.floatingButton,
           { 
-            bottom: insets.bottom + 80,
+            bottom: insets.bottom + 96,
             transform: [{ scale: isOpen ? 0 : pulseAnim }],
             opacity: isOpen ? 0 : 1,
           }

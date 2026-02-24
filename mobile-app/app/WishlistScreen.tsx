@@ -267,19 +267,14 @@ export default function WishlistScreen() {
     const currentCategoryName = categories.find(c => c.id === selectedCategoryId)?.name || 'All Items';
 
     return (
-        <LinearGradient
-            colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={styles.container}
-        >
-            <StatusBar barStyle="dark-content" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
 
             {/* Header */}
             <LinearGradient
-                colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
                 start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
+                end={{ x: 1, y: 1 }}
                 style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
             >
                 <View style={styles.headerTop}>
@@ -495,16 +490,16 @@ export default function WishlistScreen() {
 
             {/* Bottom Navigation */}
             <BuyerBottomNav />
-        </LinearGradient>
-    );
+    </View>
+);
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
+    container: { flex: 1, backgroundColor: COLORS.background },
     headerContainer: {
         paddingHorizontal: 20,
         borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
+        borderBottomRightRadius: 20,
         paddingBottom: 20,
         marginBottom: 10,
         elevation: 0,
@@ -514,7 +509,7 @@ const styles = StyleSheet.create({
     headerIconButton: { padding: 4, zIndex: 10 },
     createHeaderBtn: { backgroundColor: '#FFF', padding: 6, borderRadius: 20 },
     titleContainer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
     scrollContent: { padding: 20, paddingBottom: 40, minHeight: '100%' },
 
     // Categories List (Card Style)
@@ -565,7 +560,7 @@ const styles = StyleSheet.create({
     cardTitle: {
         fontSize: 18,
         fontWeight: '900',
-        color: '#D97706',
+        color: COLORS.primary,
         marginBottom: 4,
     },
     cardRatingRow: {
@@ -578,8 +573,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 6, paddingVertical: 2,
         backgroundColor: '#F3F4F6', borderRadius: 4,
     },
-    privacyTagText: { fontSize: 10, fontWeight: '600', color: '#6B7280' },
-    itemCountDetail: { fontSize: 12, color: '#6B7280' },
+    privacyTagText: { fontSize: 10, fontWeight: '600', color: COLORS.textMuted },
+    itemCountDetail: { fontSize: 12, color: COLORS.textMuted },
 
     visitShopBtn: {
         backgroundColor: '#FB8C00', // Warm Orange
@@ -617,7 +612,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
     },
     priorityText: { fontSize: 10, fontWeight: '700' },
-    qtyText: { fontSize: 11, color: '#374151' },
+    qtyText: { fontSize: 11, color: COLORS.textHeadline },
 
     // Find Registry Banner
     findRegistryContainer: {
@@ -626,35 +621,35 @@ const styles = StyleSheet.create({
         elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2
     },
     findRegistryContent: { flex: 1 },
-    findRegistryTitle: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
-    findRegistrySubtitle: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+    findRegistryTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textHeadline },
+    findRegistrySubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
     findRegistryBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
     findRegistryBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
 
     // Empty State
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 60 },
     emptyIconContainer: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
-    emptyTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 8 },
-    emptyText: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 32 },
-    shopNowButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FB8C00', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 30, elevation: 4 },
+    emptyTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 8 },
+    emptyText: { fontSize: 15, color: COLORS.textMuted, textAlign: 'center', marginBottom: 32 },
+    shopNowButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 30, elevation: 4 },
     shopNowText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 
     // Modals
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
     modalContent: { backgroundColor: '#FFF', width: '85%', padding: 20, borderRadius: 16, elevation: 5 },
     modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 20 },
-    inputLabel: { fontSize: 14, color: '#6B7280', marginBottom: 8, fontWeight: '600' },
+    inputLabel: { fontSize: 14, color: COLORS.textMuted, marginBottom: 8, fontWeight: '600' },
     modalInput: { borderBottomWidth: 1, borderColor: '#E5E7EB', paddingVertical: 8, marginBottom: 20, fontSize: 16 },
     modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 10 },
     modalBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
     primaryBtn: { backgroundColor: '#FB8C00' },
-    cancelText: { color: '#6B7280', fontWeight: '600' },
+    cancelText: { color: COLORS.textMuted, fontWeight: '600' },
     primaryBtnText: { color: '#FFF', fontWeight: '700' },
 
     // Switch
     switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    switchLabel: { fontSize: 16, fontWeight: '600', color: '#111827' },
-    switchSub: { fontSize: 12, color: '#6B7280' },
+    switchLabel: { fontSize: 16, fontWeight: '600', color: COLORS.textHeadline },
+    switchSub: { fontSize: 12, color: COLORS.textMuted },
 
     // New Bottom Sheet Styles
     bottomSheetOverlay: {
@@ -682,7 +677,7 @@ const styles = StyleSheet.create({
     bsTitle: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#111827',
+        color: COLORS.textHeadline,
     },
     closeBtn: {
         padding: 4,
@@ -696,7 +691,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 14,
         fontSize: 16,
-        color: '#111827',
+        color: COLORS.textHeadline,
         marginTop: 8,
         marginBottom: 24,
         backgroundColor: '#F9FAFB',
@@ -728,7 +723,7 @@ const styles = StyleSheet.create({
     priorityRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
     priorityOption: { flex: 1, padding: 8, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, alignItems: 'center' },
     selectedPriority: { backgroundColor: '#FB8C00', borderColor: '#FB8C00' },
-    priorityOptionText: { fontSize: 12, color: '#374151' },
+    priorityOptionText: { fontSize: 12, color: COLORS.textHeadline },
     qtyContainer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
     qtyBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
     qtyInput: { width: 60, textAlign: 'center', fontSize: 16, fontWeight: '700', borderBottomWidth: 1, borderColor: '#E5E7EB' },

@@ -345,18 +345,13 @@ export default function AddressesScreen({ navigation }: Props) {
   };
 
   return (
-    <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       {/* HEADER */}
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
       >
         <View style={styles.headerTop}>
@@ -573,20 +568,20 @@ export default function AddressesScreen({ navigation }: Props) {
 
       {/* Bottom Navigation */}
       <BuyerBottomNav />
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   // ... (Previous styles) ...
-  container: { flex: 1, backgroundColor: '#FFFBF0' },
-  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, paddingBottom: 20, marginBottom: 10, elevation: 4, zIndex: 10 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, paddingBottom: 20, marginBottom: 10, elevation: 2, zIndex: 10 },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16 },
-  addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FB8C00', paddingVertical: 14, borderRadius: 12, marginBottom: 16 },
+  addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: 12, marginBottom: 16 },
   addButtonPressed: { backgroundColor: '#E67E00' },
   addButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
   addressCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2 },
@@ -641,7 +636,7 @@ const styles = StyleSheet.create({
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' },
   checkboxText: { fontSize: 14, fontWeight: '600', color: '#4B5563' },
   stickyFooter: { padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', backgroundColor: '#FFFFFF' },
-  confirmButton: { backgroundColor: '#FB8C00', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  confirmButton: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   confirmButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 
   // NEW MAP PREVIEW STYLES

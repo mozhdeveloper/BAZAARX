@@ -269,7 +269,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const OrderStatusItem = ({ icon: Icon, label, badge, onPress }: any) => (
     <Pressable style={styles.statusItem} onPress={onPress}>
       <View>
-        <Icon size={28} color="#1F2937" strokeWidth={1.5} />
+        <Icon size={28} color={COLORS.textHeadline} strokeWidth={1.5} />
         {badge > 0 && (
           <View style={styles.badgeContainer}>
             <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
@@ -350,19 +350,14 @@ export default function ProfileScreen({ navigation }: Props) {
     }
   };
 
-  if (isGuest) {
+  if (!user || isGuest) {
     return (
-      <LinearGradient
-        colors={['#FFFBF0', '#FFFBF0']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.container}
-      >
+      <View style={styles.container}>
         <StatusBar barStyle="dark-content" />
         <LinearGradient
-          colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+          colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
           start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
+          end={{ x: 1, y: 1 }}
           style={[styles.header, { paddingTop: insets.top + 20 }]}
         >
           <View style={styles.profileHeader}>
@@ -386,7 +381,7 @@ export default function ProfileScreen({ navigation }: Props) {
                 <User size={20} color={BRAND_COLOR} strokeWidth={2} />
               </View>
               <Text style={styles.menuLabel}>Login / Sign Up</Text>
-              <ChevronRight size={18} color="#D1D5DB" />
+              <ChevronRight size={18} color={COLORS.textMuted} />
             </Pressable>
 
             <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerAuthChoice')}>
@@ -394,7 +389,7 @@ export default function ProfileScreen({ navigation }: Props) {
                 <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
               </View>
               <Text style={styles.menuLabel}>Start Selling</Text>
-              <ChevronRight size={18} color="#D1D5DB" />
+              <ChevronRight size={18} color={COLORS.textMuted} />
             </Pressable>
           </View>
 
@@ -404,31 +399,30 @@ export default function ProfileScreen({ navigation }: Props) {
               {supportMenuItems.map((item, i) => (
                 <Pressable key={i} style={[styles.menuItem, i !== supportMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
                   <View style={styles.iconContainer}>
-                    <item.icon size={20} color="#6B7280" strokeWidth={2} />
+                    <item.icon size={20} color={COLORS.textMuted} strokeWidth={2} />
                   </View>
                   <Text style={styles.menuLabel}>{item.label}</Text>
-                  <ChevronRight size={18} color="#D1D5DB" />
+                  <ChevronRight size={18} color={COLORS.textMuted} />
                 </Pressable>
               ))}
             </View>
           </View>
         </ScrollView>
-      </LinearGradient>
+      </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={['#FFFBF0', '#FFFBF0']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* 1. BRANDED ORANGE HEADER */}
-        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+        <LinearGradient
+          colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.header, { paddingTop: insets.top + 20 }]}
+        >
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarCircle}>
@@ -443,10 +437,10 @@ export default function ProfileScreen({ navigation }: Props) {
               </Pressable>
             </View>
             <View style={styles.headerInfo}>
-              <Text style={styles.userName}>{profile.firstName} {profile.lastName}</Text>
+              <Text style={[styles.userName, { color: COLORS.textHeadline }]}>{profile.firstName} {profile.lastName}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2, opacity: 0.9 }}>
-                <User size={12} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>Buyer Account</Text>
+                <User size={12} color={COLORS.primary} style={{ marginRight: 6 }} />
+                <Text style={{ color: COLORS.textPrimary, fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>Buyer Account</Text>
               </View>
             </View>
           </View>
@@ -477,7 +471,7 @@ export default function ProfileScreen({ navigation }: Props) {
               <Text style={styles.statLab}>Bazcoins</Text>
             </Pressable>
           </View>
-        </View>
+        </LinearGradient>
         {/* My Purchases Section */}
         <View style={styles.purchasesContainer}>
           <View style={styles.purchasesHeader}>
@@ -487,7 +481,7 @@ export default function ProfileScreen({ navigation }: Props) {
               onPress={() => navigation.navigate('Orders', { initialTab: 'pending' })}
             >
               <Text style={styles.viewHistoryText}>View Purchase History</Text>
-              <ChevronRight size={16} color="#9CA3AF" />
+              <ChevronRight size={16} color={COLORS.textMuted} />
             </Pressable>
           </View>
 
@@ -527,7 +521,7 @@ export default function ProfileScreen({ navigation }: Props) {
                   <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
                 </View>
                 <Text style={styles.menuLabel}>{item.label}</Text>
-                <ChevronRight size={18} color="#D1D5DB" />
+                <ChevronRight size={18} color={COLORS.textMuted} />
               </Pressable>
             ))}
           </View>
@@ -542,7 +536,7 @@ export default function ProfileScreen({ navigation }: Props) {
                   <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
                 </View>
                 <Text style={styles.menuLabel}>{item.label}</Text>
-                <ChevronRight size={18} color="#D1D5DB" />
+                <ChevronRight size={18} color={COLORS.textMuted} />
               </Pressable>
             ))}
           </View>
@@ -557,7 +551,7 @@ export default function ProfileScreen({ navigation }: Props) {
                   <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
                 </View>
                 <Text style={styles.menuLabel}>{item.label}</Text>
-                <ChevronRight size={18} color="#D1D5DB" />
+                <ChevronRight size={18} color={COLORS.textMuted} />
               </Pressable>
             ))}
           </View>
@@ -603,7 +597,7 @@ export default function ProfileScreen({ navigation }: Props) {
           <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Profile</Text>
-              <Pressable onPress={() => setEditModalVisible(false)}><X size={24} color="#1F2937" /></Pressable>
+              <Pressable onPress={() => setEditModalVisible(false)}><X size={24} color={COLORS.textHeadline} /></Pressable>
             </View>
 
             <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -652,20 +646,24 @@ export default function ProfileScreen({ navigation }: Props) {
         hideCloseButton={true}
         cancelText="Go back to Home"
       />
-    </LinearGradient >
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#FFFBF0' 
+    backgroundColor: COLORS.background 
   },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
+    elevation: 4,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
   profileHeader: { 
     flexDirection: 'row', 
@@ -706,7 +704,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary
   },
   headerInfo: { marginLeft: 20 },
-  userName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+  userName: { fontSize: 24, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 4 },
   userSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
   statsCard: {
     flexDirection: 'row',
@@ -721,7 +719,7 @@ const styles = StyleSheet.create({
   },
   statBox: { flex: 1, alignItems: 'center' },
   statVal: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
-  statLab: { fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
+  statLab: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
   statDivider: { width: 1, height: '50%', backgroundColor: '#F3F4F6', alignSelf: 'center' },
 
   // Order Status Styles
@@ -747,7 +745,7 @@ const styles = StyleSheet.create({
   statusLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#374151',
+    color: COLORS.textPrimary,
   },
 
   scrollContent: { paddingBottom: 40 },
@@ -772,7 +770,7 @@ const styles = StyleSheet.create({
   purchasesTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
   },
   viewHistoryBtn: {
     flexDirection: 'row',
@@ -781,7 +779,7 @@ const styles = StyleSheet.create({
   },
   viewHistoryText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     fontWeight: '500',
   },
   purchasesGrid: {
@@ -826,15 +824,15 @@ const styles = StyleSheet.create({
   purchaseLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#374151',
+    color: COLORS.textPrimary,
   },
   menuGroup: { marginBottom: 15, paddingHorizontal: 20 },
-  groupTitle: { fontSize: 13, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginLeft: 10, marginBottom: 10 },
+  groupTitle: { fontSize: 13, fontWeight: '700', color: '#D97706', textTransform: 'uppercase', letterSpacing: 1, marginLeft: 10, marginBottom: 10 },
   card: { backgroundColor: '#FFF', borderRadius: 10, paddingHorizontal: 15, shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10, elevation: 2 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
   borderBottom: { borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
   iconContainer: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center', marginRight: 15 },
-  menuLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#374151' },
+  menuLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: COLORS.textHeadline },
 
   // Footer & Logout (FIXED MISSING PROPERTIES)
   logoutBtn: {
@@ -850,8 +848,8 @@ const styles = StyleSheet.create({
   },
   logoutText: { fontSize: 16, fontWeight: '700', color: '#EF4444' },
   footer: { alignItems: 'center', marginTop: 30, gap: 4 },
-  versionText: { fontSize: 12, color: '#D1D5DB', fontWeight: '600' },
-  footerText: { fontSize: 12, color: '#D1D5DB', fontWeight: '500' },
+  versionText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
+  footerText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '500' },
 
   // Modal Styles (FIXED MISSING PROPERTIES)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
@@ -860,7 +858,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
     padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' 
   },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937' },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline },
   avatarSection: { alignItems: 'center', marginBottom: 20 },
   avatarContainer: { 
     width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', 
@@ -871,11 +869,11 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, 
     borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' 
   },
-  changePhotoText: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
-  inputLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6, marginTop: 10 },
+  changePhotoText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  inputLabel: { fontSize: 13, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 6, marginTop: 10 },
   input: { 
     backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', 
-    borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, fontSize: 15, color: '#1F2937' 
+    borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, fontSize: 15, color: COLORS.textHeadline
   },
   saveButton: { 
     marginTop: 30, paddingVertical: 15, borderRadius: 16, alignItems: 'center', 

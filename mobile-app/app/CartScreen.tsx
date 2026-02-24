@@ -206,20 +206,15 @@ export default function CartScreen({ navigation }: any) {
 
 
   return (
-    <LinearGradient
-      colors={['#FFFBF0', '#FFFBF0']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.container}
-    >
-      <StatusBar barStyle="dark-content" backgroundColor="#FFE5CC" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
 
       {/* HEADER */}
       {/* HEADER */}
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']}
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.headerContainer, { paddingTop: insets.top + 5 }]}
       >
         <View style={styles.headerTop}>
@@ -267,7 +262,7 @@ export default function CartScreen({ navigation }: any) {
                   )}
                 </Pressable>
                 <View style={styles.storeInfo}>
-                  <Store size={16} color="#4B5563" />
+                  <Store size={16} color={COLORS.textPrimary} />
                   <Text style={styles.sellerName}>{sellerName}</Text>
                 </View>
               </View>
@@ -355,18 +350,18 @@ export default function CartScreen({ navigation }: any) {
           hideQuantity={true}
         />
       )}
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' }, // Match standard white bg
+  container: { flex: 1, backgroundColor: COLORS.background }, // Match soft amber theme
   headerContainer: {
     paddingHorizontal: 20,
     paddingBottom: 15,
     // backgroundColor: '#FFE5CC', // Removed for gradient
     borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    borderBottomRightRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -381,67 +376,67 @@ const styles = StyleSheet.create({
     position: 'relative',
     height: 40,
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
   clearTextWrapper: {
     position: 'absolute',
     right: 0,
   },
-  clearText: { color: '#6B7280', fontWeight: '600', fontSize: 13 },
+  clearText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 13 },
 
   selectAllBar: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent', // Removed box
     marginHorizontal: 16,
-    marginTop: 12, // Removed negative margin to prevent overlap
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    marginTop: 12,
+    borderRadius: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
     marginBottom: 8,
   },
   checkboxWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  selectAllText: { fontSize: 15, fontWeight: '700', color: '#374151' },
+  selectAllText: { fontSize: 15, fontWeight: '700', color: COLORS.textHeadline },
 
   scrollContainer: { flex: 1, paddingTop: 8 },
 
-  // NEW CARD STYLE FOR SELLER GROUP
+  // REFACTORED STYLE FOR SELLER GROUP (No boxes)
   sellerCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
     marginHorizontal: 16,
-    marginBottom: 12,
-    paddingVertical: 12,
-    elevation: 2,
+    marginBottom: 20,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB', // Professional neutral gray
     shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   sellerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 10,
+    paddingHorizontal: 0,
+    marginBottom: 12,
   },
-  headerCheckbox: { marginRight: 10 },
+  headerCheckbox: { marginRight: 12 },
   storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sellerName: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
+  sellerName: { fontSize: 17, fontWeight: '800', color: '#111827' }, // Black subheader
 
-  cardDivider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 4 },
+  cardDivider: { height: 1, backgroundColor: '#E5E7EB', marginBottom: 12 },
 
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 3,
+    paddingVertical: 12,
+    backgroundColor: 'transparent',
   },
-  itemCheckbox: { padding: 8 },
-  itemSeparator: { height: 1, backgroundColor: '#F9FAFB', marginLeft: 50, marginVertical: 4 }, // Indented divider
+  itemCheckbox: { paddingHorizontal: 12, paddingVertical: 8 },
+  itemSeparator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 12, opacity: 0.6 },
 
   savingsBanner: {
     flexDirection: 'row',
@@ -470,14 +465,14 @@ const styles = StyleSheet.create({
   },
   dashedDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 16, borderStyle: 'dashed', borderWidth: 0.5, borderColor: '#D1D5DB' },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
-  totalValue: { fontSize: 22, fontWeight: '900' },
+  totalLabel: { fontSize: 16, fontWeight: '800', color: COLORS.textHeadline },
+  totalValue: { fontSize: 22, fontWeight: '900', color: COLORS.textHeadline },
 
   // BOTTOM BAR
   bottomBar: { position: 'absolute', left: 16, right: 16, backgroundColor: '#FFFFFF', borderRadius: 15, elevation: 15, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, paddingVertical: 3 },
   bottomBarContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 12 },
-  totalInfoLabel: { fontSize: 12, color: '#9CA3AF', fontWeight: '700', textTransform: 'uppercase' },
-  totalInfoPrice: { fontSize: 24, fontWeight: '900' },
+  totalInfoLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '700', textTransform: 'uppercase' },
+  totalInfoPrice: { fontSize: 24, fontWeight: '900', color: COLORS.textHeadline },
   checkoutBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 15 },
   checkoutBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
   savingsText: { fontSize: 12, color: '#DC2626', fontWeight: '600', marginTop: 2 },

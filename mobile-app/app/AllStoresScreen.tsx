@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, Pressable, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Store, MapPin, Star, Users, CheckCircle2 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { officialStores } from '../src/data/stores';
 import { COLORS } from '../src/constants/theme';
@@ -112,13 +113,18 @@ export default function AllStoresScreen() {
             <StatusBar barStyle="dark-content" />
 
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top }]}>
+            <LinearGradient
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.header, { paddingTop: insets.top }]}
+            >
                 <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color="#1F2937" />
+                    <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
                 </Pressable>
-                <Text style={styles.headerTitle}>{pageTitle}</Text>
+                <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>{pageTitle}</Text>
                 <View style={{ width: 40 }} />
-            </View>
+            </LinearGradient>
 
             {loading ? (
                 <View style={styles.loadingContainer}>
@@ -146,17 +152,21 @@ export default function AllStoresScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
+        backgroundColor: COLORS.background,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingBottom: 16,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
+        paddingBottom: 20,
+        borderBottomLeftRadius: 25,
+        borderBottomRightRadius: 25,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
     },
     backButton: {
         padding: 8,

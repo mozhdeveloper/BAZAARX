@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Warehouse, Home, Truck, CheckCircle, Package, Plane } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useOrderStore } from '../src/stores/orderStore';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -176,19 +177,24 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Edge-to-Edge Orange Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+      {/* Edge-to-Edge Soft Amber Header */}
+      <LinearGradient
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
+      >
         <View style={styles.headerContent}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Track Order</Text>
-            <Text style={styles.headerSubtitle}>#{order.transactionId}</Text>
+            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Track Order</Text>
+            <Text style={[styles.headerSubtitle, { color: COLORS.textPrimary }]}>#{order.transactionId}</Text>
           </View>
           <View style={{ width: 40 }} />
         </View>
-      </View>
+      </LinearGradient>
 
       <ScrollView 
         style={styles.scrollView}
@@ -325,13 +331,18 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: COLORS.background,
   },
   
   // ===== EDGE-TO-EDGE ORANGE HEADER =====
   header: {
-    backgroundColor: COLORS.primary,
-    paddingBottom: 20,
+    paddingBottom: 25,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
   },
   headerContent: {
     flexDirection: 'row',

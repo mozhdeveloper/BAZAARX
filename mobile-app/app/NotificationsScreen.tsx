@@ -120,18 +120,18 @@ export default function NotificationsScreen({ navigation }: Props) {
 
       {/* --- HEADER --- */}
       <LinearGradient
-        colors={['#FFE5CC', '#FFE5CC']}
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
       >
         <View style={styles.headerTopRow}>
           <View style={styles.headerLeft}>
             <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-              <ArrowLeft size={24} color="#1F2937" />
+              <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
             </Pressable>
             <View style={styles.titleWithBadge}>
-              <Text style={styles.headerTitle}>Notifications</Text>
+              <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Notifications</Text>
               {unreadCount > 0 && (
                 <View style={styles.newBadge}>
                   <Text style={styles.newBadgeText}>{unreadCount} new</Text>
@@ -140,7 +140,7 @@ export default function NotificationsScreen({ navigation }: Props) {
             </View>
           </View>
           <Pressable onPress={() => navigation.navigate('NotificationSettings')} style={styles.settingsButton}>
-            <Settings size={22} color="#1F2937" />
+            <Settings size={22} color={COLORS.textHeadline} />
           </Pressable>
         </View>
       </LinearGradient>
@@ -247,14 +247,18 @@ export default function NotificationsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: COLORS.background },
 
   // Header
   headerContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 25,
     borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 20,
+    borderBottomRightRadius: 30,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
   },
   headerTopRow: {
     flexDirection: 'row',

@@ -230,22 +230,22 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const StatusIcon = getStatusIcon();
 
   return (
-    <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       {/* Edge-to-Edge Orange Header - BRANDED */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+      <LinearGradient
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Order Details</Text>
           <View style={{ width: 40 }} />
         </View>
-      </View>
+      </LinearGradient>
 
       <ScrollView
         style={styles.scrollView}
@@ -555,14 +555,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
       {/* Bottom Navigation */}
       <BuyerBottomNav />
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: COLORS.background,
   },
   // ===== EDGE-TO-EDGE HEADER =====
   headerContainer: {
@@ -585,7 +585,7 @@ const styles = StyleSheet.create({
   headerIconButton: {
     padding: 4,
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937', letterSpacing: 0.3 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline, letterSpacing: 0.3 },
   // ===== SCROLL VIEW =====
   scrollView: {
     flex: 1,
@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: '#D97706', // Amber standard
     letterSpacing: 0.2,
   },
   cardContent: {
@@ -715,13 +715,13 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 6,
     lineHeight: 22,
   },
   itemVariant: {
     fontSize: 13,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     fontWeight: '500',
   },
   itemPrice: {
@@ -733,12 +733,12 @@ const styles = StyleSheet.create({
   addressName: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 6,
   },
   addressPhone: {
     fontSize: 15,
-    color: '#4B5563',
+    color: COLORS.textPrimary,
     fontWeight: '600',
     marginBottom: 8,
   },
@@ -748,21 +748,21 @@ const styles = StyleSheet.create({
   shippingName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
   },
   shippingPhone: {
     fontSize: 14,
-    color: '#4B5563',
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
   shippingAddress: {
     fontSize: 14,
-    color: '#4B5563',
+    color: COLORS.textPrimary,
     lineHeight: 20,
   },
   shippingEmail: {
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     marginTop: 4,
   },
   tapToTrack: {
@@ -772,14 +772,14 @@ const styles = StyleSheet.create({
   },
   addressLine: {
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     lineHeight: 20,
   },
   // ===== PAYMENT METHOD =====
   paymentText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
     textTransform: 'capitalize',
   },
   // ===== ORDER SUMMARY =====
@@ -791,13 +791,13 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 16,
-    color: '#4B5563',
+    color: COLORS.textPrimary,
     fontWeight: '500',
   },
   summaryValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
   },
   freeShipping: {
     color: COLORS.primary,
@@ -817,12 +817,12 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: COLORS.textHeadline,
   },
   totalValue: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#FF5722',
+    color: COLORS.primary,
     letterSpacing: 0.3,
   },
   // ===== BOTTOM BAR =====
@@ -880,12 +880,12 @@ const styles = StyleSheet.create({
   chatTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
     textAlign: 'center',
   },
   chatSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   chatMessages: {
@@ -923,10 +923,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   sellerMessageText: {
-    color: '#1F2937',
+    color: COLORS.textHeadline,
   },
   systemMessageText: {
-    color: '#6B7280',
+    color: COLORS.textMuted,
     fontSize: 12,
     textAlign: 'center',
   },
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
   },
   sellerMessageTime: {
-    color: '#9CA3AF',
+    color: COLORS.textMuted,
   },
   chatInputContainer: {
     flexDirection: 'row',
@@ -985,11 +985,11 @@ const styles = StyleSheet.create({
   returnStatus: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
   },
   returnDate: {
     fontSize: 12,
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   outlineButton: {
     backgroundColor: '#FFFFFF',

@@ -99,8 +99,8 @@ export type RootStackParamList = {
     registryLocation?: string;
     recipientId?: string;
   };
-  PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
-  OrderConfirmation: { order: Order };
+  PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean; earnedBazcoins?: number };
+  OrderConfirmation: { order: Order; earnedBazcoins?: number };
   Orders: { initialTab?: 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'reviewed' | 'returned' | 'cancelled' };
   OrderDetail: { order: Order };
   SellerOrderDetail: { orderId: string };
@@ -154,14 +154,15 @@ function MainTabs() {
           height: 70 + insets.bottom,
           paddingBottom: 10 + insets.bottom,
           paddingTop: 10,
-          borderTopWidth: 1,
-          borderTopColor: '#FFE0A3', // Pastel Gold
-          backgroundColor: '#FFF9E5', // Pale Warm Cream
-          shadowColor: '#F4A300', // Golden Shadow
-          shadowOffset: { width: 0, height: -2 },
+          borderTopWidth: 0, // Removed border for cleaner look with shadow
+          backgroundColor: '#FFFBF0', // Soft Parchment Cream
+          borderTopLeftRadius: 30,
+          borderTopRightRadius: 20,
+          shadowColor: '#D97706', // Soft Amber Glow
+          shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 10,
+          shadowRadius: 12,
+          elevation: 15,
         },
         tabBarLabelStyle: {
           fontSize: 11,

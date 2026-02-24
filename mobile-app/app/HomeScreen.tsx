@@ -70,16 +70,16 @@ const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5; // 5 columns, 20px padding ea
 const CategoryItem = ({ label, iconName }: { label: string; iconName: keyof typeof MaterialCommunityIcons.glyphMap }) => (
   <View style={styles.categoryItm}>
     <View style={[styles.categoryIconBox, { 
-      backgroundColor: '#FFF8E1', // Amber 50 - Warm Base
-      shadowColor: '#F59E0B',     // Amber 500 - Gold Glow
-      shadowOffset: { width: 0, height: 8 }, // Increased for pop-out
-      shadowOpacity: 0.4,         // Stronger intensity
-      shadowRadius: 12,           // Wider glow
-      elevation: 10,              // Higher elevation
+      backgroundColor: '#FFFBF5', // Lighter Parchment
+      shadowColor: COLORS.primary, // Amber Glow
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 6,
+      elevation: 5,
       borderWidth: 1,
-      borderColor: '#FDE68A'      // Amber 200 - Gold Border
+      borderColor: '#FFE0A3' // Soft Gold
     }]}>
-      <MaterialCommunityIcons name={iconName} size={28} color="#F59E0B" />
+      <MaterialCommunityIcons name={iconName} size={28} color={COLORS.primary} />
     </View>
     <Text style={styles.categoryLabel}>{label}</Text>
   </View>
@@ -87,7 +87,7 @@ const CategoryItem = ({ label, iconName }: { label: string; iconName: keyof type
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const BRAND_COLOR = '#FF8A00';
+  const BRAND_COLOR = COLORS.primary;
   const { user, isGuest } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
@@ -123,7 +123,7 @@ export default function HomeScreen({ navigation }: Props) {
       subtitle: 'Big savings on\ntop products!',
       buttonText: 'Shop Now',
       image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400', // Yellow Bag placeholder
-      gradient: ['#FFF8E7', '#FFE4C4'], // Pale Cream to Bisque
+      gradient: ['#FFFBF0', '#FFE0A3'], // Soft Amber Theme
       screen: 'Shop',
       params: { category: 'electronics' }
     },
@@ -133,7 +133,7 @@ export default function HomeScreen({ navigation }: Props) {
       subtitle: 'Summer Collection\nAvailable Now',
       buttonText: 'View All',
       image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400',
-      gradient: ['#FFF8E1', '#FFECB3'], // Pale Amber
+      gradient: ['#FFF9F0', '#FFEDD5'], // Soft Orange/Amber
       screen: 'Shop',
       params: { category: 'fashion' }
     },
@@ -143,7 +143,7 @@ export default function HomeScreen({ navigation }: Props) {
       subtitle: '50% Off Selected\nElectronics',
       buttonText: 'Shop Now',
       image: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400',
-      gradient: ['#FFF3E0', '#FFE0B2'], // Pale Orange
+      gradient: ['#FFF7ED', '#FFDBBB'], // Peach/Amber
       screen: 'FlashSale',
       params: undefined
     }
@@ -329,9 +329,9 @@ export default function HomeScreen({ navigation }: Props) {
 
   return (
     <LinearGradient
-      colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Theme
+      colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment / Light Amber sweep
       start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
+      end={{ x: 1, y: 1 }}
       style={styles.container}
     >
       <StatusBar barStyle="dark-content" />
@@ -343,9 +343,9 @@ export default function HomeScreen({ navigation }: Props) {
             <Pressable onPress={() => setShowLocationModal(true)}>
               <Text style={styles.locationLabel}>Location</Text>
               <View style={styles.locationSelector}>
-                <MapPin size={16} color="#FF8A00" fill="#FF8A00" />
-                <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: '#431407', fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
-                <ChevronDown size={16} color="#431407" />
+                <MapPin size={16} color={COLORS.primary} fill={COLORS.primary} />
+                <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: COLORS.textHeadline, fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
+                <ChevronDown size={16} color={COLORS.textHeadline} />
               </View>
             </Pressable>
 
@@ -361,7 +361,7 @@ export default function HomeScreen({ navigation }: Props) {
               }}
               style={styles.headerIconButton}
             >
-              <Bell size={24} color="#FF8A00" />
+              <Bell size={24} color={COLORS.primary} />
               {!isGuest && unreadCount > 0 && (
                 <View style={styles.notifBadge}>
                   <Text style={styles.notifBadgeText}>
@@ -375,17 +375,17 @@ export default function HomeScreen({ navigation }: Props) {
 
         {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
-          <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: '#FF8A00', shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
-            <Search size={18} color="#FF8A00" />
+          <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: COLORS.primary, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
+            <Search size={18} color={COLORS.primary} />
             <TextInput
-              style={[styles.searchInput, { color: '#431407' }]}
+              style={[styles.searchInput, { color: COLORS.textHeadline }]}
               placeholder="Search products..."
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
             />
-            <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color="#FF8A00" /></Pressable>
+            <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color={COLORS.primary} /></Pressable>
           </View>
           {isSearchFocused && (
             <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
@@ -520,7 +520,7 @@ export default function HomeScreen({ navigation }: Props) {
                     style={[
                       styles.paginationDot,
                       { 
-                        backgroundColor: i === activeSlide ? '#FB8C00' : '#FFE0B2', // Warm Orange vs Pale
+                        backgroundColor: i === activeSlide ? COLORS.primary : '#FDE68A', // Warm Orange vs Pale
                         width: i === activeSlide ? 20 : 8 
                       }
                     ]}
@@ -540,8 +540,7 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* FLASH SALE SECTION (No Container) */}
             <LinearGradient
-              colors={['#FFF6E5', '#FFE0A3', '#FFE0A3', '#FFF6E5']} // Light -> Wide Gold Band -> Light
-              locations={[0, 0.3, 0.7, 1]} // Spread out the middle gold
+              colors={['#FFF9F9', '#FFF3F3', '#FFF9F9']} // Very light red tint for Flash Sale
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
               style={styles.flashSaleContainer}
@@ -554,6 +553,9 @@ export default function HomeScreen({ navigation }: Props) {
                     <Text style={styles.timerText}>02:15:40</Text>
                   </View>
                 </View>
+                <Pressable onPress={() => navigation.navigate('FlashSale')}>
+                  <Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>See More</Text>
+                </Pressable>
               </View>
               <ScrollView 
                 horizontal 
@@ -570,8 +572,8 @@ export default function HomeScreen({ navigation }: Props) {
 
             <View style={styles.gridContainer}>
               <View style={styles.gridHeader}>
-                <Text style={[styles.gridTitleText, { color: '#D97706' }]}>Popular Items</Text>
-                <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={[styles.gridSeeAll, { color: '#EA580C' }]}>View All</Text></Pressable>
+                <Text style={[styles.gridTitleText, { color: COLORS.primary }]}>Popular Items</Text>
+                <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>View All</Text></Pressable>
               </View>
               <View style={styles.gridBody}>
                 {popularProducts.map((product) => (
@@ -601,7 +603,7 @@ export default function HomeScreen({ navigation }: Props) {
           </>
         ) : (
           <View style={styles.categoryExpandedContent}>
-            <Text style={[styles.categorySectionTitle, { color: '#431407' }]}>Shop by Category</Text>
+            <Text style={[styles.categorySectionTitle, { color: COLORS.textHeadline }]}>Shop by Category</Text>
             <View style={styles.categoryGrid}>
               {categories.map((item) => (
                 <Pressable
@@ -645,9 +647,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20 },
   locationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  locationLabel: { color: '#6B7280', fontSize: 14, paddingBottom: 5 },
+  locationLabel: { color: COLORS.textMuted, fontSize: 14, paddingBottom: 5 },
   locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  locationText: { color: '#1F2937', fontWeight: 'bold', fontSize: 16 },
+  locationText: { color: COLORS.textHeadline, fontWeight: 'bold', fontSize: 16 },
   headerIconButton: { padding: 4 },
   notifBadge: {
     position: 'absolute',
@@ -660,7 +662,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FFE5CC'
+    borderColor: '#FFD89A'
   },
   notifBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
   searchBarWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingHorizontal: 0 },
@@ -691,24 +693,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     elevation: 15, // High elevation for pop
-    shadowColor: '#FFB703', // Gold Glow
-    shadowOffset: { width: 0, height: 16 }, // Deep Dropdown Shadow
-    shadowOpacity: 0.5, // Intense shadow
+    shadowColor: COLORS.primary, // Soft Amber Glow
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.3, // Softened from 0.5
     shadowRadius: 20,
     borderWidth: 1,
-    borderColor: '#FDE68A', // Light Gold Border
+    borderColor: '#FFE0A3', // Soft Gold Border
     marginHorizontal: 20,
     overflow: 'hidden',
     position: 'relative'
   },
   shopNowButton: {
-    backgroundColor: '#FB8C00', // Warm Orange
+    backgroundColor: COLORS.primary, // Soft Amber
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     marginTop: 12,
     alignSelf: 'flex-start',
-    shadowColor: '#FB8C00',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -720,18 +722,18 @@ const styles = StyleSheet.create({
     fontWeight: '700'
   },
   promoTextPart: { flex: 0.55, paddingRight: 10 },
-  promoHeadline: { fontSize: 26, fontWeight: '800', color: '#EA580C', lineHeight: 30 },
-  promoBrandName: { fontSize: 15, fontWeight: '600', color: '#9A3412', marginTop: 8, lineHeight: 20 },
+  promoHeadline: { fontSize: 26, fontWeight: '800', color: COLORS.textHeadline, lineHeight: 30 },
+  promoBrandName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary, marginTop: 8, lineHeight: 20 },
   promoImgPart: { flex: 0.45, height: 140, alignItems: 'center', justifyContent: 'center' },
   promoImg: { width: '100%', height: '100%' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 5 },
-  sectionTitle: { fontSize: 19, fontWeight: 'bold', color: '#1F2937' },
+  sectionTitle: { fontSize: 19, fontWeight: 'bold', color: COLORS.textHeadline },
   seeAll: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 10, gap: 10 },
   categoryGridItem: { width: CATEGORY_ITEM_WIDTH, alignItems: 'center' },
   categoryItm: { alignItems: 'center', gap: 6 },
   categoryIconBox: { width: CATEGORY_ITEM_WIDTH - 4, height: CATEGORY_ITEM_WIDTH - 4, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  categoryLabel: { fontSize: 11, color: '#78350F', fontWeight: '600', textAlign: 'center', lineHeight: 14, marginTop: 6 },
+  categoryLabel: { fontSize: 11, color: COLORS.textPrimary, fontWeight: '600', textAlign: 'center', lineHeight: 14, marginTop: 6 },
   itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
   section: { paddingHorizontal: 20, marginVertical: 5 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
@@ -739,21 +741,21 @@ const styles = StyleSheet.create({
   productRequestContent: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   productRequestIconContainer: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   productRequestText: { flex: 1 },
-  productRequestTitle: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
-  productRequestSubtitle: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  productRequestTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textHeadline },
+  productRequestSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   gridContainer: { paddingHorizontal: 20, marginBottom: 20 },
   gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 20 },
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#D97706' },
   gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   searchDiscovery: { padding: 20 },
-  discoveryTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937', marginBottom: 15 },
+  discoveryTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
   recentSection: { marginBottom: 20 },
   searchRecentItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  searchRecentText: { fontSize: 15, color: '#4B5563' },
+  searchRecentText: { fontSize: 15, color: COLORS.textMuted },
   resultsSection: { flex: 1 },
   categoryExpandedContent: { padding: 20 },
-  categorySectionTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937', marginBottom: 15 },
+  categorySectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
   storeSearchResultCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -766,8 +768,8 @@ const styles = StyleSheet.create({
     borderColor: '#F3F4F6'
   },
   storeSearchIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' },
-  storeSearchName: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
-  storeSearchLocation: { fontSize: 12, color: '#6B7280' },
+  storeSearchName: { fontSize: 14, fontWeight: '700', color: COLORS.textHeadline },
+  storeSearchLocation: { fontSize: 12, color: COLORS.textMuted },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',

@@ -1284,26 +1284,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       if (isOnlinePayment) {
         // Navigate to payment gateway simulation
         // Pass isQuickCheckout flag so we know what to clear later
-        navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout });
+        navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout, earnedBazcoins });
       } else {
         // COD - Cart items already removed per processCheckout; just clear quick order if used
         if (isQuickCheckout) {
           clearQuickOrder();
         }
-        navigation.navigate('OrderConfirmation', { order });
+        navigation.navigate('OrderConfirmation', { order, earnedBazcoins });
       }
-
-      // Navigate to orders with success message
-      Alert.alert(
-        'Order Placed Successfully!',
-        `Your order has been placed. You earned ${earnedBazcoins} Bazcoins!`,
-        [
-          {
-            text: 'View Orders',
-            onPress: () => navigation.navigate('Orders', {})
-          }
-        ]
-      );
 
     } catch (error: any) {
       console.error('Checkout error:', error);
@@ -1313,81 +1301,24 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
   }, [selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder]);
 
-  const ProgressStepper = () => {
-    const steps: { id: CheckoutStep; label: string }[] = [
-      { id: 'shipping', label: 'Shipping' },
-      { id: 'payment', label: 'Payment' },
-      { id: 'confirmation', label: 'Confirm' },
-    ];
-
-    const currentIndex = steps.findIndex(s => s.id === currentStep);
-
-    return (
-      <View style={styles.stepperContainer}>
-        {steps.map((step, index) => {
-          const isCompleted = index < currentIndex;
-          const isActive = index === currentIndex;
-
-          return (
-            <View key={step.id} style={styles.stepWrapper}>
-              {/* Step Circle */}
-              <View style={[
-                styles.stepCircle,
-                isActive && styles.stepCircleActive,
-                isCompleted && styles.stepCircleCompleted
-              ]}>
-                {isCompleted ? (
-                  <Check size={14} color="#FFFFFF" strokeWidth={3} />
-                ) : (
-                  <Text style={[
-                    styles.stepNumber,
-                    isActive && styles.stepNumberActive
-                  ]}>{index + 1}</Text>
-                )}
-              </View>
-
-              {/* Step Label */}
-              <Text style={[
-                styles.stepLabel,
-                isActive && styles.stepLabelActive,
-                isCompleted && styles.stepLabelCompleted
-              ]}>{step.label}</Text>
-
-              {/* Connector Line */}
-              {index < steps.length - 1 && (
-                <View style={[
-                  styles.stepConnector,
-                  isCompleted && styles.stepConnectorActive
-                ]} />
-              )}
-            </View>
-          );
-        })}
-      </View>
-    );
-  };
-
   return (
     <LinearGradient
-      colors={['#FFFBF0', '#FFFBF0']}
+      colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Matching HomeScreen container gradient
       start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
     >
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
         {/* Header */}
-        <LinearGradient
-          colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.header}
-        >
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#7C2D12" />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: '#7C2D12' }]}>Checkout</Text>
-          <View style={{ width: 24 }} />
-        </LinearGradient>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+              <ArrowLeft size={24} color={COLORS.primary} strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Checkout</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        </View>
 
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1470,11 +1401,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <View>
                 <Pressable
                   style={{
-                    backgroundColor: '#FFF4ED',
+                    backgroundColor: '#F9FAFB',
                     borderRadius: 12,
                     padding: 16,
-                    borderWidth: 1,
-                    borderColor: '#FFE4E6'
+                    borderWidth: 1.5,
+                    borderColor: '#E5E7EB'
                   }}
                   onPress={() => {
                     console.log('[Checkout] Opening address modal');
@@ -1519,7 +1450,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 onPress={() => setShowAddressModal(true)}
               >
                 <Plus size={24} color={COLORS.primary} />
-                <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: '#111827' }}>
+                <Text style={{ marginTop: 8, fontSize: 15, fontWeight: '700', color: COLORS.textHeadline }}>
                   Add Delivery Address
                 </Text>
                 <Text style={{ fontSize: 12, color: '#6B7280' }}>
@@ -2257,7 +2188,7 @@ const checkoutStyles = StyleSheet.create({
   sectionHeader: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#9CA3AF',
+    color: '#D97706', // Amber standard
     textTransform: 'uppercase',
     marginBottom: 8,
     letterSpacing: 0.5,
@@ -2265,7 +2196,7 @@ const checkoutStyles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textPrimary,
     marginBottom: 6,
   },
   formInput: {
@@ -2275,7 +2206,7 @@ const checkoutStyles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 15,
-    color: '#1F2937',
+    color: COLORS.textHeadline,
     backgroundColor: '#F9FAFB',
     marginBottom: 16,
   },
@@ -2305,10 +2236,10 @@ const checkoutStyles = StyleSheet.create({
   typeOptionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   typeOptionTextActive: {
-    color: '#111827',
+    color: COLORS.textHeadline,
   },
   dropdownTrigger: {
     height: 48,
@@ -2331,11 +2262,11 @@ const checkoutStyles = StyleSheet.create({
   },
   dropdownText: {
     fontSize: 15,
-    color: '#1F2937',
+    color: COLORS.textHeadline,
     flex: 1,
   },
   placeholderText: {
-    color: '#9CA3AF',
+    color: COLORS.textMuted,
   },
   dropdownListContainer: {
     borderWidth: 1,
@@ -2360,7 +2291,7 @@ const checkoutStyles = StyleSheet.create({
     flex: 1,
     height: 40,
     fontSize: 15,
-    color: '#1F2937',
+    color: COLORS.textHeadline,
   },
   selectList: {
     backgroundColor: '#FFFFFF',
@@ -2373,7 +2304,7 @@ const checkoutStyles = StyleSheet.create({
   },
   selectItemText: {
     fontSize: 15,
-    color: '#111827',
+    color: COLORS.textHeadline,
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -2399,7 +2330,7 @@ const checkoutStyles = StyleSheet.create({
   checkboxText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4B5563',
+    color: COLORS.textPrimary,
   },
   stickyFooter: {
     padding: 20,
@@ -2493,7 +2424,7 @@ const checkoutStyles = StyleSheet.create({
   mapTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
     backgroundColor: 'rgba(255,255,255,0.95)',
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -2526,100 +2457,42 @@ const styles = StyleSheet.create({
   //   flex: 1,
   //   backgroundColor: COLORS.gray100,
   // },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    // backgroundColor: COLORS.white, // Replaced by gradient
-    // borderBottomWidth: 1,
-    // borderBottomColor: COLORS.gray200,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    zIndex: 10,
+    backgroundColor: 'transparent',
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingHorizontal: 10,
+    paddingBottom: 15,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
-  stepperContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 8,
-  },
-  stepWrapper: {
-    alignItems: 'center',
-    position: 'relative',
-    flex: 1,
-  },
-  stepCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  stepCircleActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  stepCircleCompleted: {
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-  },
-  stepNumber: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  stepNumberActive: {
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
-  stepLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  stepLabelActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  stepLabelCompleted: {
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  stepConnector: {
-    position: 'absolute',
-    top: 14,
-    left: '50%',
-    width: '100%',
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    zIndex: -1,
-  },
-  stepConnectorActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 22,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
+    letterSpacing: 0.5,
   },
   scrollContainer: {
     flex: 1,
@@ -2645,9 +2518,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827', // Black
   },
   shippingBadge: {
     backgroundColor: '#FFF4ED',
@@ -2682,7 +2555,7 @@ const styles = StyleSheet.create({
   compactProductName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 6,
   },
   compactDetailsRow: {
@@ -2692,17 +2565,15 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   compactVariantTag: {
-    backgroundColor: '#FFF4ED',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FFCBB0',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
   compactVariantText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#EA580C',
+    color: '#4B5563',
   },
   compactSelector: {
     flexDirection: 'row',
@@ -2723,13 +2594,13 @@ const styles = StyleSheet.create({
   compactQuantity: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#6B7280',
+    color: COLORS.textMuted,
     marginLeft: 'auto',
   },
   compactPrice: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginLeft: 12,
   },
   autofillButton: {
@@ -2755,7 +2626,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 12,
   },
   textArea: {
@@ -2782,7 +2653,7 @@ const styles = StyleSheet.create({
   },
   paymentOptionActive: {
     borderColor: COLORS.primary,
-    backgroundColor: '#FFF4ED',
+    backgroundColor: 'rgba(217, 119, 6, 0.05)',
   },
   radio: {
     width: 20,
@@ -2797,12 +2668,12 @@ const styles = StyleSheet.create({
   paymentText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 2,
   },
   paymentSubtext: {
     fontSize: 12,
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   paymentInfoBanner: {
     flexDirection: 'row',
@@ -2843,7 +2714,7 @@ const styles = StyleSheet.create({
   inlineFormTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#111827',
+    color: COLORS.textHeadline,
   },
   formContainer: {
     gap: 16,
@@ -2854,7 +2725,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.textPrimary,
     marginBottom: 6,
     marginLeft: 2,
   },
@@ -2866,7 +2737,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 48,
     fontSize: 15,
-    color: '#111827',
+    color: COLORS.textHeadline,
   },
   rowInputs: {
     flexDirection: 'row',
@@ -2895,6 +2766,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   btnText: {
     fontSize: 15,
@@ -2927,7 +2803,7 @@ const styles = StyleSheet.create({
   },
   applyButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   appliedVoucherContainer: {
@@ -2952,7 +2828,7 @@ const styles = StyleSheet.create({
   },
   appliedVoucherDesc: {
     fontSize: 13,
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   removeVoucherButton: {
     padding: 4,
@@ -2962,7 +2838,7 @@ const styles = StyleSheet.create({
   },
   voucherHint: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: COLORS.textMuted,
     fontStyle: 'italic',
   },
   bottomBar: {
@@ -2990,12 +2866,12 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   totalAmount: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.textHeadline,
   },
   checkoutButton: {
     backgroundColor: COLORS.primary,
