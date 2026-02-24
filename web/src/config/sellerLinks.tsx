@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -16,7 +17,13 @@ import {
   HelpCircle,
 } from "lucide-react";
 
-export const sellerLinks = [
+export type SellerNavLink = {
+  label: string;
+  href: string;
+  icon: ReactNode;
+};
+
+export const sellerLinks: SellerNavLink[] = [
   {
     label: "Dashboard",
     href: "/seller",
@@ -106,6 +113,44 @@ export const sellerLinks = [
     href: "/seller/reviews",
     icon: (
       <Star className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
+    label: "Help Center",
+    href: "/seller/help-center",
+    icon: (
+      <HelpCircle className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
+    label: "Settings",
+    href: "/seller/settings",
+    icon: (
+      <Settings className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+];
+
+export const unverifiedSellerLinks: SellerNavLink[] = [
+  {
+    label: "Dashboard",
+    href: "/seller",
+    icon: (
+      <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
+    label: "Store Profile",
+    href: "/seller/store-profile",
+    icon: (
+      <Store className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
+    label: "Notifications",
+    href: "/seller/notifications",
+    icon: (
+      <Bell className="h-5 w-5 flex-shrink-0" />
     ),
   },
   {

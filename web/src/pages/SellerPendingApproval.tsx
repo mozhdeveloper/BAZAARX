@@ -8,11 +8,15 @@ import { Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Mail, Home } from 
 export function SellerPendingApproval() {
   const navigate = useNavigate();
   const { seller, logout, updateSellerDetails, authenticateSeller } = useAuthStore();
-  const { sellers, approveSeller } = useAdminSellers();
+  const { sellers, approveSeller, loadSellers } = useAdminSellers();
   const [isApproving, setIsApproving] = useState(false);
 
   // Find the seller's status from admin store
   const sellerStatus = sellers.find(s => s.id === seller?.id);
+
+  useEffect(() => {
+    loadSellers();
+  }, [loadSellers]);
 
   useEffect(() => {
     // If approved, redirect to dashboard
@@ -239,7 +243,7 @@ export function SellerPendingApproval() {
   }
 
   // Rejected status
-  if (sellerStatus.status === 'rejected') {
+  if (sellerStatus.status === 'rejected' || sellerStatus.status === 'needs_resubmission') {
     return (
       <div className="min-h-screen bg-[var(--brand-wash)] py-12 px-4 font-sans flex items-center justify-center">
         <div className="max-w-2xl mx-auto w-full">
@@ -256,9 +260,15 @@ export function SellerPendingApproval() {
                   <XCircle className="h-10 w-10 text-white" />
                 </div>
               </div>
-              <h1 className="text-3xl font-black text-white text-center font-heading tracking-tight relative z-10">Application Needs Revision</h1>
+              <h1 className="text-3xl font-black text-white text-center font-heading tracking-tight relative z-10">
+                {sellerStatus.status === 'needs_resubmission'
+                  ? 'Documents Need Resubmission'
+                  : 'Application Needs Revision'}
+              </h1>
               <p className="text-red-50 text-center mt-2 font-medium relative z-10">
-                Your seller application requires some changes
+                {sellerStatus.status === 'needs_resubmission'
+                  ? 'Please replace the flagged documents and resubmit'
+                  : 'Your seller application requires some changes'}
               </p>
             </div>
 

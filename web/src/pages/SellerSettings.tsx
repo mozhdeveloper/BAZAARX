@@ -15,7 +15,7 @@ import {
   Store,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { SellerSidebar } from "@/components/seller/SellerSidebar";
+import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
 import { useAuthStore } from "@/stores/sellerStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,8 +60,7 @@ export function SellerSettings() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
-      <SellerSidebar />
+    <SellerWorkspaceLayout>
 
       <div className="flex flex-1 w-full overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
@@ -388,8 +387,7 @@ export function SellerSettings() {
           </div>
         </div>
       </div>
-    </div>
+    </SellerWorkspaceLayout>
   );
 }
-
 
