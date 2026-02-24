@@ -429,32 +429,32 @@ export default function EnhancedCartPage() {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() =>
-                                        updateCartQuantity(
-                                          item.id,
-                                          item.quantity - 1,
-                                          item.selectedVariant?.id
-                                        )
-                                      }
+                                      onClick={() => {
+                                        // If quantity is 1, prompt for deletion instead of updating to 0
+                                        if (item.quantity === 1) {
+                                          setDeleteTarget({ type: 'single', id: item.id, variantId: item.selectedVariant?.id });
+                                        } else {
+                                          updateCartQuantity(item.id, item.quantity - 1, item.selectedVariant?.id);
+                                        }
+                                      }}
                                       className="h-6 w-6 p-0 hover:bg-base hover:text-red-500"
-                                      disabled={item.quantity <= 1}
                                     >
                                       <Minus className="h-3 w-3" />
                                     </Button>
+
                                     <span className="w-8 text-center font-medium text-xs">
                                       {item.quantity}
                                     </span>
+
                                     <Button
                                       variant="ghost"
                                       size="sm"
                                       onClick={() =>
-                                        updateCartQuantity(
-                                          item.id,
-                                          item.quantity + 1,
-                                          item.selectedVariant?.id
-                                        )
+                                        updateCartQuantity(item.id, item.quantity + 1, item.selectedVariant?.id)
                                       }
                                       className="h-6 w-6 p-0 hover:bg-base hover:text-green-500"
+                                      // Disable the button if the current quantity has reached stock limit
+                                      disabled={item.quantity >= (item.selectedVariant?.stock ?? item.stock ?? 0)}
                                     >
                                       <Plus className="h-3 w-3" />
                                     </Button>
