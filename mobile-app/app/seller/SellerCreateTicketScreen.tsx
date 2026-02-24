@@ -152,7 +152,7 @@ export default function SellerCreateTicketScreen() {
               style={[
                 styles.priorityButton,
                 priority === p && styles.priorityButtonSelected,
-                priority === p && p === 'urgent' && { backgroundColor: '#FEE2E2', borderColor: '#EF4444' },
+                priority === p && p === 'urgent' && { backgroundColor: '#FEF2F2', borderColor: '#EF4444' },
                 priority === p && p === 'high' && { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
               ]}
               onPress={() => setPriority(p)}
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   priorityButtonSelected: {
     backgroundColor: '#FEF3E8',
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
     borderStyle: 'dashed',
     borderRadius: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   attachButtonText: {
     marginLeft: 8,

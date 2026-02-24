@@ -47,7 +47,7 @@ interface ReviewStats {
   withPhotos: number;
 }
 
-const BRAND = '#FF5722';
+const BRAND = '#D97706';
 
 export default function ReviewsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
@@ -303,7 +303,7 @@ export default function ReviewsScreen() {
           </View>
 
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: '#FFF7ED' }]}>
+            <View style={[styles.statIconWrap, { backgroundColor: '#FFF4EC' }]}>
               <Reply size={18} color="#EA580C" strokeWidth={2.5} />
             </View>
             <Text style={styles.statValue}>{reviewStats.needsReply}</Text>
@@ -857,7 +857,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginBottom: 10,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 12,
     padding: 10,
   },
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   commentBox: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#F3F4F6',
@@ -1014,7 +1014,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalReviewPreview: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -1032,7 +1032,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   modalInput: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
