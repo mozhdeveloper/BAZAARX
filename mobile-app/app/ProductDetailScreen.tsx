@@ -548,73 +548,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setShowVariantModal(false);
   };
 
-  // Handlers
-  const handleAddToCart = () => {
-    // Always show variant modal if variants exist
-    if (hasVariants) {
-      openVariantModal('cart');
-      return;
-    }
-
-    const { isGuest } = useAuthStore.getState();
-    if (isGuest) {
-      setGuestModalMessage("Sign up to add items to your cart.");
-      setShowGuestModal(true);
-      return;
-    }
-
-    // Build variant info
-    const selectedVariant = buildSelectedVariant();
-
-    // Validate quantity against variant stock
-    const currentStock = selectedVariantInfo.stock || 0;
-    if (quantity > currentStock) {
-      Alert.alert('Insufficient Stock', `Only ${currentStock} items available for this variant.`);
-      return;
-    }
-
-    // Add to cart with variant information
-    addItem({
-      ...product,
-      price: product.price,
-      selectedVariant,
-      quantity
-    });
-
-    const variantText = selectedVariant
-      ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
-      : '';
-
-    // Show Added to Cart Modal
-    setAddedProductInfo({
-      name: `${product.name}${variantText}`,
-      image: productImages[0] || product.image || ''
-    });
-    setShowAddedToCartModal(true);
-  };
-
-  const handleBuyNow = () => {
-    // Always show variant modal if variants exist
-    if (hasVariants) {
-      openVariantModal('buy');
-      return;
-    }
-
-    const { isGuest } = useAuthStore.getState();
-    if (isGuest) {
-      setGuestModalMessage("Sign up to buy items.");
-      setShowGuestModal(true);
-      return;
-    }
-
-    // Build variant info
-    const selectedVariant = buildSelectedVariant(selectedColor, selectedSize);
-
-    // Set quick order with variant info
-    setQuickOrder({ ...product, selectedVariant }, quantity);
-    navigation.navigate('Checkout', {});
-  };
-
   // NEW Handle Confirm from Shared Modal
   const handleSharedModalConfirm = (
     selectedVariant: {
@@ -623,6 +556,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       variantId?: string;
       price?: number;
       stock?: number;
+      image?: string | null;
     },
     newQuantity: number
   ) => {
@@ -647,7 +581,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
       setAddedProductInfo({
         name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
-        image: productImages[0] || product.image || ''
+        image: selectedVariant.image || productImages[0] || product.image || ''
       });
       setShowVariantModal(false);
       setTimeout(() => setShowAddedToCartModal(true), 100);
@@ -670,6 +604,70 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     if (selectedVariant.option2Value) setSelectedOption2(selectedVariant.option2Value);
     setQuantity(newQuantity);
   };
+
+  const handleAddToCart = () => {
+    if (hasVariants) {
+      openVariantModal('cart');
+      return;
+    }
+
+    if (isGuest) {
+      setGuestModalMessage("Sign up to add items to your cart.");
+      setShowGuestModal(true);
+      return;
+    }
+
+    // Build variant info
+    const selectedVariant = buildSelectedVariant();
+
+    // Validate quantity against product stock (no variants case)
+    if (quantity > (product.stock || 0)) {
+      Alert.alert('Insufficient Stock', `Only ${product.stock} items available.`);
+      return;
+    }
+
+    // Add to cart
+    addItem({
+      ...product,
+      price: product.price,
+      selectedVariant,
+      quantity
+    });
+
+    const variantText = selectedVariant
+      ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
+      : '';
+
+    // Show Added to Cart Modal
+    setAddedProductInfo({
+      name: `${product.name}${variantText}`,
+      image: productImages[0] || product.image || ''
+    });
+    setShowAddedToCartModal(true);
+  };
+
+  const handleBuyNow = () => {
+    // Bypass variant modal if variants are already selected
+    if (hasVariants) {
+      openVariantModal('buy');
+      return;
+    }
+
+    if (isGuest) {
+      setGuestModalMessage("Sign up to buy items.");
+      setShowGuestModal(true);
+      return;
+    }
+
+    // Build variant info
+    const selectedVariant = buildSelectedVariant(selectedColor, selectedSize);
+
+    // Set quick order with variant info
+    setQuickOrder({ ...product, selectedVariant }, quantity);
+    navigation.navigate('Checkout', {});
+  };
+
+  // NEW Handle Confirm from Shared Modal
 
 
   const handleShare = async () => {
@@ -979,6 +977,35 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
+        {/* --- SELLER SECTION --- */}
+        <View style={styles.sellerSection}>
+          <View style={styles.sellerHeader}>
+            <View style={styles.sellerAvatarContainer}>
+              <Image 
+                source={{ uri: product.seller_avatar || product.sellerAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayStoreName) + '&background=FFD89A&color=78350F' }} 
+                style={styles.sellerAvatar} 
+              />
+            </View>
+            <View style={styles.sellerInfo}>
+              <View style={styles.sellerNameRow}>
+                <Text style={styles.sellerName} numberOfLines={1}>{displayStoreName}</Text>
+                {product.sellerVerified && <BadgeCheck size={16} color={COLORS.primary} fill="#FFF" style={{ flexShrink: 0 }} />}
+              </View>
+              <View style={styles.sellerMetaRow}>
+                <View style={styles.sellerRating}>
+                  <Star size={12} color="#FB8C00" fill="#FB8C00" />
+                  <Text style={styles.sellerMetaText}>{product.sellerRating || '0.0'}</Text>
+                </View>
+                <View style={styles.sellerMetaDivider} />
+                <Text style={styles.sellerMetaText}>{soldCount.toLocaleString()} items sold</Text>
+              </View>
+            </View>
+            <Pressable style={styles.visitStoreBtn} onPress={handleVisitStore}>
+              <Text style={styles.visitStoreText}>Visit Store</Text>
+            </Pressable>
+          </View>
+        </View>
+
         {/* --- RATINGS SECTION --- */}
         {/* Increased top margin */}
         <View style={{ paddingHorizontal: 16, marginTop: 32 }}>
@@ -1155,14 +1182,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <MessageCircle size={22} color="#FFF" />
         </Pressable>
 
-        <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
-          <ShoppingCart size={20} color="#FFF" style={{ marginRight: 8 }} />
-          <Text style={styles.addToCartText}>Add to Cart</Text>
-        </Pressable>
+        <View style={styles.actionButtonsContainer}>
+          <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
+            <ShoppingCart size={20} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.addToCartText}>Add to Cart</Text>
+          </Pressable>
 
-        <Pressable style={styles.buyNowBtn} onPress={handleBuyNow}>
-          <Text style={styles.buyNowText}>Buy Now</Text>
-        </Pressable>
+          <Pressable style={styles.buyNowBtn} onPress={handleBuyNow}>
+            <Text style={styles.buyNowText}>Buy Now</Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* --- VARIANT SELECTION MODAL (SHARED) --- */}
@@ -1477,16 +1506,21 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFD89A' },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
 
   // Header
   header: {
     // backgroundColor: BRAND_COLOR, // Replaced by gradient
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    paddingBottom: 15,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 20,
+    elevation: 8,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
     zIndex: 10,
   },
   headerSearchBar: {
@@ -1539,7 +1573,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 12,
   },
-  pageText: { color: '#1F2937', fontSize: 12, fontWeight: '700' },
+  pageText: { color: COLORS.textHeadline, fontSize: 12, fontWeight: '700' },
 
   shareFab: {
     position: 'absolute',
@@ -1571,17 +1605,27 @@ const styles = StyleSheet.create({
   tagRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   tag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
   tagText: { fontSize: 11, fontWeight: '700' },
-  productName: { fontSize: 24, fontWeight: '800', color: '#431407', marginBottom: 8, lineHeight: 32 },
-  subInfo: { fontSize: 12, color: '#6B7280', marginBottom: 16 },
+  productName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
+    lineHeight: 30,
+    marginBottom: 8,
+  },
+  subInfo: { fontSize: 12, color: COLORS.textMuted, marginBottom: 16 },
 
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 },
-  currentPrice: { fontSize: 32, fontWeight: '900', color: '#FB8C00' },
-  originalPrice: { fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through', marginLeft: 8 },
+  currentPrice: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: COLORS.primary,
+  },
+  originalPrice: { fontSize: 16, color: COLORS.textMuted, textDecorationLine: 'line-through', marginLeft: 8 },
 
   metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   stockText: { fontSize: 13, color: '#10B981', fontWeight: '700' },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingValue: { fontSize: 13, fontWeight: '600', color: '#111827', marginLeft: 4 },
+  ratingValue: { fontSize: 13, fontWeight: '600', color: COLORS.textHeadline, marginLeft: 4 },
   questionsLink: { fontSize: 13, color: '#8B5CF6', fontWeight: '600', marginLeft: 'auto' },
 
   // Selectors
@@ -1617,9 +1661,9 @@ const styles = StyleSheet.create({
   sellerAvatar: { width: '100%', height: '100%' },
   sellerInfo: { flex: 1, justifyContent: 'center' },
   sellerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  sellerName: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  sellerName: { fontSize: 15, fontWeight: '700', color: COLORS.textHeadline, flexShrink: 1 },
   sellerMetaRow: { flexDirection: 'row', alignItems: 'center' },
-  sellerMetaText: { fontSize: 12, color: '#6B7280' },
+  sellerMetaText: { fontSize: 12, color: COLORS.textMuted },
   sellerMetaDivider: { width: 1, height: 10, backgroundColor: '#E5E7EB', marginHorizontal: 8 },
   sellerRating: { flexDirection: 'row', alignItems: 'center', gap: 4 }, // Kept for reference but not used in new layout directly
 
@@ -1636,20 +1680,20 @@ const styles = StyleSheet.create({
   tabHeader: { flexDirection: 'row', gap: 24, marginBottom: 16 },
   tabBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
   activeTabBtn: { backgroundColor: BRAND_COLOR },
-  tabText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
+  tabText: { fontSize: 14, fontWeight: '600', color: COLORS.textMuted },
   activeTabText: { color: '#FFF' },
   tabContent: { paddingBottom: 16 },
-  reviewSummary: { fontSize: 14, color: '#374151', marginBottom: 4 },
-  textContent: { fontSize: 14, color: '#374151', lineHeight: 20 },
+  reviewSummary: { fontSize: 14, color: COLORS.textHeadline, marginBottom: 8, fontWeight: '700' },
+  textContent: { fontSize: 14, color: COLORS.textHeadline, lineHeight: 20 },
 
   // Reviews
   reviewCard: { flexDirection: 'row', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 16 },
   reviewerAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
   reviewContent: { flex: 1 },
-  reviewerName: { fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 2 },
+  reviewerName: { fontSize: 14, fontWeight: '700', color: COLORS.textHeadline, marginBottom: 2 },
   reviewRatingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 2 },
-  reviewDate: { fontSize: 12, color: '#9CA3AF' },
-  reviewText: { fontSize: 14, color: '#4B5563', lineHeight: 20 },
+  reviewDate: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6 },
+  reviewText: { fontSize: 14, color: COLORS.textPrimary, lineHeight: 20 },
   reviewFooter: {
     marginTop: 10,
     flexDirection: 'row',
@@ -1672,7 +1716,7 @@ const styles = StyleSheet.create({
   },
   helpfulButtonText: {
     fontSize: 12,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     fontWeight: '600',
   },
   helpfulButtonTextActive: {
@@ -1689,10 +1733,19 @@ const styles = StyleSheet.create({
   // Bottom Bar
   bottomBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF8F0', flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFFBF0', flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingTop: 15, paddingBottom: 15,
-    gap: 12, elevation: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 15,
-    zIndex: 100, // Highest priority to stay on top
+    borderTopLeftRadius: 30, borderTopRightRadius: 20,
+    shadowColor: '#D97706', shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1, shadowRadius: 15, elevation: 15,
+    zIndex: 100,
+  },
+  actionButtonsContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 12,
+    gap: 12,
   },
   chatSellerBtn: {
     height: 52, paddingHorizontal: 18, justifyContent: 'center', alignItems: 'center',
@@ -1700,15 +1753,15 @@ const styles = StyleSheet.create({
   },
   chatSellerText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   addToCartBtn: {
-    flex: 1, height: 52, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    flex: 1.2, height: 52, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
     borderRadius: 26, backgroundColor: '#FB8C00', // Solid Orange Pill
   },
-  addToCartText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
+  addToCartText: { color: '#FFF', fontWeight: '800', fontSize: 14 },
   buyNowBtn: {
     flex: 1, height: 52, justifyContent: 'center', alignItems: 'center',
     borderRadius: 26, backgroundColor: '#EA580C', // Slightly darker orange for contrast
   },
-  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
 
   // Wishlist Dropdown
   wishlistDropdown: {
@@ -1735,12 +1788,12 @@ const styles = StyleSheet.create({
   dropdownItemText: { fontSize: 14, color: '#374151', fontWeight: '500' },
   dropdownDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 4 },
   createListRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  createListInput: { flex: 1, fontSize: 13, borderBottomWidth: 1, borderBottomColor: COLORS.primary, paddingVertical: 4, color: '#1F2937' },
+  createListInput: { flex: 1, fontSize: 13, borderBottomWidth: 1, borderBottomColor: COLORS.primary, paddingVertical: 4, color: COLORS.textHeadline },
 
   // Variant Selection
   variantSection: { marginTop: 16 },
-  variantLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 10 },
-  variantSelected: { fontWeight: '700', color: '#111827' },
+  variantLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textHeadline, marginBottom: 10 },
+  variantSelected: { fontWeight: '700', color: COLORS.textHeadline },
   colorOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   colorOption: {
     width: 36,
@@ -1766,7 +1819,7 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeadline,
     textAlign: 'center',
   },
   sizeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -1788,7 +1841,7 @@ const styles = StyleSheet.create({
   sizeOptionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeadline,
   },
   sizeOptionTextSelected: {
     color: BRAND_COLOR,
@@ -1867,7 +1920,7 @@ const styles = StyleSheet.create({
   },
   variantModalSelected: {
     fontSize: 13,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     marginTop: 4,
   },
   variantModalClose: {
@@ -1887,7 +1940,7 @@ const styles = StyleSheet.create({
   variantModalLabel: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 12,
   },
   variantModalOptions: {
@@ -1911,12 +1964,12 @@ const styles = StyleSheet.create({
   variantModalOptionText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeadline,
     textAlign: 'center',
   },
   variantModalSelectedText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     marginTop: 8,
     textTransform: 'capitalize',
   },
@@ -1943,7 +1996,7 @@ const styles = StyleSheet.create({
   variantModalSizeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeadline,
   },
   variantModalSizeTextSelected: {
     color: BRAND_COLOR,
@@ -2005,7 +2058,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   noReviewsContainer: {
     alignItems: 'center',
@@ -2016,7 +2069,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeadline,
   },
   noReviewsSubtext: {
     marginTop: 4,
@@ -2061,7 +2114,7 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     fontSize: 15,
-    color: '#374151',
+    color: COLORS.textHeadline,
     fontWeight: '500',
   },
   menuDivider: {

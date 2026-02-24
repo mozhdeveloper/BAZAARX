@@ -41,16 +41,16 @@ export default function SettingsScreen({ navigation }: Props) {
       <StatusBar barStyle="dark-content" />
       {/* Header */}
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
       >
         <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+                <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
             </Pressable>
-            <Text style={styles.headerTitle}>Settings</Text>
+            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Settings</Text>
             <View style={{ width: 40 }} />
         </View>
       </LinearGradient>
@@ -198,23 +198,21 @@ export default function SettingsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFBF0', // Warm Ivory
+    backgroundColor: COLORS.background,
   },
   headerContainer: {
     paddingHorizontal: 20,
+    paddingBottom: 25,
     borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    paddingBottom: 20,
-    marginBottom: 10,
-    elevation: 4,
+    borderBottomRightRadius: 20,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    zIndex: 10,
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
   scrollView: {
     flex: 1,
   },
@@ -227,7 +225,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: COLORS.textMuted,
     paddingHorizontal: 20,
     marginBottom: 12,
     textTransform: 'uppercase',
@@ -268,12 +266,12 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 2,
   },
   settingSubtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   divider: {
     height: 1,
@@ -287,16 +285,16 @@ const styles = StyleSheet.create({
   appInfoText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FF6A00',
+    color: COLORS.primary,
     marginBottom: 4,
   },
   versionText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     marginBottom: 8,
   },
   copyrightText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: COLORS.textMuted,
   },
 });

@@ -21,6 +21,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
 import { supabase } from '../src/lib/supabase';
+import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -152,9 +153,9 @@ export default function LoginScreen({ navigation }: Props) {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.brandName}>BazaarX</Text>
-            <Text style={styles.welcomeText}>Welcome back!</Text>
-            <Text style={styles.subtitle}>Sign in to continue shopping</Text>
+            <Text style={[styles.brandName, { color: COLORS.textHeadline }]}>BazaarX</Text>
+            <Text style={[styles.welcomeText, { color: COLORS.textHeadline }]}>Welcome back!</Text>
+            <Text style={[styles.subtitle, { color: COLORS.textMuted }]}>Sign in to continue shopping</Text>
           </View>
 
           {/* Demo Credentials Banner */}
@@ -178,7 +179,7 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email Address</Text>
               <View style={styles.inputWrapper}>
-                <Mail size={20} color="#EA580C" style={styles.inputIcon} />
+                <Mail size={20} color={COLORS.primary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
@@ -231,7 +232,7 @@ export default function LoginScreen({ navigation }: Props) {
               disabled={isLoading}
             >
               <LinearGradient
-                colors={['#FB8C00', '#FFA000']} // Warm Orange Gradient
+                colors={['#D97706', '#B45309']} // Amber Gradient
                 style={styles.buttonGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -306,7 +307,8 @@ export default function LoginScreen({ navigation }: Props) {
                     <Text style={styles.accountName}>{account.name}</Text>
                     <Text style={styles.accountEmail}>{account.email}</Text>
                     <Text style={styles.accountDetails}>
-                      � Password: {account.password} • {account.note}
+                      {/* Unicode character for key */}
+                      🔑 Password: {account.password} • {account.note}
                     </Text>
                   </View>
                   <ArrowRight size={20} color="#FF6A00" />
@@ -323,7 +325,7 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFBF0', // Warm Ivory
+    backgroundColor: COLORS.background,
   },
   keyboardView: {
     flex: 1,
@@ -349,18 +351,18 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#7C2D12', // Warm Brown
+    color: COLORS.textHeadline, // Warm Brown
     marginBottom: 8,
   },
   welcomeText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#7C2D12', // Warm Brown
+    color: COLORS.textHeadline, // Warm Brown
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   demoBanner: {
     backgroundColor: '#FFF7ED',

@@ -32,6 +32,7 @@ import type { RootStackParamList } from '../../App';
 import { addressService, type Address } from '../../src/services/addressService';
 import { authService } from '../../src/services/authService';
 import { useAuthStore } from '../../src/stores/authStore';
+import { COLORS } from '../../src/constants/theme';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddressSetup'>;
@@ -480,7 +481,7 @@ export default function AddressSetupScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
   },
   header: {
     padding: 24,
@@ -490,7 +491,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 8,
   },
   subtitle: {
@@ -506,7 +507,7 @@ const styles = StyleSheet.create({
       borderTopColor: '#F3F4F6',
   },
   button: {
-    backgroundColor: '#FF6A00',
+    backgroundColor: COLORS.primary,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',

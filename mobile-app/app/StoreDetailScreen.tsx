@@ -25,19 +25,14 @@ export default function StoreDetailScreen() {
 
     if (!store) {
         return (
-            <LinearGradient
-                colors={['#FFFBF0', '#FFFBF0']} // Warm Ivory background
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.container}
-            >
+            <View style={styles.container}>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                     <Text style={{ color: '#7C2D12' }}>Store information not available</Text>
                     <Pressable onPress={() => navigation.goBack()} style={{ padding: 10, marginTop: 10 }}>
                         <Text style={{ color: '#FB8C00' }}>Go Back</Text>
                     </Pressable>
                 </View>
-            </LinearGradient>
+            </View>
         );
     }
     const BRAND_COLOR = COLORS.primary;
@@ -240,7 +235,7 @@ export default function StoreDetailScreen() {
                                 {vouchers.map((voucher) => (
                                     <View key={voucher.id} style={[styles.couponCard, voucher.claimed && styles.couponCardClaimed]}>
                                         <View style={styles.couponLeft}>
-                                            <Text style={[styles.couponAmount, voucher.claimed && { color: '#9CA3AF' }]}>{voucher.amount}</Text>
+                                            <Text style={[styles.couponAmount, voucher.claimed && { color: COLORS.textMuted }]}>{voucher.amount}</Text>
                                             <Text style={styles.couponMin}>{voucher.min}</Text>
                                         </View>
                                         <Pressable
@@ -248,7 +243,7 @@ export default function StoreDetailScreen() {
                                             onPress={() => !voucher.claimed && handleClaimVoucher(voucher.id)}
                                             disabled={voucher.claimed}
                                         >
-                                            <Text style={[styles.claimText, voucher.claimed && { color: '#9CA3AF' }]}>
+                                            <Text style={[styles.claimText, voucher.claimed && { color: COLORS.textMuted }]}>
                                                 {voucher.claimed ? 'Claimed' : 'Claim'}
                                             </Text>
                                         </Pressable>
@@ -305,13 +300,13 @@ export default function StoreDetailScreen() {
                             {(store.categories || []).map((cat: string, index: number) => (
                                 <Pressable key={index} style={styles.categoryRow}>
                                     <Text style={styles.categoryName}>{cat}</Text>
-                                    <Grid size={20} color="#9CA3AF" />
+                                    <Grid size={20} color={COLORS.textMuted} />
                                 </Pressable>
                             ))}
                             {['Sale', 'New Arrivals', 'Bundles'].map((cat, index) => (
                                 <Pressable key={`extra-${index}`} style={styles.categoryRow}>
                                     <Text style={styles.categoryName}>{cat}</Text>
-                                    <Grid size={20} color="#9CA3AF" />
+                                    <Grid size={20} color={COLORS.textMuted} />
                                 </Pressable>
                             ))}
                         </View>
@@ -327,7 +322,7 @@ export default function StoreDetailScreen() {
                             <View style={styles.divider} />
 
                             <View style={styles.infoRow}>
-                                <MapPin size={18} color="#6B7280" />
+                                <MapPin size={18} color={COLORS.textMuted} />
                                 <Text style={styles.infoText}>
                                     {[
                                         storeData.business_profile?.address_line_1,
@@ -357,20 +352,15 @@ export default function StoreDetailScreen() {
     };
 
     return (
-        <LinearGradient
-            colors={['#FFFBF0', '#FFFBF0']} // Warm Ivory background
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.container}
-        >
+        <View style={styles.container}>
             <StatusBar barStyle="dark-content" />
 
             {/* Custom Header */}
             <LinearGradient
-                colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
                 start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={[styles.header, { paddingTop: insets.top }, searchVisible && { backgroundColor: '#FB8C00', paddingBottom: 12 }]}
+                end={{ x: 1, y: 1 }}
+                style={[styles.header, { paddingTop: insets.top }, searchVisible && { backgroundColor: COLORS.primary, paddingBottom: 12 }]}
             >
                 {searchVisible ? (
                     <View style={styles.searchHeader}>
@@ -393,14 +383,14 @@ export default function StoreDetailScreen() {
                 ) : (
                     <View style={styles.headerTop}>
                         <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+                            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
                         </Pressable>
                         <View style={styles.headerRight}>
                             <Pressable style={styles.headerIconButton} onPress={() => { }}>
-                                <Share2 size={24} color="#7C2D12" />
+                                <Share2 size={24} color={COLORS.textHeadline} />
                             </Pressable>
                             <Pressable style={styles.headerIconButton} onPress={() => { }}>
-                                <MoreVertical size={24} color="#7C2D12" />
+                                <MoreVertical size={24} color={COLORS.textHeadline} />
                             </Pressable>
                         </View>
                     </View>
@@ -499,11 +489,11 @@ export default function StoreDetailScreen() {
                 <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
                     <View style={[styles.menuContainer, { top: insets.top + 60 }]}>
                         <Pressable style={styles.menuItem} onPress={() => { setMenuVisible(false); Alert.alert('Shared', 'Store link copied to clipboard'); }}>
-                            <Share2 size={20} color="#374151" />
+                            <Share2 size={20} color={COLORS.textHeadline} />
                             <Text style={styles.menuText}>Share this store</Text>
                         </Pressable>
                         <Pressable style={styles.menuItem} onPress={() => { setMenuVisible(false); navigation.navigate('HelpSupport'); }}>
-                            <Info size={20} color="#374151" />
+                            <Info size={20} color={COLORS.textHeadline} />
                             <Text style={styles.menuText}>Store Info</Text>
                         </Pressable>
                         <View style={styles.menuDivider} />
@@ -522,12 +512,12 @@ export default function StoreDetailScreen() {
                     message={guestModalMessage || "Please log in to continue."}
                 />
             )}
-        </LinearGradient>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFFBF0' },
+    container: { flex: 1, backgroundColor: COLORS.background },
     header: { paddingHorizontal: 20, zIndex: 10, paddingBottom: 10 },
     headerTop: {
         flexDirection: 'row',
@@ -559,7 +549,7 @@ const styles = StyleSheet.create({
     searchInput: {
         flex: 1,
         fontSize: 14,
-        color: '#1F2937',
+        color: COLORS.textHeadline,
         padding: 0,
     },
     cancelSearch: {
@@ -753,7 +743,7 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 19,
         fontWeight: '900',
-        color: '#D97706',
+        color: COLORS.primary,
         paddingHorizontal: 16,
         marginBottom: 12,
     },

@@ -76,16 +76,16 @@ export default function FollowingShopsScreen({ navigation }: Props) {
             <StatusBar barStyle="dark-content" />
             {/* Header - Guest View */}
             <LinearGradient
-                colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
                 start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
+                end={{ x: 1, y: 1 }}
                 style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
             >
                 <View style={styles.headerTop}>
                     <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+                        <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
                     </Pressable>
-                    <Text style={styles.headerTitle}>Following Shops</Text>
+                    <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Following Shops</Text>
                     <View style={{ width: 40 }} />
                 </View>
             </LinearGradient>
@@ -109,16 +109,16 @@ export default function FollowingShopsScreen({ navigation }: Props) {
 
             {/* Header */}
             <LinearGradient
-                colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
                 start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
+                end={{ x: 1, y: 1 }}
                 style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
             >
                 <View style={styles.headerTop}>
                     <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+                        <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
                     </Pressable>
-                    <Text style={styles.headerTitle}>Following Shops</Text>
+                    <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Following Shops</Text>
                     <View style={{ width: 40 }} />
                 </View>
             </LinearGradient>
@@ -197,23 +197,28 @@ export default function FollowingShopsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFBF0', // Warm Ivory
+        backgroundColor: COLORS.background,
     },
     headerContainer: {
         paddingHorizontal: 20,
+        paddingBottom: 25,
         borderBottomLeftRadius: 30,
         borderBottomRightRadius: 30,
-        paddingBottom: 20,
-        marginBottom: 10,
-        elevation: 4,
+        elevation: 2,
         shadowColor: '#000',
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        zIndex: 10,
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
     },
     headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    headerIconButton: { padding: 4 },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
+    headerIconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerTitle: { fontSize: 20, fontWeight: '800' },
     scrollView: {
         flex: 1,
     },

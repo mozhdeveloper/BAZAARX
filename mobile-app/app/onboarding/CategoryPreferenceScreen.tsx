@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { authService } from '../../src/services/authService';
+import { COLORS } from '../../src/constants/theme';
 
 // IMPORT THE NEW DATA FILE HERE
 import { categories, type Category } from '../../src/data/categories';
@@ -134,15 +135,20 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       {/* HEADER */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <LinearGradient
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#111827" />
+            <ArrowLeft size={24} color={COLORS.textHeadline} />
           </Pressable>
-          <Text style={styles.headerTitle}>Interests</Text>
+          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Interests</Text>
           <View style={{ width: 24 }} />
         </View>
-        <Text style={styles.headerSubtitle}>Select at least 3 categories</Text>
+        <Text style={[styles.headerSubtitle, { color: COLORS.textMuted }]}>Select at least 3 categories</Text>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
@@ -155,7 +161,7 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
             onChangeText={setSearchQuery}
           />
         </View>
-      </View>
+      </LinearGradient>
 
       <FlatList
         data={filteredCategories}
@@ -193,7 +199,7 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
   },
   header: {
     backgroundColor: '#FFFFFF',
@@ -310,7 +316,7 @@ const styles = StyleSheet.create({
     fontWeight: '700'
   },
   button: {
-    backgroundColor: '#FF6A00',
+    backgroundColor: COLORS.primary,
     paddingVertical: 16,
     borderRadius: 25,
     alignItems: 'center',

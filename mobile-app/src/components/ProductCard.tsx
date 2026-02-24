@@ -114,7 +114,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFBF0', // Warm Ivory/Cream
+    backgroundColor: COLORS.card, // Warm Ivory/Cream
     borderRadius: 12, // Reduced from 20 to 12
     overflow: 'hidden',
     shadowColor: '#F59E0B', // Golden Shadow
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#7C2D12', // Rich Warm Brown
+    color: COLORS.textPrimary, // Rich Warm Brown
     marginBottom: 6,
     lineHeight: 17,
     height: 34, // Fixed height for 2 lines to maintain grid alignment
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
-    color: '#D97706', // Golden Orange
+    color: COLORS.primary, // Golden Amber
     fontWeight: '600',
   },
   priceSoldRow: {
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#EA580C', // Vibrant Orange
+    color: '#D97706', // Amber-600
   },
   originalPrice: {
     fontSize: 12,

@@ -76,16 +76,16 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
       >
         <StatusBar barStyle="dark-content" />
         <LinearGradient
-          colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+          colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
           start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
+          end={{ x: 1, y: 1 }}
           style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
         >
           <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-              <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+              <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
             </Pressable>
-            <Text style={styles.headerTitle}>Notifications</Text>
+            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Notifications</Text>
             <View style={{ width: 40 }} />
           </View>
         </LinearGradient>
@@ -103,25 +103,22 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
   }
 
   return (
-    <LinearGradient
-      colors={['#FFFBF0', '#FFFBF0']} // Warm Ivory
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
+    <View
       style={styles.container}
     >
       <StatusBar barStyle="dark-content" />
       {/* Header */}
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
       >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Notifications</Text>
           <View style={{ width: 40 }} />
         </View>
       </LinearGradient>
@@ -456,25 +453,24 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
           </View>
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: COLORS.background,
   },
   headerContainer: {
     paddingHorizontal: 20,
+    paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    paddingBottom: 20,
-    marginBottom: 10,
-    elevation: 4,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
     zIndex: 10,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -129,27 +129,21 @@ export default function MessagesScreen() {
 
 
   return (
-    <LinearGradient
-      colors={['#FFFBF0', '#FFFBF0']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
+    <View
       style={styles.container}
     >
       <StatusBar barStyle="dark-content" />
 
       {/* Edge-to-Edge Header */}
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]} // Removed backgroundColor
+        end={{ x: 1, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
       >
         <View style={styles.headerTop}>
-          {/* Back button removed */}
           <View style={styles.headerIcon} />
-
-          <Text style={styles.headerTitle}>Messages</Text>
-
+          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Messages</Text>
           <Pressable onPress={() => setShowAIChat(true)} style={styles.headerIcon}>
             <Bot size={24} color={COLORS.primary} strokeWidth={2.5} />
           </Pressable>
@@ -259,16 +253,20 @@ export default function MessagesScreen() {
       )}
 
       <AIChatModal visible={showAIChat} onClose={() => setShowAIChat(false)} />
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   headerContainer: {
-    paddingBottom: 16,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingBottom: 25,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
   },
   headerTop: {
     flexDirection: 'row',

@@ -79,15 +79,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFBF0', // Soft Parchment Cream
     paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 20,
+    shadowColor: '#D97706', // Soft Amber Glow
+    shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowRadius: 12,
+    elevation: 15,
   },
   navItem: {
     alignItems: 'center',

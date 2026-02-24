@@ -28,7 +28,6 @@ import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { OrderCard } from '../src/components/OrderCard';
 import ReviewModal from '../src/components/ReviewModal';
 import { orderService } from '../src/services/orderService';
-import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -704,14 +703,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
     return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: 60 }]}
+        end={{ x: 1, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: 60, paddingBottom: 15 }]}
       >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Orders</Text>
           <View style={{ width: 40 }} />
@@ -737,22 +736,22 @@ export default function OrdersScreen({ navigation, route }: Props) {
       {/* Header with Title only */}
       {/* Header with Title only */}
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15 }]}
       >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Orders</Text>
           <View style={styles.headerActions}>
             <Pressable style={styles.headerIconButton} onPress={() => setShowFilterModal(true)}>
-              <Filter size={22} color="#7C2D12" strokeWidth={2.5} />
+              <Filter size={22} color={COLORS.textHeadline} strokeWidth={2.5} />
             </Pressable>
             <Pressable style={styles.headerIconButton} onPress={() => setShowSearchModal(true)}>
-              <Search size={22} color="#7C2D12" strokeWidth={2.5} />
+              <Search size={22} color={COLORS.textHeadline} strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -782,7 +781,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
                 onPress={() => setActiveTab(tab)}
                 style={[styles.newTab, activeTab === tab && styles.newTabActive, { borderColor: BRAND_COLOR }]}
               >
-                <Text style={[styles.newTabText, activeTab === tab ? { color: BRAND_COLOR, fontWeight: '600' } : { color: '#6B7280' }]}>
+                <Text style={[styles.newTabText, activeTab === tab ? { color: BRAND_COLOR, fontWeight: '600' } : { color: COLORS.textMuted }]}>
                   {labelMap[tab]}
                 </Text>
               </Pressable>
@@ -864,8 +863,6 @@ export default function OrdersScreen({ navigation, route }: Props) {
         onSubmit={handleSubmitReview}
       />
 
-      {/* Bottom Navigation */}
-      <BuyerBottomNav />
     </View>
   );
 }
@@ -884,7 +881,7 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     zIndex: 10,
     borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomRightRadius: 20,
     paddingBottom: 20,
   },
   headerTop: {
@@ -893,7 +890,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 5,
   },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937', letterSpacing: 0.5 },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.textHeadline, letterSpacing: 0.5 },
   headerIconButton: {
     padding: 4,
   },
@@ -932,13 +929,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   orderCard: {
@@ -972,7 +969,7 @@ const styles = StyleSheet.create({
   },
   orderIdText: {
     fontSize: 12,
-    color: '#6B7280',
+    color: COLORS.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   cardBody: {
@@ -993,7 +990,7 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
     marginBottom: 4,
   },
   dateRow: {
@@ -1003,7 +1000,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: COLORS.textMuted,
     marginLeft: 4,
   },
   totalAmount: {
@@ -1044,7 +1041,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   outlineButtonText: {
-    color: '#374151',
+    color: COLORS.textHeadline,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -1086,7 +1083,7 @@ const styles = StyleSheet.create({
   modalSearchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#1F2937',
+    color: COLORS.textHeadline,
   },
   filterModalContent: {
     backgroundColor: '#FFF',
@@ -1105,12 +1102,12 @@ const styles = StyleSheet.create({
   filterTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
   },
   filterLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: COLORS.textHeadline,
     marginBottom: 12,
   },
   filterRow: {
@@ -1129,7 +1126,7 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     fontSize: 13,
-    color: '#4B5563',
+    color: COLORS.textMuted,
   },
   applyBtn: {
     margin: 20,

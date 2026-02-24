@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Mail, Lock, User, Phone, Eye, EyeOff, ArrowRight, ArrowLeft } from 'lucide-react-native';
 import { supabase } from '../src/lib/supabase';
+import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
@@ -177,7 +178,7 @@ export default function SignupScreen({ navigation }: Props) {
                         </View>
 
                         <Pressable style={styles.signupButton} onPress={handleSignup} disabled={loading}>
-                            <LinearGradient colors={['#FB8C00', '#FFA000']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                            <LinearGradient colors={['#D97706', '#B45309']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                                 {loading ? <ActivityIndicator color="#FFF" /> : (
                                     <>
                                         <Text style={styles.buttonText}>Sign Up</Text>
@@ -194,7 +195,7 @@ export default function SignupScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFFBF0' }, // Warm Ivory
+    container: { flex: 1, backgroundColor: COLORS.background },
     // ... styles remain same
     scrollContent: { padding: 24, flexGrow: 1 },
     header: { marginBottom: 32, marginTop: 20 },

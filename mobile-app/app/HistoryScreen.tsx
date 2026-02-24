@@ -161,22 +161,22 @@ export default function HistoryScreen({ navigation }: Props) {
       
       {/* 1. Header */}
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
       >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
-          <Text style={styles.headerTitle}>Purchase History</Text>
+          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Purchase History</Text>
           <View style={styles.headerActions}>
             <Pressable style={styles.headerIconButton} onPress={() => setShowFilterModal(true)}>
-              <Filter size={22} color="#7C2D12" strokeWidth={2.5} />
+              <Filter size={22} color={COLORS.textHeadline} strokeWidth={2.5} />
             </Pressable>
             <Pressable style={styles.headerIconButton} onPress={() => setShowSearchModal(true)}>
-              <Search size={22} color="#7C2D12" strokeWidth={2.5} />
+              <Search size={22} color={COLORS.textHeadline} strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -299,7 +299,7 @@ export default function HistoryScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFBF0' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   headerContainer: {
     paddingHorizontal: 20,
     elevation: 4,
@@ -309,11 +309,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     zIndex: 10,
     borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomRightRadius: 20,
     paddingBottom: 20,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
   headerIconButton: { padding: 4 },
   headerActions: { flexDirection: 'row', gap: 8 },
   
@@ -321,15 +321,15 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   // Card Styles
   orderCard: {
-    backgroundColor: '#FFFBF0',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     marginBottom: 16,
     padding: 16,
-    shadowColor: '#F59E0B',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.05,
     shadowRadius: 10,
-    elevation: 4,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -342,14 +342,14 @@ const styles = StyleSheet.create({
   },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   statusText: { fontSize: 11, fontWeight: '600' },
-  orderIdText: { fontSize: 12, color: '#6B7280' },
+  orderIdText: { fontSize: 12, color: COLORS.textMuted },
   
   cardBody: { flexDirection: 'row', marginBottom: 16 },
   productThumb: { width: 70, height: 70, borderRadius: 8, backgroundColor: '#F3F4F6' },
   productInfo: { flex: 1, marginLeft: 12, justifyContent: 'center' },
-  productName: { fontSize: 14, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
+  productName: { fontSize: 14, fontWeight: '600', color: COLORS.textHeadline, marginBottom: 4 },
   dateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  dateText: { fontSize: 12, color: '#9CA3AF', marginLeft: 4 },
+  dateText: { fontSize: 12, color: COLORS.textMuted, marginLeft: 4 },
   totalAmount: { fontSize: 14, fontWeight: '800', color: '#EA580C' },
   
   cardFooter: { borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 12 },
@@ -359,28 +359,28 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: COLORS.primary, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
   primaryButtonText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
   outlineButton: { borderWidth: 1, borderColor: '#D1D5DB', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' },
-  outlineButtonText: { color: '#374151', fontSize: 13, fontWeight: '600' },
+  outlineButtonText: { color: COLORS.textHeadline, fontSize: 13, fontWeight: '600' },
   buyAgainButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primary, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#FFF' },
   buyAgainText: { fontSize: 13, fontWeight: '600' },
 
   // Empty State
   emptyContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 100 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: '#1F2937', marginTop: 16, marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#6B7280', textAlign: 'center' },
+  emptyTitle: { fontSize: 18, fontWeight: '600', color: COLORS.textHeadline, marginTop: 16, marginBottom: 8 },
+  emptyText: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center' },
 
   // Modals (Reused simple styles)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   searchModalContent: { flex: 1, backgroundColor: '#FFF' },
   searchBarContainer: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', gap: 12 },
-  modalSearchInput: { flex: 1, fontSize: 16, color: '#1F2937' },
+  modalSearchInput: { flex: 1, fontSize: 16, color: COLORS.textHeadline },
   
   filterModalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, height: '40%' },
   filterHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  filterTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
-  filterLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 12 },
+  filterTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textHeadline },
+  filterLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textHeadline, marginBottom: 12 },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
   filterChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: '#FFF' },
-  filterChipText: { fontSize: 13, color: '#4B5563' },
+  filterChipText: { fontSize: 13, color: COLORS.textMuted },
   applyBtn: { margin: 20, padding: 16, borderRadius: 12, alignItems: 'center' },
   applyBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
 });
