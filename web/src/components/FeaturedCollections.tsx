@@ -10,23 +10,25 @@ const FeaturedCollections: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="grid lg:grid-cols-12 gap-10 items-center">
-          {/* Left Side: Collection Cards */}
-          <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
-            {featuredCollections.slice(0, 4).map((collection, index) => (
-              <CollectionCard
-                key={collection.id}
-                collection={collection}
-                index={index}
-              />
-            ))}
+          {/* Left Side: Collection Cards (Appears second on mobile) */}
+          <div className="lg:col-span-8 order-2 lg:order-1">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
+              {featuredCollections.slice(0, 4).map((collection, index) => (
+                <CollectionCard
+                  key={collection.id}
+                  collection={collection}
+                  index={index}
+                />
+              ))}
+            </div>
           </div>
 
-          {/* Right Side: Descriptive Content */}
+          {/* Right Side: Descriptive Content (Appears first on mobile) */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="lg:col-span-4"
+            className="lg:col-span-4 order-1 lg:order-2 mb-8 lg:mb-0"
           >
             <motion.div
               initial={{ opacity: 0, y: -20 }}

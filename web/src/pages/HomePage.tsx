@@ -71,25 +71,25 @@ const HomePage: React.FC = () => {
       try {
         const data = await productService.getProducts({ isActive: true, approvalStatus: 'approved' });
         const filteredData = (data || []).filter((row: any) => row.original_price && row.original_price > row.price);
-        
-        const validProducts = filteredData.map((row: any) => {
-            const images = row.images?.map((img: any) => typeof img === 'string' ? img : img.image_url) || [];
-            const primaryImage = images[0] || row.primary_image || '';
 
-            return {
-                id: row.id,
-                name: row.name,
-                price: row.price,
-                originalPrice: row.original_price,
-                image: primaryImage,
-                images: images,
-                seller: row.seller?.store_name || 'Generic Store',
-                sellerId: row.seller_id || row.seller?.id,
-                sellerVerified: !!row.seller?.verified_at,
-                category: row.category?.name || 'General',
-                sold: row.sold || 0,
-                stock: row.stock || 10
-            } as any;
+        const validProducts = filteredData.map((row: any) => {
+          const images = row.images?.map((img: any) => typeof img === 'string' ? img : img.image_url) || [];
+          const primaryImage = images[0] || row.primary_image || '';
+
+          return {
+            id: row.id,
+            name: row.name,
+            price: row.price,
+            originalPrice: row.original_price,
+            image: primaryImage,
+            images: images,
+            seller: row.seller?.store_name || 'Generic Store',
+            sellerId: row.seller_id || row.seller?.id,
+            sellerVerified: !!row.seller?.verified_at,
+            category: row.category?.name || 'General',
+            sold: row.sold || 0,
+            stock: row.stock || 10
+          } as any;
         });
 
         if (validProducts.length === 0 && data && data.length > 0) {
@@ -99,18 +99,18 @@ const HomePage: React.FC = () => {
             const primaryImage = images[0] || row.primary_image || '';
 
             return {
-                id: row.id,
-                name: row.name,
-                price: row.price,
-                originalPrice: row.price * 1.5,
-                image: primaryImage,
-                images: images,
-                seller: row.seller?.store_name || 'Generic Store',
-                sellerId: row.seller_id || row.seller?.id,
-                sellerVerified: !!row.seller?.verified_at,
-                category: row.category?.name || 'General',
-                sold: row.sold || 0,
-                stock: row.stock || 10
+              id: row.id,
+              name: row.name,
+              price: row.price,
+              originalPrice: row.price * 1.5,
+              image: primaryImage,
+              images: images,
+              seller: row.seller?.store_name || 'Generic Store',
+              sellerId: row.seller_id || row.seller?.id,
+              sellerVerified: !!row.seller?.verified_at,
+              category: row.category?.name || 'General',
+              sold: row.sold || 0,
+              stock: row.stock || 10
             } as any;
           });
           setFlashSaleProducts(validRealProducts);

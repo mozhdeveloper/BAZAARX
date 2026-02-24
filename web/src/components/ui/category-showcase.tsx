@@ -1,14 +1,15 @@
-'use client';
-
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface CategoryShowcaseProps {
 	onExploreClick?: () => void;
 }
 
 export function CategoryShowcase({ onExploreClick }: CategoryShowcaseProps) {
+	const navigate = useNavigate();
 	const categories = [
 		{
 			id: 'fashion',
@@ -58,17 +59,17 @@ export function CategoryShowcase({ onExploreClick }: CategoryShowcaseProps) {
 		<section className="py-20 px-6 bg-white">
 			<div className="max-w-7xl mx-auto">
 				{/* Header */}
-				<motion.div 
+				<motion.div
 					initial={{ opacity: 0, y: 20 }}
 					whileInView={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.6 }}
 					className="text-center mb-16"
 				>
-					<h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+					<h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 font-primary">
 						Shop by Category
 					</h2>
 					<p className="text-xl text-gray-600 max-w-3xl mx-auto">
-						From fashion to electronics, discover everything you need in one place. 
+						From fashion to electronics, discover everything you need in one place.
 						Each category is carefully curated with the best products from trusted sellers.
 					</p>
 				</motion.div>
@@ -83,8 +84,9 @@ export function CategoryShowcase({ onExploreClick }: CategoryShowcaseProps) {
 							transition={{ duration: 0.6, delay: index * 0.1 }}
 							whileHover={{ y: -8, scale: 1.02 }}
 							className="group cursor-pointer"
+							onClick={() => navigate(`/shop?category=${encodeURIComponent(category.name)}`)}
 						>
-							<div className="relative overflow-hidden rounded-2xl bg-white shadow-lg hover:shadow-xl transition-all duration-300">
+							<div className="relative overflow-hidden rounded-2xl bg-white shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
 								<div className="aspect-[4/3] overflow-hidden">
 									<img
 										src={category.image}
@@ -93,9 +95,9 @@ export function CategoryShowcase({ onExploreClick }: CategoryShowcaseProps) {
 									/>
 									<div className={`absolute inset-0 bg-gradient-to-t ${category.color} opacity-20 group-hover:opacity-30 transition-opacity duration-300`} />
 								</div>
-								
+
 								<div className="p-6">
-									<h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-[#FF6A00] transition-colors">
+									<h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-[var(--brand-primary)] transition-colors">
 										{category.name}
 									</h3>
 									<p className="text-gray-600 text-sm">
@@ -111,16 +113,16 @@ export function CategoryShowcase({ onExploreClick }: CategoryShowcaseProps) {
 				</div>
 
 				{/* Explore Button */}
-				<motion.div 
+				<motion.div
 					initial={{ opacity: 0, scale: 0.95 }}
 					whileInView={{ opacity: 1, scale: 1 }}
 					transition={{ duration: 0.6 }}
 					className="text-center"
 				>
 					<Button
-						onClick={onExploreClick}
+						onClick={onExploreClick || (() => navigate('/shop'))}
 						size="lg"
-						className="bg-[#FF6A00] hover:bg-[#D94F00] text-white px-8 py-4 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 group"
+						className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white px-8 py-4 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 group"
 					>
 						Explore All Categories
 						<ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />

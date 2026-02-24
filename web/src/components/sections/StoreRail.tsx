@@ -26,10 +26,10 @@ const StoreRail: React.FC<StoreRailProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="grid lg:grid-cols-12 gap-10 items-center">
-          {/* Left Side: Store Cards */}
-          <div className="lg:col-span-8">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {stores.map((store, index) => (
+          {/* Left Side: Store Cards (Appears second on mobile) */}
+          <div className="lg:col-span-8 order-2 lg:order-1">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+              {stores.slice(0, 3).map((store, index) => (
                 <StoreCard
                   key={store.id}
                   store={store}
@@ -39,12 +39,12 @@ const StoreRail: React.FC<StoreRailProps> = ({
             </div>
           </div>
 
-          {/* Right Side: Descriptive Content */}
+          {/* Right Side: Descriptive Content (Appears first on mobile) */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="lg:col-span-4"
+            className="lg:col-span-4 order-1 lg:order-2 mb-8 lg:mb-0"
           >
             <motion.div
               initial={{ opacity: 0, y: -20 }}

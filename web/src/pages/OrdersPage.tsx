@@ -449,8 +449,8 @@ export default function OrdersPage() {
                         e.stopPropagation();
                         navigate(`/seller/${(order as any).sellerId}`);
                       }}>
-                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722] transition-colors">{(order as any).storeName}</span>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover/store:text-[#FF5722] transition-colors" />
+                        <span className="font-bold text-gray-900 group-hover/store:text-[var(--brand-accent)] transition-colors">{(order as any).storeName}</span>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover/store:text-[var(--brand-accent)] transition-colors" />
                       </div>
 
                       <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
@@ -526,7 +526,7 @@ export default function OrdersPage() {
                                 {order.review.images.map((img, idx) => (
                                   <div
                                     key={idx}
-                                    className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#FF6a00] transition-all"
+                                    className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:ring-2 hover:ring-[var(--brand-accent)] transition-all"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setViewImage(img);
@@ -759,7 +759,7 @@ export default function OrdersPage() {
                               onClick={() => setViewReturnDetails(order)}
                               variant="outline"
                               size="sm"
-                              className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
+                              className="border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)]"
                             >
                               <Eye className="w-4 h-4 mr-1" />
                               View Details
@@ -1111,7 +1111,7 @@ export default function OrdersPage() {
                         <span className="text-sm font-medium text-gray-700">
                           Refund Amount:
                         </span>
-                        <p className="text-[#FF6a00] font-bold text-lg">
+                        <p className="text-[var(--brand-accent)] font-bold text-lg">
                           ₱
                           {viewReturnDetails.returnRequest.refundAmount.toLocaleString()}
                         </p>
@@ -1223,7 +1223,7 @@ export default function OrdersPage() {
                     className={cn(
                       "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
                       cancelReason === reason
-                        ? "border-[#FF5722] bg-orange-50"
+                        ? "border-[var(--brand-accent)] bg-[var(--brand-wash)]"
                         : "border-gray-200 hover:border-gray-300"
                     )}
                   >
@@ -1233,7 +1233,7 @@ export default function OrdersPage() {
                       value={reason}
                       checked={cancelReason === reason}
                       onChange={(e) => setCancelReason(e.target.value)}
-                      className="accent-[#FF5722]"
+                      className="accent-[var(--brand-accent)]"
                     />
                     <span className="text-sm text-gray-700">{reason}</span>
                   </label>
@@ -1246,7 +1246,7 @@ export default function OrdersPage() {
                   placeholder="Please specify your reason..."
                   value={otherReason}
                   onChange={(e) => setOtherReason(e.target.value)}
-                  className="w-full p-3 border rounded-lg text-sm mb-4 focus:ring-2 focus:ring-[#FF5722] focus:outline-none"
+                  className="w-full p-3 border rounded-lg text-sm mb-4 focus:ring-2 focus:ring-[var(--brand-accent)] focus:outline-none"
                   rows={2}
                 />
               )}
@@ -1283,6 +1283,6 @@ export default function OrdersPage() {
       </AnimatePresence>
 
       <BazaarFooter />
-    </div>
+    </div >
   );
 }

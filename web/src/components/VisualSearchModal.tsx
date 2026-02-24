@@ -155,8 +155,8 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-lg font-bold">Visual Search</h2>
+          <div className="flex items-center justify-between p-4">
+            <h2 className="text-lg font-bold ml-4">Visual Search</h2>
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
               <X className="w-5 h-5 text-gray-500" />
             </button>
@@ -165,12 +165,19 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
           <div className="flex-1 overflow-y-auto p-6">
             {!previewUrl ? (
               // --- UPLOAD STATE ---
-              <div className="max-w-2xl mx-auto mt-8">
+              <div className="max-w-2xl mx-auto -mt-6">
                 <div className="flex gap-2 mb-4 justify-center">
-                  <Button variant={inputMode === 'upload' ? 'default' : 'outline'} onClick={() => setInputMode('upload')} className={inputMode === 'upload' ? 'bg-orange-500 hover:bg-orange-600' : ''}>
+                  <Button variant={inputMode === 'upload' ? 'default' : 'outline'} onClick={() => setInputMode('upload')} className={inputMode === 'upload' ? 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]' : ''}>
                     <ImagePlus className="w-4 h-4 mr-2" /> Upload Image
                   </Button>
-                  <Button variant={inputMode === 'url' ? 'default' : 'outline'} onClick={() => setInputMode('url')} className={inputMode === 'url' ? 'bg-orange-500 hover:bg-orange-600' : ''}>
+                  <Button
+                    variant={inputMode === 'url' ? 'default' : 'outline'}
+                    onClick={() => setInputMode('url')}
+                    className={inputMode === 'url'
+                      ? 'bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)]'
+                      : 'hover:bg-[var(--brand-accent)] hover:text-white transition-all'
+                    }
+                  >
                     <LinkIcon className="w-4 h-4 mr-2" /> Paste URL
                   </Button>
                 </div>
@@ -186,13 +193,13 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                 {inputMode === 'upload' ? (
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex h-64 cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-orange-400 transition-all"
+                    className="flex h-64 cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-[var(--brand-primary)] transition-all"
                   >
-                    <div className="rounded-full bg-white p-4 shadow-sm"><ImagePlus className="h-8 w-8 text-gray-500" /></div>
+                    <div><ImagePlus className="h-8 w-8 text-gray-500" /></div>
                     <div className="text-center">
                       <p className="text-lg font-medium text-gray-700">Upload Product Image</p>
                       <p className="text-sm text-gray-500 mt-1">
-                        Click to browse, drag & drop, or <span className="font-bold text-orange-500">Ctrl+V</span> to paste
+                        Click to browse, drag & drop, or <span className="font-bold text-[var(--brand-primary)]">Ctrl+V</span> to paste
                       </p>
                     </div>
                   </div>
@@ -209,7 +216,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                     <Button
                       onClick={handleUrlSearch}
                       disabled={isSearching || !imageUrlInput.trim()}
-                      className="bg-orange-500 hover:bg-orange-600"
+                      className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                     >
                       {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Search URL"}
                     </Button>
@@ -234,7 +241,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                     {isSearching && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-sm z-50">
                         <div className="bg-white px-6 py-4 rounded-xl flex items-center gap-3">
-                          <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+                          <Loader2 className="w-5 h-5 text-[var(--brand-primary)] animate-spin" />
                           <span className="font-semibold text-gray-800">Analyzing image...</span>
                         </div>
                       </div>
@@ -257,7 +264,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                               className={cn(
                                 "px-4 py-2 rounded-full text-sm font-bold transition-all capitalize",
                                 isActive
-                                  ? "bg-orange-500 text-white shadow-md"
+                                  ? "bg-[var(--brand-primary)] text-white shadow-md"
                                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                               )}
                             >
@@ -280,7 +287,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                     // State: Nothing Selected (Failsafe)
                     <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                       <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4">
-                        <Tag className="w-8 h-8 text-orange-400" />
+                        <Tag className="w-8 h-8 text-[var(--brand-primary)]" />
                       </div>
                       <h3 className="text-xl font-bold text-gray-800 mb-2">Select an Item</h3>
                       <p className="text-gray-500">Select one of the detected item tabs below the image to view similar products from our catalog.</p>
@@ -289,7 +296,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                     // State: Item Selected, Show Matches
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col h-full">
                       <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2 capitalize">
-                        <Package className="w-5 h-5 text-orange-500" /> Similar {activeObject.object_label}s
+                        <Package className="w-5 h-5 text-[var(--brand-primary)]" /> Similar {activeObject.object_label}s
                       </h3>
 
                       <div className="grid grid-cols-2 gap-4 overflow-y-auto pr-2 max-h-[500px]">
@@ -297,12 +304,12 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                           <div
                             key={product.id}
                             onClick={() => { onClose(); navigate(`/product/${product.id}`); }}
-                            className="bg-white border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-orange-400 hover:shadow-md transition-all"
+                            className="bg-white border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[var(--brand-primary)] hover:shadow-md transition-all"
                           >
                             <img src={product.primary_image_url || 'https://via.placeholder.com/200'} alt={product.name} className="w-full aspect-square object-cover bg-gray-100" />
                             <div className="p-3">
                               <h4 className="font-medium text-sm text-gray-900 line-clamp-2 mb-2">{product.name}</h4>
-                              <p className="text-orange-600 font-bold">₱{(product.price || 0).toLocaleString()}</p>
+                              <p className="text-[var(--brand-primary)] font-bold">₱{(product.price || 0).toLocaleString()}</p>
                             </div>
                           </div>
                         ))}
@@ -314,7 +321,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                       <Package className="w-12 h-12 text-gray-400 mb-4" />
                       <h3 className="text-lg font-bold text-gray-900 mb-2">No exact match</h3>
                       <p className="text-gray-500 mb-6">We couldn't find this {activeObject.object_label} in our catalog.</p>
-                      <Button onClick={() => { onClose(); onRequestProduct(); }} className="bg-orange-500">
+                      <Button onClick={() => { onClose(); onRequestProduct(); }} className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]">
                         Request This Product
                       </Button>
                     </div>

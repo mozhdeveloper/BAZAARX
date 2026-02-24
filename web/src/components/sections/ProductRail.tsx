@@ -72,16 +72,16 @@ const ProductRail: React.FC<ProductRailProps> = ({
                   onActionClick?.();
                 }
               }}
-              className="mt-6 inline-flex items-center gap-2 px-8 py-4 bg-[#EA580C] text-white font-bold text-lg rounded-full hover:bg-orange-700 hover:-translate-y-1 transition-all shadow-lg shadow-orange-500/30"
+              className="group flex items-center gap-2 text-[var(--text-headline)] font-medium text-lg hover:text-[var(--brand-primary)] transition-colors mt-6"
             >
-              <span>{actionLabel}</span>
+              <span className="transition-all">{actionLabel}</span>
               <svg
                 width="20" height="20" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                 className="group-hover:translate-x-1 transition-transform"
               >
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-                <polyline points="12 5 19 12 12 19"></polyline>
+                <line x1="7" y1="17" x2="17" y2="7"></line>
+                <polyline points="7 7 17 7 17 17"></polyline>
               </svg>
             </Link>
           </motion.div>
