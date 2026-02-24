@@ -137,6 +137,7 @@ export interface SellerVerificationDocuments {
   dti_registration_url: string | null;
   tax_id_url: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Admin {

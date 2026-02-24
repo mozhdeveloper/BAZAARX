@@ -108,6 +108,7 @@ export interface SellerDocument {
   isVerified: boolean;
   isRejected?: boolean;
   rejectionReason?: string;
+  wasResubmitted?: boolean;
 }
 
 export interface SellerMetrics {
@@ -129,6 +130,7 @@ interface SellerRejectionRecord {
   items?: {
     document_field: SellerDocumentField;
     reason: string | null;
+    created_at: string | null;
   }[];
 }
 
@@ -661,7 +663,7 @@ export const useAdminSellers = create<SellersState>()(
                   rejection_type,
                   created_at,
                   created_by,
-                  items:seller_rejection_items(document_field, reason)
+                  items:seller_rejection_items(document_field, reason, created_at)
                 `)
                 .in('seller_id', sellerIds)
                 .order('created_at', { ascending: false });
@@ -691,12 +693,45 @@ export const useAdminSellers = create<SellersState>()(
               const fallbackVerificationDocuments = verificationDocsBySeller.get(seller.id) || {};
               const latestRejection = latestRejectionsBySeller.get(seller.id);
               const status = toUiSellerStatus(seller.approval_status, latestRejection?.rejection_type);
+              const shouldShowDocumentRejectionFeedback =
+                status === 'needs_resubmission' && latestRejection?.rejection_type === 'partial';
+              const verificationUpdatedAt =
+                verificationDocuments?.updated_at ||
+                fallbackVerificationDocuments?.updated_at ||
+                verificationDocuments?.created_at ||
+                fallbackVerificationDocuments?.created_at ||
+                null;
+              const verificationUpdatedAtMs = verificationUpdatedAt
+                ? new Date(verificationUpdatedAt).getTime()
+                : null;
 
-              const rejectionItemsMap = new Map<SellerDocumentField, string | undefined>();
-              if (latestRejection?.rejection_type === 'partial' && Array.isArray(latestRejection.items)) {
+              const rejectionItemsMap = new Map<
+                SellerDocumentField,
+                { reason?: string; createdAt?: string }
+              >();
+              const resubmittedItems = new Set<SellerDocumentField>();
+              if (shouldShowDocumentRejectionFeedback && Array.isArray(latestRejection.items)) {
                 for (const item of latestRejection.items) {
                   if (!item?.document_field) continue;
-                  rejectionItemsMap.set(item.document_field, item.reason || undefined);
+
+                  const itemCreatedAtMs = item.created_at
+                    ? new Date(item.created_at).getTime()
+                    : null;
+
+                  const wasUpdatedAfterRejection =
+                    Number.isFinite(verificationUpdatedAtMs) &&
+                    Number.isFinite(itemCreatedAtMs) &&
+                    (verificationUpdatedAtMs as number) > (itemCreatedAtMs as number);
+
+                  if (wasUpdatedAfterRejection) {
+                    resubmittedItems.add(item.document_field);
+                    continue;
+                  }
+
+                  rejectionItemsMap.set(item.document_field, {
+                    reason: item.reason || undefined,
+                    createdAt: item.created_at || undefined,
+                  });
                 }
               }
 
@@ -731,7 +766,7 @@ export const useAdminSellers = create<SellersState>()(
                   seller?.[config.field];
                 if (!url) return acc;
 
-                const rejectionReason = rejectionItemsMap.get(config.field);
+                const rejectionInfo = rejectionItemsMap.get(config.field);
                 acc.push({
                   id: `doc_${config.field}_${seller.id}`,
                   field: config.field,
@@ -745,8 +780,11 @@ export const useAdminSellers = create<SellersState>()(
                       Date.now(),
                   ),
                   isVerified: status === 'approved',
-                  isRejected: Boolean(rejectionReason),
-                  rejectionReason,
+                  isRejected: Boolean(rejectionInfo),
+                  rejectionReason:
+                    rejectionInfo?.reason ||
+                    (rejectionInfo ? latestRejection?.description || undefined : undefined),
+                  wasResubmitted: resubmittedItems.has(config.field),
                 });
 
                 return acc;

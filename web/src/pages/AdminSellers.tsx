@@ -320,6 +320,27 @@ const AdminSellers: React.FC = () => {
     }
   };
 
+  const getResubmissionReviewBadge = (seller: Seller) => {
+    const hasPendingResubmissionItems = seller.documents.some((doc) => doc.isRejected);
+
+    if (hasPendingResubmissionItems) {
+      return (
+        <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+          Waiting for Seller
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+        Ready for Review
+      </Badge>
+    );
+  };
+
+  const hasPendingResubmissionItems = (seller: Seller) =>
+    seller.documents.some((doc) => doc.isRejected);
+
   const SellerAvatar = ({
     logo,
     name,
@@ -356,9 +377,11 @@ const AdminSellers: React.FC = () => {
     ({
       seller,
       showActions = false,
+      showResubmissionState = false,
     }: {
       seller: Seller;
       showActions?: boolean;
+      showResubmissionState?: boolean;
     }) => (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -384,8 +407,14 @@ const AdminSellers: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {getStatusIcon(seller.status)}
-                {getStatusBadge(seller.status)}
+                {showResubmissionState && seller.status === "needs_resubmission" ? (
+                  getResubmissionReviewBadge(seller)
+                ) : (
+                  <>
+                    {getStatusIcon(seller.status)}
+                    {getStatusBadge(seller.status)}
+                  </>
+                )}
               </div>
             </div>
 
@@ -494,6 +523,65 @@ const AdminSellers: React.FC = () => {
                     <AlertTriangle className="w-4 h-4 mr-1" />
                     Partial Reject
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      selectSeller(seller);
+                      setShowRejectDialog(true);
+                    }}
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                  >
+                    <XCircle className="w-4 h-4 mr-1" />
+                    Reject
+                  </Button>
+                </>
+              )}
+
+              {showActions && seller.status === "needs_resubmission" && (
+                <>
+                  {hasCompleteRequirements(seller) && !hasPendingResubmissionItems(seller) ? (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        selectSeller(seller);
+                        setShowApproveDialog(true);
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      Approve
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled
+                      className="bg-gray-300 cursor-not-allowed"
+                      title={
+                        hasPendingResubmissionItems(seller)
+                          ? "Seller still needs to resubmit flagged documents"
+                          : "Seller has incomplete requirements"
+                      }
+                    >
+                      <AlertTriangle className="w-4 h-4 mr-1" />
+                      Waiting
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      selectSeller(seller);
+                      initializePartialReject(seller);
+                      setShowPartialRejectDialog(true);
+                    }}
+                    className="text-amber-700 border-amber-300 hover:bg-amber-50"
+                  >
+                    <AlertTriangle className="w-4 h-4 mr-1" />
+                    Partial Reject
+                  </Button>
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -686,7 +774,12 @@ const AdminSellers: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <AnimatePresence mode="popLayout">
                   {resubmissionSellers.map((seller) => (
-                    <SellerCard key={seller.id} seller={seller} />
+                    <SellerCard
+                      key={seller.id}
+                      seller={seller}
+                      showActions={true}
+                      showResubmissionState={true}
+                    />
                   ))}
                 </AnimatePresence>
               </div>
@@ -1037,6 +1130,10 @@ const AdminSellers: React.FC = () => {
                           {doc.isRejected ? (
                             <Badge className="bg-red-100 text-red-700 border-red-200">
                               Needs Update
+                            </Badge>
+                          ) : doc.wasResubmitted ? (
+                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                              Resubmitted
                             </Badge>
                           ) : (
                             <Badge

@@ -209,8 +209,9 @@ export function SellerStoreProfile() {
     rejectionType: "full" | "partial";
     description?: string;
     createdAt: string;
-    items: { documentField: string; reason?: string }[];
+    items: { documentField: string; reason?: string; createdAt?: string }[];
   } | null>(null);
+  const [documentsUpdatedAt, setDocumentsUpdatedAt] = useState<string | null>(null);
 
   const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string }[] = [
     { value: "sole_proprietor", label: "Sole Proprietorship" },
@@ -355,13 +356,14 @@ export function SellerStoreProfile() {
         // Fetch verification documents from separate table
         const { data: docData, error: docError } = await supabase
           .from("seller_verification_documents")
-          .select("business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url")
+          .select("business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, updated_at")
           .eq("seller_id", seller.id)
           .maybeSingle();
 
         if (docError && docError.code !== 'PGRST116') { // PGRST116 = no rows
           console.error("Error fetching seller documents:", docError);
         } else if (docData) {
+          setDocumentsUpdatedAt(docData.updated_at || null);
           setDocuments({
             businessPermitUrl: docData.business_permit_url || undefined,
             validIdUrl: docData.valid_id_url || undefined,
@@ -374,7 +376,7 @@ export function SellerStoreProfile() {
         const { data: rejectionData, error: rejectionError } = await supabase
           .from("seller_rejections")
           .select(
-            "description, rejection_type, created_at, items:seller_rejection_items(document_field, reason)",
+            "description, rejection_type, created_at, items:seller_rejection_items(document_field, reason, created_at)",
           )
           .eq("seller_id", seller.id)
           .order("created_at", { ascending: false })
@@ -393,9 +395,11 @@ export function SellerStoreProfile() {
             items: (rejectionData.items || []).map((item: {
               document_field: string;
               reason: string | null;
+              created_at: string | null;
             }) => ({
               documentField: item.document_field,
               reason: item.reason || undefined,
+              createdAt: item.created_at || undefined,
             })),
           });
         } else {
@@ -442,8 +446,11 @@ export function SellerStoreProfile() {
         .eq("seller_id", seller.id)
         .single();
 
+      const uploadTimestamp = new Date().toISOString();
+
       const updateData: Record<string, string> = {
         [columnName]: documentUrl,
+        updated_at: uploadTimestamp,
       };
 
       let error;
@@ -474,8 +481,24 @@ export function SellerStoreProfile() {
         ...prev,
         [docKey]: documentUrl,
       }));
+      setDocumentsUpdatedAt(uploadTimestamp);
 
-      alert("Document uploaded successfully!");
+      setLatestRejection((prev) => {
+        if (!prev || prev.rejectionType !== "partial") {
+          return prev;
+        }
+
+        const nextItems = prev.items.filter(
+          (item) => item.documentField !== columnName,
+        );
+
+        return {
+          ...prev,
+          items: nextItems,
+        };
+      });
+
+      alert("Document uploaded. This file has been marked as resubmitted.");
     } catch (error) {
       console.error("Error uploading document:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to upload document. Please try again.";
@@ -500,7 +523,20 @@ export function SellerStoreProfile() {
 
     if (!item) return undefined;
 
-    return item?.reason || latestRejection.description;
+    if (documentsUpdatedAt && item.createdAt) {
+      const docUpdatedAtValue = new Date(documentsUpdatedAt).getTime();
+      const itemCreatedAtValue = new Date(item.createdAt).getTime();
+
+      if (
+        Number.isFinite(docUpdatedAtValue) &&
+        Number.isFinite(itemCreatedAtValue) &&
+        docUpdatedAtValue > itemCreatedAtValue
+      ) {
+        return undefined;
+      }
+    }
+
+    return item.reason || latestRejection.description;
   };
 
   const requiresResubmission =
