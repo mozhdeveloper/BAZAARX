@@ -94,6 +94,7 @@ export interface Product {
   name: string;
   price: number;
   originalPrice?: number;
+  stock: number;
   image: string;
   images: string[];
   seller: Seller;
@@ -403,6 +404,7 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
   return {
     id: dbProduct.id,
     name: dbProduct.name,
+    stock: dbProduct.stock || 0,
     price: selectedVariant?.price || dbProduct.price,
     originalPrice: dbProduct.original_price,
     image: selectedVariant?.image || productImageUrl,
@@ -865,23 +867,37 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     updateCartQuantity: async (productId, quantity, variantId) => {
-      if (quantity <= 0) {
+      // Find the specific item to check its current stock levels
+      const item = get().cartItems.find(i => 
+        i.id === productId && i.selectedVariant?.id === variantId
+      );
+      
+      if (!item) return;
+
+      // 1. Enforce Stock Limit: Determine the max allowed based on available stock
+      // Checks variant-specific stock first, then falls back to base product stock
+      const maxStock = item.selectedVariant?.stock ?? item.stock ?? 0;
+      const sanitizedQuantity = Math.min(Math.max(0, quantity), maxStock);
+
+      // 2. If quantity is set to 0, trigger removal
+      if (sanitizedQuantity <= 0) {
         get().removeFromCart(productId, variantId);
         return;
       }
 
       const previousCartItems = get().cartItems;
 
-      // Optimistic Update
+      // 3. Optimistic Update: Update UI immediately using the sanitized quantity
       set((state) => ({
-        cartItems: state.cartItems.map(item =>
-          (item.id === productId && item.selectedVariant?.id === variantId)
-            ? { ...item, quantity }
-            : item
+        cartItems: state.cartItems.map(i =>
+          (i.id === productId && i.selectedVariant?.id === variantId)
+            ? { ...i, quantity: sanitizedQuantity }
+            : i
         )
       }));
       get().groupCartBySeller();
 
+      // 4. Background Sync: Update the database without refetching the whole list
       const user = await getCurrentUser();
       if (user) {
         try {
@@ -894,13 +910,15 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             );
 
             if (itemToUpdate) {
-              await cartService.updateCartItemQuantity(itemToUpdate.id, quantity);
-              // Removed full silent refetch to prevent race conditions during rapid clicking
+              await cartService.updateCartItemQuantity(itemToUpdate.id, sanitizedQuantity);
+              // Note: Full silent refetch is intentionally omitted here to prevent 
+              // race conditions/state jumping during rapid user clicks.
             }
           }
         } catch (error) {
-          console.error('Error updating quantity:', error);
-          set({ cartItems: previousCartItems }); // Rollback
+          console.error('Error updating quantity in database:', error);
+          // Rollback local state on sync failure
+          set({ cartItems: previousCartItems });
           get().groupCartBySeller();
         }
       }
