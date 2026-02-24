@@ -50,6 +50,7 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '1',
+        cartItemId: 'cart-1',
         name: 'Premium Wireless Earbuds - Noise Cancelling',
         price: 2499,
         originalPrice: 3999,
@@ -89,6 +90,7 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '2',
+        cartItemId: 'cart-2',
         name: 'Sustainable Water Bottle - BPA Free',
         price: 899,
         image: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400',
@@ -127,6 +129,7 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '3',
+        cartItemId: 'cart-3',
         name: 'Minimalist Leather Wallet - Genuine Leather',
         price: 1299,
         image: 'https://images.unsplash.com/photo-1627123424574-724758594e93?w=400',
@@ -165,6 +168,7 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '4',
+        cartItemId: 'cart-4',
         name: 'Smart Watch - Fitness Tracker',
         price: 3599,
         originalPrice: 4999,
@@ -205,6 +209,7 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '5',
+        cartItemId: 'cart-5',
         name: 'Organic Cotton T-Shirt - Unisex',
         price: 599,
         image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
@@ -243,6 +248,7 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '6',
+        cartItemId: 'cart-6',
         name: 'Portable Bluetooth Speaker - Waterproof',
         price: 1899,
         originalPrice: 2499,
@@ -282,6 +288,7 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '7',
+        cartItemId: 'cart-7',
         name: 'Wireless Gaming Mouse - RGB',
         price: 1599,
         originalPrice: 2299,
@@ -321,6 +328,7 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '8',
+        cartItemId: 'cart-8',
         name: 'Stainless Steel Water Tumbler 500ml',
         price: 699,
         image: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400',

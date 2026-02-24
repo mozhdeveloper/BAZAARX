@@ -154,7 +154,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             {firstItem.name}
           </Text>
           {/* Display variant information with dynamic labels */}
-          {firstItem.selectedVariant && (firstItem.selectedVariant.option1Value || firstItem.selectedVariant.option2Value || firstItem.selectedVariant.size || firstItem.selectedVariant.color) && (
+          {'selectedVariant' in firstItem && firstItem.selectedVariant && (firstItem.selectedVariant.option1Value || firstItem.selectedVariant.option2Value || firstItem.selectedVariant.size || firstItem.selectedVariant.color) && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 4 }}>
               {/* Dynamic option 1 */}
               {firstItem.selectedVariant.option1Value && (

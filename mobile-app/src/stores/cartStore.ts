@@ -20,6 +20,8 @@ interface CartStore {
   updateItemVariant: (cartItemId: string, variantId?: string, options?: any) => Promise<void>;
   removeItems: (cartItemIds: string[]) => Promise<void>;
   clearCart: () => void;
+  getTotal: () => number;
+  getItemCount: () => number;
 
   // Quick Order (Buy Now)
   quickOrder: CartItem | null;
