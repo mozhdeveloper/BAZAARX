@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, Store, ArrowRight, AlertCircle, Check, Quote, CheckCircle2, Phone, MapPin, Briefcase } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Store, ArrowRight, AlertCircle, Check, Quote, Phone, Briefcase, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/sellerStore';
 import { Button } from '@/components/ui/button';
 
@@ -228,10 +228,11 @@ export function SellerRegister() {
     email: "",
     password: "",
     confirmPassword: "",
+    firstName: "",
+    lastName: "",
     storeName: "",
     storeDescription: "",
-    phone: "",
-    storeAddress: "",
+    storeContact: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -242,9 +243,14 @@ export function SellerRegister() {
   const { register } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
+
+  const validateStoreContact = (value: string) =>
+    /^(\+63|0)?9\d{9}$/.test(value.replace(/\s/g, ""));
 
   const handleNext = () => {
     if (step === 1) {
@@ -262,20 +268,47 @@ export function SellerRegister() {
       }
       setError("");
       setStep(2);
+      return;
+    }
+
+    if (step === 2) {
+      if (!formData.firstName.trim() || !formData.lastName.trim()) {
+        setError("First name and last name are required");
+        return;
+      }
+      setError("");
+      setStep(3);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.storeName) {
+
+    if (!formData.storeName.trim()) {
       setError("Store name is required");
       return;
     }
+    if (!formData.storeContact.trim()) {
+      setError("Store contact is required");
+      return;
+    }
+    if (!validateStoreContact(formData.storeContact)) {
+      setError("Please enter a valid PH contact number");
+      return;
+    }
+
+    const ownerName = `${formData.firstName} ${formData.lastName}`.trim();
+
     setIsLoading(true);
     setError("");
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const success = await register(formData);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const success = await register({
+        ...formData,
+        ownerName,
+        phone: formData.storeContact,
+      });
+
       if (success) {
         setIsLoading(false);
         navigate("/seller");
@@ -291,7 +324,6 @@ export function SellerRegister() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 lg:p-8 font-sans bg-[var(--brand-wash)] relative overflow-hidden">
-      {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[60vh] h-[60vh] bg-[var(--brand-primary)]/5 rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[60vh] h-[60vh] bg-[var(--brand-accent)]/10 rounded-full blur-[100px]" />
@@ -303,47 +335,50 @@ export function SellerRegister() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-[1200px] bg-white rounded-[40px] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] overflow-hidden grid lg:grid-cols-2 min-h-[750px] border border-white/60 relative z-10"
       >
-        {/* Left Side - Testimonial/Brand */}
-        <div className='hidden lg:flex flex-col justify-center p-16 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] relative overflow-hidden'>
+        <div className="hidden lg:flex flex-col justify-center p-16 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] relative overflow-hidden">
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
 
-          <div className='relative z-10 max-w-lg'>
-            <div className='space-y-10'>
-              <Quote className='text-white w-16 h-16 opacity-40 mb-[-2rem]' />
-              <h2 className='text-4xl lg:text-5xl font-serif italic leading-[1.15] text-white drop-shadow-md'>
+          <div className="relative z-10 max-w-lg">
+            <div className="space-y-10">
+              <Quote className="text-white w-16 h-16 opacity-40 mb-[-2rem]" />
+              <h2 className="text-4xl lg:text-5xl font-serif italic leading-[1.15] text-white drop-shadow-md">
                 "BazaarX bridged the gap between my local craft and the global market. The growth has been phenomenal."
               </h2>
-              <div className='flex items-center gap-5 pt-4'>
+              <div className="flex items-center gap-5 pt-4">
                 <div>
-                  <p className='font-bold text-white text-xl'>Juan Dela Cruz</p>
-                  <p className='text-white/80 font-medium'>Premier Online Seller</p>
+                  <p className="font-bold text-white text-xl">Juan Dela Cruz</p>
+                  <p className="text-white/80 font-medium">Premier Online Seller</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right Side - Form */}
-        <div className='p-8 lg:p-16 flex flex-col justify-center bg-white/80 backdrop-blur-sm relative'>
-          <div className='max-w-[480px] mx-auto w-full relative z-10'>
-            <div className='mb-8 text-center'>
-              <div className='w-16 h-16 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-orange-500/20 mx-auto'>
-                <img src='/BazaarX.png' className='h-9 w-9 object-contain brightness-0 invert'></img>
+        <div className="p-8 lg:p-16 flex flex-col justify-center bg-white/80 backdrop-blur-sm relative">
+          <div className="max-w-[480px] mx-auto w-full relative z-10">
+            <div className="mb-8 text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-orange-500/20 mx-auto">
+                <img src="/BazaarX.png" className="h-9 w-9 object-contain brightness-0 invert"></img>
               </div>
-              <h1 className='text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight mb-2'>Join BazaarX</h1>
-              <p className='text-base text-[var(--text-secondary)] font-medium'>Create your seller account to get started.</p>
+              <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight mb-2">Join BazaarX</h1>
+              <p className="text-base text-[var(--text-secondary)] font-medium">Create your seller account to get started.</p>
             </div>
 
-            {/* Stepper */}
-            <div className='flex items-center justify-center gap-4 mb-10'>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-md ${step >= 1 ? 'bg-[var(--brand-primary)] text-white shadow-orange-500/20' : 'bg-white text-gray-400 border border-gray-100'}`}>
+            <div className="flex items-center justify-center gap-4 mb-10">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-md ${step >= 1 ? "bg-[var(--brand-primary)] text-white shadow-orange-500/20" : "bg-white text-gray-400 border border-gray-100"}`}>
                 {step > 1 ? <Check size={18} /> : "1"}
               </div>
-              <div className="w-20 h-1 bg-gray-100 rounded-full overflow-hidden">
-                <motion.div initial={{ width: "0%" }} animate={{ width: step === 2 ? "100%" : "0%" }} className="h-full bg-[var(--brand-primary)]" />
+              <div className="w-16 h-1 bg-gray-100 rounded-full overflow-hidden">
+                <motion.div initial={{ width: "0%" }} animate={{ width: step >= 2 ? "100%" : "0%" }} className="h-full bg-[var(--brand-primary)]" />
               </div>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-md ${step === 2 ? 'bg-[var(--brand-primary)] text-white shadow-orange-500/20' : 'bg-white text-gray-400 border border-gray-100'}`}>
-                2
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-md ${step >= 2 ? "bg-[var(--brand-primary)] text-white shadow-orange-500/20" : "bg-white text-gray-400 border border-gray-100"}`}>
+                {step > 2 ? <Check size={18} /> : "2"}
+              </div>
+              <div className="w-16 h-1 bg-gray-100 rounded-full overflow-hidden">
+                <motion.div initial={{ width: "0%" }} animate={{ width: step >= 3 ? "100%" : "0%" }} className="h-full bg-[var(--brand-primary)]" />
+              </div>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-md ${step >= 3 ? "bg-[var(--brand-primary)] text-white shadow-orange-500/20" : "bg-white text-gray-400 border border-gray-100"}`}>
+                3
               </div>
             </div>
 
@@ -353,8 +388,8 @@ export function SellerRegister() {
               </div>
             )}
 
-            <form className='space-y-6' onSubmit={handleSubmit}>
-              <AnimatePresence mode='wait'>
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <AnimatePresence mode="wait">
                 {step === 1 ? (
                   <motion.div
                     key="step1"
@@ -364,7 +399,7 @@ export function SellerRegister() {
                     transition={{ duration: 0.3 }}
                     className="space-y-5"
                   >
-                    <div className='space-y-2'>
+                    <div className="space-y-2">
                       <label className="text-sm font-bold text-[var(--text-headline)] ml-1">Email Address</label>
                       <div className="relative group">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[var(--brand-primary)] transition-colors" />
@@ -393,9 +428,41 @@ export function SellerRegister() {
                       <span>Next Step</span> <ArrowRight size={20} />
                     </button>
                   </motion.div>
-                ) : (
+                ) : step === 2 ? (
                   <motion.div
                     key="step2"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className="space-y-5"
+                  >
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-[var(--text-headline)] ml-1">First Name</label>
+                      <div className="relative group">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[var(--brand-primary)] transition-colors" />
+                        <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} className="w-full pl-12 px-5 py-4 bg-white border border-gray-200 rounded-xl focus:ring-0 focus:border-[var(--brand-primary)] outline-none transition-all text-sm font-medium" placeholder="Juan" required />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-[var(--text-headline)] ml-1">Last Name</label>
+                      <div className="relative group">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[var(--brand-primary)] transition-colors" />
+                        <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} className="w-full pl-12 px-5 py-4 bg-white border border-gray-200 rounded-xl focus:ring-0 focus:border-[var(--brand-primary)] outline-none transition-all text-sm font-medium" placeholder="Dela Cruz" required />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 mt-6">
+                      <button type="button" onClick={() => setStep(1)} className="flex-1 h-12 rounded-xl font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors text-sm border border-transparent hover:border-gray-200">Back</button>
+                      <button type="button" onClick={handleNext} className="flex-[2] bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 text-white h-12 rounded-xl font-bold shadow-xl shadow-orange-500/20 text-md transition-all active:scale-95 flex items-center justify-center gap-2">
+                        Next Step <ArrowRight size={18} />
+                      </button>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="step3"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
@@ -419,15 +486,15 @@ export function SellerRegister() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-[var(--text-headline)] ml-1">Phone Number</label>
+                      <label className="text-sm font-bold text-[var(--text-headline)] ml-1">Store Contact</label>
                       <div className="relative group">
                         <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[var(--brand-primary)] transition-colors" />
-                        <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full pl-12 px-5 py-4 bg-white border border-gray-200 rounded-xl focus:ring-0 focus:border-[var(--brand-primary)] outline-none transition-all text-sm font-medium" placeholder="+63 912 345 6789" />
+                        <input type="tel" name="storeContact" value={formData.storeContact} onChange={handleChange} className="w-full pl-12 px-5 py-4 bg-white border border-gray-200 rounded-xl focus:ring-0 focus:border-[var(--brand-primary)] outline-none transition-all text-sm font-medium" placeholder="09171234567" required />
                       </div>
                     </div>
 
                     <div className="flex gap-4 mt-6">
-                      <button type="button" onClick={() => setStep(1)} className="flex-1 h-12 rounded-xl font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors text-sm border border-transparent hover:border-gray-200">Back</button>
+                      <button type="button" onClick={() => setStep(2)} className="flex-1 h-12 rounded-xl font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors text-sm border border-transparent hover:border-gray-200">Back</button>
                       <button type="submit" disabled={isLoading} className="flex-[2] bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 text-white h-12 rounded-xl font-bold shadow-xl shadow-orange-500/20 text-md transition-all active:scale-95 flex items-center justify-center">
                         {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Complete Setup"}
                       </button>
@@ -437,8 +504,8 @@ export function SellerRegister() {
               </AnimatePresence>
             </form>
 
-            <div className='mt-10 text-center border-t border-gray-100 pt-6'>
-              <p className='text-gray-500 font-medium text-sm'>
+            <div className="mt-10 text-center border-t border-gray-100 pt-6">
+              <p className="text-gray-500 font-medium text-sm">
                 Already have an account? <Link to="/seller/login" className="text-[var(--brand-primary)] font-bold hover:underline transition-all">Sign in here</Link>
               </p>
             </div>
