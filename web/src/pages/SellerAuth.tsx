@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Eye, EyeOff, Mail, Lock, Store, ArrowRight, AlertCircle, Check, Quote, Phone, Briefcase, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/sellerStore';
+import { resolveSellerLandingPath } from '@/utils/sellerAccess';
 import { Button } from '@/components/ui/button';
 
 export function SellerLogin() {
@@ -35,12 +36,7 @@ export function SellerLogin() {
       const success = await login(email, password);
       if (success) {
         const currentSeller = useAuthStore.getState().seller;
-        const hasSellerAccess =
-          Boolean(currentSeller?.isVerified) ||
-          currentSeller?.approvalStatus === 'verified' ||
-          currentSeller?.approvalStatus === 'approved';
-
-        navigate(hasSellerAccess ? '/seller' : '/seller/unverified');
+        navigate(resolveSellerLandingPath(currentSeller));
       } else {
         setError('Invalid email or password');
       }
@@ -311,7 +307,8 @@ export function SellerRegister() {
 
       if (success) {
         setIsLoading(false);
-        navigate("/seller");
+        const currentSeller = useAuthStore.getState().seller;
+        navigate(resolveSellerLandingPath(currentSeller));
       } else {
         setError("Registration failed. Please try again.");
         setIsLoading(false);
