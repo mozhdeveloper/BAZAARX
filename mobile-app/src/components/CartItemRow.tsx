@@ -12,6 +12,7 @@ interface CartItemRowProps {
   onChange: (val: number) => void;
   onRemove: () => void;
   onEdit?: () => void;
+  onPress?: () => void;
 }
 
 export const CartItemRow: React.FC<CartItemRowProps> = ({
@@ -21,15 +22,20 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
   onChange,
   onRemove,
   onEdit,
+  onPress,
 }) => {
   return (
     <View style={styles.container}>
-      <Image source={{ uri: safeImageUri(item.image) }} style={styles.image} resizeMode="cover" />
+      <Pressable onPress={onPress}>
+        <Image source={{ uri: safeImageUri(item.image) }} style={styles.image} resizeMode="cover" />
+      </Pressable>
 
       <View style={styles.infoContainer}>
-        <Text style={styles.name} numberOfLines={2}>
-          {item.name}
-        </Text>
+        <Pressable onPress={onPress}>
+          <Text style={styles.name} numberOfLines={2}>
+            {item.name}
+          </Text>
+        </Pressable>
         {/* Variant Info (Tap to Edit) */}
         {item.selectedVariant && (
           <Pressable 
@@ -87,19 +93,21 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
           </Pressable>
         )}
 
-        <Text style={styles.seller} numberOfLines={1}>
-          {item.seller}
-        </Text>
-        <View style={styles.priceContainer}>
-          <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#EF4444' } : null]}>
-            ₱{(item.price ?? 0).toLocaleString()}
+        <Pressable onPress={onPress}>
+          <Text style={styles.seller} numberOfLines={1}>
+            {item.seller}
           </Text>
-          {!!item.originalPrice && item.originalPrice > (item.price || 0) && (
-            <Text style={styles.originalPrice}>
-              ₱{item.originalPrice.toLocaleString()}
+          <View style={styles.priceContainer}>
+            <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#EF4444' } : null]}>
+              ₱{(item.price ?? 0).toLocaleString()}
             </Text>
-          )}
-        </View>
+            {!!item.originalPrice && item.originalPrice > (item.price || 0) && (
+              <Text style={styles.originalPrice}>
+                ₱{item.originalPrice.toLocaleString()}
+              </Text>
+            )}
+          </View>
+        </Pressable>
 
         <View style={styles.actionsContainer}>
           <QuantityStepper

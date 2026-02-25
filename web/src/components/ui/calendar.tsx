@@ -13,14 +13,14 @@ export function Calendar({ selected, onSelect }: CalendarProps) {
 
   const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
-  
+
   const monthNames = ["January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
 
   const handleDateClick = (day: number) => {
     const clickedDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
-    
+
     if (!selected.from || (selected.from && selected.to)) {
       onSelect({ from: clickedDate, to: undefined });
     } else if (clickedDate < selected.from) {
@@ -67,15 +67,15 @@ export function Calendar({ selected, onSelect }: CalendarProps) {
         {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
-          const selectedStyle = isSelected(day) ? "bg-[#FF5722] text-white" : "";
-          const rangeStyle = isInRange(day) ? "bg-orange-50 text-[#FF5722]" : "";
+          const selectedStyle = isSelected(day) ? "bg-[var(--brand-accent)] text-white hover:bg-[var(--brand-accent)] hover:text-white hover:font-bold" : "";
+          const rangeStyle = isInRange(day) ? "bg-[var(--brand-accent-light)] text-[var(--brand-primary)]" : "";
 
           return (
             <button
               key={day}
               onClick={() => handleDateClick(day)}
               className={cn(
-                "h-8 w-8 text-xs rounded-md transition-colors hover:bg-orange-100",
+                "h-8 w-8 text-xs rounded-md transition-all hover:bg-[var(--bg-accent-light)] hover:text-[var(--brand-accent)] hover:font-bold",
                 selectedStyle,
                 rangeStyle
               )}

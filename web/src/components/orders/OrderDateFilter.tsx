@@ -48,7 +48,7 @@ export function OrderDateFilter({ onRangeChange }: { onRangeChange: (range: Date
           <span className="text-sm font-medium text-gray-700 group-hover:text-white transition-colors">{activeLabel}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-2 rounded-xl border-orange-100 shadow-xl bg-white" align="end">
+      <PopoverContent className="w-auto p-2 rounded-xl border-0 shadow-xl bg-white" align="end">
         <div className="flex flex-col gap-2">
           {!showCustom ? (
             <>
@@ -81,12 +81,12 @@ export function OrderDateFilter({ onRangeChange }: { onRangeChange: (range: Date
                 onSelect={(range) => setSelectedRange(range)}
               />
               <div className="flex gap-2 p-2 border-t">
-                <Button variant="ghost" size="sm" className="flex-1" onClick={() => setShowCustom(false)}>
+                <Button variant="default" size="sm" className="flex-1 bg-base hover:bg-[var(--brand-accent)] text-[var(--text-headline)] hover:text-white" onClick={() => setShowCustom(false)}>
                   Back
                 </Button>
                 <Button
                   size="sm"
-                  className="flex-1 bg-[var(--brand-accent)] hover:bg-[var(--brand-primary-dark)] text-white"
+                  className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
                   disabled={!selectedRange.from || !selectedRange.to}
                   onClick={handleCustomSubmit}
                 >

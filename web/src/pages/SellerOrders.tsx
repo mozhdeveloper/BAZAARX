@@ -262,7 +262,7 @@ export function SellerOrders() {
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-[var(--secondary-foreground)]">
+                <h1 className="text-3xl font-bold text-[var(--text-headline)]">
                   Orders
                 </h1>
                 <p className="text-sm text-[var(--text-muted)] mt-1">
@@ -339,23 +339,23 @@ export function SellerOrders() {
                   }
                   className="w-full xl:w-auto"
                 >
-                  <TabsList className="bg-white p-0 border-0 flex items-center gap-2 rounded-full shadow-sm">
+                  <TabsList className="bg-white p-2 border-0 flex items-center gap-2 rounded-full shadow-sm">
                     <TabsTrigger
                       value="all"
-                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 font-medium text-xs hover:bg-orange-50 transition-all"
+                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 hover:text-[var(--brand-primary)] font-medium text-xs transition-all"
                     >
                       All Channels
                     </TabsTrigger>
                     <TabsTrigger
                       value="online"
-                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 font-medium text-xs hover:bg-orange-50 transition-all gap-2"
+                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 hover:text-[var(--brand-primary)] font-medium text-xs transition-all gap-2"
                     >
                       <Globe className="h-3 w-3" />
                       Online App
                     </TabsTrigger>
                     <TabsTrigger
                       value="pos"
-                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 font-medium text-xs hover:bg-orange-50 transition-all gap-2"
+                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 hover:text-[var(--brand-primary)] font-medium text-xs transition-all gap-2"
                     >
                       <StoreIcon className="h-3 w-3" />
                       POS / Offline

@@ -181,7 +181,7 @@ export const SidebarLink = ({
     <Link
       to={link.href}
       className={cn(
-        "flex items-center justify-start gap-3 group/sidebar py-3 px-3 rounded-lg min-h-[48px] transition-all duration-200",
+        "flex items-center justify-start gap-3 group/sidebar py-2 px-3 rounded-lg min-h-[48px] transition-all duration-200",
         isActive
           ? "text-[var(--text-accent)] font-bold"
           : "text-gray-700 hover:text-[var(--text-accent)]",

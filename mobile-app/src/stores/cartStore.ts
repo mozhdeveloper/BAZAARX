@@ -208,20 +208,30 @@ export const useCartStore = create<CartStore>()(
              if (!get().cartId) return;
           }
           
+          const verifiedCartId = get().cartId as string;
+          const previousItems = get().items;
+          set(state => ({
+            items: state.items.filter(i => i.cartItemId !== itemId && i.id !== itemId)
+          }));
+
           try {
             // New logic: Check if itemId looks like a UUID (cart item ID) or try to find by product ID
             // Ideally we should move to only using cartItemId
             // For now, if itemId exists in our local items as cartItemId, use that
-            const item = get().items.find(i => i.cartItemId === itemId);
+            const item = previousItems.find(i => i.cartItemId === itemId);
             if (item) {
                await cartService.removeFromCart(item.cartItemId);
             } else {
                // Fallback for legacy calls using productId: try to find item by productId
-               await cartService.removeItem(get().cartId!, itemId);
+               await cartService.removeItem(verifiedCartId, itemId);
             }
             
-            await get().initializeForCurrentUser();
+            // Background refresh to catch any sync adjustments
+            const rawItems = await cartService.getCartItems(verifiedCartId);
+            set({ items: mapDbCartItemsToCartItems(rawItems) });
           } catch (e) {
+            // Rollback on error
+            set({ items: previousItems });
             console.error('[CartStore] Failed to remove item:', e);
           }
         };
@@ -240,16 +250,32 @@ export const useCartStore = create<CartStore>()(
             return get().removeItem(itemId);
           }
 
+          // Optimistic update
+          const previousItems = get().items;
+          set(state => ({
+            items: state.items.map(i => 
+              (i.cartItemId === itemId || i.id === itemId) 
+                ? { ...i, quantity } 
+                : i
+            )
+          }));
+
           try {
-             const item = get().items.find(i => i.cartItemId === itemId);
+             // We know cartId exists because of the check above
+             const verifiedCartId = cartId as string;
+             const item = previousItems.find(i => i.cartItemId === itemId);
              if (item) {
                 await cartService.updateCartItemQuantity(item.cartItemId, quantity);
              } else {
-                await cartService.updateQuantity(get().cartId!, itemId, quantity);
+                await cartService.updateQuantity(verifiedCartId, itemId, quantity);
              }
             
-            await get().initializeForCurrentUser();
+            // Background refresh to catch any stock sync/rounding adjustments
+            const rawItems = await cartService.getCartItems(verifiedCartId);
+            set({ items: mapDbCartItemsToCartItems(rawItems) });
           } catch (e) {
+            // Rollback on error
+            set({ items: previousItems });
             console.error('[CartStore] Failed to update quantity:', e);
           }
         };
@@ -278,10 +304,15 @@ export const useCartStore = create<CartStore>()(
         const run = async () => {
           const cartId = get().cartId;
           if (!cartId) return;
+          
+          const previousItems = get().items;
+          set({ items: [] });
+          
           try {
             await cartService.clearCart(cartId);
-            set({ items: [] });
           } catch (e) {
+            // Rollback on error
+            set({ items: previousItems });
             console.error('[CartStore] Failed to clear cart:', e);
           }
         };
@@ -291,12 +322,23 @@ export const useCartStore = create<CartStore>()(
       removeItems: async (cartItemIds: string[]) => {
         if (!cartItemIds || cartItemIds.length === 0) return;
         
+        const previousItems = get().items;
+        set(state => ({
+          items: state.items.filter(i => !cartItemIds.includes(i.cartItemId) && !cartItemIds.includes(i.id))
+        }));
+
         try {
           await cartService.removeItems(cartItemIds);
           
-          // Optimistic update or refresh
-          await get().initializeForCurrentUser();
+          // Background refresh
+          const cartId = get().cartId;
+          if (cartId) {
+            const rawItems = await cartService.getCartItems(cartId);
+            set({ items: mapDbCartItemsToCartItems(rawItems) });
+          }
         } catch (e) {
+          // Rollback on error
+          set({ items: previousItems });
           console.error('[CartStore] Failed to remove multiple items:', e);
            set({ error: 'Failed to delete selected items' });
         }

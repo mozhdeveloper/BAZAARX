@@ -73,23 +73,31 @@ export const BaseSellerSidebar = ({
 
   return (
     <Sidebar open={open} setOpen={setOpen}>
-      <SidebarBody className="justify-between gap-4 bg-white z-50 transition-all duration-300">
+      <SidebarBody className="justify-between gap-1 bg-white z-50 transition-all duration-300">
         <SellerLogo open={open} subtitle={subtitle} homeHref={homeHref} />
 
-        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pt-2">
-          <div className="mt-2 flex flex-col gap-2">
+        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pt-1">
+          <div className="mt-1 flex flex-col gap-1">
             {links.map((link, idx) => (
               <SidebarLink key={idx} link={link} />
             ))}
           </div>
         </div>
 
-        <div className="space-y-2 pt-6 border-t border-gray-50">
+        <div className="space-y-2 pt-2">
           <SidebarLink
             link={{
               label: seller?.storeName || seller?.ownerName || "Seller",
               href: "/seller/profile",
-              icon: (
+              icon: seller?.avatar ? (
+                <div className="h-8 w-8 flex-shrink-0 rounded-xl overflow-hidden shadow-lg shadow-amber-500/20">
+                  <img
+                    src={seller.avatar}
+                    alt={seller?.storeName || "Seller"}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : (
                 <div className="h-8 w-8 flex-shrink-0 rounded-xl bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] flex items-center justify-center shadow-lg shadow-amber-500/20">
                   <span className="text-white text-xs font-bold">
                     {(seller?.storeName || "S").charAt(0).toUpperCase()}
@@ -108,7 +116,7 @@ export const BaseSellerSidebar = ({
                 navigate(result.route);
               }
             }}
-            className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-amber-50 rounded-xl transition-all group overflow-hidden"
+            className="flex items-center gap-3 w-full px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-amber-50 rounded-xl transition-all group overflow-hidden"
           >
             <Users className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors" />
             <motion.span
@@ -126,7 +134,7 @@ export const BaseSellerSidebar = ({
 
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-red-600 hover:bg-red-50 rounded-xl transition-all group overflow-hidden"
+            className="flex items-center gap-3 w-full px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-red-600 hover:bg-red-50 rounded-xl transition-all group overflow-hidden"
           >
             <LogOut className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-red-500 transition-colors" />
             <motion.span
