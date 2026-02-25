@@ -241,7 +241,7 @@ const DashboardContent = () => {
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h3 className="text-xl font-bold text-[var(--text-headline)] font-heading">Revenue Overview</h3>
-                <p className="text-sm text-[var(--text-muted)] font-medium">Monitor your revenue trends</p>
+                <p className="text-sm text-[var(--text-muted)]">Monitor your revenue trends</p>
               </div>
             </div>
 
@@ -291,7 +291,7 @@ const DashboardContent = () => {
           {/* Category Distribution */}
           <div className="bg-white rounded-xl p-8 shadow-md flex flex-col">
             <h3 className="text-xl font-bold text-[var(--text-headline)] font-heading mb-1">Top Categories</h3>
-            <p className="text-sm text-[var(--text-muted)] font-medium mb-6">Yours sales distribution by category</p>
+            <p className="text-sm text-[var(--text-muted)] mb-6">Your sales distribution by category</p>
 
             <div className="h-[220px] w-full flex-1" style={{ minHeight: 220 }}>
               <ResponsiveContainer width="100%" height={200} minWidth={0}>
@@ -333,39 +333,44 @@ const DashboardContent = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Top Products */}
-          <div className="flex flex-col">
+          <div className="flex flex-col h-full">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xl font-bold text-[var(--text-headline)] font-heading">Top Products</h3>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 grid-rows-3 gap-3 flex-1 h-full min-h-[400px]">
               {topProducts.map((product, index) => (
                 <div
                   key={product.id}
                   className={cn(
-                    "relative group overflow-hidden rounded-xl flex flex-col justify-between p-4 transition-all hover:shadow-lg hover:-translate-y-1 duration-300 bg-white shadow-sm border border-transparent shadow-md hover:border-[var(--brand-primary)] hover:border-2",
-                    index === 0 ? "col-span-2 row-span-2 p-6" : ""
+                    "relative group overflow-hidden rounded-2xl flex flex-col items-center justify-center p-3 transition-all hover:shadow-[0_0_25px_-5px_rgba(251,140,0,0.4)] hover:-translate-y-1 duration-300 bg-white border border-gray-100/50 shadow-sm hover:border-[var(--brand-primary)]/50",
+                    index === 0 ? "row-span-2 hover:shadow-[0_0_40px_-10px_rgba(255,165,0,0.6)]" : ""
                   )}
                 >
-                  {index === 0 && <Flame className="absolute top-4 right-4 h-6 w-6 text-[#ff6a00] fill-current animate-pulse" />}
-                  <div className="flex-1 flex items-center justify-center py-2">
+                  {index === 0 && <Flame className="absolute top-3 right-3 h-6 w-6 text-[var(--brand-primary)] fill-current animate-pulse" />}
+                  <div className="flex-1 flex items-center justify-center w-full min-h-0">
                     <img
                       src={product.images[0] || "https://placehold.co/200"}
                       alt={product.name}
-                      className={cn("object-contain transition-transform group-hover:scale-110 duration-500", index === 0 ? "h-36" : "h-16")}
+                      className={cn(
+                        "object-contain transition-transform group-hover:scale-110 duration-500",
+                        index === 0 ? "max-h-[150px]" : "max-h-[60px]"
+                      )}
                     />
                   </div>
-                  <div className="text-center mt-3">
-                    <p className="text-sm font-bold truncate text-[var(--text-headline)]">{product.name}</p>
-                    <div className="mt-2 flex justify-center">
-                      <p className="text-[12px] text-[var(--brand-primary)] font-medium tracking-wider px-1 py-1">{product.calculatedSales} Sales</p>
-                    </div>
+                  <div className="text-center mt-2 w-full">
+                    <p className="text-[14px] font-bold line-clamp-2 h-9 flex items-center justify-center text-[var(--text-headline)] px-1 leading-tight">
+                      {product.name}
+                    </p>
+                    <p className="text-[12px] text-[var(--brand-primary)] mt-0.5">
+                      {product.calculatedSales} Sales
+                    </p>
                   </div>
                 </div>
               ))}
 
               {topProducts.length === 0 && (
-                <div className="col-span-2 py-12 text-center text-gray-400 italic font-medium bg-gray-50 rounded-2xl">
+                <div className="col-span-2 row-span-3 flex items-center justify-center text-gray-400 italic font-medium bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
                   No sales data available.
                 </div>
               )}
@@ -373,11 +378,11 @@ const DashboardContent = () => {
           </div>
 
           {/* Recent Orders Table */}
-          <div className="lg:col-span-2 bg-white rounded-xl shadow-md p-8">
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-8 h-fit">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h3 className="text-xl font-bold text-[var(--text-headline)] font-heading">Recent Transactions</h3>
-                <p className="text-sm text-[var(--text-muted)] font-medium">Latest orders from your shop</p>
+                <p className="text-sm text-[var(--text-muted)]">Latest orders from your shop</p>
               </div>
               {isApprovedSeller ? (
                 <Link to="/seller/orders" className="text-sm font-bold text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] flex items-center gap-1 transition-all">

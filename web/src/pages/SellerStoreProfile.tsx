@@ -810,7 +810,7 @@ export function SellerStoreProfile() {
               <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight">
                 Store Profile
               </h1>
-              <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">
+              <p className="text-sm text-[var(--text-muted)] mt-1">
                 Manage your store's complete profile and verification
               </p>
             </div>
@@ -927,11 +927,11 @@ export function SellerStoreProfile() {
                         {(approvalStatus === "approved" ||
                           approvalStatus === "verified" ||
                           isVerified) && (
-                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Verified
-                          </Badge>
-                        )}
+                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Verified
+                            </Badge>
+                          )}
                       </div>
 
                       {/* Avatar Error */}
@@ -947,11 +947,9 @@ export function SellerStoreProfile() {
                       {/* Quick Stats */}
                       <div className="w-full bg-none rounded-2xl divide-y border-0 divide-gray-100/50 mt-6">
                         {/* Followers */}
-                        <div className="flex items-center justify-between p-4 hover:bg-orange-50/50 transition-all rounded-t-2xl group cursor-default">
+                        <div className="flex items-center justify-between py-4 pr-4 pl-0 border-b border-gray-100/50 hover:bg-[var(--brand-accent-light)]/40 transition-all rounded-t-2xl group cursor-default">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
-                              <Users className="h-4 w-4 text-purple-500" />
-                            </div>
+                            <Users className="h-5 w-5 text-[var(--text-muted)]" />
                             <span className="text-sm font-bold text-[var(--text-secondary)]">
                               Followers
                             </span>
@@ -960,11 +958,9 @@ export function SellerStoreProfile() {
                         </div>
 
                         {/* Rating */}
-                        <div className="flex items-center justify-between p-4 hover:bg-orange-50/50 transition-all group cursor-default">
+                        <div className="flex items-center justify-between py-4 pr-4 pl-0 border-b border-gray-100/50 hover:bg-[var(--brand-accent-light)]/40 transition-all group cursor-default">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-yellow-50 flex items-center justify-center group-hover:bg-yellow-100 transition-colors">
-                              <Star className="h-4 w-4 text-yellow-500" />
-                            </div>
+                            <Star className="h-5 w-5 text-[var(--text-muted)]" />
                             <span className="text-sm font-bold text-[var(--text-secondary)]">
                               Rating
                             </span>
@@ -975,11 +971,9 @@ export function SellerStoreProfile() {
                         </div>
 
                         {/* Response Rate */}
-                        <div className="flex items-center justify-between p-4 hover:bg-orange-50/50 transition-all group cursor-default">
+                        <div className="flex items-center justify-between py-4 pr-4 pl-0 border-b border-gray-100/50 hover:bg-[var(--brand-accent-light)]/40 transition-all group cursor-default">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                              <MessageCircle className="h-4 w-4 text-blue-500" />
-                            </div>
+                            <MessageCircle className="h-5 w-5 text-[var(--text-muted)]" />
                             <span className="text-sm font-bold text-[var(--text-secondary)]">
                               Response Rate
                             </span>
@@ -990,11 +984,9 @@ export function SellerStoreProfile() {
                         </div>
 
                         {/* Products */}
-                        <div className="flex items-center justify-between p-4 hover:bg-orange-50/50 transition-all rounded-b-2xl group cursor-default">
+                        <div className="flex items-center justify-between py-4 pr-4 pl-0 hover:bg-[var(--brand-accent-light)]/40 transition-all rounded-b-2xl group cursor-default">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center group-hover:bg-orange-100 transition-colors">
-                              <Package className="h-4 w-4 text-[var(--brand-primary)]" />
-                            </div>
+                            <Package className="h-5 w-5 text-[var(--text-muted)]" />
                             <span className="text-sm font-bold text-[var(--text-secondary)]">
                               Products
                             </span>
@@ -1025,7 +1017,7 @@ export function SellerStoreProfile() {
                         onClick={() => setEditSection("basic")}
                         variant="ghost"
                         size="sm"
-                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-orange-50 rounded-full font-bold"
+                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-[var(--brand-accent-light)]/50 rounded-full font-bold"
                       >
                         <Edit2 className="h-4 w-4" />
                         Edit
@@ -1106,7 +1098,7 @@ export function SellerStoreProfile() {
                       <div className="flex gap-3 pt-2">
                         <Button
                           onClick={handleSaveBasic}
-                          className="bg-[#FF6A00] hover:bg-orange-600"
+                          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                         >
                           Save Changes
                         </Button>
@@ -1214,7 +1206,7 @@ export function SellerStoreProfile() {
                         onClick={() => setEditSection("business")}
                         variant="ghost"
                         size="sm"
-                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-orange-50 rounded-full font-bold"
+                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-[var(--brand-accent-light)]/50 rounded-full font-bold"
                       >
                         <Edit2 className="h-4 w-4" />
                         Edit
@@ -1247,7 +1239,7 @@ export function SellerStoreProfile() {
                                 businessType: e.target.value,
                               })
                             }
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none"
                           >
                             <option value="">Select business type</option>
                             {BUSINESS_TYPE_OPTIONS.map((option) => (
@@ -1337,7 +1329,7 @@ export function SellerStoreProfile() {
                       <div className="flex gap-3 pt-2">
                         <Button
                           onClick={handleSaveBusiness}
-                          className="bg-[#FF6A00] hover:bg-orange-600"
+                          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                         >
                           Save Changes
                         </Button>
@@ -1446,146 +1438,146 @@ export function SellerStoreProfile() {
                 {/* Banking Information (Locked if Verified) */}
                 {SHOW_BANKING_INFO && (
                   <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
-                        <CreditCard className="h-5 w-5 text-[var(--brand-primary)]" />
-                        Banking Information
-                      </h3>
-                      {isVerified && (
-                        <Badge className="bg-green-100 text-green-700 ml-2 border border-green-200 rounded-full px-3">
-                          <Lock className="h-3 w-3 mr-1" />
-                          Verified & Locked
-                        </Badge>
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
+                          <CreditCard className="h-5 w-5 text-[var(--brand-primary)]" />
+                          Banking Information
+                        </h3>
+                        {isVerified && (
+                          <Badge className="bg-green-100 text-green-700 ml-2 border border-green-200 rounded-full px-3">
+                            <Lock className="h-3 w-3 mr-1" />
+                            Verified & Locked
+                          </Badge>
+                        )}
+                      </div>
+                      {!isVerified && (
+                        <Button
+                          onClick={() => setEditSection("banking")}
+                          variant="ghost"
+                          size="sm"
+                          className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-[var(--brand-accent-light)]/50 rounded-full font-bold"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                          Edit
+                        </Button>
                       )}
                     </div>
-                    {!isVerified && (
-                      <Button
-                        onClick={() => setEditSection("banking")}
-                        variant="ghost"
-                        size="sm"
-                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-orange-50 rounded-full font-bold"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                        Edit
-                      </Button>
+
+                    {editSection === "banking" ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Bank Name</Label>
+                            <Input
+                              value={bankingForm.bankName}
+                              onChange={(e) =>
+                                setBankingForm({
+                                  ...bankingForm,
+                                  bankName: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>Account Name</Label>
+                            <Input
+                              value={bankingForm.accountName}
+                              onChange={(e) =>
+                                setBankingForm({
+                                  ...bankingForm,
+                                  accountName: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label>Account Number</Label>
+                          <Input
+                            value={bankingForm.accountNumber}
+                            onChange={(e) =>
+                              setBankingForm({
+                                ...bankingForm,
+                                accountNumber: e.target.value,
+                              })
+                            }
+                            placeholder="Enter your account number"
+                          />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                          <Button
+                            onClick={handleSaveBanking}
+                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
+                          >
+                            Save Changes
+                          </Button>
+                          <Button
+                            onClick={() => setEditSection(null)}
+                            variant="outline"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                            Bank Name
+                            {isEmptyField(seller?.bankName) && (
+                              <AlertCircle
+                                className="h-4 w-4 text-amber-500"
+                                aria-label="Required field"
+                              />
+                            )}
+                          </p>
+                          <p className="text-gray-900 font-medium">
+                            {seller?.bankName || "Not provided"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                            Account Name
+                            {isEmptyField(seller?.accountName) && (
+                              <AlertCircle
+                                className="h-4 w-4 text-amber-500"
+                                aria-label="Required field"
+                              />
+                            )}
+                          </p>
+                          <p className="text-gray-900 font-medium">
+                            {seller?.accountName || "Not provided"}
+                          </p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                            Account Number
+                            {isEmptyField(seller?.accountNumber) && (
+                              <AlertCircle
+                                className="h-4 w-4 text-amber-500"
+                                aria-label="Required field"
+                              />
+                            )}
+                          </p>
+                          <p className="text-gray-900 font-medium font-mono">
+                            {seller?.accountNumber
+                              ? `****${seller.accountNumber.slice(-4)}`
+                              : "Not provided"}
+                          </p>
+                        </div>
+                      </div>
                     )}
-                  </div>
 
-                  {editSection === "banking" ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label>Bank Name</Label>
-                          <Input
-                            value={bankingForm.bankName}
-                            onChange={(e) =>
-                              setBankingForm({
-                                ...bankingForm,
-                                bankName: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label>Account Name</Label>
-                          <Input
-                            value={bankingForm.accountName}
-                            onChange={(e) =>
-                              setBankingForm({
-                                ...bankingForm,
-                                accountName: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label>Account Number</Label>
-                        <Input
-                          value={bankingForm.accountNumber}
-                          onChange={(e) =>
-                            setBankingForm({
-                              ...bankingForm,
-                              accountNumber: e.target.value,
-                            })
-                          }
-                          placeholder="Enter your account number"
-                        />
-                      </div>
-                      <div className="flex gap-3 pt-2">
-                        <Button
-                          onClick={handleSaveBanking}
-                          className="bg-[#FF6A00] hover:bg-orange-600"
-                        >
-                          Save Changes
-                        </Button>
-                        <Button
-                          onClick={() => setEditSection(null)}
-                          variant="outline"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-6">
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                          Bank Name
-                          {isEmptyField(seller?.bankName) && (
-                            <AlertCircle
-                              className="h-4 w-4 text-amber-500"
-                              aria-label="Required field"
-                            />
-                          )}
-                        </p>
-                        <p className="text-gray-900 font-medium">
-                          {seller?.bankName || "Not provided"}
+                    {isVerified && (
+                      <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <p className="text-sm text-green-700 flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Your banking information has been verified and secured.
+                          Contact support if you need to update these details.
                         </p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                          Account Name
-                          {isEmptyField(seller?.accountName) && (
-                            <AlertCircle
-                              className="h-4 w-4 text-amber-500"
-                              aria-label="Required field"
-                            />
-                          )}
-                        </p>
-                        <p className="text-gray-900 font-medium">
-                          {seller?.accountName || "Not provided"}
-                        </p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                          Account Number
-                          {isEmptyField(seller?.accountNumber) && (
-                            <AlertCircle
-                              className="h-4 w-4 text-amber-500"
-                              aria-label="Required field"
-                            />
-                          )}
-                        </p>
-                        <p className="text-gray-900 font-medium font-mono">
-                          {seller?.accountNumber
-                            ? `****${seller.accountNumber.slice(-4)}`
-                            : "Not provided"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {isVerified && (
-                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-sm text-green-700 flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Your banking information has been verified and secured.
-                        Contact support if you need to update these details.
-                      </p>
-                    </div>
-                  )}
+                    )}
                   </Card>
                 )}
 
@@ -1689,11 +1681,11 @@ export function SellerStoreProfile() {
                       return (
                         <div
                           key={doc.key}
-                          className={`p-4 border rounded-lg transition-colors ${needsUpdate
-                            ? "border-red-300 bg-red-50/60"
+                          className={`p-6 border-b border-[var(--text-muted)]/20 last:border-b-0 first:pt-0 last:pb-0 transition-colors ${needsUpdate
+                            ? "bg-red-50/60"
                             : hasDocument
-                              ? "border-green-200 bg-green-50/50 hover:border-green-300"
-                              : "border-gray-200 hover:border-orange-300"
+                              ? "bg-green-50/50"
+                              : "bg-white"
                             }`}
                         >
                           <div className="flex items-center justify-between mb-3">
@@ -1802,7 +1794,7 @@ export function SellerStoreProfile() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="gap-2 text-orange-600 hover:text-orange-700"
+                                  className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)]"
                                   onClick={() => {
                                     const input = document.createElement("input");
                                     input.type = "file";
@@ -1828,7 +1820,7 @@ export function SellerStoreProfile() {
                             ) : (
                               <Button
                                 size="sm"
-                                className="gap-2 bg-[#FF6A00] hover:bg-orange-600"
+                                className="gap-2 bg-[var(--brand-accent)] hover:bg-[var(--brand-primary)]"
                                 disabled={isUploading}
                                 onClick={() => {
                                   const input = document.createElement("input");
@@ -1949,7 +1941,7 @@ export function SellerStoreProfile() {
                         onClick={() => setEditSection("categories")}
                         variant="ghost"
                         size="sm"
-                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-orange-50 rounded-full font-bold"
+                        className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] hover:bg-[var(--brand-accent-light)]/50 rounded-full font-bold"
                       >
                         <Edit2 className="h-4 w-4" />
                         Edit
@@ -1982,13 +1974,14 @@ export function SellerStoreProfile() {
                       <div className="flex gap-3 pt-2">
                         <Button
                           onClick={handleSaveCategories}
-                          className="bg-[#FF6A00] hover:bg-orange-600"
+                          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)]"
                         >
                           Save Changes
                         </Button>
                         <Button
                           onClick={() => setEditSection(null)}
                           variant="outline"
+                          className="bg-base hover:bg-[var(--brand-primary-dark)]"
                         >
                           Cancel
                         </Button>
@@ -2000,7 +1993,7 @@ export function SellerStoreProfile() {
                         seller.storeCategory.map((category, index) => (
                           <span
                             key={index}
-                            className="px-4 py-2 bg-orange-100 text-orange-700 rounded-full text-sm font-medium"
+                            className="px-4 py-2 bg-[var(--brand-accent-light)] text-[var(--brand-primary)] rounded-full text-sm font-medium"
                           >
                             {category}
                           </span>
@@ -2018,14 +2011,14 @@ export function SellerStoreProfile() {
                     <Image className="h-5 w-5 text-[var(--brand-primary)]" />
                     Store Banner
                   </h3>
-                  <div className="border-2 border-dashed border-orange-200 rounded-2xl p-12 text-center hover:border-[var(--brand-primary)] hover:bg-orange-50/50 transition-all cursor-pointer group">
-                    <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                  <div className="border-2 border-dashed border-[var(--brand-accent-light)] rounded-2xl p-12 text-center hover:border-[var(--brand-primary)] hover:bg-[var(--brand-accent-light)]/50 transition-all cursor-pointer group">
+                    <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 transition-transform">
                       <Upload className="h-8 w-8 text-[var(--brand-primary)]" />
                     </div>
                     <p className="text-[var(--text-secondary)] font-bold mb-2">
                       Click to upload store banner
                     </p>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-[var(--text-muted)]">
                       Recommended size: 1200x400px (Max 5MB)
                     </p>
                   </div>
