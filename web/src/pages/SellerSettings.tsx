@@ -19,6 +19,7 @@ import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout
 import { useAuthStore } from "@/stores/sellerStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -108,7 +109,7 @@ export function SellerSettings() {
                     className={cn(
                       "rounded-full px-6 transition-all duration-300 flex items-center gap-2 h-10 shadow-lg",
                       hasChanges && !isSaving
-                        ? "bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-orange-500/20 hover:shadow-orange-500/30 hover:scale-[1.02]"
+                        ? "bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-accent)]"
                         : "bg-gray-50 text-gray-300 border border-gray-100 cursor-not-allowed shadow-none"
                     )}
                   >
@@ -131,41 +132,54 @@ export function SellerSettings() {
                       <CardDescription className="text-[var(--text-muted)]">Update your personal details and profile picture</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-8 pl-8 pt-4">
-                      {/* Profile Picture */}
-                      <div className="flex items-center gap-6">
-                        <div className="relative">
-                          <div className="w-24 h-24 bg-orange-500 rounded-full flex items-center justify-center">
-                            <span className="text-white text-3xl font-medium">
-                              {seller?.name?.charAt(0) || 'S'}
-                            </span>
+                      {/* Profile Header with Picture and Fields */}
+                      <div className="flex flex-col lg:flex-row gap-12">
+                        {/* Profile Picture Column */}
+                        <div className="flex flex-col items-center lg:items-start gap-4 flex-shrink-0">
+                          <div className="relative">
+                            <div className="w-32 h-32 rounded-full overflow-hidden shadow-xl shadow-orange-500/20 bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+                              {seller?.avatar ? (
+                                <img
+                                  src={seller.avatar}
+                                  alt={seller?.name || "Seller"}
+                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                                />
+                              ) : (
+                                <span className="text-white text-4xl font-black">
+                                  {seller?.name?.charAt(0) || 'S'}
+                                </span>
+                              )}
+                            </div>
+                            <button className="absolute bottom-1 right-1 w-10 h-10 bg-white rounded-full border-2 border-gray-100 shadow-md flex items-center justify-center hover:bg-gray-50 transition-all hover:scale-110 active:scale-95 group">
+                              <Camera className="h-5 w-5 text-gray-600 group-hover:text-[var(--brand-primary)]" />
+                            </button>
                           </div>
-                          <button className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full border-2 border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors">
-                            <Camera className="h-4 w-4 text-gray-600" />
-                          </button>
+                          <div className="text-center lg:text-left">
+                            <h4 className="text-sm font-bold text-[var(--text-headline)]">Profile Picture</h4>
+                            <p className="text-[12px] text-[var(--text-muted)] mt-1 whitespace-nowrap">JPG, PNG or GIF. Max size 2MB</p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Profile Picture</h4>
-                          <p className="text-sm text-gray-500 mt-1">JPG, PNG or GIF. Max size 2MB</p>
-                        </div>
-                      </div>
 
-                      {/* Form Fields */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <Label htmlFor="firstName">First Name</Label>
-                          <Input id="firstName" defaultValue="John" onChange={() => setHasChanges(true)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="lastName">Last Name</Label>
-                          <Input id="lastName" defaultValue="Doe" onChange={() => setHasChanges(true)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="email">Email</Label>
-                          <Input id="email" type="email" defaultValue="john@example.com" onChange={() => setHasChanges(true)} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="phone">Phone Number</Label>
-                          <Input id="phone" defaultValue="+63 912 345 6789" onChange={() => setHasChanges(true)} />
+                        {/* Form Fields Column */}
+                        <div className="flex-1">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                            <div className="space-y-2">
+                              <Label htmlFor="firstName" className="font-bold text-[var(--text-secondary)]">First Name</Label>
+                              <Input id="firstName" defaultValue="John" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="lastName" className="font-bold text-[var(--text-secondary)]">Last Name</Label>
+                              <Input id="lastName" defaultValue="Doe" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="email" className="font-bold text-[var(--text-secondary)]">Email</Label>
+                              <Input id="email" type="email" defaultValue="john@example.com" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="phone" className="font-bold text-[var(--text-secondary)]">Phone Number</Label>
+                              <Input id="phone" defaultValue="+63 912 345 6789" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -175,37 +189,43 @@ export function SellerSettings() {
                 {/* Store Settings */}
                 <TabsContent value="store">
                   <Card className="border-0 shadow-md rounded-xl bg-white overflow-hidden">
-                    <CardHeader className="bg-white p-8">
+                    <CardHeader className="bg-white p-8 pb-2">
                       <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
                         Store Information
                       </CardTitle>
                       <CardDescription className="text-[var(--text-muted)]">Manage your store details and public information</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-8 pl-8 pt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="storeName">Store Name</Label>
-                        <Input id="storeName" defaultValue="My Awesome Store" onChange={() => setHasChanges(true)} />
-                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                        {/* Left Side: Name and Location */}
+                        <div className="space-y-6">
+                          <div className="space-y-2">
+                            <Label htmlFor="storeName" className="font-bold text-[var(--text-secondary)]">Store Name</Label>
+                            <Input id="storeName" defaultValue="My Awesome Store" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                          </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="storeDesc">Store Description</Label>
-                        <textarea
-                          id="storeDesc"
-                          rows={4}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                          defaultValue="We sell quality products at affordable prices."
-                          onChange={() => setHasChanges(true)}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <Label htmlFor="storeAddress">Store Address</Label>
-                          <Input id="storeAddress" defaultValue="123 Main St, Manila" onChange={() => setHasChanges(true)} />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="storeAddress" className="font-bold text-[var(--text-secondary)]">Store Address</Label>
+                              <Input id="storeAddress" defaultValue="123 Main St, Manila" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="storeCity" className="font-bold text-[var(--text-secondary)]">City</Label>
+                              <Input id="storeCity" defaultValue="Manila" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="storeCity">City</Label>
-                          <Input id="storeCity" defaultValue="Manila" onChange={() => setHasChanges(true)} />
+
+                        {/* Right Side: Description */}
+                        <div className="flex flex-col space-y-2 h-full">
+                          <Label htmlFor="storeDesc" className="font-bold text-[var(--text-secondary)]">Store Description</Label>
+                          <Textarea
+                            id="storeDesc"
+                            className="flex-1 min-h-[148px] lg:min-h-0 w-full rounded-xl border-gray-200"
+                            placeholder="Tell customers about your store..."
+                            defaultValue="We sell quality products at affordable prices."
+                            onChange={() => setHasChanges(true)}
+                          />
                         </div>
                       </div>
 
@@ -233,7 +253,7 @@ export function SellerSettings() {
                 {/* Notification Settings */}
                 <TabsContent value="notifications">
                   <Card className="border-0 shadow-md rounded-xl bg-white overflow-hidden">
-                    <CardHeader className="bg-white p-8">
+                    <CardHeader className="bg-white p-8 pb-2">
                       <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
                         Notification Preferences
                       </CardTitle>
@@ -263,47 +283,73 @@ export function SellerSettings() {
                 {/* Security Settings */}
                 <TabsContent value="security">
                   <Card className="border-0 shadow-md rounded-xl bg-white overflow-hidden">
-                    <CardHeader className="bg-white p-8">
+                    <CardHeader className="bg-white p-8 pb-2">
                       <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
                         Security Settings
                       </CardTitle>
                       <CardDescription className="text-[var(--text-muted)]">Manage your password and account security</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4 pl-8 pt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="currentPassword">Current Password</Label>
-                        <Input id="currentPassword" type="password" placeholder="Enter current password" onChange={() => setHasChanges(true)} />
-                      </div>
+                    <CardContent className="space-y-8 pl-8 pt-4">
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                        {/* Left Side: Requirements */}
+                        <div className="lg:col-span-4">
+                          <div className="flex gap-3">
+                            <div className="h-8 w-8 rounded-full bg-[var(--text-muted)]/50 flex items-center justify-center flex-shrink-0">
+                              <Lock className="h-4 w-4 text-blue-700" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-bold text-blue-600">Password Requirements</h4>
+                              <ul className="text-[12px] text-blue-500 mt-2 space-y-2">
+                                <li className="flex items-center gap-2">
+                                  <span className="h-1 w-1 rounded-full bg-blue-600" />
+                                  At least 8 characters
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="h-1 w-1 rounded-full bg-blue-600" />
+                                  Uppercase & lowercase
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="h-1 w-1 rounded-full bg-blue-600" />
+                                  At least one number
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="h-1 w-1 rounded-full bg-blue-600" />
+                                  One special character
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="newPassword">New Password</Label>
-                        <Input id="newPassword" type="password" placeholder="Enter new password" onChange={() => setHasChanges(true)} />
-                      </div>
+                        {/* Right Side: Password Inputs */}
+                        <div className="lg:col-span-8">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                            {/* Current Password - Left Column */}
+                            <div className="space-y-2">
+                              <Label htmlFor="currentPassword" title="Current Password" className="font-bold text-[var(--text-secondary)] whitespace-nowrap">Current Password</Label>
+                              <Input id="currentPassword" type="password" placeholder="Current" title="Enter current password" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                            </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                        <Input id="confirmPassword" type="password" placeholder="Confirm new password" onChange={() => setHasChanges(true)} />
-                      </div>
+                            {/* New & Confirm - Right Column */}
+                            <div className="space-y-6">
+                              <div className="space-y-2">
+                                <Label htmlFor="newPassword" title="New Password" className="font-bold text-[var(--text-secondary)] whitespace-nowrap">New Password</Label>
+                                <Input id="newPassword" type="password" placeholder="New" title="Enter new password" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                              </div>
 
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex gap-3">
-                          <Lock className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <h4 className="text-sm font-medium text-blue-900">Password Requirements</h4>
-                            <ul className="text-sm text-blue-800 mt-2 space-y-1">
-                              <li>• At least 8 characters long</li>
-                              <li>• Include uppercase and lowercase letters</li>
-                              <li>• Include at least one number</li>
-                              <li>• Include at least one special character</li>
-                            </ul>
+                              <div className="space-y-2">
+                                <Label htmlFor="confirmPassword" title="Confirm New Password" className="font-bold text-[var(--text-secondary)] whitespace-nowrap">Confirm New</Label>
+                                <Input id="confirmPassword" type="password" placeholder="Confirm" title="Confirm new password" className="h-11 rounded-xl" onChange={() => setHasChanges(true)} />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between py-4 border-t">
+                      <div className="flex items-center justify-between py-6 border-t border-gray-100">
                         <div>
-                          <Label>Two-Factor Authentication</Label>
-                          <p className="text-sm text-gray-500">Add an extra layer of security to your account</p>
+                          <Label className="font-bold text-[var(--text-headline)]">Two-Factor Authentication</Label>
+                          <p className="text-sm text-[var(--text-muted)]">Add an extra layer of security to your account</p>
                         </div>
                         <Switch onCheckedChange={() => setHasChanges(true)} />
                       </div>
@@ -314,7 +360,7 @@ export function SellerSettings() {
                 {/* Payment Settings */}
                 <TabsContent value="payment">
                   <Card className="border-0 shadow-md rounded-xl bg-white overflow-hidden">
-                    <CardHeader className="bg-white p-8">
+                    <CardHeader className="bg-white p-8 pb-2">
                       <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
                         Payment Settings
                       </CardTitle>
