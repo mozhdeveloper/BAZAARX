@@ -20,14 +20,14 @@ const CollectionCard: React.FC<CollectionCardProps> = ({ collection, index = 0 }
       className="group cursor-pointer"
       onClick={() => navigate('/shop', { state: { collection: collection.id } })}
     >
-      <div className="bg-white rounded-[32px] p-6 shadow-golden hover:shadow-xl transition-all duration-500 border border-gray-100/50 flex flex-col h-full group-hover:-translate-y-1 group-hover:border-orange-100">
+      <div className="bg-white rounded-2xl p-4 shadow-golden hover:shadow-xl transition-all duration-500 border border-gray-100/50 flex flex-col h-full group-hover:-translate-y-1 group-hover:border-orange-100">
         {/* Title Top */}
-        <h3 className="text-2xl font-bold text-[var(--text-headline)] mb-6 tracking-tight leading-tight min-h-[4rem]">
+        <h3 className="text-base font-bold text-[var(--text-headline)] mb-3 tracking-tight leading-tight min-h-[2.5rem] line-clamp-2">
           {collection.name}
         </h3>
 
         {/* Image Middle */}
-        <div className="relative aspect-square mb-8 overflow-hidden rounded-2xl bg-gray-50 flex items-center justify-center">
+        <div className="relative aspect-[4/3] mb-3 overflow-hidden rounded-xl bg-gray-50 flex items-center justify-center">
           <motion.img
             src={collection.image}
             alt={collection.name}
@@ -38,15 +38,15 @@ const CollectionCard: React.FC<CollectionCardProps> = ({ collection, index = 0 }
         {/* Footer */}
         <div className="mt-auto flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-sm text-gray-400 font-medium font-primary">
+            <span className="text-xs text-gray-400 font-medium font-primary">
               {collection.productCount} products
             </span>
           </div>
 
           <div className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
             <svg
-              width="20"
-              height="20"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="var(--brand-primary)"

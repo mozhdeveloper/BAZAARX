@@ -748,7 +748,7 @@ export default function OrdersPage() {
                               }
                               variant="outline"
                               size="sm"
-                              className="border-gray-300 text-gray-500 hover:bg-gray-50"
+                              className="border-gray-300 text-gray-500 hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)] hover:bg-transparent"
                             >
                               <Eye className="w-4 h-4 mr-1" />
                               View Details

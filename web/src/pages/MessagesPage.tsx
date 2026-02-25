@@ -463,14 +463,14 @@ export default function MessagesPage() {
                                         <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl border-gray-100 p-1">
                                             <DropdownMenuItem
                                                 onClick={handleVisitStore}
-                                                className="flex items-center gap-2 p-2.5 rounded-lg cursor-pointer hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] transition-colors"
+                                                className="flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-colors"
                                             >
                                                 <ExternalLink className="h-4 w-4" />
                                                 <span className="font-medium text-sm">Visit Store</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 onClick={handleDeleteConversation}
-                                                className="flex items-center gap-2 p-2.5 rounded-lg cursor-pointer hover:bg-red-50 text-gray-800 transition-colors"
+                                                className="flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-colors"
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                                 <span className="font-medium text-sm">Delete Conversation</span>
@@ -632,7 +632,7 @@ export default function MessagesPage() {
                             </div>
                             <Button
                                 variant="outline"
-                                className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] rounded-xl px-6"
+                                className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-accent)] hover:text-white hover:border-[var(--brand-accent)] rounded-xl px-6"
                                 onClick={() => navigate('/stores')}
                             >
                                 Browse Stores
