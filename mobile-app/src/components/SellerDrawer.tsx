@@ -147,7 +147,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
       items: [
         { icon: Store, label: 'Store Profile', route: 'StoreProfile' },
         { icon: DollarSign, label: 'Earnings', route: 'Earnings' },
-        { icon: Zap, label: 'Flash Sales', route: 'FlashSales' },
+        { icon: Zap, label: 'Discounts', route: 'Discounts' },
         { icon: TrendingUp, label: 'Analytics', route: 'Analytics' }
       ],
     },
