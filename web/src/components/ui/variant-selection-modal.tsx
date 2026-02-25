@@ -270,7 +270,7 @@ export function VariantSelectionModal({
                     {uniqueColors.length > 0 && (
                         <div>
                             <h4 className="text-xs font-bold tracking-wider text-gray-900 mb-2">
-                                Color
+                                Color: {selectedColor && <span className="ml-1 font-medium text-[var(--text-muted)]">{selectedColor}</span>}
                             </h4>
                             <div className="flex flex-wrap gap-2">
                                 {uniqueColors.map((color) => {
@@ -316,7 +316,7 @@ export function VariantSelectionModal({
                     {uniqueSizes.length > 0 && (
                         <div>
                             <h4 className="text-xs font-bold tracking-wider text-gray-900 mb-2">
-                                Size
+                                Size: {selectedSize && <span className="ml-1 font-medium text-[var(--text-muted)]">{selectedSize}</span>}
                             </h4>
                             <div className="flex flex-wrap gap-2">
                                 {uniqueSizes.map((size) => (
