@@ -463,6 +463,14 @@ export default function SellerDiscounts() {
     });
   };
 
+  const isFormValid =
+    formData.name.trim() !== "" &&
+    formData.discountValue !== "" &&
+    formData.startsAt !== "" &&
+    formData.endsAt !== "" &&
+    !isNaN(parseFloat(formData.discountValue)) &&
+    parseDateTimeLocal(formData.startsAt).getTime() < parseDateTimeLocal(formData.endsAt).getTime();
+
   return (
     <div
       className={cn(
@@ -912,14 +920,20 @@ export default function SellerDiscounts() {
 
                 <div>
                   <Label htmlFor="badgeColor">Badge Color</Label>
-                  <Input
-                    id="badgeColor"
-                    type="color"
-                    value={formData.badgeColor}
-                    onChange={(e) =>
-                      setFormData({ ...formData, badgeColor: e.target.value })
-                    }
-                  />
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {['#EF4444', '#F97316', '#F59E0B', '#10B981', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#111827'].map(color => (
+                      <button
+                        type="button"
+                        key={color}
+                        className={cn(
+                          "w-8 h-8 rounded-full border-2 transition-all",
+                          formData.badgeColor === color ? "border-gray-900 ring-2 ring-gray-200 scale-110" : "border-transparent hover:scale-105 shadow-sm"
+                        )}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setFormData({ ...formData, badgeColor: color })}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -981,7 +995,7 @@ export default function SellerDiscounts() {
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateCampaign}>Create Campaign</Button>
+              <Button disabled={!isFormValid} onClick={handleCreateCampaign}>Create Campaign</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -1128,14 +1142,20 @@ export default function SellerDiscounts() {
 
                 <div>
                   <Label htmlFor="edit-badgeColor">Badge Color</Label>
-                  <Input
-                    id="edit-badgeColor"
-                    type="color"
-                    value={formData.badgeColor}
-                    onChange={(e) =>
-                      setFormData({ ...formData, badgeColor: e.target.value })
-                    }
-                  />
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {['#EF4444', '#F97316', '#F59E0B', '#10B981', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#111827'].map(color => (
+                      <button
+                        type="button"
+                        key={color}
+                        className={cn(
+                          "w-8 h-8 rounded-full border-2 transition-all",
+                          formData.badgeColor === color ? "border-gray-900 ring-2 ring-gray-200 scale-110" : "border-transparent hover:scale-105 shadow-sm"
+                        )}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setFormData({ ...formData, badgeColor: color })}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -1203,7 +1223,7 @@ export default function SellerDiscounts() {
               >
                 Cancel
               </Button>
-              <Button onClick={handleUpdateCampaign}>Save Changes</Button>
+              <Button disabled={!isFormValid} onClick={handleUpdateCampaign}>Save Changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
