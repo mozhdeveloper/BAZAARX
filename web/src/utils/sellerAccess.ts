@@ -8,21 +8,27 @@ export type SellerApprovalStatus =
   | "needs_resubmission"
   | "suspended";
 
-type SellerAccessContext = {
+export type SellerAccessContext = {
   isVerified?: boolean | null;
   approvalStatus?: string | null;
   storeName?: string | null;
 };
 
 const UNVERIFIED_ALLOWED_PATH_SET = new Set<string>([
-  "/seller",
   "/seller/profile",
   "/seller/store-profile",
   "/seller/notifications",
   "/seller/help-center",
   "/seller/settings",
   "/seller/unverified",
+  "/seller/verification-requirements",
 ]);
+
+const DEFAULT_PATH_BY_TIER: Record<Exclude<SellerAccessTier, "guest">, string> = {
+  approved: "/seller",
+  unverified: "/seller/unverified",
+  blocked: "/seller/account-blocked",
+};
 
 export const UNVERIFIED_ALLOWED_PATHS = [
   ...UNVERIFIED_ALLOWED_PATH_SET,
@@ -65,6 +71,17 @@ export function getSellerAccessTier(
   return "unverified";
 }
 
+export function getDefaultPathForTier(tier: SellerAccessTier): string {
+  if (tier === "guest") return "/seller/auth";
+  return DEFAULT_PATH_BY_TIER[tier];
+}
+
+export function resolveSellerLandingPath(
+  seller: SellerAccessContext | null | undefined
+): string {
+  return getDefaultPathForTier(getSellerAccessTier(seller));
+}
+
 export function isPathAllowedForTier(
   pathname: string,
   tier: SellerAccessTier
@@ -73,7 +90,9 @@ export function isPathAllowedForTier(
     ? pathname.slice(0, -1)
     : pathname;
 
-  if (tier === "approved") return true;
+  if (tier === "approved") {
+    return normalizedPath !== "/seller/unverified" && normalizedPath !== "/seller/account-blocked";
+  }
   if (tier === "blocked") return normalizedPath === "/seller/account-blocked";
   if (tier === "unverified") return UNVERIFIED_ALLOWED_PATH_SET.has(normalizedPath);
 
