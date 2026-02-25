@@ -196,17 +196,34 @@ const resolveVariantLabel = (review: any): string | null => {
   }
 
   const parts: string[] = [];
+  const seenValues: string[] = [];
+
+  const addUniquePart = (label: string | null, value: string | null) => {
+    if (!value) return;
+    const normalizedValue = value.toLowerCase().trim();
+
+    // Check if this value is already represented in our seen values
+    // We check if any seen value contains the new value, OR if the new value contains any seen value
+    const isRedundant = seenValues.some(seen =>
+      seen.includes(normalizedValue) || normalizedValue.includes(seen)
+    );
+
+    if (!isRedundant) {
+      parts.push(label ? `${label}: ${value}` : value);
+      seenValues.push(normalizedValue);
+    }
+  };
 
   if (variantName) {
-    parts.push(variantName);
+    addUniquePart(null, variantName);
   }
 
   if (option1Value) {
-    parts.push(option1Label ? `${option1Label}: ${option1Value}` : option1Value);
+    addUniquePart(option1Label, option1Value);
   }
 
   if (option2Value) {
-    parts.push(option2Label ? `${option2Label}: ${option2Value}` : option2Value);
+    addUniquePart(option2Label, option2Value);
   }
 
   return parts.length > 0 ? parts.join(' / ') : null;
