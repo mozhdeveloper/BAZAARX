@@ -89,6 +89,66 @@ export interface Seller {
   categories: string[];
 }
 
+type RawBuyerNameContext = {
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  sellerOwnerName?: string | null;
+};
+
+export function deriveBuyerName(
+  ctx: RawBuyerNameContext | null | undefined,
+): {
+  firstName: string;
+  lastName: string;
+  displayFullName: string;
+} {
+  if (!ctx) {
+    return { firstName: "", lastName: "", displayFullName: "User" };
+  }
+
+  let firstName = (ctx.first_name ?? "").trim();
+  let lastName = (ctx.last_name ?? "").trim();
+
+  const full = (ctx.full_name ?? "").trim();
+
+  if ((!firstName || !lastName) && full) {
+    const parts = full.split(" ").filter(Boolean);
+    if (!firstName && parts.length > 0) {
+      firstName = parts[0];
+    }
+    if (!lastName && parts.length > 1) {
+      lastName = parts.slice(1).join(" ");
+    }
+  }
+
+  // Fallback to seller owner name (Seller → Buyer flow)
+  const owner = (ctx.sellerOwnerName ?? "").trim();
+  if ((!firstName || !lastName) && owner) {
+    const parts = owner.split(" ").filter(Boolean);
+    if (!firstName && parts.length > 0) {
+      firstName = parts[0];
+    }
+    if (!lastName && parts.length > 1) {
+      lastName = parts.slice(1).join(" ");
+    }
+  }
+
+  // Fallback to email prefix for firstName
+  if (!firstName) {
+    const email = (ctx.email ?? "").trim();
+    if (email && email.includes("@")) {
+      firstName = email.split("@")[0];
+    }
+  }
+
+  const displayFullName =
+    [firstName, lastName].filter(Boolean).join(" ").trim() || "User";
+
+  return { firstName, lastName, displayFullName };
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -1558,9 +1618,36 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           .order('is_default', { ascending: false })
           .order('created_at', { ascending: false });
 
-        // Extract profile info from joined/fallback data
-        const firstName = profileInfo?.first_name || '';
-        const lastName = profileInfo?.last_name || '';
+        // Extract profile info from joined/fallback data and derive display name
+        const { firstName, lastName, displayFullName } = deriveBuyerName({
+          first_name: profileInfo?.first_name,
+          last_name: profileInfo?.last_name,
+          // Some legacy paths may still have full_name in metadata; keep as optional
+          full_name: (profileInfo as any)?.full_name,
+          email: profileInfo?.email || (profileData?.email ?? null),
+          sellerOwnerName: profileData?.sellerOwnerName ?? null,
+        });
+
+        // Optional: backfill missing first/last name into profiles when we have a good guess
+        try {
+          const shouldBackfill =
+            profileInfo &&
+            !profileInfo.first_name &&
+            !profileInfo.last_name &&
+            (firstName || lastName);
+
+          if (shouldBackfill) {
+            await supabase
+              .from('profiles')
+              .update({
+                first_name: firstName || null,
+                last_name: lastName || null,
+              })
+              .eq('id', userId);
+          }
+        } catch (backfillError) {
+          console.warn('Non-fatal: failed to backfill profile first/last name', backfillError);
+        }
 
         const buyerInfo = {
           ...buyerData,

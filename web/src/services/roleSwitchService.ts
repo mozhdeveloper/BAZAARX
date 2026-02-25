@@ -271,15 +271,33 @@ class RoleSwitchService {
             const profile = await this.getProfileBasics(resolvedUserId);
 
             if (hasBuyerRecord) {
+                // Existing buyer record: ensure buyer role and pre-hydrate buyer store.
+                // Also try to pass seller owner name as an additional name source.
                 if (!hasBuyerRole) {
                     await authService.addUserRole(resolvedUserId, "buyer");
                 }
 
                 try {
                     const { useBuyerStore } = await import("@/stores/buyerStore");
+                    let sellerOwnerName: string | null = null;
+                    try {
+                        const { data: sellerRow } = await supabase
+                            .from("sellers")
+                            .select("owner_name")
+                            .eq("id", resolvedUserId)
+                            .maybeSingle();
+                        sellerOwnerName = (sellerRow as any)?.owner_name ?? null;
+                    } catch (sellerError) {
+                        console.warn(
+                            "Non-fatal: failed to load seller owner_name during buyer switch",
+                            sellerError,
+                        );
+                    }
                     await useBuyerStore
                         .getState()
-                        .initializeBuyerProfile(resolvedUserId, {});
+                        .initializeBuyerProfile(resolvedUserId, {
+                            sellerOwnerName,
+                        });
                 } catch (profileError) {
                     console.error(
                         "Buyer profile pre-initialization failed during mode switch:",

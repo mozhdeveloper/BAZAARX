@@ -11,6 +11,8 @@ import {
   readRoleSwitchContext,
   type RoleSwitchContext,
 } from '@/services/roleSwitchContext';
+import { supabase } from '@/lib/supabase';
+
 
 export function SellerLogin() {
   const [email, setEmail] = useState("");
@@ -334,7 +336,17 @@ export function SellerRegister() {
       }
 
       try {
-        await authService.updatePassword(formData.password);
+        // In switch mode, the password is for identity verification only — NOT a password change.
+        // We re-authenticate the user with their current credentials before upgrading their role.
+        const { error: verifyError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+        if (verifyError) {
+          setError("Incorrect password. Please try again.");
+          setIsLoading(false);
+          return;
+        }
 
         const ownerName = [switchContext?.firstName, switchContext?.lastName]
           .filter(Boolean)
@@ -469,11 +481,10 @@ export function SellerRegister() {
                           onChange={handleChange}
                           readOnly={isSwitchMode}
                           placeholder="name@example.com"
-                          className={`w-full pl-12 pr-4 py-4 border rounded-xl outline-none transition-all text-sm font-medium ${
-                            isSwitchMode
-                              ? "bg-gray-50 border-gray-200 text-gray-600"
-                              : "bg-white border-gray-200 focus:ring-0 focus:border-[var(--brand-primary)]"
-                          }`}
+                          className={`w-full pl-12 pr-4 py-4 border rounded-xl outline-none transition-all text-sm font-medium ${isSwitchMode
+                            ? "bg-gray-50 border-gray-200 text-gray-600"
+                            : "bg-white border-gray-200 focus:ring-0 focus:border-[var(--brand-primary)]"
+                            }`}
                           required
                         />
                       </div>
