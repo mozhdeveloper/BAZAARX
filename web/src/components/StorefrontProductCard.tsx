@@ -132,13 +132,13 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
                     <Button
                         variant="outline"
                         size="icon"
-                        className="h-9 w-9 rounded-xl border-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-orange-50 hover:text-[var(--brand-primary)] transition-all shrink-0"
+                        className="h-9 w-9 rounded-xl border-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/[0.05] hover:text-[var(--brand-primary)] transition-all shrink-0"
                         onClick={handleCartClick}
                     >
                         <ShoppingCart className="h-4 w-4 text-[var(--brand-primary)]" />
                     </Button>
                     <Button
-                        className="flex-1 h-9 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all text-[11px]"
+                        className="flex-1 h-9 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold rounded-xl shadow-lg shadow-[var(--brand-primary)]/20 active:scale-95 transition-all text-[11px]"
                         onClick={handleBuyNowClick}
                     >
                         Buy Now
