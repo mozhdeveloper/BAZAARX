@@ -354,7 +354,7 @@ interface OrderStore {
         }[],
         total: number,
         note?: string,
-    ) => string;
+    ) => Promise<string>;
 }
 
 // Validation helpers for database readiness
@@ -407,6 +407,11 @@ const mapDbSellerToSeller = (s: any): Seller => {
     const bp = s.business_profile || s.seller_business_profiles || {};
     const pa = s.payout_account || s.seller_payout_accounts || {};
     const profile = s.profile || {};
+    const profileFullName = [profile.first_name, profile.last_name]
+        .filter((part: string | null | undefined) => Boolean(part?.trim()))
+        .join(" ")
+        .trim();
+    const resolvedOwnerName = profileFullName || s.owner_name || s.store_name || "Seller";
     const normalizedApprovalStatus =
         (s.approval_status as Seller["approvalStatus"]) || "pending";
     const isApprovedStatus =
@@ -415,11 +420,11 @@ const mapDbSellerToSeller = (s: any): Seller => {
 
     return {
         id: s.id,
-        name: s.owner_name || s.store_name || "Seller",
-        ownerName: s.owner_name || s.store_name || "Seller",
+        name: resolvedOwnerName,
+        ownerName: resolvedOwnerName,
         email: profile.email || "",
         phone: s.store_contact_number ||  "",
-        businessName: s.owner_name || "",
+        businessName: resolvedOwnerName,
         storeName: s.store_name || "",
         storeDescription: s.store_description || "",
         storeCategory: [],
@@ -762,7 +767,6 @@ export const useAuthStore = create<AuthStore>()(
                         bank_name: sellerData.bankName || "",
                         account_name: sellerData.accountName || "",
                         account_number: sellerData.accountNumber || "",
-                        owner_name: ownerName,
                         business_permit_url: null,
                         valid_id_url: null,
                         proof_of_address_url: null,
