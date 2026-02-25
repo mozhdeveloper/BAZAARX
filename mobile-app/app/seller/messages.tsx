@@ -200,7 +200,7 @@ export default function MessagesScreen() {
           <View style={[styles.headerTop, { marginTop: insets.top }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                    <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                    <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
                 </Pressable>
                 <Text style={styles.headerTitle}>Messages</Text>
             </View>
@@ -301,7 +301,7 @@ export default function MessagesScreen() {
               style={styles.backButton}
               onPress={() => setSelectedConversation(null)}
             >
-              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+              <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
             </Pressable>
             <View style={styles.chatAvatar}>
               <Text style={styles.chatAvatarText}>
@@ -321,7 +321,7 @@ export default function MessagesScreen() {
               style={styles.iconButton}
               onPress={handleEscalate}
             >
-              <Ticket size={20} color="#FFFFFF" strokeWidth={2.5} />
+              <Ticket size={20} color="#1F2937" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -406,13 +406,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBF0',
   },
   headerContainer: {
-    backgroundColor: '#D97706',
+    backgroundColor: '#FFF4EC',
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,
         borderBottomRightRadius: 20,
     paddingBottom: 20,
     marginBottom: 10,
-    elevation: 4,
+    elevation: 3,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
       justifyContent: 'center',
   },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -511,11 +511,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   chatHeader: {
-    backgroundColor: '#D97706',
+    backgroundColor: '#FFF4EC',
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomLeftRadius: 30,
         borderBottomRightRadius: 20,
+    elevation: 3,
   },
   chatHeaderContent: {
     flexDirection: 'row',
@@ -532,19 +533,19 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(217, 119, 6, 0.15)', // Amber tint
     alignItems: 'center',
     justifyContent: 'center',
   },
   chatAvatarText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#D97706',
   },
   chatBuyerName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#1F2937',
   },
   onlineStatus: {
     flexDirection: 'row',
@@ -560,7 +561,7 @@ const styles = StyleSheet.create({
   },
   onlineText: {
     fontSize: 11,
-    color: '#FFFFFF',
+    color: '#4B5563',
     opacity: 0.9,
     fontWeight: '500',
   },

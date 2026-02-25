@@ -225,7 +225,7 @@ export default function AddProductScreen() {
           {/* 1. IMAGES */}
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
-               <Camera size={20} color="#FF5722" />
+               <Camera size={20} color="#D97706" />
                <Text style={styles.sectionTitle}>Images</Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageList}>
@@ -257,7 +257,7 @@ export default function AddProductScreen() {
           {/* 2. DETAILS */}
           <View style={styles.card}>
              <View style={styles.sectionHeader}>
-                <PackageIcon size={20} color="#FF5722" />
+                <PackageIcon size={20} color="#D97706" />
                 <Text style={styles.sectionTitle}>Details</Text>
              </View>
              
@@ -295,7 +295,7 @@ export default function AddProductScreen() {
           {/* 3. PRICING & STOCK */}
           <View style={styles.card}>
              <View style={styles.sectionHeader}>
-                <Tag size={20} color="#FF5722" />
+                <Tag size={20} color="#D97706" />
                 <Text style={styles.sectionTitle}>Pricing & Inventory</Text>
              </View>
 
@@ -375,7 +375,7 @@ export default function AddProductScreen() {
                          <View key={size} style={styles.tag}>
                             <Text style={styles.tagText}>{size}</Text>
                             <TouchableOpacity onPress={() => removeVariation(size)}>
-                               <X size={14} color="#FF5722" />
+                               <X size={14} color="#D97706" />
                             </TouchableOpacity>
                          </View>
                       ))}
@@ -420,7 +420,7 @@ export default function AddProductScreen() {
                 onPress={() => setShowVariants(true)}
                 activeOpacity={0.8}
             >
-                <Layers size={20} color="#FF5722" />
+                <Layers size={20} color="#D97706" />
                 <Text style={styles.addVariantsText}>+ Manage Variants</Text>
             </TouchableOpacity>
           ) : (
@@ -464,7 +464,7 @@ export default function AddProductScreen() {
           )}
 
           <View style={styles.qaNote}>
-             <Info size={16} color="#FF5722" />
+             <Info size={16} color="#D97706" />
              <Text style={styles.qaNoteText}>Product will be submitted for Quality Assurance review.</Text>
           </View>
 
@@ -482,13 +482,13 @@ export default function AddProductScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  container: { flex: 1, backgroundColor: '#FFF4EC' },
+  header: { backgroundColor: '#FFF4EC', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, elevation: 3 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: '#111827' },
   backBtn: { padding: 8 },
   scrollContent: { padding: 16, paddingBottom: 100 },
   
-  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#F3F4F6' },
+  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FFE5D9' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
   
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
   
   catScroll: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
   catChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', marginRight: 8 },
-  catChipActive: { backgroundColor: '#FF5722' },
+  catChipActive: { backgroundColor: '#D97706' },
   catText: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
   catTextActive: { color: '#FFF' },
 
@@ -516,8 +516,8 @@ const styles = StyleSheet.create({
   
   // Tag input styles
   hint: { fontSize: 11, color: '#9CA3AF', marginBottom: 8 },
-  addTagBtn: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#FF5722', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  addTagText: { fontSize: 14, fontWeight: '600', color: '#FF5722' },
+  addTagBtn: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#D97706', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  addTagText: { fontSize: 14, fontWeight: '600', color: '#D97706' },
   tagContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#FFEDD5' },
   tagText: { fontSize: 13, color: '#EA580C', fontWeight: '500' },
@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
 
   // Buttons for Variants
   addVariantsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFF', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed', marginBottom: 16 },
-  addVariantsText: { fontSize: 15, fontWeight: '600', color: '#FF5722' },
+  addVariantsText: { fontSize: 15, fontWeight: '600', color: '#D97706' },
   
   removeVariantsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: -8, marginBottom: 20 },
   removeVariantsText: { fontSize: 13, color: '#EF4444', fontWeight: '600' },
@@ -538,6 +538,6 @@ const styles = StyleSheet.create({
   priceInfoText: { fontSize: 12, color: '#EA580C' },
 
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  submitBtn: { backgroundColor: '#FF5722', paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
+  submitBtn: { backgroundColor: '#D97706', paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   submitText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

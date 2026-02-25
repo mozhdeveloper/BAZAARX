@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import { notificationService, type Notification } from '../../src/services/notificationService';
@@ -139,8 +140,8 @@ export default function SellerNotificationsScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <Menu size={24} color="#1F2937" />
+            <Pressable style={styles.iconContainer} onPress={() => navigation.goBack()}>
+              <ArrowLeft size={24} color="#1F2937" />
             </Pressable>
             <View style={styles.titleContainer}>
               <View style={styles.titleRow}>

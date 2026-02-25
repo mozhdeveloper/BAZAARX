@@ -553,11 +553,12 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   header: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2E8E2',
+    backgroundColor: '#FFF4EC',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 20,
+    elevation: 3,
     paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingBottom: 15,
   },
   headerRow: {
     flexDirection: 'row',
