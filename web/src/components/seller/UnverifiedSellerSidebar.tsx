@@ -6,6 +6,7 @@ export const UnverifiedSellerSidebar = () => {
     <BaseSellerSidebar
       links={unverifiedSellerLinks}
       subtitle="Verification Portal"
+      homeHref="/seller/unverified"
     />
   );
 };

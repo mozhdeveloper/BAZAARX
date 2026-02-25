@@ -4,8 +4,8 @@ import {
   AlertTriangle,
   Bell,
   Clock3,
+  FileCheck,
   HelpCircle,
-  LayoutDashboard,
   Settings,
   ShieldAlert,
   Store,
@@ -16,10 +16,10 @@ import { normalizeSellerApprovalStatus } from "@/utils/sellerAccess";
 
 const portalLinks = [
   {
-    title: "Dashboard",
-    description: "View high-level shop stats while verification is in progress.",
-    href: "/seller",
-    icon: LayoutDashboard,
+    title: "Verification Requirements",
+    description: "See the complete checklist needed for seller approval.",
+    href: "/seller/verification-requirements",
+    icon: FileCheck,
   },
   {
     title: "Store Profile",
@@ -128,9 +128,9 @@ export function UnverifiedSellerPortal() {
 
               <div className="mt-6 rounded-xl border border-orange-100 bg-orange-50/50 p-4">
                 <p className="text-sm text-[var(--text-secondary)]">
-                  You currently have access to five areas: Dashboard, Store Profile,
-                  Notifications, Help Center, and Settings. Other seller tools unlock
-                  automatically after approval.
+                  You currently have access to five areas: Verification Requirements,
+                  Store Profile, Notifications, Help Center, and Settings. Other
+                  seller tools unlock automatically after approval.
                 </p>
               </div>
             </motion.div>

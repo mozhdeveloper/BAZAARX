@@ -10,17 +10,20 @@ import type { SellerNavLink } from "@/config/sellerLinks";
 type BaseSellerSidebarProps = {
   links: SellerNavLink[];
   subtitle: string;
+  homeHref?: string;
 };
 
 const SellerLogo = ({
   open,
   subtitle,
+  homeHref,
 }: {
   open: boolean;
   subtitle: string;
+  homeHref: string;
 }) => (
   <Link
-    to="/seller"
+    to={homeHref}
     className={cn(
       "flex items-center py-2 group transition-all duration-300",
       open ? "justify-start px-2 gap-3" : "justify-center px-0 gap-0"
@@ -56,6 +59,7 @@ const SellerLogo = ({
 export const BaseSellerSidebar = ({
   links,
   subtitle,
+  homeHref = "/seller",
 }: BaseSellerSidebarProps) => {
   const [open, setOpen] = useState(false);
   const { seller, logout } = useAuthStore();
@@ -69,7 +73,7 @@ export const BaseSellerSidebar = ({
   return (
     <Sidebar open={open} setOpen={setOpen}>
       <SidebarBody className="justify-between gap-4 bg-white z-50 transition-all duration-300">
-        <SellerLogo open={open} subtitle={subtitle} />
+        <SellerLogo open={open} subtitle={subtitle} homeHref={homeHref} />
 
         <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pt-2">
           <div className="mt-2 flex flex-col gap-2">

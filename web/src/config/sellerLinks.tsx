@@ -133,10 +133,10 @@ export const sellerLinks: SellerNavLink[] = [
 
 export const unverifiedSellerLinks: SellerNavLink[] = [
   {
-    label: "Dashboard",
-    href: "/seller",
+    label: "Requirements",
+    href: "/seller/verification-requirements",
     icon: (
-      <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+      <FileCheck className="h-5 w-5 flex-shrink-0" />
     ),
   },
   {
