@@ -24,6 +24,13 @@ import { useAuthStore } from "@/stores/sellerStore";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { isSellerApproved } from "@/utils/sellerAccess";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface TicketData {
   subject: string;
@@ -157,8 +164,8 @@ export function SellerHelpCenter() {
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* Background Decor */}
         <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
-          <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+          <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-[var(--brand-accent-light)]/40 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-[var(--brand-wash-gold)]/40 rounded-full blur-[100px]" />
         </div>
 
         <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto scrollbar-hide relative z-10">
@@ -173,7 +180,7 @@ export function SellerHelpCenter() {
                   <p className="text-sm text-[var(--text-muted)] mt-1">Get support for your store operations</p>
                 </div>
                 {openTicketCount > 0 && (
-                  <Badge className="bg-orange-100 text-[var(--brand-primary)] border-orange-200 px-3 py-1 text-sm font-bold rounded-full">
+                  <Badge className="text-sm bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] px-3 py-1 rounded-full">
                     {openTicketCount} Active Ticket{openTicketCount > 1 ? 's' : ''}
                   </Badge>
                 )}
@@ -181,14 +188,14 @@ export function SellerHelpCenter() {
             </div>
 
             {/* Main Card Container */}
-            <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-[var(--brand-accent-light)] overflow-hidden">
               {/* Notice Bar */}
-              <div className="bg-blue-50/50 px-8 py-4 flex items-start gap-4 border-b border-blue-100">
-                <div className="p-1.5 bg-blue-100 rounded-lg">
-                  <span className="text-blue-500 text-sm block">💡</span>
+              <div className="bg-[var(--brand-wash)]/50 px-8 py-4 flex items-start gap-4 border-b border-[var(--brand-accent-light)]/30">
+                <div className="p-1.5 bg-[var(--brand-wash)] rounded-lg">
+                  <span className="text-[var(--brand-primary)] text-sm block">💡</span>
                 </div>
-                <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                  <span className="font-bold text-gray-900">Seller Tip:</span>{" "}
+                <p className="text-sm text-[var(--text-muted)] leading-relaxed font-medium">
+                  <span className="font-bold text-[var(--text-headline)]">Seller Tip:</span>{" "}
                   Respond to buyer inquiries within 24 hours to maintain your response rate and store rating.
                 </p>
               </div>
@@ -243,8 +250,8 @@ export function SellerHelpCenter() {
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
                         className={`whitespace-nowrap pb-2 transition-colors ${activeTab === tab.key
-                          ? "text-orange-500 border-b-2 border-orange-500"
-                          : "text-gray-400 hover:text-gray-600"
+                          ? "text-[var(--brand-accent)] border-b-2 border-[var(--brand-accent)]"
+                          : "text-gray-400 hover:text-[var(--brand-accent)]"
                           }`}
                       >
                         {tab.label}
@@ -259,7 +266,7 @@ export function SellerHelpCenter() {
                         className="w-full flex items-center justify-between text-sm py-3 px-3 rounded-lg hover:bg-gray-50 group transition-colors text-left"
                       >
                         <p className="flex items-center gap-4">
-                          <span className="italic font-bold text-orange-500 w-4 text-center">
+                          <span className="italic font-bold text-[var(--brand-accent)] w-4 text-center">
                             {idx + 1}
                           </span>
                           <span className="text-gray-600 group-hover:text-gray-900 font-medium">
@@ -268,14 +275,14 @@ export function SellerHelpCenter() {
                         </p>
                         <ChevronRight
                           size={16}
-                          className="text-gray-300 group-hover:text-orange-500"
+                          className="text-gray-300 group-hover:text-[var(--brand-primary)]"
                         />
                       </button>
                     ))}
                   </div>
 
                   <div className="mt-4 flex justify-center">
-                    <button className="flex items-center gap-2 text-xs text-gray-400 hover:text-orange-500 transition-colors">
+                    <button className="flex items-center gap-2 text-xs text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] transition-colors">
                       <RefreshCw size={12} /> View More Topics
                     </button>
                   </div>
@@ -290,7 +297,7 @@ export function SellerHelpCenter() {
                         onClick={() =>
                           navigate(isApprovedSeller ? "/seller/my-tickets" : "/seller/unverified")
                         }
-                        className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+                        className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-primary--dark)] font-medium"
                       >
                         View All →
                       </button>
@@ -305,7 +312,7 @@ export function SellerHelpCenter() {
                           }
                         >
                           <div className="flex items-center gap-3">
-                            <Ticket size={16} className="text-orange-500" />
+                            <Ticket size={16} className="text-[var(--brand-primary)]" />
                             <div>
                               <p className="text-sm font-medium text-gray-900 truncate max-w-[200px] md:max-w-xs">
                                 {t.subject}
@@ -315,7 +322,7 @@ export function SellerHelpCenter() {
                           </div>
                           <Badge
                             variant="outline"
-                            className={`text-[10px] ${t.status === 'Open' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                            className={`text-[10px] ${t.status === 'Open' ? 'bg-[var(--brand-primary-dark)] text-white border-[var(--brand-primary)]' :
                               t.status === 'In Review' ? 'bg-blue-50 text-blue-600 border-blue-200' :
                                 t.status === 'Resolved' ? 'bg-green-50 text-green-600 border-green-200' :
                                   'bg-gray-50 text-gray-500 border-gray-200'
@@ -331,7 +338,7 @@ export function SellerHelpCenter() {
 
                 {/* Contact Section */}
                 <div className="mt-10 pt-8 border-t border-gray-100">
-                  <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 rounded-xl p-8 border border-orange-100">
+                  <div className="bg-gradient-to-r from-[var(--brand-wash)] to-[var(--brand-wash)]/50 rounded-xl p-8 border border-[var(--brand-accent-light)]/50">
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                       <div className="flex items-center gap-5">
                         <div className="w-14 h-14 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20">
@@ -375,7 +382,7 @@ export function SellerHelpCenter() {
                     </h2>
                     <button
                       onClick={handleCloseModal}
-                      className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+                      className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
                     >
                       ✕
                     </button>
@@ -383,14 +390,14 @@ export function SellerHelpCenter() {
 
                   <form onSubmit={handleSubmit} className="p-5 space-y-4">
                     <div>
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                      <label className="text-sm font-medium text-gray-500 mb-1.5 block">
                         Subject
                       </label>
                       <input
                         type="text"
                         required
                         placeholder="e.g., Payout Issue, Product Approval"
-                        className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all placeholder-gray-300"
+                        className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-[var(--brand-primary)] focus:ring-0 focus:ring-[var(--brand-primary)] outline-none transition-all placeholder-gray-300"
                         value={ticket.subject}
                         onChange={(e) => setTicket({ ...ticket, subject: e.target.value })}
                       />
@@ -398,50 +405,57 @@ export function SellerHelpCenter() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                        <label className="text-sm font-medium text-gray-500 mb-1.5 block">
                           Category
                         </label>
-                        <select
-                          required
-                          className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+                        <Select
                           value={ticket.category}
-                          onChange={(e) => setTicket({ ...ticket, category: e.target.value })}
+                          onValueChange={(value) => setTicket({ ...ticket, category: value })}
                         >
-                          <option value="General">General</option>
-                          <option value="Order Issue">Order Issue</option>
-                          <option value="Payment">Payment/Payout</option>
-                          <option value="Shipping">Shipping</option>
-                          <option value="Product Quality">Product Listing</option>
-                          <option value="Returns">Returns & Refunds</option>
-                        </select>
+                          <SelectTrigger className="w-full h-11 rounded-xl border border-gray-200 bg-white text-sm focus:ring-0 focus:border-[var(--brand-primary)] transition-all shadow-sm">
+                            <SelectValue placeholder="Select Category" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-[var(--brand-accent-light)] shadow-xl bg-white">
+                            <SelectItem value="General">General</SelectItem>
+                            <SelectItem value="Order Issue">Order Issue</SelectItem>
+                            <SelectItem value="Payment">Payment/Payout</SelectItem>
+                            <SelectItem value="Shipping">Shipping</SelectItem>
+                            <SelectItem value="Product Quality">Product Listing</SelectItem>
+                            <SelectItem value="Returns">Returns & Refunds</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                        <label className="text-sm font-medium text-gray-500 mb-1.5 block">
                           Priority
                         </label>
-                        <select
-                          className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+                        <Select
                           value={ticket.priority}
-                          onChange={(e) => setTicket({ ...ticket, priority: e.target.value })}
+                          onValueChange={(value) => setTicket({ ...ticket, priority: value })}
                         >
-                          <option value="low">Low</option>
-                          <option value="normal">Normal</option>
-                          <option value="high">High</option>
-                          <option value="urgent">Urgent</option>
-                        </select>
+                          <SelectTrigger className="w-full h-11 rounded-xl border border-gray-200 bg-white text-sm focus:ring-0 focus:border-[var(--brand-primary)] transition-all shadow-sm">
+                            <SelectValue placeholder="Select Priority" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-orange-100 shadow-xl bg-white">
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                      <label className="text-sm font-medium text-gray-500 mb-1.5 block">
                         Description
                       </label>
                       <textarea
                         required
                         rows={4}
                         placeholder="Please describe your issue in detail..."
-                        className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all placeholder-gray-300 resize-none"
+                        className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-[var(--brand-primary)] focus:ring-0 focus:ring-[var(--brand-primary)] outline-none transition-all placeholder-gray-300 resize-none"
                         value={ticket.description}
                         onChange={(e) => setTicket({ ...ticket, description: e.target.value })}
                       />
@@ -449,15 +463,8 @@ export function SellerHelpCenter() {
 
                     <div className="flex gap-3 pt-2">
                       <button
-                        type="button"
-                        onClick={handleCloseModal}
-                        className="flex-1 py-3 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
                         type="submit"
-                        className="flex-1 py-3 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 py-3 bg-[var(--brand-primary)] text-white rounded-lg text-sm font-bold hover:bg-[var(--brand-accent)] transition-colors flex items-center justify-center gap-2"
                       >
                         <Send size={16} />
                         Submit Ticket
@@ -467,28 +474,28 @@ export function SellerHelpCenter() {
                 </>
               ) : (
                 <div className="p-8 text-center">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Star className="text-green-600" size={32} />
+                  <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-100 shadow-sm">
+                    <Star className="text-green-500 fill-current" size={32} />
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-2">Ticket Submitted!</h2>
-                  <p className="text-gray-500 text-sm mb-4">
-                    Your ticket ID is <span className="font-bold text-orange-500">{generatedTicketId}</span>
+                  <p className="text-[var(--text-muted)] text-sm mb-4">
+                    Your ticket ID is <span className="font-bold text-[var(--brand-primary)]">{generatedTicketId}</span>
                   </p>
                   <p className="text-gray-400 text-xs mb-6">
                     Our support team will respond within 24-48 hours.
                   </p>
                   <div className="flex gap-3">
-                      <button
-                        onClick={() =>
-                          navigate(isApprovedSeller ? "/seller/my-tickets" : "/seller/unverified")
-                        }
-                        className="flex-1 py-3 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                      >
-                        View My Tickets
-                      </button>
+                    <button
+                      onClick={() =>
+                        navigate(isApprovedSeller ? "/seller/my-tickets" : "/seller/unverified")
+                      }
+                      className="flex-1 py-3 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      View My Tickets
+                    </button>
                     <button
                       onClick={handleCloseModal}
-                      className="flex-1 py-3 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 transition-colors"
+                      className="flex-1 py-3 bg-[var(--brand-primary)] text-white rounded-lg text-sm font-bold hover:bg-[var(--brand-primary-dark)] transition-colors shadow-lg shadow-[var(--brand-primary)]/20"
                     >
                       Done
                     </button>
@@ -524,7 +531,7 @@ function QuickActionCard({
       onClick={onClick}
       disabled={disabled}
       className={`relative flex flex-col items-center gap-4 p-6 rounded-xl transition-all group duration-300 ${highlight
-        ? "bg-gradient-to-b from-orange-50 to-white hover:to-orange-50/50 border border-orange-200 shadow-[0_8px_30px_rgba(255,100,0,0.1)] hover:-translate-y-1"
+        ? "bg-gradient-to-b from-[var(--brand-wash)] to-white hover:to-[var(--brand-wash)]/50 border border-[var(--brand-accent-light)] shadow-[0_8px_30px_rgba(255,100,0,0.05)] hover:-translate-y-1"
         : "bg-gray-50/50 hover:bg-white border border-transparent hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/50 hover:-translate-y-1"
         } ${disabled ? "opacity-45 cursor-not-allowed hover:translate-y-0 hover:shadow-none" : ""}
         }`}

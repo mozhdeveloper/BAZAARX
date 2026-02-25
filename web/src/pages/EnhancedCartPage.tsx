@@ -68,7 +68,6 @@ export default function EnhancedCartPage() {
   const [showVariantModal, setShowVariantModal] = useState(false);
 
   // Delete Confirmation State
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk'; id?: string; variantId?: string } | null>(null);
   const getImageSrc = (src?: string | null) =>
     src && src.trim().length > 0 ? src : undefined;
@@ -179,10 +178,6 @@ export default function EnhancedCartPage() {
     setEditingItem(null);
   };
 
-  const handleDeleteSelected = () => {
-    removeSelectedItems();
-    setShowDeleteConfirm(false);
-  };
 
   if (totalItems === 0) {
     return (
@@ -262,7 +257,7 @@ export default function EnhancedCartPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowDeleteConfirm(true)}
+                  onClick={() => setDeleteTarget({ type: 'bulk' })}
                   className="text-red-500 hover:text-red-700 hover:bg-base text-xs h-6 px-2"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" />
@@ -604,7 +599,7 @@ export default function EnhancedCartPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] border-0">
           <DialogHeader>
             <DialogTitle>
               {deleteTarget?.type === 'bulk' ? 'Delete Selected Items?' : 'Remove Item?'}
@@ -616,7 +611,7 @@ export default function EnhancedCartPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} className="hover:bg-gray-100 hover:text-gray-900 border-gray-200">Cancel</Button>
             <Button variant="destructive" onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700">
               Delete
             </Button>

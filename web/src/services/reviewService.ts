@@ -17,6 +17,7 @@ export interface ReviewFeedItem {
   id: string;
   productId: string;
   productName: string;
+  baseProductName: string;
   productImage: string | null;
   buyerId: string;
   buyerName: string;
@@ -241,6 +242,10 @@ const mapReviewRowToFeedItem = (review: any): ReviewFeedItem => {
     productName:
       asNonEmptyString(orderItem?.product_name) ||
       asNonEmptyString(product?.name) ||
+      'Product',
+    baseProductName:
+      asNonEmptyString(product?.name) ||
+      asNonEmptyString(orderItem?.product_name) ||
       'Product',
     productImage: pickProductImage(review),
     buyerId: review.buyer_id,
