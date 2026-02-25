@@ -4,17 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import {
     AlertTriangle,
     ChevronRight,
-    Clock,
-    CheckCircle2,
-    AlertCircle,
     Search,
-    ArrowLeft,
+    ChevronLeft,
     Loader2,
     RefreshCw,
     Package,
     User,
-    MessageSquare,
-    Send
 } from 'lucide-react';
 import { SellerSidebar } from "@/components/seller/SellerSidebar";
 import { Badge } from "../components/ui/badge";
@@ -130,22 +125,22 @@ export default function SellerBuyerReports() {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'open': return 'bg-orange-100 text-orange-600 border-orange-200';
+            case 'open': return 'bg-[var(--brand-wash)] text-[var(--brand-primary)] border-[var(--brand-accent-light)]';
             case 'in_progress':
-            case 'waiting_response': return 'bg-blue-100 text-blue-600 border-blue-200';
-            case 'resolved': return 'bg-green-100 text-green-600 border-green-200';
-            case 'closed': return 'bg-gray-100 text-gray-500 border-gray-200';
-            default: return 'bg-gray-100 text-gray-800';
+            case 'waiting_response': return 'bg-blue-50 text-blue-600 border-blue-100';
+            case 'resolved': return 'bg-green-50 text-green-600 border-green-100';
+            case 'closed': return 'bg-gray-50 text-gray-500 border-gray-100';
+            default: return 'bg-gray-50 text-gray-800';
         }
     };
 
     const getPriorityColor = (priority: string) => {
         switch (priority) {
-            case 'urgent': return 'bg-red-100 text-red-600';
-            case 'high': return 'bg-orange-100 text-orange-600';
-            case 'normal': return 'bg-blue-100 text-blue-600';
-            case 'low': return 'bg-gray-100 text-gray-600';
-            default: return 'bg-gray-100 text-gray-600';
+            case 'urgent': return 'bg-red-50 text-red-500';
+            case 'high': return 'bg-[var(--brand-wash)] text-[var(--brand-primary)]';
+            case 'normal': return 'bg-blue-50 text-blue-500';
+            case 'low': return 'bg-gray-50 text-gray-500';
+            default: return 'bg-gray-50 text-gray-500';
         }
     };
 
@@ -169,8 +164,8 @@ export default function SellerBuyerReports() {
             <main className="flex-1 flex flex-col overflow-hidden relative">
                 {/* Background Decor */}
                 <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
-                    <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
-                    <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+                    <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-[var(--brand-accent-light)]/40 rounded-full blur-[120px]" />
+                    <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-[var(--brand-wash-gold)]/40 rounded-full blur-[100px]" />
                 </div>
 
                 <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto scrollbar-hide relative z-10">
@@ -181,7 +176,7 @@ export default function SellerBuyerReports() {
                                 onClick={() => navigate('/seller/help-center')}
                                 className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] mb-6"
                             >
-                                <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                                <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
                                 <span className="text-xs">Back to Help Center</span>
                             </button>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -194,7 +189,7 @@ export default function SellerBuyerReports() {
                                 <button
                                     onClick={handleRefresh}
                                     disabled={loading}
-                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-gray-700 bg-white border border-orange-100 rounded-xl hover:bg-orange-50 hover:text-[var(--brand-primary)] hover:border-orange-200 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-gray-700 bg-white border border-[var(--brand-accent-light)] rounded-xl hover:bg-[var(--brand-primary)] hover:text-white hover:border-[var(--brand-primary)] transition-all shadow-sm active:scale-95 disabled:opacity-50"
                                 >
                                     {loading ? <Loader2 size={16} className="animate-spin text-[var(--brand-primary)]" /> : <RefreshCw size={16} />}
                                     Refresh List
@@ -203,13 +198,13 @@ export default function SellerBuyerReports() {
                         </div>
 
                         {/* Info Banner */}
-                        <div className="bg-amber-50/50 backdrop-blur-sm border border-amber-100 rounded-xl p-6 flex items-start gap-4 shadow-sm">
-                            <div className="p-2 bg-amber-100 rounded-xl text-amber-600">
+                        <div className="bg-[var(--brand-wash)]/50 backdrop-blur-sm border border-[var(--brand-accent-light)]/30 rounded-xl p-6 flex items-start gap-4 shadow-sm">
+                            <div className="p-2 bg-[var(--brand-wash)] rounded-xl text-[var(--brand-primary)]">
                                 <AlertTriangle className="flex-shrink-0" size={20} />
                             </div>
                             <div>
-                                <h3 className="font-bold text-amber-900 text-sm mb-1">About Buyer Reports</h3>
-                                <p className="text-amber-800/70 text-xs leading-relaxed font-medium">
+                                <h3 className="font-bold text-[var(--text-headline)] text-sm mb-1">About Buyer Reports</h3>
+                                <p className="text-[var(--text-muted)] text-xs leading-relaxed font-medium">
                                     These are support tickets submitted by buyers that may be related to orders from your store.
                                     Responding promptly helps maintain your store rating.
                                 </p>
@@ -219,7 +214,7 @@ export default function SellerBuyerReports() {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Report List */}
                             <div className="lg:col-span-2">
-                                <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 overflow-hidden">
+                                <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-[var(--brand-accent-light)] overflow-hidden">
                                     {/* Search & Tabs */}
                                     <div className="p-6 border-b border-gray-50">
                                         <div className="flex-1 w-full relative group mb-6">
@@ -227,7 +222,7 @@ export default function SellerBuyerReports() {
                                             <input
                                                 type="text"
                                                 placeholder="Search by subject or buyer name..."
-                                                className="w-full h-10 pl-10 pr-4 bg-white border border-[var(--brand-wash-gold)] shadow-none rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] transition-all text-sm placeholder:text-[var(--text-muted)]"
+                                                className="w-full h-10 pl-10 pr-4 bg-white border border-[var(--brand-wash-gold)] shadow-none rounded-xl focus:outline-none focus:ring-0 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] transition-all text-sm placeholder:text-[var(--text-muted)]"
                                                 value={searchQuery}
                                                 onChange={(e) => setSearchQuery(e.target.value)}
                                             />
@@ -274,13 +269,13 @@ export default function SellerBuyerReports() {
                                                         animate={{ opacity: 1, y: 0 }}
                                                         exit={{ opacity: 0, scale: 0.98 }}
                                                         transition={{ duration: 0.2, delay: index * 0.03 }}
-                                                        className={`p-6 hover:bg-orange-50/50 transition-all group flex items-center gap-5 cursor-pointer ${selectedReport?.id === report.id ? 'bg-orange-50 border-l-4 border-l-orange-500 pl-[20px]' : 'border-l-4 border-l-transparent'
+                                                        className={`p-6 hover:bg-[var(--brand-wash)]/50 transition-all group flex items-center gap-5 cursor-pointer ${selectedReport?.id === report.id ? 'bg-[var(--brand-wash)] border-l-4 border-l-[var(--brand-primary)] pl-[20px]' : 'border-l-4 border-l-transparent'
                                                             }`}
                                                         onClick={() => setSelectedReport(report)}
                                                     >
                                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all shadow-sm ${selectedReport?.id === report.id
-                                                            ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-orange-500/20'
-                                                            : 'bg-white text-gray-400 border border-gray-100 group-hover:border-orange-200 group-hover:text-orange-500'
+                                                            ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-[var(--brand-primary)]/20'
+                                                            : 'bg-white text-gray-400 border border-gray-100 group-hover:border-[var(--brand-accent-light)] group-hover:text-[var(--brand-primary)]'
                                                             }`}>
                                                             <AlertTriangle size={20} />
                                                         </div>
@@ -312,7 +307,7 @@ export default function SellerBuyerReports() {
                                                                 {report.createdAt}
                                                             </div>
                                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${selectedReport?.id === report.id
-                                                                ? 'bg-orange-100 text-[var(--brand-primary)]'
+                                                                ? 'bg-[var(--brand-wash)] text-[var(--brand-primary)]'
                                                                 : 'bg-transparent text-gray-300 group-hover:bg-white group-hover:shadow-sm group-hover:text-[var(--brand-primary)]'
                                                                 }`}>
                                                                 <ChevronRight size={18} />
@@ -323,7 +318,7 @@ export default function SellerBuyerReports() {
                                             ) : (
                                                 <div className="p-16 flex flex-col items-center text-center">
                                                     <h3 className="text-xl font-black text-gray-900 mb-2">No buyer reports</h3>
-                                                    <p className="text-sm text-gray-500 max-w-xs font-medium leading-relaxed">
+                                                    <p className="text-sm text-[var(--text-muted)] max-w-xs leading-relaxed">
                                                         Great news! There are no buyer complaints related to your store at the moment.
                                                     </p>
                                                 </div>
@@ -342,16 +337,16 @@ export default function SellerBuyerReports() {
                                             initial={{ opacity: 0, x: 20 }}
                                             animate={{ opacity: 1, x: 0 }}
                                             exit={{ opacity: 0, x: 20 }}
-                                            className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 overflow-hidden sticky top-8"
+                                            className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-[var(--brand-accent-light)] overflow-hidden sticky top-8"
                                         >
-                                            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-red-50/50">
-                                                <h3 className="font-black text-red-900 flex items-center gap-2">
+                                            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-red-50/20">
+                                                <h3 className="font-black text-red-700 flex items-center gap-2">
                                                     <AlertTriangle size={18} className="text-red-500" />
                                                     Buyer Report
                                                 </h3>
                                                 <button
                                                     onClick={() => setSelectedReport(null)}
-                                                    className="p-2 hover:bg-white rounded-xl text-red-400 transition-all shadow-sm"
+                                                    className="p-2 hover:bg-white rounded-xl text-red-400/70 transition-all shadow-sm"
                                                 >
                                                     ✕
                                                 </button>
@@ -399,11 +394,11 @@ export default function SellerBuyerReports() {
                                                 </div>
 
                                                 {selectedReport.orderId && (
-                                                    <div className="p-4 bg-orange-50/50 rounded-2xl border border-orange-100/50">
+                                                    <div className="p-4 bg-[var(--brand-wash)]/50 rounded-2xl border border-[var(--brand-accent-light)]/30">
                                                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Related Order</label>
                                                         <button
                                                             onClick={() => navigate(`/seller/orders`)}
-                                                            className="w-full text-sm bg-white text-[var(--brand-primary)] hover:text-orange-700 font-bold flex items-center justify-center gap-2 py-3 rounded-xl shadow-sm border border-orange-100 hover:shadow-md transition-all active:scale-95"
+                                                            className="w-full text-sm bg-white text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] font-bold flex items-center justify-center gap-2 py-3 rounded-xl shadow-sm border border-[var(--brand-accent-light)]/50 hover:shadow-md transition-all active:scale-95"
                                                         >
                                                             <Package size={16} />
                                                             View Order Details
@@ -423,12 +418,12 @@ export default function SellerBuyerReports() {
                                             </div>
                                         </motion.div>
                                     ) : (
-                                        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 border-dashed p-8 flex flex-col items-center justify-center text-center min-h-[400px]">
-                                            <div className="w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-300 mb-6 shadow-inset">
+                                        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-[var(--brand-accent-light)] border-dashed p-8 flex flex-col items-center justify-center text-center min-h-[400px]">
+                                            <div className="w-20 h-20 flex items-center justify-center text-gray-300 mb-6 shadow-inset">
                                                 <AlertTriangle size={32} />
                                             </div>
                                             <h3 className="text-lg font-black text-gray-900 mb-1">Select a report</h3>
-                                            <p className="text-sm text-gray-500 font-medium">Click on a report to view details</p>
+                                            <p className="text-sm text-[var(--text-muted)]">Click on a report to view details</p>
                                         </div>
                                     )}
                                 </AnimatePresence>

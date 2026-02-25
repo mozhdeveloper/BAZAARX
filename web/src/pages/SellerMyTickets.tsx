@@ -8,7 +8,7 @@ import {
     CheckCircle2,
     AlertCircle,
     Search,
-    ArrowLeft,
+    ChevronLeft,
     Loader2,
     RefreshCw,
     Send,
@@ -64,11 +64,11 @@ export default function SellerMyTickets() {
 
     const getStatusColor = (status: TicketStatus) => {
         switch (status) {
-            case 'Open': return 'bg-orange-100 text-orange-600 border-orange-200';
-            case 'In Review': return 'bg-blue-100 text-blue-600 border-blue-200';
-            case 'Resolved': return 'bg-green-100 text-green-600 border-green-200';
-            case 'Closed': return 'bg-gray-100 text-gray-500 border-gray-200';
-            default: return 'bg-gray-100 text-gray-800';
+            case 'Open': return 'bg-[var(--brand-wash)] text-[var(--brand-primary)] border-[var(--brand-accent-light)]';
+            case 'In Review': return 'bg-blue-50 text-blue-500 border-blue-100';
+            case 'Resolved': return 'bg-green-50 text-green-600 border-green-100';
+            case 'Closed': return 'bg-gray-50 text-gray-500 border-gray-200';
+            default: return 'bg-gray-50 text-gray-800';
         }
     };
 
@@ -102,8 +102,8 @@ export default function SellerMyTickets() {
             <main className="flex-1 flex flex-col overflow-hidden relative">
                 {/* Background Decor */}
                 <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
-                    <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
-                    <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+                    <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-[var(--brand-accent-light)]/40 rounded-full blur-[120px]" />
+                    <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-[var(--brand-wash-gold)]/40 rounded-full blur-[100px]" />
                 </div>
 
                 <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto scrollbar-hide relative z-10">
@@ -114,7 +114,7 @@ export default function SellerMyTickets() {
                                 onClick={() => navigate('/seller/help-center')}
                                 className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] mb-6"
                             >
-                                <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+                                <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
                                 <span className="text-xs">Back to Help Center</span>
                             </button>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -125,7 +125,7 @@ export default function SellerMyTickets() {
                                 <button
                                     onClick={handleRefresh}
                                     disabled={loading}
-                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-gray-700 bg-white border border-orange-100 rounded-xl hover:bg-orange-50 hover:text-[var(--brand-primary)] hover:border-orange-200 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-gray-700 bg-white border border-[var(--brand-accent-light)] rounded-xl hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] hover:border-[var(--brand-accent-light)] transition-all shadow-sm active:scale-95 disabled:opacity-50"
                                 >
                                     {loading ? <Loader2 size={16} className="animate-spin text-[var(--brand-primary)]" /> : <RefreshCw size={16} />}
                                     Refresh List
@@ -136,7 +136,7 @@ export default function SellerMyTickets() {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Ticket List */}
                             <div className="lg:col-span-2">
-                                <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 overflow-hidden">
+                                <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-[var(--brand-accent-light)] overflow-hidden">
                                     {/* Search & Tabs */}
                                     <div className="p-6 border-b border-gray-50">
                                         <div className="flex-1 w-full relative group mb-6">
@@ -160,7 +160,7 @@ export default function SellerMyTickets() {
                                                                 "px-4 py-1.5 rounded-full text-[11px] sm:text-xs whitespace-nowrap transition-all duration-300 flex items-center gap-1.5",
                                                                 activeTab === tab.value
                                                                     ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
-                                                                    : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50",
+                                                                    : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]/50",
                                                             )}
                                                         >
                                                             {tab.label}
@@ -191,12 +191,12 @@ export default function SellerMyTickets() {
                                                         animate={{ opacity: 1, y: 0 }}
                                                         exit={{ opacity: 0, scale: 0.98 }}
                                                         transition={{ duration: 0.2, delay: index * 0.03 }}
-                                                        className={`p-5 hover:bg-orange-50/30 transition-all group flex items-center gap-5 cursor-pointer border-l-4 ${selectedTicket?.id === ticket.id ? 'bg-orange-50/50 border-[var(--brand-primary)]' : 'border-transparent'
+                                                        className={`p-5 hover:bg-[var(--brand-wash)]/30 transition-all group flex items-center gap-5 cursor-pointer border-l-4 ${selectedTicket?.id === ticket.id ? 'bg-[var(--brand-wash)]/50 border-[var(--brand-primary)]' : 'border-transparent'
                                                             }`}
                                                         onClick={() => setSelectedTicket(ticket)}
                                                     >
                                                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all shadow-sm ${selectedTicket?.id === ticket.id
-                                                            ? 'bg-[var(--brand-primary)] text-white shadow-orange-200'
+                                                            ? 'bg-[var(--brand-primary)] text-white shadow-[var(--brand-primary)]/20'
                                                             : 'bg-gray-50 text-gray-400 group-hover:bg-white group-hover:text-[var(--brand-primary)] group-hover:shadow-md'
                                                             }`}>
                                                             <Ticket size={24} />
@@ -228,7 +228,7 @@ export default function SellerMyTickets() {
                                                 ))
                                             ) : (
                                                 <div className="p-20 flex flex-col items-center text-center">
-                                                    <div className="w-20 h-20 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-200 mb-6">
+                                                    <div className="w-20 h-20 bg-[var(--brand-wash)] rounded-2xl flex items-center justify-center text-[var(--brand-primary)]/20 mb-6">
                                                         <Ticket size={40} />
                                                     </div>
                                                     <h3 className="text-xl font-black text-gray-900 mb-2 font-heading">No tickets found</h3>
@@ -251,11 +251,11 @@ export default function SellerMyTickets() {
                                             initial={{ opacity: 0, x: 10 }}
                                             animate={{ opacity: 1, x: 0 }}
                                             exit={{ opacity: 0, x: 10 }}
-                                            className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 overflow-hidden sticky top-8"
+                                            className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-[var(--brand-accent-light)] overflow-hidden sticky top-8"
                                         >
                                             <div className="p-5 border-b border-gray-50 flex items-center justify-between">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-orange-50 rounded-lg text-[var(--brand-primary)]">
+                                                    <div className="p-2 bg-[var(--brand-wash)] rounded-lg text-[var(--brand-primary)]">
                                                         <MessageSquare size={16} />
                                                     </div>
                                                     <h3 className="font-black text-gray-900 font-heading">Ticket Details</h3>
@@ -308,12 +308,12 @@ export default function SellerMyTickets() {
                                                                 <div
                                                                     key={reply.id}
                                                                     className={`p-4 rounded-xl text-sm ${reply.senderType === 'admin'
-                                                                        ? 'bg-blue-50/50 border border-blue-100'
-                                                                        : 'bg-orange-50/30 border border-orange-100/50'
+                                                                        ? 'bg-blue-50/30 border border-blue-100/50'
+                                                                        : 'bg-[var(--brand-wash)]/30 border border-[var(--brand-accent-light)]/50'
                                                                         }`}
                                                                 >
                                                                     <div className="flex items-center gap-2 mb-2">
-                                                                        <div className={`w-1.5 h-1.5 rounded-full ${reply.senderType === 'admin' ? 'bg-blue-500' : 'bg-orange-500'}`} />
+                                                                        <div className={`w-1.5 h-1.5 rounded-full ${reply.senderType === 'admin' ? 'bg-blue-500' : 'bg-[var(--brand-primary)]'}`} />
                                                                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">
                                                                             {reply.senderType === 'admin' ? 'Support Representative' : 'Your Response'}
                                                                         </p>
@@ -332,14 +332,14 @@ export default function SellerMyTickets() {
                                                         <div className="relative group">
                                                             <textarea
                                                                 placeholder="Type your message to support..."
-                                                                className="w-full p-4 bg-gray-50/50 border border-gray-200 rounded-xl text-sm resize-none h-24 focus:bg-white focus:border-[var(--brand-primary)] focus:ring-4 focus:ring-orange-500/5 outline-none transition-all font-medium"
+                                                                className="w-full p-4 bg-gray-50/50 border border-gray-200 rounded-xl text-sm resize-none h-24 focus:bg-white focus:border-[var(--brand-primary)] focus:ring-4 focus:ring-[var(--brand-primary)]/5 outline-none transition-all font-medium"
                                                                 value={replyText}
                                                                 onChange={(e) => setReplyText(e.target.value)}
                                                             />
                                                             <button
                                                                 onClick={handleSendReply}
                                                                 disabled={!replyText.trim()}
-                                                                className="absolute right-3 bottom-3 w-10 h-10 bg-[var(--brand-primary)] text-white rounded-xl hover:bg-[var(--brand-primary-dark)] disabled:opacity-30 disabled:grayscale transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center active:scale-90"
+                                                                className="absolute right-3 bottom-3 w-10 h-10 bg-[var(--brand-primary)] text-white rounded-xl hover:bg-[var(--brand-primary-dark)] disabled:opacity-30 disabled:grayscale transition-all shadow-lg shadow-[var(--brand-primary)]/20 flex items-center justify-center active:scale-90"
                                                             >
                                                                 <Send size={18} />
                                                             </button>
@@ -349,7 +349,7 @@ export default function SellerMyTickets() {
                                             </div>
                                         </motion.div>
                                     ) : (
-                                        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 border-dashed p-10 flex flex-col items-center justify-center text-center min-h-[400px]">
+                                        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-[var(--brand-accent-light)] border-dashed p-10 flex flex-col items-center justify-center text-center min-h-[400px]">
                                             <div className="w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center mb-6 transition-transform hover:scale-110 duration-500 shadow-sm">
                                                 <MessageSquare size={36} className="text-gray-200" />
                                             </div>
