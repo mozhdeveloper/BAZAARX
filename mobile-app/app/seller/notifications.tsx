@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import { notificationService, type Notification } from '../../src/services/notificationService';
@@ -88,7 +89,7 @@ export default function SellerNotificationsScreen() {
     if (!n.is_read) {
       // Optimistic update: card only marks as read when tapped
       setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
-      await notificationService.markAsRead(n.id);
+      await notificationService.markAsRead(n.id, 'seller');
     }
     if (n.type.includes('order')) {
       (navigation as any).navigate('SellerOrderDetail', { orderId: n.action_data?.orderId });
@@ -139,8 +140,8 @@ export default function SellerNotificationsScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <Menu size={24} color="#1F2937" />
+            <Pressable style={styles.iconContainer} onPress={() => navigation.goBack()}>
+              <ArrowLeft size={24} color="#1F2937" />
             </Pressable>
             <View style={styles.titleContainer}>
               <View style={styles.titleRow}>
@@ -233,8 +234,8 @@ const styles = StyleSheet.create({
   markAllText: { fontSize: 13, color: '#374151', fontWeight: '600' },
   listContent: { paddingBottom: 20 },
   notificationCard: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', alignItems: 'flex-start' },
-  unreadCard: { backgroundColor: '#FFFFFF' }, // White for Unread
-  readCard: { backgroundColor: '#FFF4EC' }, // Gray for Read
+  unreadCard: { backgroundColor: '#FFF4EC' }, // Tint for Unread
+  readCard: { backgroundColor: '#FFFFFF' }, // White for Read
   cardPressed: { opacity: 0.7 },
   notificationIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   notificationContent: { flex: 1 },

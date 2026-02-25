@@ -89,6 +89,66 @@ export interface Seller {
   categories: string[];
 }
 
+type RawBuyerNameContext = {
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  sellerOwnerName?: string | null;
+};
+
+export function deriveBuyerName(
+  ctx: RawBuyerNameContext | null | undefined,
+): {
+  firstName: string;
+  lastName: string;
+  displayFullName: string;
+} {
+  if (!ctx) {
+    return { firstName: "", lastName: "", displayFullName: "User" };
+  }
+
+  let firstName = (ctx.first_name ?? "").trim();
+  let lastName = (ctx.last_name ?? "").trim();
+
+  const full = (ctx.full_name ?? "").trim();
+
+  if ((!firstName || !lastName) && full) {
+    const parts = full.split(" ").filter(Boolean);
+    if (!firstName && parts.length > 0) {
+      firstName = parts[0];
+    }
+    if (!lastName && parts.length > 1) {
+      lastName = parts.slice(1).join(" ");
+    }
+  }
+
+  // Fallback to seller owner name (Seller → Buyer flow)
+  const owner = (ctx.sellerOwnerName ?? "").trim();
+  if ((!firstName || !lastName) && owner) {
+    const parts = owner.split(" ").filter(Boolean);
+    if (!firstName && parts.length > 0) {
+      firstName = parts[0];
+    }
+    if (!lastName && parts.length > 1) {
+      lastName = parts.slice(1).join(" ");
+    }
+  }
+
+  // Fallback to email prefix for firstName
+  if (!firstName) {
+    const email = (ctx.email ?? "").trim();
+    if (email && email.includes("@")) {
+      firstName = email.split("@")[0];
+    }
+  }
+
+  const displayFullName =
+    [firstName, lastName].filter(Boolean).join(" ").trim() || "User";
+
+  return { firstName, lastName, displayFullName };
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -1504,20 +1564,50 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
 
         // Now fetch the complete profile data
-        const { data: buyerData, error: buyerError } = await supabase
+        let buyerData: any = null;
+        let profileInfo: any = null;
+
+        const { data: buyerWithProfile, error: buyerJoinError } = await supabase
           .from('buyers')
           .select(`
             *,
             profile:profiles!id (
-              id, email, full_name, phone, avatar_url, user_type, created_at
+              id, email, first_name, last_name, phone, created_at
             )
           `)
           .eq('id', userId)
           .single();
 
-        if (buyerError) {
-          console.error('Error fetching buyer profile:', buyerError);
-          throw buyerError;
+        if (!buyerJoinError && buyerWithProfile) {
+          buyerData = buyerWithProfile;
+          profileInfo = buyerWithProfile.profile;
+        } else {
+          console.warn('Buyer/profile join failed, falling back to separate queries:', buyerJoinError);
+
+          const [{ data: buyerOnly, error: buyerOnlyError }, { data: profileOnly, error: profileOnlyError }] = await Promise.all([
+            supabase
+              .from('buyers')
+              .select('*')
+              .eq('id', userId)
+              .single(),
+            supabase
+              .from('profiles')
+              .select('id, email, first_name, last_name, phone, created_at')
+              .eq('id', userId)
+              .maybeSingle(),
+          ]);
+
+          if (buyerOnlyError) {
+            console.error('Error fetching buyer profile:', buyerOnlyError);
+            throw buyerOnlyError;
+          }
+
+          if (profileOnlyError && profileOnlyError.code !== 'PGRST116') {
+            console.error('Error fetching linked profile:', profileOnlyError);
+          }
+
+          buyerData = buyerOnly;
+          profileInfo = profileOnly || null;
         }
 
         // Fetch shipping addresses from the separate table
@@ -1528,16 +1618,45 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           .order('is_default', { ascending: false })
           .order('created_at', { ascending: false });
 
-        // Extract profile info from the joined data
-        const profileInfo = buyerData.profile;
+        // Extract profile info from joined/fallback data and derive display name
+        const { firstName, lastName, displayFullName } = deriveBuyerName({
+          first_name: profileInfo?.first_name,
+          last_name: profileInfo?.last_name,
+          // Some legacy paths may still have full_name in metadata; keep as optional
+          full_name: (profileInfo as any)?.full_name,
+          email: profileInfo?.email || (profileData?.email ?? null),
+          sellerOwnerName: profileData?.sellerOwnerName ?? null,
+        });
+
+        // Optional: backfill missing first/last name into profiles when we have a good guess
+        try {
+          const shouldBackfill =
+            profileInfo &&
+            !profileInfo.first_name &&
+            !profileInfo.last_name &&
+            (firstName || lastName);
+
+          if (shouldBackfill) {
+            await supabase
+              .from('profiles')
+              .update({
+                first_name: firstName || null,
+                last_name: lastName || null,
+              })
+              .eq('id', userId);
+          }
+        } catch (backfillError) {
+          console.warn('Non-fatal: failed to backfill profile first/last name', backfillError);
+        }
+
         const buyerInfo = {
           ...buyerData,
-          firstName: profileInfo.full_name?.split(' ')[0] || '',
-          lastName: profileInfo.full_name?.split(' ').slice(1).join(' ') || '',
-          email: profileInfo.email,
-          phone: profileInfo.phone || '',
-          avatar: profileInfo.avatar_url || '/placeholder-avatar.jpg',
-          memberSince: new Date(profileInfo.created_at),
+          firstName,
+          lastName,
+          email: profileInfo?.email || '',
+          phone: profileInfo?.phone || '',
+          avatar: buyerData.avatar_url || '/placeholder-avatar.jpg',
+          memberSince: profileInfo?.created_at ? new Date(profileInfo.created_at) : new Date(),
           totalSpent: buyerData.total_spent || 0,
           bazcoins: buyerData.bazcoins || 0,
           totalOrders: 0,

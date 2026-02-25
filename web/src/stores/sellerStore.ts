@@ -228,6 +228,8 @@ interface AuthStore {
     updateSellerDetails: (details: Partial<Seller>) => void;
     authenticateSeller: () => void;
     createBuyerAccount: () => Promise<boolean>;
+    hydrateSellerContext: (userId: string) => Promise<boolean>;
+    hydrateSellerFromSession: () => Promise<boolean>;
 }
 
 interface ProductStore {
@@ -404,6 +406,7 @@ const fallbackSellerId = (
 const mapDbSellerToSeller = (s: any): Seller => {
     const bp = s.business_profile || s.seller_business_profiles || {};
     const pa = s.payout_account || s.seller_payout_accounts || {};
+    const profile = s.profile || {};
     const normalizedApprovalStatus =
         (s.approval_status as Seller["approvalStatus"]) || "pending";
     const isApprovedStatus =
@@ -414,8 +417,8 @@ const mapDbSellerToSeller = (s: any): Seller => {
         id: s.id,
         name: s.owner_name || s.store_name || "Seller",
         ownerName: s.owner_name || s.store_name || "Seller",
-        email: "",
-        phone: s.store_contact_number || "",
+        email: profile.email || "",
+        phone: s.store_contact_number ||  "",
         businessName: s.owner_name || "",
         storeName: s.store_name || "",
         storeDescription: s.store_description || "",
@@ -531,28 +534,7 @@ export const useAuthStore = create<AuthStore>()(
                     }
 
                     const { user } = result;
-
-                    const sellerProfile = await authService.getSellerProfile(
-                        user.id,
-                    );
-                    if (!sellerProfile) {
-                        console.error("No seller profile found for user");
-                        return false;
-                    }
-
-                    // Fetch email from profiles table and merge with seller profile
-                    const userEmail = await authService.getEmailFromProfile(
-                        user.id,
-                    );
-                    const mappedSeller = mapDbSellerToSeller(sellerProfile);
-
-                    // Ensure email is set from profiles table
-                    if (userEmail) {
-                        mappedSeller.email = userEmail;
-                    }
-
-                    set({ seller: mappedSeller, isAuthenticated: true });
-                    return true;
+                    return get().hydrateSellerContext(user.id);
                 } catch (err) {
                     console.error("Login error:", err);
                     return false;
@@ -622,6 +604,9 @@ export const useAuthStore = create<AuthStore>()(
                         "Seller";
                     const storeContact =
                         sellerData.storeContact?.trim() || sellerData.phone || "";
+                    const normalizedRegisterEmail =
+                        sellerData.email?.trim().toLowerCase() || "";
+                    const normalizedRegisterPhone = storeContact;
 
                     try {
                         const signInResult = await authService.signIn(
@@ -661,6 +646,8 @@ export const useAuthStore = create<AuthStore>()(
                                     last_name: lastName || undefined,
                                     phone: storeContact || undefined,
                                     user_type: "seller",
+                                    email: sellerData.email!,
+                                    password: sellerData.password!,
                                 },
                             );
 
@@ -798,9 +785,15 @@ export const useAuthStore = create<AuthStore>()(
                         return false;
                     }
 
+                    const mappedSeller = mapDbSellerToSeller(savedSeller);
+                    mappedSeller.email =
+                        normalizedRegisterEmail || mappedSeller.email;
+                    mappedSeller.phone =
+                        normalizedRegisterPhone || mappedSeller.phone;
+
                     // 3) Set local auth state as pending (awaiting approval)
                     set({
-                        seller: mapDbSellerToSeller(savedSeller),
+                        seller: mappedSeller,
                         isAuthenticated: false,
                     });
                     return true;
@@ -841,7 +834,14 @@ export const useAuthStore = create<AuthStore>()(
 
                 try {
                     const authStoreState = useAuthStore.getState();
-                    const userId = authStoreState.seller?.id;
+                    let userId = authStoreState.seller?.id;
+
+                    if (!userId) {
+                        const {
+                            data: { user },
+                        } = await supabase.auth.getUser();
+                        userId = user?.id;
+                    }
 
                     if (!userId) {
                         console.error(
@@ -856,6 +856,62 @@ export const useAuthStore = create<AuthStore>()(
                     return true;
                 } catch (error) {
                     console.error("Error creating buyer account:", error);
+                    return false;
+                }
+            },
+            hydrateSellerContext: async (userId: string) => {
+                if (!isSupabaseConfigured()) {
+                    return false;
+                }
+
+                if (!userId) {
+                    return false;
+                }
+
+                try {
+                    const sellerProfile = await authService.getSellerProfile(
+                        userId,
+                    );
+                    if (!sellerProfile) {
+                        return false;
+                    }
+
+                    const mappedSeller = mapDbSellerToSeller(sellerProfile);
+                    const profileContact =
+                        await authService.getProfileContact(userId);
+
+                    if (profileContact) {
+                        mappedSeller.email =
+                            profileContact.email || mappedSeller.email;
+                        mappedSeller.phone =
+                            profileContact.phone || mappedSeller.phone;
+                    }
+
+                    set({ seller: mappedSeller, isAuthenticated: true });
+                    return true;
+                } catch (error) {
+                    console.error("Failed to hydrate seller context:", error);
+                    return false;
+                }
+            },
+            hydrateSellerFromSession: async () => {
+                if (!isSupabaseConfigured()) {
+                    return false;
+                }
+
+                try {
+                    const {
+                        data: { user },
+                        error,
+                    } = await supabase.auth.getUser();
+
+                    if (error || !user?.id) {
+                        return false;
+                    }
+
+                    return get().hydrateSellerContext(user.id);
+                } catch (error) {
+                    console.error("Failed to hydrate seller from session:", error);
                     return false;
                 }
             },

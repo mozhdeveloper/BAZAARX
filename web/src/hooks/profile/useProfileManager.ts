@@ -142,7 +142,8 @@ export const useProfileManager = (userId: string) => {
     };
 
     const checkSellerStatus = async (options?: { force?: boolean }): Promise<boolean> => {
-        if (!profile?.id) return false;
+        const targetUserId = profile?.id || userId;
+        if (!targetUserId) return false;
 
         const cacheTtlMs = 5 * 60 * 1000;
         const cached = sellerStatusCache.current;
@@ -156,7 +157,7 @@ export const useProfileManager = (userId: string) => {
             const { data, error } = await supabase
                 .from('user_roles')
                 .select('id')
-                .eq('user_id', profile.id)
+                .eq('user_id', targetUserId)
                 .eq('role', 'seller')
                 .maybeSingle();
 

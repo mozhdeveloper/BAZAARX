@@ -1,8 +1,30 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LogIn, UserPlus } from 'lucide-react';
+import {
+  readRoleSwitchContext,
+  type RoleSwitchContext,
+} from '@/services/roleSwitchContext';
 
 export function SellerAuthChoice() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const state = location.state as { roleSwitchContext?: RoleSwitchContext } | null;
+  const stateContext = state?.roleSwitchContext;
+  const storedContext = readRoleSwitchContext('seller');
+  const switchContext =
+    stateContext && stateContext.targetMode === 'seller'
+      ? stateContext
+      : storedContext;
+
+  useEffect(() => {
+    if (!switchContext || switchContext.targetMode !== 'seller') return;
+    navigate('/seller/register', {
+      replace: true,
+      state: { roleSwitchContext: switchContext },
+    });
+  }, [switchContext, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row font-sans">
@@ -49,7 +71,15 @@ export function SellerAuthChoice() {
 
             {/* Create Seller Account */}
             <button
-              onClick={() => navigate('/seller/register')}
+              onClick={() => {
+                if (switchContext) {
+                  navigate('/seller/register', {
+                    state: { roleSwitchContext: switchContext },
+                  });
+                } else {
+                  navigate('/seller/register');
+                }
+              }}
               className='w-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-[24px] p-1 transition-all duration-200 shadow-xl shadow-orange-500/20 hover:shadow-orange-500/30 active:scale-[0.98] group relative overflow-hidden'>
               <div className="bg-white/10 backdrop-blur-sm absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative px-6 py-5 flex items-center justify-between">
@@ -65,7 +95,15 @@ export function SellerAuthChoice() {
 
             {/* Sign In */}
             <button
-              onClick={() => navigate('/seller/login')}
+              onClick={() => {
+                if (switchContext?.email) {
+                  navigate('/seller/login', {
+                    state: { prefillEmail: switchContext.email },
+                  });
+                } else {
+                  navigate('/seller/login');
+                }
+              }}
               className='w-full bg-white text-[var(--text-headline)] border-2 border-gray-100 hover:border-orange-100 hover:bg-orange-50/30 rounded-[24px] p-6 transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98] group flex items-center justify-between'>
               <div className='text-left'>
                 <span className='block text-lg font-bold font-heading mb-0.5 group-hover:text-[var(--brand-primary)] transition-colors'>Sign in into account</span>

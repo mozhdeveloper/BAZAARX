@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/stores/sellerStore";
 import type { SellerNavLink } from "@/config/sellerLinks";
+import { roleSwitchService } from "@/services/roleSwitchService";
 
 type BaseSellerSidebarProps = {
   links: SellerNavLink[];
@@ -100,9 +101,12 @@ export const BaseSellerSidebar = ({
 
           <button
             onClick={async () => {
-              const hasBuyerAccount =
-                await useAuthStore.getState().createBuyerAccount();
-              if (hasBuyerAccount) navigate("/profile");
+              const result = await roleSwitchService.switchToBuyerMode();
+              if (result.navigationState) {
+                navigate(result.route, { state: result.navigationState });
+              } else {
+                navigate(result.route);
+              }
             }}
             className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-amber-50 rounded-xl transition-all group overflow-hidden"
           >

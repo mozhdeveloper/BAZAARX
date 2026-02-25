@@ -467,22 +467,44 @@ export class OrderService {
         let buyerLinked = false;
 
         if (buyerEmail && isSupabaseConfigured()) {
-            const { data: profile } = await supabase
+            const normalizedEmail = buyerEmail.toLowerCase().trim();
+            const { data: profile, error: profileError } = await supabase
                 .from("profiles")
-                .select("id, user_type")
-                .eq("email", buyerEmail.toLowerCase().trim())
-                .single();
+                .select("id")
+                .eq("email", normalizedEmail)
+                .maybeSingle();
 
-            if (profile?.user_type === "buyer") {
-                buyerId = profile.id;
-                buyerLinked = true;
-                console.log(
-                    "📧 Buyer found by email, will receive BazCoins:",
-                    buyerEmail,
+            if (profileError) {
+                console.warn(
+                    "[OrderService] Failed to resolve profile by email:",
+                    profileError,
                 );
+            } else if (profile?.id) {
+                const [{ data: buyerRole }, { data: buyerRecord }] =
+                    await Promise.all([
+                        supabase
+                            .from("user_roles")
+                            .select("id")
+                            .eq("user_id", profile.id)
+                            .eq("role", "buyer")
+                            .maybeSingle(),
+                        supabase
+                            .from("buyers")
+                            .select("id")
+                            .eq("id", profile.id)
+                            .maybeSingle(),
+                    ]);
+
+                if (buyerRole?.id || buyerRecord?.id) {
+                    buyerId = profile.id;
+                    buyerLinked = true;
+                    console.log(
+                        "Buyer found by email, will receive BazCoins:",
+                        buyerEmail,
+                    );
+                }
             }
         }
-
         // If no buyer found, we need a placeholder buyer_id due to NOT NULL constraint
         const finalBuyerId = buyerId;
 
