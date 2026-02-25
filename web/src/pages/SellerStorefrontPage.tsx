@@ -22,10 +22,9 @@ import {
   Truck,
   ShoppingCart,
   Filter,
-  Grid,
-  List,
   ThumbsUp,
-  Loader2
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -36,6 +35,12 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
+import { CartModal } from "../components/ui/cart-modal";
+import ShopBuyNowModal from "../components/shop/ShopBuyNowModal";
+import ShopVariantModal from "../components/shop/ShopVariantModal";
+import { useToast } from "../hooks/use-toast";
+import { BazaarFooter } from "../components/ui/bazaar-footer";
+import StorefrontProductCard from '../components/StorefrontProductCard';
 
 import { useProductStore } from '../stores/sellerStore';
 import { sellerService, type SellerData } from '../services/sellerService';
@@ -91,6 +96,16 @@ export default function SellerStorefrontPage() {
   const [reviewFilter, setReviewFilter] = useState('all');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+
+  const { toast } = useToast();
+  const [showCartModal, setShowCartModal] = useState(false);
+  const [addedProduct, setAddedProduct] = useState<{ name: string; image: string; } | null>(null);
+  const [showBuyNowModal, setShowBuyNowModal] = useState(false);
+  const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
+  const [showVariantModal, setShowVariantModal] = useState(false);
+  const [variantProduct, setVariantProduct] = useState<any>(null);
+  const [isBuyNowAction, setIsBuyNowAction] = useState(false);
+  const { cartItems } = useBuyerStore();
 
   // Real data state
   const [realSeller, setRealSeller] = useState<SellerData | null>(null);
@@ -293,6 +308,7 @@ export default function SellerStorefrontPage() {
       originalPrice: 95999,
       image: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=400&fit=crop',
       rating: 4.9,
+      review_count: 125,
       sold: 1250,
       category: 'Electronics',
       isFreeShipping: true
@@ -304,6 +320,7 @@ export default function SellerStorefrontPage() {
       originalPrice: 135999,
       image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&h=400&fit=crop',
       rating: 4.8,
+      review_count: 42,
       sold: 890,
       category: 'Computers',
       isFreeShipping: true
@@ -315,6 +332,7 @@ export default function SellerStorefrontPage() {
       originalPrice: 17999,
       image: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=400&h=400&fit=crop',
       rating: 4.7,
+      review_count: 560,
       sold: 2130,
       category: 'Electronics',
       isFreeShipping: false
@@ -330,15 +348,52 @@ export default function SellerStorefrontPage() {
       originalPrice: p.original_price || undefined,
       image: (p.images && p.images.length > 0 && p.images[0].image_url) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
       rating: p.rating || 5.0,
+      review_count: p.review_count || 0,
       sold: p.sales_count || 0,
-      category: p.category || 'General',
-      isFreeShipping: p.is_free_shipping || false
+      category: (p.category && (typeof p.category === 'string' ? p.category : (p.category as any).name)) || 'General',
+      isFreeShipping: p.is_free_shipping || false,
+      created_at: p.created_at || new Date().toISOString(),
+      variants: (p as any).variants || [],
+      variantLabel1: (p as any).variant_label_1,
+      variantLabel2: (p as any).variant_label_2,
+      variantLabel1Values: (p as any).variant_label_1_values || [],
+      variantLabel2Values: (p as any).variant_label_2_values || [],
+      stock: (p as any).stock || 99,
+      sellerLocation: seller?.location,
+      sellerName: seller?.name,
+      isVerified: seller?.isVerified,
     }))
-    : demoProducts;
+    : demoProducts.map(p => ({
+      ...p,
+      created_at: new Date(2024, 0, 1).toISOString(),
+      variants: [],
+      variantLabel1Values: [],
+      variantLabel2Values: [],
+      stock: 99,
+      sellerLocation: seller?.location,
+      sellerName: seller?.name,
+      isVerified: seller?.isVerified,
+    }));
 
-  const filteredProducts = selectedCategory === 'all'
-    ? displayProducts
-    : displayProducts.filter(p => p.category === selectedCategory);
+  // Get all unique categories from the displayed products
+  const sellerCategories = Array.from(new Set(displayProducts.map(p => p.category))).sort();
+
+  const filteredProducts = displayProducts
+    .filter(p => selectedCategory === 'all' || p.category === selectedCategory)
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'popular':
+          return b.sold - a.sold;
+        case 'newest':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'price-low':
+          return a.price - b.price;
+        case 'price-high':
+          return b.price - a.price;
+        default:
+          return 0;
+      }
+    });
 
   const handleAddToCart = (product: any) => {
     const cartProduct = {
@@ -353,6 +408,32 @@ export default function SellerStorefrontPage() {
       images: [product.image]
     };
     addToCart(cartProduct, 1);
+  };
+
+  const onVariantSelect = (product: any, isBuyNow: boolean) => {
+    setVariantProduct(product);
+    setIsBuyNowAction(isBuyNow);
+    setShowVariantModal(true);
+  };
+
+  const onBuyNow = (product: any) => {
+    setBuyNowProduct({
+      ...product,
+      quantity: 1,
+      selectedVariant: null,
+      selectedVariantLabel1: null,
+      selectedVariantLabel2: null,
+    } as any);
+    setShowBuyNowModal(true);
+  };
+
+  const onLoginRequired = () => {
+    toast({
+      title: "Login Required",
+      description: "Please sign in to proceed with your purchase.",
+      variant: "destructive",
+    });
+    navigate("/login");
   };
 
   // Show loading state
@@ -391,7 +472,7 @@ export default function SellerStorefrontPage() {
               variant="ghost"
               size="sm"
               onClick={() => navigate(-1)}
-              className="hover:bg-white/10 px-3 -ml-2 text-white/80 hover:text-white transition-all rounded-full backdrop-blur-md bg-white/5"
+              className="hover:bg-base px-3 -ml-2 text-white/80 hover:text-[var(--brand-primary)] transition-all"
             >
               <ChevronLeft className="w-5 h-5 mr-1" />
               Back
@@ -408,11 +489,6 @@ export default function SellerStorefrontPage() {
                   className="w-full h-full rounded-full object-cover"
                 />
               </div>
-              {seller.isVerified && (
-                <div className="absolute bottom-2 right-2 bg-[#FF6A00] text-white p-1.5 rounded-full shadow-lg border-[3px] border-[#1a0b02]">
-                  <Shield className="w-4 h-4 fill-current" />
-                </div>
-              )}
             </div>
 
             {/* Store Details */}
@@ -422,8 +498,8 @@ export default function SellerStorefrontPage() {
                   {seller.name}
                 </h1>
                 {seller.isVerified && (
-                  <Badge className="bg-white text-[#FF6A00] hover:bg-white border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                    Verified Store
+                  <Badge className="bg-white text-green-600 hover:bg-white border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    Verified
                   </Badge>
                 )}
               </div>
@@ -458,8 +534,8 @@ export default function SellerStorefrontPage() {
                   className={cn(
                     "h-10 px-8 rounded-xl font-bold transition-all duration-300 min-w-[130px]",
                     isFollowing(seller.id)
-                      ? "bg-white/10 text-white border border-white/20 hover:bg-white/20 backdrop-blur-md"
-                      : "bg-[#FF6A00] text-white hover:bg-[#E65A00] shadow-lg shadow-orange-600/20"
+                      ? "bg-[var(--brand-primary)] text-white border border-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] backdrop-blur-md"
+                      : "bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-accent)] shadow-lg shadow-orange-600/20"
                   )}
                 >
                   {isFollowing(seller.id) ? (
@@ -472,7 +548,7 @@ export default function SellerStorefrontPage() {
                 <Button
                   variant="outline"
                   onClick={() => navigate(`/messages?sellerId=${seller.id}`)}
-                  className="h-10 px-8 rounded-xl font-bold bg-transparent border-2 border-white/20 text-white hover:bg-white hover:text-[#1a0b02] transition-all min-w-[130px]"
+                  className="h-10 px-8 rounded-xl font-bold bg-transparent border border-white/20 text-white hover:bg-white/10 hover:text-white transition-all min-w-[130px]"
                 >
                   Chat
                 </Button>
@@ -496,22 +572,22 @@ export default function SellerStorefrontPage() {
       <div className="max-w-7xl mx-auto px-4 py-4">
         <Tabs defaultValue="products" className="space-y-4">
           <div className="sticky top-20 z-30 flex justify-center w-full mb-4 py-2 backdrop-blur-[2px]">
-            <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-gray-100/80 p-1">
+            <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-white p-1 border-0 shadow-sm">
               <TabsTrigger
                 value="products"
-                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
               >
                 Products
               </TabsTrigger>
               <TabsTrigger
                 value="reviews"
-                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
               >
                 Reviews
               </TabsTrigger>
               <TabsTrigger
                 value="about"
-                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
               >
                 About Store
               </TabsTrigger>
@@ -527,21 +603,21 @@ export default function SellerStorefrontPage() {
                   <div className="flex items-center gap-3">
                     <Filter className="h-4 w-4 text-gray-400" />
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
+                      <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
                         <SelectValue placeholder="Category" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                      <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
                         <SelectItem
                           value="all"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
                         >
                           All Categories
                         </SelectItem>
-                        {seller.categories.map((cat) => (
+                        {sellerCategories.map((cat) => (
                           <SelectItem
                             key={cat}
                             value={cat}
-                            className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                            className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors last:mb-0"
                           >
                             {cat}
                           </SelectItem>
@@ -551,31 +627,31 @@ export default function SellerStorefrontPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
+                      <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                      <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
                         <SelectItem
                           value="popular"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
                         >
                           Popular
                         </SelectItem>
                         <SelectItem
                           value="newest"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
                         >
                           Newest
                         </SelectItem>
                         <SelectItem
                           value="price-low"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
                         >
                           Price: Low to High
                         </SelectItem>
                         <SelectItem
                           value="price-high"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 last:mb-0 text-sm transition-colors"
                         >
                           Price: High to Low
                         </SelectItem>
@@ -591,80 +667,26 @@ export default function SellerStorefrontPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className={cn(
-                  "grid gap-6",
-                  viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1'
+                  "grid gap-4",
+                  viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1'
                 )}
               >
                 {filteredProducts.map((product, index) => (
-                  <motion.div
+                  <StorefrontProductCard
                     key={product.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="product-card-premium product-card-premium-interactive"
-                    onClick={() => navigate(`/product/${product.id}`)}
-                  >
-                    <div className="relative">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className={cn(
-                          "w-full object-cover group-hover:scale-105 transition-transform",
-                          viewMode === 'grid' ? 'h-48' : 'h-32 md:h-48'
-                        )}
-                      />
-                      {product.originalPrice && (
-                        <Badge className="absolute top-2 left-2 bg-red-500">
-                          {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
-                        </Badge>
-                      )}
-                      {product.isFreeShipping && (
-                        <Badge variant="outline" className="absolute top-2 right-2 bg-white text-green-600">
-                          <Truck className="h-3 w-3 mr-1" />
-                          Free Ship
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="p-4 flex-1 flex flex-col">
-                      <div className={cn(
-                        "space-y-3",
-                        viewMode === 'list' && 'flex items-center gap-4'
-                      )}>
-                        <div className="flex-1">
-                          <h3 className="product-title-premium line-clamp-2 mb-2">{product.name}</h3>
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="flex items-center gap-1">
-                              <Star className="h-3 w-3 fill-current text-yellow-400" />
-                              <span className="text-sm text-gray-600">{product.rating}</span>
-                            </div>
-                            <span className="text-gray-300">•</span>
-                            <span className="text-sm text-gray-600">{product.sold} sold</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg product-price-premium">
-                              ₱{product.price.toLocaleString()}
-                            </span>
-                            {product.originalPrice && (
-                              <span className="text-sm text-gray-500 line-through">
-                                ₱{product.originalPrice.toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddToCart(product);
-                          }}
-                          size="sm"
-                          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] w-full text-white font-bold"
-                        >
-                          <ShoppingCart className="h-4 w-4 mr-2" />
-                          Add to Cart
-                        </Button>
-                      </div>
-                    </div>
-                  </motion.div>
+                    product={product}
+                    index={index}
+                    seller={seller}
+                    profile={profile}
+                    onAddToCart={(p) => {
+                      handleAddToCart(p);
+                      setAddedProduct({ name: p.name, image: p.image });
+                      setShowCartModal(true);
+                    }}
+                    onBuyNow={onBuyNow}
+                    onVariantSelect={onVariantSelect}
+                    onLoginRequired={onLoginRequired}
+                  />
                 ))}
               </motion.div>
             </div>
@@ -974,6 +996,43 @@ export default function SellerStorefrontPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {addedProduct && showCartModal && (
+        <CartModal
+          isOpen={showCartModal}
+          onClose={() => setShowCartModal(false)}
+          productName={addedProduct.name}
+          productImage={addedProduct.image}
+          cartItemCount={cartItems.length}
+        />
+      )}
+
+      <ShopBuyNowModal
+        isOpen={showBuyNowModal}
+        onClose={() => {
+          setShowBuyNowModal(false);
+          setBuyNowProduct(null);
+        }}
+        product={buyNowProduct}
+      />
+
+      {variantProduct && showVariantModal && (
+        <ShopVariantModal
+          isOpen={showVariantModal}
+          onClose={() => {
+            setShowVariantModal(false);
+            setVariantProduct(null);
+            setIsBuyNowAction(false);
+          }}
+          product={variantProduct}
+          isBuyNow={isBuyNowAction}
+          onAddToCartSuccess={(name, image) => {
+            setAddedProduct({ name, image });
+            setShowCartModal(true);
+          }}
+        />
+      )}
+      <BazaarFooter />
     </div >
   );
 }
