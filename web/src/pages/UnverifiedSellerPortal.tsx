@@ -4,8 +4,10 @@ import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowRight,
+  Building2,
   CheckCircle2,
   Clock3,
+  CreditCard,
   FileCheck2,
   FileText,
   HelpCircle,
@@ -13,9 +15,7 @@ import {
   MapPinHouse,
   ShieldAlert,
   Settings,
-  UserRound,
-  WalletCards,
-  Store,
+  User,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/sellerStore";
 import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
@@ -23,28 +23,32 @@ import { normalizeSellerApprovalStatus } from "@/utils/sellerAccess";
 
 const businessInformationChecklist = [
   {
-    title: "Store Identity",
-    description: "Store name and business name are set.",
-    icon: Store,
-    isComplete: (seller: any) => Boolean(seller?.storeName && seller?.businessName),
+    title: "Business Name",
+    description: "Provide your registered business name.",
+    icon: Building2,
+    isComplete: (seller: any) => Boolean(seller?.businessName),
   },
   {
-    title: "Business Details",
-    description: "Business type and registration number are provided.",
+    title: "Business Type",
+    description: "Select your business type.",
     icon: Landmark,
-    isComplete: (seller: any) =>
-      Boolean(seller?.businessType && seller?.businessRegistrationNumber),
+    isComplete: (seller: any) => Boolean(seller?.businessType),
   },
   {
-    title: "Contact Information",
-    description: "Owner name, email, and phone number are complete.",
-    icon: UserRound,
-    isComplete: (seller: any) =>
-      Boolean(seller?.ownerName && seller?.email && seller?.phone),
+    title: "Business Registration Number",
+    description: "Enter your DTI/SEC registration number.",
+    icon: FileText,
+    isComplete: (seller: any) => Boolean(seller?.businessRegistrationNumber),
+  },
+  {
+    title: "Tax ID Number (TIN)",
+    description: "Provide your business tax identification number.",
+    icon: CreditCard,
+    isComplete: (seller: any) => Boolean(seller?.taxIdNumber),
   },
   {
     title: "Business Address",
-    description: "Address, city, province, and postal code are complete.",
+    description: "Complete address, city, province, and postal code.",
     icon: MapPinHouse,
     isComplete: (seller: any) =>
       Boolean(
@@ -53,13 +57,6 @@ const businessInformationChecklist = [
           seller?.province &&
           seller?.postalCode,
       ),
-  },
-  {
-    title: "Payout Information",
-    description: "Bank name, account name, and account number are set.",
-    icon: WalletCards,
-    isComplete: (seller: any) =>
-      Boolean(seller?.bankName && seller?.accountName && seller?.accountNumber),
   },
 ] as const;
 
@@ -71,16 +68,28 @@ const documentChecklist = [
     isComplete: (seller: any) => Boolean(seller?.businessPermitUrl),
   },
   {
-    title: "Valid ID",
+    title: "Government-Issued ID",
     description: "Upload a clear government-issued ID.",
-    icon: FileCheck2,
+    icon: User,
     isComplete: (seller: any) => Boolean(seller?.validIdUrl),
   },
   {
     title: "Proof of Address",
     description: "Upload proof of address that matches your profile.",
-    icon: FileText,
+    icon: FileCheck2,
     isComplete: (seller: any) => Boolean(seller?.proofOfAddressUrl),
+  },
+  {
+    title: "DTI/SEC Registration",
+    description: "Upload your DTI certificate or SEC registration.",
+    icon: Building2,
+    isComplete: (seller: any) => Boolean(seller?.dtiRegistrationUrl),
+  },
+  {
+    title: "BIR Tax ID (TIN)",
+    description: "Upload your BIR Certificate of Registration.",
+    icon: CreditCard,
+    isComplete: (seller: any) => Boolean(seller?.taxIdUrl),
   },
 ] as const;
 
@@ -277,7 +286,7 @@ export function UnverifiedSellerPortal() {
 
             <ChecklistSection
               title="Business Information"
-              description="Ensure your store and payout details are complete and accurate."
+              description="Complete each business field in the same order shown in Store Profile."
               items={businessItems}
             />
 
