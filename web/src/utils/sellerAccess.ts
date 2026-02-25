@@ -21,7 +21,6 @@ const UNVERIFIED_ALLOWED_PATH_SET = new Set<string>([
   "/seller/help-center",
   "/seller/settings",
   "/seller/unverified",
-  "/seller/verification-requirements",
 ]);
 
 const DEFAULT_PATH_BY_TIER: Record<Exclude<SellerAccessTier, "guest">, string> = {

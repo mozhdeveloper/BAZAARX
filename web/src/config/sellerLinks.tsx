@@ -133,8 +133,8 @@ export const sellerLinks: SellerNavLink[] = [
 
 export const unverifiedSellerLinks: SellerNavLink[] = [
   {
-    label: "Requirements",
-    href: "/seller/verification-requirements",
+    label: "Checklist",
+    href: "/seller/unverified",
     icon: (
       <FileCheck className="h-5 w-5 flex-shrink-0" />
     ),
