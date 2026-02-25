@@ -69,6 +69,8 @@ export function SellerProducts() {
     const [editingProduct, setEditingProduct] = useState<SellerProduct | null>(
         null,
     );
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [productToDelete, setProductToDelete] = useState<string | null>(null);
     const [editFormData, setEditFormData] = useState({
         name: "",
         price: 0,
@@ -140,14 +142,21 @@ export function SellerProducts() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (confirm("Are you sure you want to delete this product?")) {
+    const handleDeleteClick = (id: string) => {
+        setProductToDelete(id);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (productToDelete) {
             try {
-                await deleteProduct(id);
+                await deleteProduct(productToDelete);
                 toast({
                     title: "Product Deleted",
                     description: "Product has been successfully removed.",
                 });
+                setIsDeleteDialogOpen(false);
+                setProductToDelete(null);
             } catch (error) {
                 console.error("Error deleting product.", error);
                 toast({
@@ -431,7 +440,7 @@ export function SellerProducts() {
                                                     )}
                                                     <button
                                                         onClick={() =>
-                                                            handleDelete(product.id)
+                                                            handleDeleteClick(product.id)
                                                         }
                                                         className="h-10 w-10 flex items-center justify-center text-red-500 rounded-xl hover:text-red-700 transition-all active:scale-95"
                                                     >
@@ -471,11 +480,12 @@ export function SellerProducts() {
             {/* Edit Product Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent
-                    className={
+                    className={cn(
+                        "bg-white border-none shadow-2xl scrollbar-hide focus-visible:ring-0 focus:ring-0",
                         editVariants.length > 0
                             ? "sm:max-w-[600px]"
                             : "sm:max-w-[425px]"
-                    }
+                    )}
                 >
                     <DialogHeader>
                         <DialogTitle>Edit Product</DialogTitle>
@@ -486,7 +496,7 @@ export function SellerProducts() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                    <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto scrollbar-hide">
                         <div>
                             <Label htmlFor="edit-name" className="mb-2 block">
                                 Product Name
@@ -500,7 +510,7 @@ export function SellerProducts() {
                                         name: e.target.value,
                                     })
                                 }
-                                className="w-full"
+                                className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                 placeholder="Enter product name"
                             />
                         </div>
@@ -521,14 +531,14 @@ export function SellerProducts() {
                                         price: parseFloat(e.target.value) || 0,
                                     })
                                 }
-                                className="w-full"
+                                className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                 placeholder="Enter price"
                             />
                         </div>
 
                         {/* Show variants or simple stock field */}
                         {editVariants.length > 0 ? (
-                            <div className="border rounded-lg p-3 bg-gray-50">
+                            <div className="border border-gray-100 rounded-xl p-4 bg-white">
                                 <Label className="mb-2 block font-medium">
                                     Variants ({editVariants.length})
                                 </Label>
@@ -539,7 +549,7 @@ export function SellerProducts() {
                                         0,
                                     )}
                                 </p>
-                                <div className="space-y-3 max-h-48 overflow-y-auto">
+                                <div className="space-y-3 max-h-56 overflow-y-auto scrollbar-hide">
                                     {editVariants.map((variant, index) => (
                                         <div
                                             key={variant.id}
@@ -597,7 +607,7 @@ export function SellerProducts() {
                                                                 newVariants,
                                                             );
                                                         }}
-                                                        className="w-20 h-8 text-sm"
+                                                        className="w-24 h-9 text-sm focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                                     />
                                                 </div>
                                                 <div>
@@ -627,7 +637,7 @@ export function SellerProducts() {
                                                                 newVariants,
                                                             );
                                                         }}
-                                                        className="w-20 h-8 text-sm"
+                                                        className="w-24 h-9 text-sm focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                                     />
                                                 </div>
                                             </div>
@@ -655,14 +665,14 @@ export function SellerProducts() {
                                                 parseInt(e.target.value) || 0,
                                         })
                                     }
-                                    className="w-full"
+                                    className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                     placeholder="Enter stock quantity"
                                 />
                             </div>
                         )}
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="gap-2 sm:gap-0 mt-2">
                         <Button
                             variant="outline"
                             onClick={() => {
@@ -670,12 +680,13 @@ export function SellerProducts() {
                                 setEditingProduct(null);
                                 setEditVariants([]);
                             }}
+                            className="rounded-xl border-[var(--btn-border)] font-bold hover:bg-gray-100 hover:text-[var(--text-headline)] active:scale-95 transition-all h-11"
                         >
                             Cancel
                         </Button>
                         <Button
                             onClick={handleSaveEdit}
-                            className="bg-orange-500 hover:bg-orange-600"
+                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all px-8 h-11"
                             disabled={
                                 !editFormData.name.trim() ||
                                 editFormData.price <= 0 ||
@@ -699,6 +710,41 @@ export function SellerProducts() {
                 onClose={() => setIsBulkUploadOpen(false)}
                 onUpload={handleBulkUpload}
             />
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogContent className="sm:max-w-[400px] bg-white border-none shadow-2xl rounded-2xl p-6">
+                    <DialogHeader className="space-y-3">
+                        <div className="w-12 h-12 flex items-center justify-center mb-2">
+                            <AlertTriangle className="h-6 w-6 text-red-500" />
+                        </div>
+                        <DialogTitle className="text-xl font-bold text-[var(--text-headline)]">
+                            Delete Product?
+                        </DialogTitle>
+                        <DialogDescription className="text-[var(--text-muted)]">
+                            Are you sure you want to delete this product? This action cannot be undone and will remove the product from your store inventory.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-3 mt-6">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setIsDeleteDialogOpen(false);
+                                setProductToDelete(null);
+                            }}
+                            className="flex-1 h-11 rounded-xl border-gray-100 font-bold hover:bg-gray-100 hover:text-[var(--text-headline)] active:scale-95 transition-all"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleConfirmDelete}
+                            className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/20 active:scale-95 transition-all"
+                        >
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div >
     );
 }
