@@ -1,42 +1,116 @@
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
-import { Trash2 } from 'lucide-react-native';
+import { Trash2, Edit3 } from 'lucide-react-native';
 import { CartItem } from '../types';
 import { QuantityStepper } from './QuantityStepper';
+import { safeImageUri } from '../utils/imageUtils';
 
 interface CartItemRowProps {
   item: CartItem;
   onIncrement: () => void;
   onDecrement: () => void;
+  onChange: (val: number) => void;
   onRemove: () => void;
+  onEdit?: () => void;
 }
 
 export const CartItemRow: React.FC<CartItemRowProps> = ({
   item,
   onIncrement,
   onDecrement,
+  onChange,
   onRemove,
+  onEdit,
 }) => {
   return (
     <View style={styles.container}>
-      <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" />
-      
+      <Image source={{ uri: safeImageUri(item.image) }} style={styles.image} resizeMode="cover" />
+
       <View style={styles.infoContainer}>
         <Text style={styles.name} numberOfLines={2}>
           {item.name}
         </Text>
+        {/* Variant Info (Tap to Edit) */}
+        {item.selectedVariant && (
+          <Pressable 
+            onPress={onEdit} 
+            disabled={!onEdit}
+            style={({ pressed }) => ({
+              flexDirection: 'row', 
+              flexWrap: 'wrap', 
+              alignItems: 'center',
+              gap: 6, 
+              marginBottom: 8,
+              opacity: pressed ? 0.7 : 1
+            })}
+          >
+            {/* Valid Options */}
+            {(item.selectedVariant.option1Value || item.selectedVariant.option2Value) ? (
+               <>
+                 {item.selectedVariant.option1Value && (
+                  <View style={styles.variantChip}>
+                    <Text style={styles.variantChipText}>
+                      {item.selectedVariant.option1Label || 'Option'}: {item.selectedVariant.option1Value}
+                    </Text>
+                  </View>
+                 )}
+                 {item.selectedVariant.option2Value && (
+                  <View style={styles.variantChip}>
+                    <Text style={styles.variantChipText}>
+                      {item.selectedVariant.option2Label || 'Option'}: {item.selectedVariant.option2Value}
+                    </Text>
+                  </View>
+                 )}
+               </>
+            ) : (
+              /* Legacy Fallback */
+              <>
+                 {item.selectedVariant.size && (
+                  <View style={styles.variantChip}>
+                    <Text style={styles.variantChipText}>Size: {item.selectedVariant.size}</Text>
+                  </View>
+                 )}
+                 {item.selectedVariant.color && (
+                  <View style={styles.variantChip}>
+                    <Text style={styles.variantChipText}>Color: {item.selectedVariant.color}</Text>
+                  </View>
+                 )}
+              </>
+            )}
+            
+            {/* Edit Indicator */}
+            {onEdit && (
+               <View style={styles.editIconWrapper}>
+                 <Edit3 size={10} color="#6B7280" />
+               </View>
+            )}
+          </Pressable>
+        )}
+
         <Text style={styles.seller} numberOfLines={1}>
           {item.seller}
         </Text>
-        <Text style={styles.price}>₱{item.price.toLocaleString()}</Text>
-        
+        <View style={styles.priceContainer}>
+          <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#EF4444' } : null]}>
+            ₱{(item.price ?? 0).toLocaleString()}
+          </Text>
+          {!!item.originalPrice && item.originalPrice > (item.price || 0) && (
+            <Text style={styles.originalPrice}>
+              ₱{item.originalPrice.toLocaleString()}
+            </Text>
+          )}
+        </View>
+
         <View style={styles.actionsContainer}>
           <QuantityStepper
             value={item.quantity}
             onIncrement={onIncrement}
             onDecrement={onDecrement}
+            onChange={onChange}
+            max={item.stock} // Pass correct stock limit
+            min={1}
           />
-          
+
           <Pressable onPress={onRemove} style={styles.removeButton}>
             <Trash2 size={18} color="#EF4444" />
           </Pressable>
@@ -49,25 +123,21 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    // REMOVED: backgroundColor, borderRadius, shadow, and elevation 
+    // This allows the component to be "transparent" and sit inside the parent card
+    paddingVertical: 12,
+    paddingRight: 12,
+    flex: 1,
   },
   image: {
-    width: 100,
-    height: 100,
+    width: 90,
+    height: 90,
     borderRadius: 12,
     backgroundColor: '#F8FAFC',
   },
   infoContainer: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 12, // Reduced spacing
     justifyContent: 'space-between',
   },
   name: {
@@ -87,22 +157,73 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#FF5722',
-    marginBottom: 12,
+    marginBottom: 0,
     letterSpacing: -0.5,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginBottom: 12,
+  },
+  originalPrice: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+    fontWeight: '500',
   },
   actionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 16, // Explicit gap between stepper and delete icon
+    marginTop: 8,
   },
   removeButton: {
-    padding: 8,
     backgroundColor: '#FEE2E2',
-    borderRadius: 999,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    padding: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  // NEW STYLES
+  variantChip: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  variantChipText: {
+    fontSize: 11,
+    color: '#4B5563',
+    fontWeight: '500',
+  },
+  editIconWrapper: {
+    padding: 4,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginLeft: 2,
+  },
+  // Legacy styles (can be removed or kept for safety)
+  editVariantBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  editVariantText: {
+    fontSize: 11,
+    color: '#4B5563',
+    marginLeft: 4,
+    fontWeight: '500',
   },
 });

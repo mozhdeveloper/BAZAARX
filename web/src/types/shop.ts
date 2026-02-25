@@ -1,0 +1,38 @@
+export type ShopProduct = {
+    id: string;
+    name: string;
+    price: number;
+    originalPrice?: number;
+    image: string;
+    images?: string[];
+    rating: number;
+    sold: number;
+    category: string;
+    seller: string;
+    sellerId: string;
+    isVerified: boolean;
+    isFreeShipping?: boolean;
+    location?: string;
+    description?: string;
+    sellerRating?: number;
+    sellerVerified?: boolean;
+    variantLabel1Values?: string[];
+    variantLabel2Values?: string[];
+    stock?: number;
+    variants?: {
+        id: string;
+        name?: string;
+        variantLabel1Value?: string;
+        variantLabel2Value?: string;
+        price: number;
+        stock: number;
+        image?: string;
+    }[];
+    discountBadgePercent?: number;
+    discountBadgeTooltip?: string;
+    campaignDiscount?: {
+        discountType: 'percentage' | 'fixed_amount';
+        discountValue: number;
+        maxDiscountAmount?: number;
+    };
+};

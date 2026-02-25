@@ -8,8 +8,12 @@ import { useAuthStore } from '../src/stores/authStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Splash'>;
 
+import { supabase } from '../src/lib/supabase';
+
+// ...
+
 export default function SplashScreen({ navigation }: Props) {
-  const { isAuthenticated, hasCompletedOnboarding } = useAuthStore();
+  const { isAuthenticated, hasCompletedOnboarding, logout } = useAuthStore();
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.8);
 
@@ -29,18 +33,34 @@ export default function SplashScreen({ navigation }: Props) {
       }),
     ]).start();
 
-    // Navigate after 2.5 seconds
-    const timer = setTimeout(() => {
-      if (isAuthenticated) {
-        navigation.replace('MainTabs', { screen: 'Home' });
-      } else if (hasCompletedOnboarding) {
-        navigation.replace('Login');
-      } else {
-        navigation.replace('Onboarding');
-      }
-    }, 2500);
+    const checkSession = async () => {
+      // Wait a minimum time for the animation
+      await new Promise(resolve => setTimeout(resolve, 2500));
 
-    return () => clearTimeout(timer);
+      try {
+        // PERMANENT FIX: Use the store's checkSession which fetches fresh Profile/Roles from DB
+        // This ensures local state is perfectly synced with Supabase on every launch.
+        await useAuthStore.getState().checkSession();
+        
+        // Get fresh state after checkSession finishes (it updates the store internally)
+        const { isAuthenticated: isAuth, hasCompletedOnboarding: hasOnboarding } = useAuthStore.getState();
+
+        if (isAuth) {
+          navigation.replace('MainTabs', { screen: 'Home' });
+        } else if (hasOnboarding) {
+          navigation.replace('Login');
+        } else {
+          navigation.replace('Onboarding');
+        }
+      } catch (e) {
+        console.error('Splash checks failed', e);
+        // If checkSession throws (e.g. strict validation), ensure we clean up
+        logout();
+        navigation.replace('Login');
+      }
+    };
+
+    checkSession();
   }, [isAuthenticated, hasCompletedOnboarding]);
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,828 +7,634 @@ import {
   Pressable,
   Image,
   TextInput,
+  RefreshControl,
   Modal,
+  Alert,
+  Platform,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu } from 'lucide-react-native';
-import { useSellerStore } from '../../../src/stores/sellerStore';
-import { useReturnStore } from '../../../src/stores/returnStore';
-import SellerDrawer from '../../../src/components/SellerDrawer';
+import {
+  Bell, X, Search, Menu, Download, ChevronRight,
+  ListFilter, Calendar, Layers, Tag
+} from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
-type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'returns' | 'refunds';
+import { useSellerStore } from '../../../src/stores/sellerStore';
+import { safeImageUri } from '../../../src/utils/imageUtils';
+import SellerDrawer from '../../../src/components/SellerDrawer';
+import { orderExportService } from '../../../src/services/orderExportService';
+import TrackingModal from '../../../src/components/seller/TrackingModal';
+
+// Types
+type DBStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+type OrderStatus = 'all' | DBStatus;
+type ChannelFilter = 'all' | 'online' | 'pos';
+type DateFilterLabel = 'All Time' | 'Today' | 'Last 7 Days' | 'Last 30 Days' | 'This Month' | 'Custom Range';
+
+interface FilterState {
+  status: OrderStatus;
+  channel: ChannelFilter;
+  dateLabel: DateFilterLabel;
+  startDate: Date | null;
+  endDate: Date | null;
+}
 
 export default function SellerOrdersScreen() {
-  const { orders, updateOrderStatus, seller } = useSellerStore();
+  const {
+    orders = [],
+    seller,
+    fetchOrders,
+    ordersLoading,
+    updateOrderStatus,
+    markOrderAsShipped,
+    markOrderAsDelivered,
+  } = useSellerStore();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
-  const [drawerVisible, setDrawerVisible] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<OrderStatus>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [walkFilter, setWalkFilter] = useState<'all' | 'walkin' | 'online'>('all');
-  const [isWalkFilterOpen, setIsWalkFilterOpen] = useState(false);
+  const navigation = useNavigation<any>();
 
-  const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
-  const returnRequests = getReturnRequestsBySeller(seller.storeName);
-  const pendingReturnRequests = returnRequests.filter(
-    (req) => req.status === 'pending_review' || req.status === 'seller_response_required'
-  );
-  const refundRequests = returnRequests.filter(
-    (req) =>
-      req.status === 'approved' ||
-      req.status === 'refund_processing' ||
-      req.status === 'refunded' ||
-      req.status === 'item_returned'
-  );
-
-  const isReturnTab = selectedTab === 'returns' || selectedTab === 'refunds';
-  const currentReturnRequests =
-    selectedTab === 'returns'
-      ? pendingReturnRequests
-      : selectedTab === 'refunds'
-      ? refundRequests
-      : [];
-
-  const orderCounts = {
-    all: orders.length,
-    pending: orders.filter(o => o.status === 'pending').length,
-    'to-ship': orders.filter(o => o.status === 'to-ship').length,
-    completed: orders.filter(o => o.status === 'completed').length,
-    returns: pendingReturnRequests.length,
-    refunds: refundRequests.length,
-  };
-
-  const filteredOrders = orders.filter((order) => {
-    const matchesTab =
-      selectedTab === 'all'
-        ? true
-        : selectedTab === 'pending' || selectedTab === 'to-ship' || selectedTab === 'completed'
-        ? order.status === selectedTab
-        : true;
-    const matchesWalk = walkFilter === 'all' ? true : (walkFilter === 'walkin' ? order.type === 'OFFLINE' : order.type === 'ONLINE');
-    const q = searchQuery.trim().toLowerCase();
-    const matchesSearch = !q ? true : (
-      (order.orderId && order.orderId.toLowerCase().includes(q)) ||
-      (order.customerName && order.customerName.toLowerCase().includes(q)) ||
-      (order.customerEmail && order.customerEmail.toLowerCase().includes(q))
-    );
-
-    return matchesTab && matchesWalk && matchesSearch;
+  const [filters, setFilters] = useState<FilterState>({
+    status: 'all',
+    channel: 'all',
+    dateLabel: 'All Time',
+    startDate: null,
+    endDate: null
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '#10B981';
-      case 'to-ship':
-        return '#FF5722';
-      case 'pending':
-        return '#FBBF24';
-      default:
-        return '#6B7280';
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
+  // Date Picker State
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<'start' | 'end'>('start');
+  const [trackingModalVisible, setTrackingModalVisible] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    if (seller?.id) {
+      fetchOrders(seller.id, filters.startDate, filters.endDate);
+    }
+  }, [seller?.id, filters.startDate, filters.endDate]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    if (seller?.id) {
+      await fetchOrders(seller.id, filters.startDate, filters.endDate);
+    }
+    setRefreshing(false);
+  };
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const matchesStatus = filters.status === 'all' || order.status === filters.status;
+      const matchesChannel = filters.channel === 'all'
+        ? true
+        : filters.channel === 'pos' ? order.type === 'OFFLINE' : order.type === 'ONLINE';
+
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = !q || [
+        order.orderNumber || order.id,
+        order.buyerName,
+        order.buyerEmail
+      ].some(f => String(f || '').toLowerCase().includes(q));
+
+      return matchesStatus && matchesChannel && matchesSearch;
+    });
+  }, [orders, filters.status, filters.channel, searchQuery]);
+
+  // Handle Export
+  const handleExport = () => {
+    if (filteredOrders.length === 0) {
+      Alert.alert("No Data", "There are no orders to export.");
+      return;
+    }
+
+    Alert.alert(
+      "Export Orders",
+      `Export ${filteredOrders.length} orders?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Summary CSV",
+          onPress: () => orderExportService.exportToCSV(
+            filteredOrders,
+            seller?.store_name || 'Bazaar',
+            filters.dateLabel,
+            'summary'
+          )
+        },
+        {
+          text: "Detailed CSV",
+          onPress: () => orderExportService.exportToCSV(
+            filteredOrders,
+            seller?.store_name || 'Bazaar',
+            filters.dateLabel,
+            'detailed'
+          )
+        }
+      ]
+    );
+  };
+
+  const applyDatePreset = (label: DateFilterLabel) => {
+    const end = new Date();
+    let start = new Date();
+
+    if (label === 'Custom Range') {
+      setFilters(prev => ({
+        ...prev,
+        dateLabel: label,
+        startDate: prev.startDate || new Date(),
+        endDate: prev.endDate || new Date()
+      }));
+      return;
+    }
+
+    switch (label) {
+      case 'Today':
+        start.setHours(0, 0, 0, 0);
+        break;
+      case 'Last 7 Days':
+        start.setDate(end.getDate() - 7);
+        break;
+      case 'Last 30 Days':
+        start.setDate(end.getDate() - 30);
+        break;
+      case 'This Month':
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        break;
+      case 'All Time':
+        setFilters(prev => ({ ...prev, dateLabel: label, startDate: null, endDate: null }));
+        return;
+    }
+
+    setFilters(prev => ({ ...prev, dateLabel: label, startDate: start, endDate: end }));
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (!selectedDate) return;
+
+    if (datePickerMode === 'start') {
+      setFilters(prev => ({ ...prev, startDate: selectedDate }));
+    } else {
+      setFilters(prev => ({ ...prev, endDate: selectedDate }));
     }
   };
 
-  const getStatusBgColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '#D1FAE5';
-      case 'to-ship':
-        return '#FFF5F0';
-      case 'pending':
-        return '#FEF3C7';
-      default:
-        return '#F3F4F6';
+  const openDatePicker = (mode: 'start' | 'end') => {
+    setDatePickerMode(mode);
+    setShowDatePicker(true);
+  };
+
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { color: string; label: string; action: string | null }> = {
+      pending: { color: '#FBBF24', label: 'PENDING', action: 'Confirm' },
+      confirmed: { color: '#3B82F6', label: 'CONFIRMED', action: 'Ship Now' },
+      shipped: { color: '#8B5CF6', label: 'SHIPPED', action: 'Deliver' },
+      delivered: { color: '#10B981', label: 'DELIVERED', action: null },
+      cancelled: { color: '#DC2626', label: 'CANCELLED', action: null },
+    };
+    return configs[status] || { color: '#6B7280', label: status.toUpperCase(), action: null };
+  };
+
+  const handleQuickAction = (orderId: string, currentStatus: DBStatus) => {
+    if (currentStatus === 'pending') {
+      Alert.alert('Confirm Order', 'Mark this order as confirmed and ready to ship?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            setIsUpdating(true);
+            try {
+              await updateOrderStatus(orderId, 'confirmed');
+              if (seller?.id) await fetchOrders(seller.id);
+            } catch {
+              Alert.alert('Error', 'Failed to confirm order.');
+            } finally {
+              setIsUpdating(false);
+            }
+          },
+        },
+      ]);
+      return;
+    }
+
+    if (currentStatus === 'confirmed') {
+      setTrackingOrderId(orderId);
+      setTrackingNumber('');
+      setTrackingModalVisible(true);
+      return;
+    }
+
+    if (currentStatus === 'shipped') {
+      Alert.alert('Mark as Delivered', 'Confirm this order has been delivered?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            setIsUpdating(true);
+            try {
+              await markOrderAsDelivered(orderId);
+              if (seller?.id) await fetchOrders(seller.id);
+            } catch {
+              Alert.alert('Error', 'Failed to mark order as delivered.');
+            } finally {
+              setIsUpdating(false);
+            }
+          },
+        },
+      ]);
     }
   };
 
-  const getActionButton = (order: any) => {
-    switch (order.status) {
-      case 'pending':
-        return (
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: '#FF5722' }]}
-            onPress={() => updateOrderStatus(order.orderId, 'to-ship')}
-          >
-            <Text style={styles.actionButtonText}>Arrange Shipment</Text>
-          </Pressable>
-        );
-      case 'to-ship':
-        return (
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: '#10B981' }]}
-            onPress={() => updateOrderStatus(order.orderId, 'completed')}
-          >
-            <Text style={styles.actionButtonText}>Mark Shipped</Text>
-          </Pressable>
-        );
-      case 'completed':
-        return (
-          <View style={[styles.actionButton, { backgroundColor: '#E5E7EB' }]}>
-            <Text style={[styles.actionButtonText, { color: '#6B7280' }]}>
-              Completed
-            </Text>
-          </View>
-        );
-      default:
-        return null;
+  const handleTrackingSubmit = async () => {
+    const nextTracking = trackingNumber.trim();
+    if (!trackingOrderId || !nextTracking) {
+      Alert.alert('Error', 'Please enter a tracking number.');
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      await markOrderAsShipped(trackingOrderId, nextTracking);
+      setTrackingModalVisible(false);
+      setTrackingOrderId(null);
+      if (seller?.id) await fetchOrders(seller.id);
+    } catch {
+      Alert.alert('Error', 'Failed to mark order as shipped.');
+    } finally {
+      setIsUpdating(false);
     }
   };
+
+  const activeFilterCount = [
+    filters.status !== 'all',
+    filters.channel !== 'all',
+    filters.dateLabel !== 'All Time'
+  ].filter(Boolean).length;
 
   return (
     <View style={styles.container}>
-      {/* Seller Drawer */}
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
 
-      {/* Immersive Edge-to-Edge Header */}
+      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={styles.headerLeft}>
             <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
+              <Menu size={24} color="#1F2937" />
             </Pressable>
-            <View style={{ flex: 1 }}>
+            <View>
               <Text style={styles.headerTitle}>Orders</Text>
-              <Text style={styles.headerSubtitle}>Order Management</Text>
+              <Text style={styles.headerSubtitle}>Manage & Track</Text>
             </View>
           </View>
+          <Pressable style={styles.notificationButton} onPress={() => navigation.getParent()?.navigate('Notifications')}>
+            <Bell size={22} color="#1F2937" strokeWidth={2.5} />
+            <View style={styles.notificationBadge} />
+          </Pressable>
         </View>
+      </View>
 
-        {/* Search Bar */}
+      {/* Main Action Bar */}
+      <View style={styles.actionBar}>
         <View style={styles.searchBar}>
-          <Search size={20} color="#9CA3AF" strokeWidth={2} />
+          <Search size={18} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search orders..."
+            placeholder="Search Orders..."
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor="#9CA3AF"
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')}>
-              <X size={20} color="#9CA3AF" />
+              <X size={18} color="#9CA3AF" />
             </Pressable>
           )}
         </View>
 
-        {/* Notification (aligned to search end) */}
         <Pressable
-          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
-          onPress={() => navigation.getParent()?.navigate('Notifications')}
+          style={[styles.actionBtn, activeFilterCount > 0 && styles.actionBtnActive]}
+          onPress={() => setShowFilterModal(true)}
         >
-          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-          <View style={styles.notificationBadge} />
+          <ListFilter size={20} color={activeFilterCount > 0 ? "#D97706" : "#4B5563"} />
+          {activeFilterCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
+        </Pressable>
+
+        <Pressable style={styles.actionBtn} onPress={handleExport}>
+          <Download size={20} color="#4B5563" />
         </Pressable>
       </View>
 
-      {/* Segmented Control + Filter */}
-      <View style={styles.segmentedControlRow}>
-        <View style={{ flex: 1 }}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.segmentedScrollContent}
-          >
-            {(
-              ['all', 'pending', 'to-ship', 'completed', 'returns', 'refunds'] as OrderStatus[]
-            ).map((tab) => (
-              <Pressable
-                key={tab}
-                style={[
-                  styles.segmentButton,
-                  selectedTab === tab && styles.segmentButtonActive,
-                ]}
-                onPress={() => setSelectedTab(tab)}
-              >
-                <Text
-                  style={[
-                    styles.segmentButtonText,
-                    selectedTab === tab && styles.segmentButtonTextActive,
-                  ]}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1).replace('-', ' ')}
-                </Text>
-                <View
-                  style={[
-                    styles.countBadge,
-                    selectedTab === tab && styles.countBadgeActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.countBadgeText,
-                      selectedTab === tab && styles.countBadgeTextActive,
-                    ]}
-                  >
-                    {orderCounts[tab]}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.segmentDivider} />
-
-        <View style={styles.filterWrapper}>
-          <Pressable
-            style={styles.filterDropdownButton}
-            onPress={() => setIsWalkFilterOpen((p) => !p)}
-          >
-            <Text style={styles.filterDropdownButtonText}>
-              {walkFilter === 'all' ? 'All' : walkFilter === 'walkin' ? 'Walk-in' : 'Online'}
+      {/* Active Filters Summary */}
+      {(activeFilterCount > 0) && (
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryText}>
+            Showing:
+            {/* UPDATED: Dynamically show date range if custom is selected */}
+            <Text style={{ fontWeight: '700' }}>
+              {filters.dateLabel === 'Custom Range' && filters.startDate && filters.endDate
+                ? ` ${filters.startDate.toLocaleDateString()} - ${filters.endDate.toLocaleDateString()}`
+                : ` ${filters.dateLabel}`
+              }
             </Text>
-            <ChevronDown size={16} color="#FFFFFF" />
+            {filters.status !== 'all' && <Text> • {filters.status.toUpperCase()}</Text>}
+            {filters.channel !== 'all' && <Text> • {filters.channel.toUpperCase()}</Text>}
+          </Text>
+          <Pressable onPress={() => setFilters({ status: 'all', channel: 'all', dateLabel: 'All Time', startDate: null, endDate: null })}>
+            <Text style={styles.clearText}>Reset</Text>
           </Pressable>
-
-          {isWalkFilterOpen && (
-            <>
-              <Pressable style={styles.dropdownOverlay} onPress={() => setIsWalkFilterOpen(false)} />
-              <View style={styles.filterDropdownMenu}>
-                <Pressable
-                  style={styles.filterDropdownItem}
-                  onPress={() => { setWalkFilter('all'); setIsWalkFilterOpen(false); }}
-                >
-                  <Text style={[styles.filterDropdownItemText, walkFilter === 'all' && styles.filterDropdownItemTextSelected]}>All</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.filterDropdownItem}
-                  onPress={() => { setWalkFilter('walkin'); setIsWalkFilterOpen(false); }}
-                >
-                  <Text style={[styles.filterDropdownItemText, walkFilter === 'walkin' && styles.filterDropdownItemTextSelected]}>Walk-in</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.filterDropdownItem}
-                  onPress={() => { setWalkFilter('online'); setIsWalkFilterOpen(false); }}
-                >
-                  <Text style={[styles.filterDropdownItemText, walkFilter === 'online' && styles.filterDropdownItemTextSelected]}>Online</Text>
-                </Pressable>
-              </View>
-            </>
-          )}
         </View>
-      </View>
+      )}
 
+      {/* Orders List */}
       <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing || ordersLoading} onRefresh={onRefresh} colors={['#D97706']} />
+        }
         contentContainerStyle={styles.scrollViewContent}
       >
-        {isReturnTab ? (
-          currentReturnRequests.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Package size={64} color="#D1D5DB" strokeWidth={1.5} />
-              <Text style={styles.emptyStateTitle}>
-                {selectedTab === 'returns' ? 'No return requests' : 'No refund requests'}
-              </Text>
-              <Text style={styles.emptyStateText}>
-                {selectedTab === 'returns'
-                  ? 'Return requests from buyers will appear here'
-                  : 'Refund-related requests will appear here'}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.ordersList}>
-              {currentReturnRequests.map((req) => (
-                <Pressable
-                  key={req.id}
-                  style={styles.orderCard}
-                  onPress={() =>
-                    navigation.getParent()?.navigate('ReturnDetail', {
-                      returnId: req.id,
-                    })
-                  }
-                >
-                  <View style={styles.orderHeader}>
-                    <View style={{ flex: 1, marginRight: 10 }}>
-                      <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
-                        Order #{req.orderId}
-                      </Text>
-                      <Text
-                        style={styles.customerName}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        Reason: {req.reason.split('_').join(' ')}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            selectedTab === 'returns' ? '#FEF3C7' : '#E0F2FE',
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          {
-                            color: selectedTab === 'returns' ? '#D97706' : '#0369A1',
-                          },
-                        ]}
-                      >
-                        {req.status.split('_').join(' ').toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.orderFooter}>
-                    <View>
-                      <Text style={styles.totalLabel}>Request Date</Text>
-                      <Text style={styles.customerEmail}>
-                        {new Date(req.createdAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text style={styles.totalLabel}>Amount</Text>
-                      <Text style={styles.totalAmount}>
-                        ₱{req.amount.toLocaleString()}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          )
-        ) : filteredOrders.length === 0 ? (
+        {filteredOrders.length === 0 ? (
           <View style={styles.emptyState}>
-            <Package size={64} color="#D1D5DB" strokeWidth={1.5} />
-            <Text style={styles.emptyStateTitle}>
-              No {selectedTab === 'all' ? '' : selectedTab} orders
-            </Text>
-            <Text style={styles.emptyStateText}>
-              {selectedTab === 'all'
-                ? 'Orders will appear here once customers make purchases'
-                : `No orders with "${selectedTab.replace('-', ' ')}" status`}
-            </Text>
+            <Text style={styles.emptyText}>No orders found matching your filters.</Text>
           </View>
         ) : (
           <View style={styles.ordersList}>
-            {filteredOrders.map((order) => (
-              <View key={order.id} style={styles.orderCard}>
-                <View style={styles.orderHeader}>
-                  <View style={{ flex: 1, marginRight: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ flexShrink: 1 }}>
-                        <Text
-                          style={styles.orderId}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          {order.orderId}
-                        </Text>
+            {filteredOrders.map((order) => {
+              const config = getStatusConfig(order.status);
+              const isWalkIn = order.type === 'OFFLINE';
+              return (
+                <Pressable key={order.id} style={styles.orderCard} onPress={() => navigation.navigate('SellerOrderDetail', { orderId: order.id })}>
+                  <View style={[styles.channelBar, { backgroundColor: isWalkIn ? '#8B5CF6' : '#3B82F6' }]} />
+                  <View style={styles.cardContent}>
+                    <View style={styles.cardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.orderId} numberOfLines={1}>#{String(order.orderNumber || order.id).slice(0, 10).toUpperCase()}</Text>
+                        <View style={styles.infoRow}>
+                          <Text style={styles.customerName} numberOfLines={1}>{order.buyerName || 'Walk-in'}</Text>
+                          <Text style={styles.orderDate}> • {new Date(order.orderDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                        </View>
                       </View>
-                      <View style={{ marginLeft: 8 }}>
-                        {order.type === 'OFFLINE' && (
-                          <View style={styles.walkInBadge}>
-                            <Text style={styles.walkInBadgeText}>Walk-in</Text>
+                      <Text style={[styles.statusWord, { color: config.color }]}>{config.label}</Text>
+                    </View>
+                    <View style={styles.cardBody}>
+                      <View style={styles.thumbnailStack}>
+                        {order.items.slice(0, 2).map((item: any, i: number) => (
+                          <View key={i} style={styles.thumbWrapper}>
+                            <Image source={{ uri: safeImageUri(item.image) }} style={styles.thumbnail} />
+                            <View style={styles.qtyBadge}><Text style={styles.qtyText}>x{item.quantity}</Text></View>
                           </View>
-                        )}
-                        {order.type === 'ONLINE' && (
-                          <View style={styles.onlineBadge}>
-                            <Text style={styles.onlineBadgeText}>Online</Text>
-                          </View>
-                        )}
+                        ))}
+                        {order.items.length > 2 && <View style={styles.moreItemsBox}><Text style={styles.moreItemsText}>+{order.items.length - 2}</Text></View>}
+                      </View>
+                      <View style={styles.priceGroup}>
+                        <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
+                        <Text style={styles.totalLabel}>Total</Text>
                       </View>
                     </View>
-                    <Text style={styles.customerName}>{order.customerName}</Text>
-                    {order.posNote ? (
-                      <Text style={styles.posNote} numberOfLines={1}>
-                        Note: {order.posNote}
-                      </Text>
-                    ) : (
-                      <Text style={styles.customerEmail} numberOfLines={1}>
-                        {order.customerEmail}
-                      </Text>
-                    )}
+                    <View style={styles.cardFooter}>
+                      <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
+                      {config.action && (
+                        <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, order.status as DBStatus)}>
+                          <Text style={styles.actionBtnText}>{config.action}</Text>
+                        </Pressable>
+                      )}
                   </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusBgColor(order.status), flexShrink: 0 },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: getStatusColor(order.status) },
-                      ]}
-                    >
-                      {order.status.replace('-', ' ').toUpperCase()}
-                    </Text>
                   </View>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.thumbnailsScroll}
-                >
-                  {order.items.map((item, index) => (
-                    <View key={index} style={styles.thumbnailContainer}>
-                      <Image source={{ uri: item.image }} style={styles.thumbnail} />
-                      <View style={styles.quantityBadge}>
-                        <Text style={styles.quantityText}>x{item.quantity}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </ScrollView>
-                <View style={styles.orderFooter}>
-                  <View>
-                    <Text style={styles.totalLabel}>Total Amount</Text>
-                    <Text style={styles.totalAmount}>
-                      ₱{order.total.toLocaleString()}
-                    </Text>
-                  </View>
-                  {getActionButton(order)}
-                </View>
-              </View>
-            ))}
+                </Pressable>
+              );
+            })}
           </View>
         )}
-
-        <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* FILTER MODAL */}
+      <Modal visible={showFilterModal} transparent animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowFilterModal(false)}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter Orders</Text>
+              <Pressable onPress={() => setShowFilterModal(false)}>
+                <X size={24} color="#374151" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {/* 1. Date Section */}
+              <View style={styles.filterSection}>
+                <View style={styles.sectionHeader}>
+                  <Calendar size={16} color="#6B7280" />
+                  <Text style={styles.sectionTitle}>DATE RANGE</Text>
+                </View>
+                <View style={styles.chipGrid}>
+                  {['All Time', 'Today', 'Last 7 Days', 'Last 30 Days', 'This Month', 'Custom Range'].map((label) => (
+                    <Pressable
+                      key={label}
+                      style={[styles.chip, filters.dateLabel === label && styles.chipActive]}
+                      onPress={() => applyDatePreset(label as DateFilterLabel)}
+                    >
+                      <Text style={[styles.chipText, filters.dateLabel === label && styles.chipTextActive]}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Custom Date Inputs */}
+                {filters.dateLabel === 'Custom Range' && (
+                  <View style={styles.customDateContainer}>
+                    <Pressable style={styles.dateInput} onPress={() => openDatePicker('start')}>
+                      <Text style={styles.dateLabel}>Start Date</Text>
+                      <Text style={styles.dateValue}>
+                        {filters.startDate ? filters.startDate.toLocaleDateString() : 'Select'}
+                      </Text>
+                    </Pressable>
+                    <View style={styles.dateDivider} />
+                    <Pressable style={styles.dateInput} onPress={() => openDatePicker('end')}>
+                      <Text style={styles.dateLabel}>End Date</Text>
+                      <Text style={styles.dateValue}>
+                        {filters.endDate ? filters.endDate.toLocaleDateString() : 'Select'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+
+              {/* 2. Channel Section */}
+              <View style={styles.filterSection}>
+                <View style={styles.sectionHeader}>
+                  <Layers size={16} color="#6B7280" />
+                  <Text style={styles.sectionTitle}>SALES CHANNEL</Text>
+                </View>
+                <View style={styles.chipRow}>
+                  {['all', 'online', 'pos'].map((c) => (
+                    <Pressable
+                      key={c}
+                      style={[styles.chip, filters.channel === c && styles.chipActive]}
+                      onPress={() => setFilters(prev => ({ ...prev, channel: c as ChannelFilter }))}
+                    >
+                      <Text style={[styles.chipText, filters.channel === c && styles.chipTextActive]}>
+                        {c === 'pos' ? 'POS (Walk-in)' : c.toUpperCase()}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* 3. Status Section */}
+              <View style={styles.filterSection}>
+                <View style={styles.sectionHeader}>
+                  <Tag size={16} color="#6B7280" />
+                  <Text style={styles.sectionTitle}>ORDER STATUS</Text>
+                </View>
+                <View style={styles.chipGrid}>
+                  {['all', 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].map((s) => (
+                    <Pressable
+                      key={s}
+                      style={[styles.chip, filters.status === s && styles.chipActive]}
+                      onPress={() => setFilters(prev => ({ ...prev, status: s as OrderStatus }))}
+                    >
+                      <Text style={[styles.chipText, filters.status === s && styles.chipTextActive]}>
+                        {s.toUpperCase()}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <Pressable
+                style={styles.resetBtn}
+                onPress={() => setFilters({ status: 'all', channel: 'all', dateLabel: 'All Time', startDate: null, endDate: null })}
+              >
+                <Text style={styles.resetBtnText}>Reset All</Text>
+              </Pressable>
+              <Pressable style={styles.applyBtn} onPress={() => setShowFilterModal(false)}>
+                <Text style={styles.applyBtnText}>Show Results</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Date Picker Component */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={datePickerMode === 'start' ? (filters.startDate || new Date()) : (filters.endDate || new Date())}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onDateChange}
+          maximumDate={new Date()}
+        />
+      )}
+      <TrackingModal
+        visible={trackingModalVisible}
+        onClose={() => setTrackingModalVisible(false)}
+        trackingNumber={trackingNumber}
+        setTrackingNumber={setTrackingNumber}
+        onSubmit={handleTrackingSubmit}
+        isUpdating={isUpdating}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
-  },
-  header: {
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderBottomLeftRadius: 20, 
-    borderBottomRightRadius: 20,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  menuButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    gap: 2,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
-  notificationButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    zIndex: 5,
-    marginRight: 0,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 10,
-    height: 10,
-    borderRadius: 6,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#FF5722',
-  },
-  iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 12,
-    borderRadius: 12,
-  },
-  segmentedControl: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  // Header search
-  searchBar: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-    gap: 8,
-    marginBottom: 0,
-    marginHorizontal: 0,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1F2937',
-  },
-  // Segmented + Filter Row
-  segmentedControlRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    gap: 3,
-    backgroundColor: '#FFFFFF',
-  },
-  segmentDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 12,
-  },
-  filterWrapper: {
-    position: 'relative',
-  },
-  filterDropdownButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#FF5722',
-    borderRadius: 10,
-  },
-  filterDropdownButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  filterDropdownMenu: {
-    position: 'absolute',
-    top: 48,
-    right: 0,
-    width: 140,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
-    zIndex: 1000,
-  },
-  filterDropdownItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  filterDropdownItemText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  filterDropdownItemTextSelected: {
-    color: '#FF5722',
-  },
-  dropdownOverlay: {
-    position: 'absolute',
-    top: 44,
-    left: -1000,
-    right: -1000,
-    bottom: -1000,
-    backgroundColor: 'transparent',
-    zIndex: 900,
-  },
-  segmentedScrollContent: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  segmentButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 100,
-    backgroundColor: '#F3F4F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  segmentButtonActive: {
-    backgroundColor: '#FF5722',
-  },
-  segmentButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  segmentButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  countBadge: {
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    minWidth: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  countBadgeActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  countBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#374151',
-  },
-  countBadgeTextActive: {
-    color: '#FFFFFF',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollViewContent: {
-    paddingBottom: 100,
-  },
-  ordersList: {
-    padding: 20,
-  },
-  orderCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  orderId: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  customerName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4B5563',
-    marginBottom: 2,
-  },
-  customerEmail: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  posNote: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontStyle: 'italic',
-  },
-  walkInBadge: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  walkInBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  onlineBadge: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  onlineBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 100,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  thumbnailsScroll: {
-    marginBottom: 16,
-  },
-  thumbnailContainer: {
-    marginRight: 8,
-    position: 'relative',
-  },
-  thumbnail: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F7',
-  },
-  quantityBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  quantityText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  totalLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  totalAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FF5722',
-  },
-  actionButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
+  container: { flex: 1, backgroundColor: '#FFFBF0' },
+
+  // Header
+  header: { backgroundColor: '#FFF4EC', paddingHorizontal: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, elevation: 3 },
+  headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconContainer: { backgroundColor: 'rgba(0,0,0,0.05)', padding: 10, borderRadius: 12 },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937' },
+  headerSubtitle: { fontSize: 13, color: '#4B5563', fontWeight: '500' },
+  notificationButton: { position: 'relative' },
+  notificationBadge: { position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#FFF4EC' },
+
+  // Action Bar
+  actionBar: { flexDirection: 'row', paddingHorizontal: 20, marginTop: 15, gap: 10 },
+  searchBar: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 12, height: 44, borderWidth: 1, borderColor: '#E5E7EB' },
+  searchInput: { flex: 1, fontSize: 14, color: '#1F2937', marginLeft: 8 },
+  actionBtn: { width: 44, height: 44, backgroundColor: '#FFF', borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
+  actionBtnActive: { borderColor: '#D97706', backgroundColor: '#FFF0E6' },
+  badge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#D97706', width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFFBF0' },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+
+  // Summary Row
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 10, marginBottom: 5 },
+  summaryText: { fontSize: 12, color: '#6B7280' },
+  clearText: { fontSize: 12, color: '#D97706', fontWeight: '600' },
+
+  // List
+  scrollViewContent: { paddingBottom: 40, paddingTop: 10 },
+  ordersList: { paddingHorizontal: 20 },
+  emptyState: { alignItems: 'center', marginTop: 50 },
+  emptyText: { color: '#9CA3AF', fontSize: 14 },
+
+  // Order Card
+  orderCard: { backgroundColor: '#FFF', borderRadius: 18, marginBottom: 15, flexDirection: 'row', overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
+  channelBar: { width: 6, height: '100%' },
+  cardContent: { flex: 1, padding: 16 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  orderId: { fontSize: 15, fontWeight: '800', color: '#1F2937' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  customerName: { fontSize: 13, fontWeight: '600', color: '#4B5563', maxWidth: 120 },
+  orderDate: { fontSize: 12, color: '#9CA3AF' },
+  statusWord: { fontSize: 11, fontWeight: '900' },
+  cardBody: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#FFF4EC' },
+  thumbnailStack: { flexDirection: 'row', gap: 8 },
+  thumbWrapper: { position: 'relative' },
+  thumbnail: { width: 50, height: 50, borderRadius: 10, backgroundColor: '#FFF4EC' },
+  qtyBadge: { position: 'absolute', top: -6, right: -6, backgroundColor: '#D97706', paddingHorizontal: 5, borderRadius: 10, borderWidth: 2, borderColor: '#FFF', zIndex: 10 },
+  qtyText: { fontSize: 9, fontWeight: '900', color: '#FFF' },
+  moreItemsBox: { width: 50, height: 50, borderRadius: 10, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: '#D1D5DB' },
+  moreItemsText: { fontSize: 14, fontWeight: '700', color: '#9CA3AF' },
+  priceGroup: { alignItems: 'flex-end' },
+  totalValue: { fontSize: 18, fontWeight: '900', color: '#1F2937' },
+  totalLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  detailsBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  detailsBtnText: { fontSize: 13, color: '#9CA3AF', fontWeight: '600' },
+  actionBtnPrimary: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#D97706' },
+  actionBtnText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937' },
+  modalBody: { padding: 20 },
+  filterSection: { marginBottom: 25 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sectionTitle: { fontSize: 12, fontWeight: '800', color: '#9CA3AF', letterSpacing: 0.5 },
+  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  chipRow: { flexDirection: 'row', gap: 10 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: 'transparent' },
+  chipActive: { backgroundColor: '#FFF0E6', borderColor: '#D97706' },
+  chipText: { fontSize: 13, color: '#4B5563', fontWeight: '600' },
+  chipTextActive: { color: '#D97706', fontWeight: '700' },
+
+  // Custom Date Input Styles
+  customDateContainer: { flexDirection: 'row', marginTop: 15, alignItems: 'center', gap: 10 },
+  dateInput: { flex: 1, padding: 12, backgroundColor: '#FFF4EC', borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
+  dateLabel: { fontSize: 10, color: '#6B7280', marginBottom: 4, textTransform: 'uppercase' },
+  dateValue: { fontSize: 14, color: '#1F2937', fontWeight: '600' },
+  dateDivider: { width: 8, height: 1, backgroundColor: '#9CA3AF' },
+
+  modalFooter: { flexDirection: 'row', padding: 20, borderTopWidth: 1, borderTopColor: '#F3F4F6', gap: 15 },
+  resetBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
+  resetBtnText: { color: '#4B5563', fontWeight: '700', fontSize: 15 },
+  applyBtn: { flex: 2, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#D97706' },
+  applyBtnText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
 });

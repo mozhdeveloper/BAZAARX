@@ -124,12 +124,12 @@ export default function AdminSellersScreen() {
                 <View style={styles.sellerInfo}>
                   <View style={styles.sellerAvatar}>
                     <Text style={styles.sellerAvatarText}>
-                      {seller.storeName.charAt(0)}
+                      {seller.storeName?.charAt(0) || 'S'}
                     </Text>
                   </View>
                   <View style={styles.sellerDetails}>
                     <Text style={styles.sellerName}>{seller.storeName}</Text>
-                    <Text style={styles.sellerBusiness}>{seller.businessName}</Text>
+                    <Text style={styles.sellerBusiness}>{seller.businessType || 'Business'}</Text>
                     <Text style={styles.sellerEmail}>{seller.email}</Text>
                   </View>
                 </View>
@@ -186,9 +186,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20,
   },
   headerContent: {
     flexDirection: 'row',

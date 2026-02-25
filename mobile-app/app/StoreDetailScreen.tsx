@@ -1,15 +1,19 @@
-import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info } from 'lucide-react-native';
+import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info, Loader2, MoreVertical } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
 import { trendingProducts } from '../src/data/products'; // Placeholder products
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimensions, Alert, LayoutAnimation, Platform, UIManager, Modal, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimensions, Alert, LayoutAnimation, Platform, UIManager, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import StoreChatModal from '../src/components/StoreChatModal';
 import { COLORS } from '../src/constants/theme';
 
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { sellerService } from '../src/services/sellerService';
+import { productService } from '../src/services/productService';
+import { safeImageUri, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -17,11 +21,29 @@ export default function StoreDetailScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
-    const { store } = route.params;
+    const { store } = route.params || {};
+
+    if (!store) {
+        return (
+            <View style={styles.container}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: '#7C2D12' }}>Store information not available</Text>
+                    <Pressable onPress={() => navigation.goBack()} style={{ padding: 10, marginTop: 10 }}>
+                        <Text style={{ color: '#FB8C00' }}>Go Back</Text>
+                    </Pressable>
+                </View>
+            </View>
+        );
+    }
     const BRAND_COLOR = COLORS.primary;
 
+    const { isGuest, user } = useAuthStore();
+
     // State
+    const [storeData, setStoreData] = useState<any>(store);
+    const [followerCount, setFollowerCount] = useState(0);
     const [isFollowing, setIsFollowing] = useState(false);
+
     const [activeTab, setActiveTab] = useState('Shop');
     const [searchVisible, setSearchVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -30,7 +52,9 @@ export default function StoreDetailScreen() {
     const [showGuestModal, setShowGuestModal] = useState(false);
     const [guestModalMessage, setGuestModalMessage] = useState('');
 
-    const { isGuest } = useAuthStore();
+    // Real products state
+    const [realProducts, setRealProducts] = useState<any[]>([]);
+    const [productsLoading, setProductsLoading] = useState(true);
 
     const [vouchers, setVouchers] = useState([
         { id: '1', amount: '₱50 OFF', min: 'Min. Spend ₱500', claimed: false },
@@ -38,9 +62,115 @@ export default function StoreDetailScreen() {
         { id: '3', amount: 'Free Shipping', min: 'Min. Spend ₱300', claimed: false },
     ]);
 
-    // Filter products for this store (simulated)
-    const storeProducts = trendingProducts.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
+    // Fetch real store data
+    useEffect(() => {
+        const fetchStoreData = async () => {
+            if (!store?.id) return;
+            try {
+                // Fetch fresh seller data
+                const seller = await sellerService.getSellerById(store.id);
+                if (seller) {
+                    setStoreData({
+                        ...store,
+                        ...seller,
+                        name: seller.store_name || seller.business_name || store.name,
+                        location: seller.city ? `${seller.city}, ${seller.province}` : (seller.business_profile?.address_line_1 || store.location),
+                        description: seller.store_description || store.description,
+                        rating: seller.rating || store.rating || 0,
+                        logo: seller.store_name?.substring(0, 2).toUpperCase() || store.logo
+                    });
+                }
+
+                // Fetch follower count (non-critical, don't throw)
+                try {
+                    const count = await sellerService.getFollowerCount(store.id);
+                    setFollowerCount(count);
+                } catch (e) {
+                    console.warn('Could not fetch follower count:', e);
+                }
+
+                // Check if following (only for logged-in buyers)
+                if (user?.id && !isGuest) {
+                    try {
+                        const following = await sellerService.checkIsFollowing(user.id, store.id);
+                        setIsFollowing(following);
+                    } catch (e) {
+                        console.warn('Could not check follow status:', e);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching store data:', error);
+            }
+        };
+        fetchStoreData();
+    }, [store?.id, user?.id, isGuest]);
+
+    // Fetch real products for this store
+    useEffect(() => {
+        const fetchProducts = async () => {
+            if (!store?.id) return;
+
+            setProductsLoading(true);
+            try {
+                // Fetch products for this seller from the database
+                const products = await productService.getProducts({
+                    sellerId: store.id,
+                    approvalStatus: 'approved',
+                    isActive: true
+                });
+
+                if (products && products.length > 0) {
+                    // Map database products to display format
+                    const mappedProducts = products.map(p => {
+                        // Get primary image or first image
+                        const primaryImage = (p as any).images?.find((img: any) => img.is_primary)?.image_url 
+                            || (p as any).images?.[0]?.image_url 
+                            || (p as any).images?.[0] 
+                            || 'https://placehold.co/400?text=Product';
+                        
+                        // Get category name from join
+                        const categoryName = typeof (p as any).category === 'object' 
+                            ? (p as any).category?.name 
+                            : ((p as any).category || 'General');
+                        
+                        return {
+                            id: p.id,
+                            name: p.name,
+                            price: p.price,
+                            originalPrice: (p as any).original_price || p.price,
+                            image: primaryImage,
+                            rating: (p as any).rating || 5.0,
+                            sold: (p as any).sales_count || 0,
+                            category: categoryName,
+                            seller_id: (p as any).seller_id, // snake_case for DB compat
+                            sellerId: (p as any).seller_id,  // camelCase alias
+                            seller: storeData.name,
+                            sellerName: storeData.name,
+                            sellerLocation: storeData.location
+                        };
+                    });
+                    setRealProducts(mappedProducts);
+                } else {
+                    setRealProducts([]);
+                }
+            } catch (error) {
+                console.error('Error fetching store products:', error);
+                setRealProducts([]); // Set empty on error instead of leaving stale data
+            } finally {
+                setProductsLoading(false);
+            }
+        };
+
+        fetchProducts();
+    }, [store?.id, storeData.name]);
+
+    // Use real products if available, otherwise fallback to trending products (only if disabled)
+    // Actually for store detail we should probably only show real products or empty
+    const availableProducts = realProducts;
+
+    // Filter products by search query
+    const storeProducts = availableProducts.filter((p: any) =>
+        p.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     if (Platform.OS === 'android') {
@@ -49,14 +179,34 @@ export default function StoreDetailScreen() {
         }
     }
 
-    const handleFollow = () => {
-        if (isGuest) {
+    const handleFollow = async () => {
+        if (isGuest || !user?.id) {
             setGuestModalMessage("Sign up to follow stores.");
             setShowGuestModal(true);
             return;
         }
+
+        // Optimistic update
+        const prevFollowing = isFollowing;
+        const prevCount = followerCount;
+
+        setIsFollowing(!prevFollowing);
+        setFollowerCount(prev => prevFollowing ? prev - 1 : prev + 1);
+
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setIsFollowing(!isFollowing);
+
+        try {
+            if (prevFollowing) {
+                await sellerService.unfollowSeller(user.id, store.id);
+            } else {
+                await sellerService.followSeller(user.id, store.id);
+            }
+        } catch (error) {
+            // Revert on error
+            setIsFollowing(prevFollowing);
+            setFollowerCount(prevCount);
+            Alert.alert('Error', 'Failed to update follow status');
+        }
     };
 
     const handleChat = () => {
@@ -85,7 +235,7 @@ export default function StoreDetailScreen() {
                                 {vouchers.map((voucher) => (
                                     <View key={voucher.id} style={[styles.couponCard, voucher.claimed && styles.couponCardClaimed]}>
                                         <View style={styles.couponLeft}>
-                                            <Text style={[styles.couponAmount, voucher.claimed && { color: '#9CA3AF' }]}>{voucher.amount}</Text>
+                                            <Text style={[styles.couponAmount, voucher.claimed && { color: COLORS.textMuted }]}>{voucher.amount}</Text>
                                             <Text style={styles.couponMin}>{voucher.min}</Text>
                                         </View>
                                         <Pressable
@@ -93,7 +243,7 @@ export default function StoreDetailScreen() {
                                             onPress={() => !voucher.claimed && handleClaimVoucher(voucher.id)}
                                             disabled={voucher.claimed}
                                         >
-                                            <Text style={[styles.claimText, voucher.claimed && { color: '#9CA3AF' }]}>
+                                            <Text style={[styles.claimText, voucher.claimed && { color: COLORS.textMuted }]}>
                                                 {voucher.claimed ? 'Claimed' : 'Claim'}
                                             </Text>
                                         </Pressable>
@@ -122,13 +272,24 @@ export default function StoreDetailScreen() {
                 return (
                     <View style={styles.productsContainer}>
                         <Text style={styles.sectionTitle}>All Products ({storeProducts.length})</Text>
-                        <View style={styles.grid}>
-                            {storeProducts.map((p) => (
-                                <View key={p.id} style={styles.productWrapper}>
-                                    <ProductCard product={p} onPress={() => navigation.navigate('ProductDetail', { product: p })} />
-                                </View>
-                            ))}
-                        </View>
+                        {productsLoading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#FB8C00" />
+                                <Text style={styles.loadingText}>Loading products...</Text>
+                            </View>
+                        ) : storeProducts.length === 0 ? (
+                            <View style={styles.emptyContainer}>
+                                <Text style={styles.emptyText}>No products available yet</Text>
+                            </View>
+                        ) : (
+                            <View style={styles.grid}>
+                                {storeProducts.map((p) => (
+                                    <View key={p.id} style={styles.productWrapper}>
+                                        <ProductCard product={p} onPress={() => navigation.navigate('ProductDetail', { product: p })} />
+                                    </View>
+                                ))}
+                            </View>
+                        )}
                     </View>
                 );
             case 'Categories':
@@ -139,13 +300,13 @@ export default function StoreDetailScreen() {
                             {(store.categories || []).map((cat: string, index: number) => (
                                 <Pressable key={index} style={styles.categoryRow}>
                                     <Text style={styles.categoryName}>{cat}</Text>
-                                    <Grid size={20} color="#9CA3AF" />
+                                    <Grid size={20} color={COLORS.textMuted} />
                                 </Pressable>
                             ))}
                             {['Sale', 'New Arrivals', 'Bundles'].map((cat, index) => (
                                 <Pressable key={`extra-${index}`} style={styles.categoryRow}>
                                     <Text style={styles.categoryName}>{cat}</Text>
-                                    <Grid size={20} color="#9CA3AF" />
+                                    <Grid size={20} color={COLORS.textMuted} />
                                 </Pressable>
                             ))}
                         </View>
@@ -161,15 +322,21 @@ export default function StoreDetailScreen() {
                             <View style={styles.divider} />
 
                             <View style={styles.infoRow}>
-                                <MapPin size={18} color="#6B7280" />
-                                <Text style={styles.infoText}>{store.location}</Text>
+                                <MapPin size={18} color={COLORS.textMuted} />
+                                <Text style={styles.infoText}>
+                                    {[
+                                        storeData.business_profile?.address_line_1,
+                                        storeData.city || storeData.business_profile?.city,
+                                        storeData.province || storeData.business_profile?.province
+                                    ].filter(Boolean).join(', ') || storeData.location || "Address not available"}
+                                </Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Star size={18} color="#F59E0B" fill="#F59E0B" />
-                                <Text style={styles.infoText}>{store.rating} ({store.followers} Rating Count)</Text>
+                                <Text style={styles.infoText}>{storeData.rating} ({followerCount} Followers)</Text>
                             </View>
                             <View style={styles.infoRow}>
-                                <CheckCircle2 size={18} color={BRAND_COLOR} />
+                                <CheckCircle2 size={18} color="#FB8C00" />
                                 <Text style={styles.infoText}>Verified Official Store</Text>
                             </View>
                             <View style={styles.infoRow}>
@@ -186,10 +353,15 @@ export default function StoreDetailScreen() {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" />
+            <StatusBar barStyle="dark-content" />
 
             {/* Custom Header */}
-            <View style={[styles.header, { paddingTop: insets.top }, searchVisible && { backgroundColor: BRAND_COLOR, paddingBottom: 12 }]}>
+            <LinearGradient
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.header, { paddingTop: insets.top }, searchVisible && { backgroundColor: COLORS.primary, paddingBottom: 12 }]}
+            >
                 {searchVisible ? (
                     <View style={styles.searchHeader}>
                         <View style={styles.searchBar}>
@@ -209,26 +381,26 @@ export default function StoreDetailScreen() {
                         </Pressable>
                     </View>
                 ) : (
-                    <>
-                        <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-                            <ArrowLeft size={24} color="#FFF" />
+                    <View style={styles.headerTop}>
+                        <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
                         </Pressable>
                         <View style={styles.headerRight}>
-                            <Pressable style={styles.iconButton} onPress={() => setSearchVisible(true)}>
-                                <Search size={24} color="#FFF" />
+                            <Pressable style={styles.headerIconButton} onPress={() => { }}>
+                                <Share2 size={24} color={COLORS.textHeadline} />
                             </Pressable>
-                            <Pressable style={styles.iconButton} onPress={() => setMenuVisible(true)}>
-                                <MoreHorizontal size={24} color="#FFF" />
+                            <Pressable style={styles.headerIconButton} onPress={() => { }}>
+                                <MoreVertical size={24} color={COLORS.textHeadline} />
                             </Pressable>
                         </View>
-                    </>
+                    </View>
                 )}
-            </View>
+            </LinearGradient>
 
             <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Profile Banner Section */}
                 <View style={styles.profileSection}>
-                    <Image source={{ uri: store.banner }} style={styles.bannerImage} resizeMode="cover" />
+                    <Image source={{ uri: safeImageUri(store.banner, PLACEHOLDER_BANNER) }} style={styles.bannerImage} resizeMode="cover" />
                     <View style={styles.overlay} />
 
                     <View style={styles.storeInfoContent}>
@@ -238,17 +410,23 @@ export default function StoreDetailScreen() {
                             </View>
                             <View style={styles.textInfo}>
                                 <View style={styles.nameLockup}>
-                                    <Text style={styles.storeName}>{store.name}</Text>
-                                    {store.verified && <CheckCircle2 size={16} color="#3B82F6" fill="#FFF" />}
+                                    <Text style={styles.storeName}>{storeData.name}</Text>
+                                    {storeData.verified && <CheckCircle2 size={16} color="#3B82F6" fill="#FFF" />}
                                 </View>
                                 <View style={styles.locationRow}>
                                     <MapPin size={12} color="#FFF" />
-                                    <Text style={styles.locationText}>{store.location}</Text>
+                                    <Text style={styles.locationText} numberOfLines={1}>
+                                        {[
+                                            storeData.business_profile?.address_line_1,
+                                            storeData.city || storeData.business_profile?.city,
+                                            storeData.province || storeData.business_profile?.province
+                                        ].filter(Boolean).join(', ') || storeData.location || "Address not available"}
+                                    </Text>
                                 </View>
                                 <View style={styles.metricsRow}>
-                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{store.rating}</Text> Rating</Text>
+                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{storeData.rating}</Text> Rating</Text>
                                     <View style={styles.divider} />
-                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{store.followers > 1000 ? (store.followers / 1000).toFixed(1) + 'k' : store.followers}</Text> Followers</Text>
+                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{followerCount > 1000 ? (followerCount / 1000).toFixed(1) + 'k' : followerCount}</Text> Followers</Text>
                                 </View>
                             </View>
                         </View>
@@ -299,18 +477,23 @@ export default function StoreDetailScreen() {
             </ScrollView>
 
             {/* Store Chat Modal */}
-            <StoreChatModal visible={chatVisible} onClose={() => setChatVisible(false)} storeName={store.name} />
+            <StoreChatModal
+                visible={chatVisible}
+                onClose={() => setChatVisible(false)}
+                storeName={store.name}
+                sellerId={store.id || store.seller_id}
+            />
 
             {/* Menu Modal */}
             <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
                 <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
                     <View style={[styles.menuContainer, { top: insets.top + 60 }]}>
                         <Pressable style={styles.menuItem} onPress={() => { setMenuVisible(false); Alert.alert('Shared', 'Store link copied to clipboard'); }}>
-                            <Share2 size={20} color="#374151" />
+                            <Share2 size={20} color={COLORS.textHeadline} />
                             <Text style={styles.menuText}>Share this store</Text>
                         </Pressable>
                         <Pressable style={styles.menuItem} onPress={() => { setMenuVisible(false); navigation.navigate('HelpSupport'); }}>
-                            <Info size={20} color="#374151" />
+                            <Info size={20} color={COLORS.textHeadline} />
                             <Text style={styles.menuText}>Store Info</Text>
                         </Pressable>
                         <View style={styles.menuDivider} />
@@ -334,22 +517,17 @@ export default function StoreDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F3F4F6',
-    },
-    header: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
+    container: { flex: 1, backgroundColor: COLORS.background },
+    header: { paddingHorizontal: 20, zIndex: 10, paddingBottom: 10 },
+    headerTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
+        paddingHorizontal: 0,
         paddingBottom: 10,
         alignItems: 'center',
     },
+    headerIconButton: { padding: 4 },
+    headerRight: { flexDirection: 'row', gap: 10 },
     searchHeader: {
         flex: 1,
         flexDirection: 'row',
@@ -371,7 +549,7 @@ const styles = StyleSheet.create({
     searchInput: {
         flex: 1,
         fontSize: 14,
-        color: '#1F2937',
+        color: COLORS.textHeadline,
         padding: 0,
     },
     cancelSearch: {
@@ -380,10 +558,6 @@ const styles = StyleSheet.create({
     cancelText: {
         color: '#FFF',
         fontWeight: '600',
-    },
-    headerRight: {
-        flexDirection: 'row',
-        gap: 8,
     },
     iconButton: {
         width: 40,
@@ -478,7 +652,7 @@ const styles = StyleSheet.create({
     },
     followButton: {
         flex: 1,
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#FB8C00', // Warm Orange
         paddingVertical: 10,
         borderRadius: 8,
         flexDirection: 'row',
@@ -531,7 +705,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     activeTabText: {
-        color: COLORS.primary,
+        color: '#FB8C00',
         fontWeight: '700',
     },
     activeIndicator: {
@@ -540,7 +714,7 @@ const styles = StyleSheet.create({
         left: 16,
         right: 16,
         height: 3,
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#FB8C00',
         borderRadius: 3,
     },
     couponSection: {
@@ -562,14 +736,14 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     seeAllText: {
-        color: COLORS.primary,
+        color: '#FB8C00',
         fontWeight: '600',
         fontSize: 13,
     },
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#1F2937',
+        fontSize: 19,
+        fontWeight: '900',
+        color: COLORS.primary,
         paddingHorizontal: 16,
         marginBottom: 12,
     },
@@ -677,7 +851,7 @@ const styles = StyleSheet.create({
     },
     productWrapper: {
         width: (width - 48) / 2,
-        marginBottom: 16,
+        marginBottom: 12,
     },
     // Menu Styles
     menuOverlay: {
@@ -713,5 +887,26 @@ const styles = StyleSheet.create({
         height: 1,
         backgroundColor: '#F3F4F6',
         marginVertical: 4,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#6B7280',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    emptyText: {
+        fontSize: 14,
+        color: '#9CA3AF',
     },
 });

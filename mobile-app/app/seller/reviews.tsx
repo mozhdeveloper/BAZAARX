@@ -1,19 +1,25 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
   Pressable,
   Image,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SellerStackParamList } from './SellerStack';
+import { useAuthStore } from '../../src/stores/authStore';
+import { reviewService, type ReviewFeedItem } from '../../src/services/reviewService';
 import {
   ArrowLeft,
   Star,
@@ -23,393 +29,508 @@ import {
   Reply,
   Flag,
   Check,
+  Trash2,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react-native';
+import { safeImageUri, PLACEHOLDER_PRODUCT, PLACEHOLDER_AVATAR } from '../../src/utils/imageUtils';
 
-interface Review {
-  id: string;
-  productId: string;
-  productName: string;
-  productImage: string;
-  buyerName: string;
-  buyerAvatar: string;
-  rating: number;
-  comment: string;
-  images: string[];
-  helpful: number;
-  date: Date;
-  verified: boolean;
-  reply: { message: string; date: Date } | null;
+interface ReviewStats {
+  total: number;
+  average: string;
+  fiveStar: number;
+  fourStar: number;
+  threeStar: number;
+  twoStar: number;
+  oneStar: number;
+  needsReply: number;
+  withPhotos: number;
 }
+
+const BRAND = '#D97706';
 
 export default function ReviewsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRating, setFilterRating] = useState<'all' | number>('all');
   const [showReplyModal, setShowReplyModal] = useState(false);
-  const [selectedReview, setSelectedReview] = useState<string | null>(null);
+  const [selectedReview, setSelectedReview] = useState<ReviewFeedItem | null>(null);
   const [replyText, setReplyText] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  
-  // Mock Reviews Data matching web
-  const mockReviews: Review[] = [
-    {
-      id: 'r1',
-      productId: 'p1',
-      productName: 'Premium Wireless Earbuds - Noise Cancelling',
-      productImage: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=100&h=100&fit=crop',
-      buyerName: 'Maria Santos',
-      buyerAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop',
-      rating: 5,
-      comment: 'Excellent product! Sound quality is amazing and battery life lasts the whole day. Highly recommended!',
-      images: [
-        'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=300&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1606841837239-c5a1a4a07af7?w=300&h=300&fit=crop',
-      ],
-      helpful: 24,
-      date: new Date('2024-12-10'),
-      verified: true,
-      reply: null,
-    },
-    {
-      id: 'r2',
-      productId: 'p2',
-      productName: 'Smart Watch Fitness Tracker',
-      productImage: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&h=100&fit=crop',
-      buyerName: 'Juan dela Cruz',
-      buyerAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop',
-      rating: 4,
-      comment: 'Great fitness tracker for the price. The only downside is the battery drains faster than expected when GPS is on.',
-      images: [],
-      helpful: 15,
-      date: new Date('2024-12-12'),
-      verified: true,
-      reply: {
-        message: 'Thank you for your feedback! We recommend turning off GPS when not actively tracking workouts to extend battery life. Feel free to reach out if you need any assistance.',
-        date: new Date('2024-12-13'),
-      },
-    },
-    {
-      id: 'r3',
-      productId: 'p1',
-      productName: 'Premium Wireless Earbuds - Noise Cancelling',
-      productImage: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=100&h=100&fit=crop',
-      buyerName: 'Ana Reyes',
-      buyerAvatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop',
-      rating: 5,
-      comment: 'Best purchase this year! Noise cancellation is perfect for my daily commute. Worth every peso!',
-      images: ['https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=300&h=300&fit=crop'],
-      helpful: 31,
-      date: new Date('2024-12-14'),
-      verified: true,
-      reply: null,
-    },
-    {
-      id: 'r4',
-      productId: 'p3',
-      productName: 'Portable Power Bank 20000mAh',
-      productImage: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=100&h=100&fit=crop',
-      buyerName: 'Carlo Rodriguez',
-      buyerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop',
-      rating: 3,
-      comment: 'Product arrived late and packaging was slightly damaged. Power bank works fine though.',
-      images: [],
-      helpful: 8,
-      date: new Date('2024-12-11'),
-      verified: true,
-      reply: null,
-    },
-    {
-      id: 'r5',
-      productId: 'p2',
-      productName: 'Smart Watch Fitness Tracker',
-      productImage: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&h=100&fit=crop',
-      buyerName: 'Sofia Garcia',
-      buyerAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=40&h=40&fit=crop',
-      rating: 5,
-      comment: 'Amazing smartwatch! Tracks all my workouts accurately. The heart rate monitor is very precise.',
-      images: [],
-      helpful: 19,
-      date: new Date('2024-12-15'),
-      verified: true,
-      reply: null,
-    },
-  ];
+  const [successMessage, setSuccessMessage] = useState('');
+  const [reviews, setReviews] = useState<ReviewFeedItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [allReviews, setAllReviews] = useState<Review[]>(mockReviews);
-  const filteredReviews = allReviews.filter((review) => {
-    const matchesSearch =
-      review.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      review.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      review.comment.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterRating === 'all' || review.rating === filterRating;
-    return matchesSearch && matchesFilter;
-  });
-
-  const reviewStats = {
-    total: allReviews.length,
-    average: (allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length).toFixed(1),
-    fiveStar: mockReviews.filter((r) => r.rating === 5).length,
-    fourStar: mockReviews.filter((r) => r.rating === 4).length,
-    threeStar: mockReviews.filter((r) => r.rating === 3).length,
-    needsReply: mockReviews.filter((r) => !r.reply).length,
-    withPhotos: mockReviews.filter((r) => r.images.length > 0).length,
+  const closeReplyModal = () => {
+    setShowReplyModal(false);
+    setSelectedReview(null);
+    setReplyText('');
   };
 
-  const handleReply = (reviewId: string) => {
-    setSelectedReview(reviewId);
+  const showSuccessToast = (message: string) => {
+    setSuccessMessage(message);
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 2500);
+  };
+
+  const loadReviews = useCallback(async (isRefresh = false) => {
+    if (!user?.id) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    if (!isRefresh) {
+      setLoading(true);
+    }
+    setError(null);
+
+    try {
+      const data = await reviewService.getSellerReviews(user.id);
+      setReviews(data);
+    } catch (err) {
+      console.error('Error loading reviews:', err);
+      setError('Failed to load reviews. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadReviews();
+  }, [loadReviews]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadReviews(true);
+  }, [loadReviews]);
+
+  const filteredReviews = useMemo(() => {
+    return reviews.filter((review) => {
+      const query = searchQuery.trim().toLowerCase();
+      const matchesSearch =
+        query.length === 0 ||
+        review.productName.toLowerCase().includes(query) ||
+        review.buyerName.toLowerCase().includes(query) ||
+        (review.comment || '').toLowerCase().includes(query);
+
+      const matchesFilter = filterRating === 'all' || review.rating === filterRating;
+      return matchesSearch && matchesFilter;
+    });
+  }, [reviews, searchQuery, filterRating]);
+
+  const reviewStats: ReviewStats = useMemo(() => {
+    const total = reviews.length;
+    const average =
+      total > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / total).toFixed(1) : '0.0';
+
+    return {
+      total,
+      average,
+      fiveStar: reviews.filter((r) => r.rating === 5).length,
+      fourStar: reviews.filter((r) => r.rating === 4).length,
+      threeStar: reviews.filter((r) => r.rating === 3).length,
+      twoStar: reviews.filter((r) => r.rating === 2).length,
+      oneStar: reviews.filter((r) => r.rating === 1).length,
+      needsReply: reviews.filter((r) => !r.sellerReply).length,
+      withPhotos: reviews.filter((r) => r.images.length > 0).length,
+    };
+  }, [reviews]);
+
+  const handleReply = (review: ReviewFeedItem) => {
+    setSelectedReview(review);
+    setReplyText(review.sellerReply?.message || '');
     setShowReplyModal(true);
   };
 
-  const submitReply = () => {
-    if (!selectedReview || !replyText.trim()) return;
+  const submitReply = async () => {
+    if (!selectedReview || !user?.id || !replyText.trim()) return;
 
-    setIsSubmitting(true);
+    setSubmitting(true);
+    try {
+      const updated = await reviewService.addSellerReply(selectedReview.id, user.id, replyText.trim());
+      if (updated) {
+        setReviews((prev) => prev.map((item) => (item.id === selectedReview.id ? updated : item)));
+      } else {
+        await loadReviews(true);
+      }
 
-    // Simulate a network request delay
-    setTimeout(() => {
-      setAllReviews(prevReviews => 
-        prevReviews.map(review => 
-          review.id === selectedReview 
-            ? { 
-                ...review, 
-                reply: { message: replyText, date: new Date() } 
-              } 
-            : review
-        )
-      );
-
-      setIsSubmitting(false);
-      setShowReplyModal(false);
-      setReplyText('');
-      setSelectedReview(null);
-      
-      // Show success toast
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    }, 800);
+      closeReplyModal();
+      showSuccessToast('Reply posted successfully.');
+    } catch (err) {
+      console.error('Error submitting reply:', err);
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to submit reply.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const renderStars = (rating: number, size: number = 14) => {
+  const handleDeleteReply = async (review: ReviewFeedItem) => {
+    if (!user?.id) return;
+
+    Alert.alert('Delete Reply', 'Are you sure you want to delete your reply?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const updated = await reviewService.deleteSellerReply(review.id, user.id);
+            if (updated) {
+              setReviews((prev) => prev.map((item) => (item.id === review.id ? updated : item)));
+            } else {
+              await loadReviews(true);
+            }
+            showSuccessToast('Reply deleted.');
+          } catch (err) {
+            console.error('Error deleting reply:', err);
+            Alert.alert('Error', 'Failed to delete reply. Please try again.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleReport = (review: ReviewFeedItem) => {
+    Alert.alert('Report Review', `Reported review from ${review.buyerName}. Our team will review this content.`);
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const renderStars = (rating: number, size = 14) => (
+    <View style={styles.starsRow}>
+      {[...Array(5)].map((_, i) => (
+        <Star
+          key={i}
+          size={size}
+          color={i < rating ? '#FBBF24' : '#D1D5DB'}
+          fill={i < rating ? '#FBBF24' : '#D1D5DB'}
+          strokeWidth={0}
+        />
+      ))}
+    </View>
+  );
+
+  const ratingRows = [5, 4, 3, 2, 1].map((rating) => {
+    const count =
+      rating === 5
+        ? reviewStats.fiveStar
+        : rating === 4
+          ? reviewStats.fourStar
+          : rating === 3
+            ? reviewStats.threeStar
+            : rating === 2
+              ? reviewStats.twoStar
+              : reviewStats.oneStar;
+
+    const percentage = reviewStats.total > 0 ? (count / reviewStats.total) * 100 : 0;
+    return { rating, count, percentage };
+  });
+
+  if (loading) {
     return (
-      <View style={{ flexDirection: 'row', gap: 2 }}>
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            size={size}
-            color={i < rating ? '#FBBF24' : '#E5E7EB'}
-            fill={i < rating ? '#FBBF24' : '#E5E7EB'}
-            strokeWidth={0}
-          />
-        ))}
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={BRAND} />
+        <Text style={styles.loadingText}>Loading reviews...</Text>
       </View>
     );
-  };
+  }
 
   return (
     <View style={styles.container}>
-
-      {/* Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
-        <View style={styles.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
-            </Pressable>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}> 
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
+            <ArrowLeft size={22} color="#1F2937" strokeWidth={2.5} />
+          </Pressable>
+          <View style={styles.headerCopy}>
             <Text style={styles.headerTitle}>Reviews & Ratings</Text>
-            <View style={{ width: 40 }} />
+            <Text style={styles.headerSubtitle}>Manage customer feedback and respond to reviews</Text>
+          </View>
+          <Pressable onPress={() => loadReviews()} style={styles.iconButton}>
+            <RefreshCw size={20} color="#1F2937" strokeWidth={2.2} />
+          </Pressable>
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Stats Cards */}
-        <View style={styles.statsContainer}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[BRAND]} />}
+        contentContainerStyle={{ paddingBottom: 96 }}
+      >
+        {error && (
+          <View style={styles.errorBox}>
+            <AlertCircle size={18} color="#DC2626" strokeWidth={2.5} />
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable onPress={() => loadReviews()} style={styles.retryButton}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        )}
+
+        <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Star size={20} color="#FBBF24" fill="#FBBF24" strokeWidth={0} />
+            <View style={[styles.statIconWrap, { backgroundColor: '#FFF8E7' }]}>
+              <Star size={18} color="#F59E0B" fill="#F59E0B" strokeWidth={0} />
             </View>
             <Text style={styles.statValue}>{reviewStats.average}</Text>
             <Text style={styles.statLabel}>Average Rating</Text>
-            {renderStars(Math.round(parseFloat(reviewStats.average)), 12)}
-            <Text style={styles.statSubtext}>({reviewStats.total} reviews)</Text>
+            <View style={{ marginTop: 4 }}>{renderStars(Math.round(Number(reviewStats.average)), 11)}</View>
           </View>
 
           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <MessageSquare size={20} color="#3B82F6" strokeWidth={2.5} />
+            <View style={[styles.statIconWrap, { backgroundColor: '#EFF6FF' }]}>
+              <MessageSquare size={18} color="#2563EB" strokeWidth={2.5} />
+            </View>
+            <Text style={styles.statValue}>{reviewStats.total}</Text>
+            <Text style={styles.statLabel}>Total Reviews</Text>
+            <Text style={styles.statMeta}>{reviewStats.withPhotos} with photos</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <View style={[styles.statIconWrap, { backgroundColor: '#FFF4EC' }]}>
+              <Reply size={18} color="#EA580C" strokeWidth={2.5} />
             </View>
             <Text style={styles.statValue}>{reviewStats.needsReply}</Text>
             <Text style={styles.statLabel}>Needs Reply</Text>
+            <Text style={styles.statMeta}>
+              {reviewStats.total > 0 ? Math.round((reviewStats.needsReply / reviewStats.total) * 100) : 0}% pending
+            </Text>
           </View>
 
           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Check size={20} color="#10B981" strokeWidth={2.5} />
+            <View style={[styles.statIconWrap, { backgroundColor: '#ECFDF5' }]}>
+              <ThumbsUp size={18} color="#16A34A" strokeWidth={2.5} />
             </View>
-            <Text style={styles.statValue}>{reviewStats.withPhotos}</Text>
-            <Text style={styles.statLabel}>With Photos</Text>
+            <Text style={styles.statValue}>{reviewStats.fiveStar}</Text>
+            <Text style={styles.statLabel}>5 Star Reviews</Text>
+            <Text style={styles.statMeta}>
+              {reviewStats.total > 0 ? Math.round((reviewStats.fiveStar / reviewStats.total) * 100) : 0}% of total
+            </Text>
           </View>
         </View>
 
-        {/* Search & Filter */}
-        <View style={styles.filterSection}>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Rating Distribution</Text>
+          <View style={styles.distributionList}>
+            {ratingRows.map((row) => (
+              <View key={row.rating} style={styles.distributionRow}>
+                <View style={styles.distributionRating}>
+                  <Text style={styles.distributionRatingText}>{row.rating}</Text>
+                  <Star size={12} color="#FBBF24" fill="#FBBF24" strokeWidth={0} />
+                </View>
+                <View style={styles.distributionTrack}>
+                  <View style={[styles.distributionFill, { width: `${row.percentage}%` }]} />
+                </View>
+                <Text style={styles.distributionCount}>{row.count}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.filterCard}>
           <View style={styles.searchBar}>
-            <Search size={18} color="#9CA3AF" strokeWidth={2} />
+            <Search size={16} color="#9CA3AF" strokeWidth={2.2} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search reviews..."
-              placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
+              placeholder="Search by product, customer, or keywords"
+              placeholderTextColor="#9CA3AF"
             />
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabs}>
-            {['all', 5, 4, 3, 2, 1].map((rating) => (
-              <Pressable
-                key={rating}
-                style={[styles.filterTab, filterRating === rating && styles.filterTabActive]}
-                onPress={() => setFilterRating(rating as any)}
-              >
-                <Text
-                  style={[
-                    styles.filterTabText,
-                    filterRating === rating && styles.filterTabTextActive,
-                  ]}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 8 }}>
+            {(['all', 5, 4, 3, 2, 1] as const).map((rating) => {
+              const active = filterRating === rating;
+              return (
+                <Pressable
+                  key={String(rating)}
+                  onPress={() => setFilterRating(rating)}
+                  style={[styles.ratingChip, active && styles.ratingChipActive]}
                 >
-                  {rating === 'all' ? 'All' : `${rating} ⭐`}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text style={[styles.ratingChipText, active && styles.ratingChipTextActive]}>
+                    {rating === 'all' ? 'All Ratings' : `${rating} Stars`}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
         </View>
 
-        {/* Reviews List */}
-        <View style={styles.reviewsList}>
-          {filteredReviews.map((review) => (
-            <View key={review.id} style={styles.reviewCard}>
-              {/* Product Header */}
-              <View style={styles.productHeader}>
-                <Image source={{ uri: review.productImage }} style={styles.productImage} />
-                <Text style={styles.productName} numberOfLines={2}>
-                  {review.productName}
-                </Text>
-              </View>
-
-              {/* Buyer Info */}
-              <View style={styles.buyerSection}>
-                <Image source={{ uri: review.buyerAvatar }} style={styles.buyerAvatar} />
-                <View style={styles.buyerInfo}>
-                  <View style={styles.buyerHeader}>
-                    <Text style={styles.buyerName}>{review.buyerName}</Text>
-                    {review.verified && (
-                      <View style={styles.verifiedBadge}>
-                        <Check size={10} color="#10B981" strokeWidth={3} />
+        <View style={styles.reviewList}>
+          {filteredReviews.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MessageSquare size={40} color="#9CA3AF" strokeWidth={1.8} />
+              <Text style={styles.emptyTitle}>No reviews found</Text>
+              <Text style={styles.emptyText}>
+                {searchQuery || filterRating !== 'all'
+                  ? 'Try adjusting your search or rating filters.'
+                  : 'Reviews will appear here when customers leave feedback.'}
+              </Text>
+            </View>
+          ) : (
+            filteredReviews.map((review) => (
+              <View key={review.id} style={styles.reviewCard}>
+                <View style={styles.productRow}>
+                  <Image
+                    source={{ uri: safeImageUri(review.productImage, PLACEHOLDER_PRODUCT) }}
+                    style={styles.productImage}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.productName} numberOfLines={2}>{review.productName}</Text>
+                    <View style={styles.productMetaRow}>
+                      {renderStars(review.rating, 12)}
+                      <Text style={styles.dot}>•</Text>
+                      <Text style={styles.dateText}>{formatDate(review.createdAt)}</Text>
+                    </View>
+                    {review.verifiedPurchase && (
+                      <View style={styles.verifiedPill}>
+                        <Check size={10} color="#16A34A" strokeWidth={3} />
                         <Text style={styles.verifiedText}>Verified</Text>
                       </View>
                     )}
                   </View>
-                  <View style={styles.ratingDate}>
-                    {renderStars(review.rating)}
-                    <Text style={styles.reviewDate}>
-                      {review.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </Text>
+                </View>
+
+                <View style={styles.customerRow}>
+                  <Image
+                    source={{ uri: safeImageUri(review.buyerAvatar, PLACEHOLDER_AVATAR) }}
+                    style={styles.customerAvatar}
+                  />
+                  <View>
+                    <Text style={styles.customerName}>{review.buyerName}</Text>
+                    <Text style={styles.customerMeta}>Customer</Text>
                   </View>
                 </View>
-              </View>
 
-              {/* Review Content */}
-              <Text style={styles.reviewComment}>{review.comment}</Text>
-
-              {/* Review Images */}
-              {review.images.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.reviewImagesScroll}
-                >
-                  {review.images.map((img, idx) => (
-                    <Image key={idx} source={{ uri: img }} style={styles.reviewImage} />
-                  ))}
-                </ScrollView>
-              )}
-
-              {/* Helpful Count */}
-              <View style={styles.helpfulSection}>
-                <ThumbsUp size={14} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.helpfulText}>{review.helpful} found this helpful</Text>
-              </View>
-
-              {/* Seller Reply */}
-              {review.reply ? (
-                <View style={styles.replyContainer}>
-                  <View style={styles.replyHeader}>
-                    <Reply size={14} color="#FF5722" strokeWidth={2.5} />
-                    <Text style={styles.replyLabel}>Seller Response</Text>
-                  </View>
-                  <Text style={styles.replyText}>{review.reply.message}</Text>
+                <View style={styles.commentBox}>
+                  <Text style={styles.commentText}>"{review.comment || 'No comment provided'}"</Text>
                 </View>
-              ) : (
-                <Pressable style={styles.replyButton} onPress={() => handleReply(review.id)}>
-                  <Reply size={16} color="#FF5722" strokeWidth={2.5} />
-                  <Text style={styles.replyButtonText}>Reply to Review</Text>
-                </Pressable>
-              )}
-            </View>
-          ))}
+
+                {review.images.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                    {review.images.map((img, idx) => (
+                      <Image key={`${review.id}-${idx}`} source={{ uri: img }} style={styles.reviewImage} />
+                    ))}
+                  </ScrollView>
+                )}
+
+                <View style={styles.helpfulRow}>
+                  <ThumbsUp size={13} color="#6B7280" strokeWidth={2.2} />
+                  <Text style={styles.helpfulText}>{review.helpfulCount} found helpful</Text>
+                </View>
+
+                {review.sellerReply ? (
+                  <View style={styles.replyBox}>
+                    <View style={styles.replyHeader}>
+                      <View style={styles.replyTitleWrap}>
+                        <Reply size={13} color={BRAND} strokeWidth={2.5} />
+                        <Text style={styles.replyTitle}>Your Response</Text>
+                      </View>
+                      <Text style={styles.replyDate}>{formatDate(review.sellerReply.repliedAt)}</Text>
+                    </View>
+                    <Text style={styles.replyMessage}>{review.sellerReply.message}</Text>
+                    <View style={styles.replyActionRow}>
+                      <Pressable style={styles.inlineAction} onPress={() => handleReply(review)}>
+                        <Reply size={13} color={BRAND} strokeWidth={2.3} />
+                        <Text style={styles.inlineActionText}>Edit</Text>
+                      </Pressable>
+                      <Pressable style={styles.inlineAction} onPress={() => handleDeleteReply(review)}>
+                        <Trash2 size={13} color="#DC2626" strokeWidth={2.3} />
+                        <Text style={[styles.inlineActionText, { color: '#DC2626' }]}>Delete</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.emptyReplyActionRow}>
+                    <Pressable style={styles.replyPrimaryButton} onPress={() => handleReply(review)}>
+                      <Reply size={14} color="#FFFFFF" strokeWidth={2.4} />
+                      <Text style={styles.replyPrimaryText}>Reply to Review</Text>
+                    </Pressable>
+                    <Pressable style={styles.reportButton} onPress={() => handleReport(review)}>
+                      <Flag size={14} color="#6B7280" strokeWidth={2.3} />
+                      <Text style={styles.reportText}>Report</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            ))
+          )}
         </View>
-
-        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Reply Modal */}
-      <Modal
-        visible={showReplyModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowReplyModal(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setShowReplyModal(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Reply to Review</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Type your response..."
-              placeholderTextColor="#9CA3AF"
-              value={replyText}
-              onChangeText={setReplyText}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              autoFocus={true}
-            />
-            <View style={styles.modalActions}>
-              <Pressable
-                style={styles.modalCancelButton}
-                onPress={() => setShowReplyModal(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.modalSubmitButton, isSubmitting && { opacity: 0.7 }]} 
-                onPress={submitReply}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.modalSubmitText}>
-                  {isSubmitting ? 'Sending...' : 'Send Reply'}
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
+      <Modal visible={showReplyModal} transparent animationType="slide" onRequestClose={closeReplyModal}>
+        <Pressable style={styles.modalOverlay} onPress={closeReplyModal}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalKeyboardWrap}>
+            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+              <Text style={styles.modalTitle}>{selectedReview?.sellerReply ? 'Edit Reply' : 'Reply to Review'}</Text>
+
+              {selectedReview && (
+                <View style={styles.modalReviewPreview}>
+                  <Text style={styles.modalReviewLabel}>Review from {selectedReview.buyerName}:</Text>
+                  <Text style={styles.modalReviewText} numberOfLines={3}>
+                    "{selectedReview.comment || 'No comment'}"
+                  </Text>
+                </View>
+              )}
+
+              <TextInput
+                style={styles.modalInput}
+                value={replyText}
+                onChangeText={setReplyText}
+                placeholder="Write your response to the customer..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+                editable={!submitting}
+                autoFocus
+              />
+
+              <View style={styles.modalActionRow}>
+                <Pressable style={styles.modalCancelButton} onPress={closeReplyModal} disabled={submitting}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalSubmitButton, (!replyText.trim() || submitting) && { opacity: 0.65 }]}
+                  onPress={submitReply}
+                  disabled={!replyText.trim() || submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalSubmitText}>
+                      {selectedReview?.sellerReply ? 'Update Reply' : 'Send Reply'}
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
 
-      {/* Success Toast Notification */}
       {showSuccess && (
-        <View style={styles.toastContainer}>
+        <View style={[styles.toastWrap, { top: insets.top + 12 }]}> 
           <View style={styles.toast}>
-            <Check size={20} color="#FFFFFF" strokeWidth={3} />
-            <Text style={styles.toastText}>Reply sent successfully!</Text>
+            <Check size={16} color="#FFFFFF" strokeWidth={3} />
+            <Text style={styles.toastText}>{successMessage}</Text>
           </View>
         </View>
       )}
@@ -420,48 +541,105 @@ export default function ReviewsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#FFF8F3',
   },
-  headerContainer: {
-    paddingHorizontal: 20,
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  header: {
+    backgroundColor: '#FFF4EC',
     borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    paddingBottom: 20,
-    marginBottom: 10,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    zIndex: 10,
+    borderBottomRightRadius: 20,
+    elevation: 3,
+    paddingHorizontal: 16,
+    paddingBottom: 15,
   },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF2EB',
+  },
+  headerCopy: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1F2937',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
   scrollView: {
     flex: 1,
   },
-  statsContainer: {
+  errorBox: {
+    marginTop: 12,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    padding: 12,
     flexDirection: 'row',
-    padding: 20,
-    gap: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: '500',
+  },
+  retryButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  retryText: {
+    color: '#B91C1C',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  statsGrid: {
+    paddingHorizontal: 16,
+    marginTop: 14,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
   },
   statCard: {
-    flex: 1,
+    width: '48.5%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3E8E2',
+    padding: 12,
   },
-  statIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFF5F0',
+  statIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -470,162 +648,258 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     color: '#1F2937',
-    marginBottom: 4,
+    lineHeight: 28,
   },
   statLabel: {
     fontSize: 11,
     color: '#6B7280',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  statSubtext: {
-    fontSize: 10,
-    color: '#9CA3AF',
+    fontWeight: '700',
     marginTop: 2,
   },
-  filterSection: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
+  statMeta: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  sectionCard: {
+    marginTop: 12,
+    marginHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3E8E2',
+    padding: 14,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#374151',
+    marginBottom: 10,
+  },
+  distributionList: {
+    gap: 8,
+  },
+  distributionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  distributionRating: {
+    width: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  distributionRatingText: {
+    fontSize: 12,
+    color: '#4B5563',
+    fontWeight: '700',
+  },
+  distributionTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  distributionFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#FBBF24',
+  },
+  distributionCount: {
+    width: 24,
+    textAlign: 'right',
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '700',
+  },
+  filterCard: {
+    marginTop: 12,
+    marginHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3E8E2',
+    padding: 12,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 10,
-    marginBottom: 12,
     gap: 8,
+    marginBottom: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: '#1F2937',
+    padding: 0,
   },
-  filterTabs: {
-    flexDirection: 'row',
-  },
-  filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    marginRight: 8,
+  ratingChip: {
+    height: 34,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginRight: 8,
+    backgroundColor: '#FFFFFF',
   },
-  filterTabActive: {
-    backgroundColor: '#FF5722',
-    borderColor: '#FF5722',
+  ratingChipActive: {
+    borderColor: BRAND,
+    backgroundColor: '#FFF1EB',
   },
-  filterTabText: {
-    fontSize: 13,
-    fontWeight: '600',
+  ratingChipText: {
+    fontSize: 12,
     color: '#6B7280',
+    fontWeight: '700',
   },
-  filterTabTextActive: {
-    color: '#FFFFFF',
+  ratingChipTextActive: {
+    color: BRAND,
   },
-  reviewsList: {
-    paddingHorizontal: 20,
+  reviewList: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+  },
+  emptyState: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3E8E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 44,
+    paddingHorizontal: 24,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#374151',
+    marginTop: 10,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
   },
   reviewCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#F3E8E2',
+    padding: 14,
+    marginBottom: 12,
   },
-  productHeader: {
+  productRow: {
     flexDirection: 'row',
     gap: 12,
     marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   productImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F7',
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
   },
   productName: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '800',
     color: '#1F2937',
   },
-  buyerSection: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  buyerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F5F5F7',
-  },
-  buyerInfo: {
-    flex: 1,
-  },
-  buyerHeader: {
+  productMetaRow: {
+    marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
   },
-  buyerName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  verifiedBadge: {
+  starsRow: {
     flexDirection: 'row',
+    gap: 2,
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: '#D1FAE5',
-    borderRadius: 6,
   },
-  verifiedText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#10B981',
+  dot: {
+    color: '#9CA3AF',
+    fontSize: 12,
   },
-  ratingDate: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  reviewDate: {
+  dateText: {
     fontSize: 11,
     color: '#9CA3AF',
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  reviewComment: {
+  verifiedPill: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  verifiedText: {
+    color: '#16A34A',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  customerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+    backgroundColor: '#FFF4EC',
+    borderRadius: 12,
+    padding: 10,
+  },
+  customerAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#E5E7EB',
+  },
+  customerName: {
     fontSize: 13,
-    color: '#4B5563',
-    lineHeight: 20,
-    marginBottom: 12,
+    fontWeight: '800',
+    color: '#111827',
   },
-  reviewImagesScroll: {
-    marginBottom: 12,
+  customerMeta: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 1,
+  },
+  commentBox: {
+    backgroundColor: '#FFF4EC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    padding: 10,
+    marginBottom: 10,
+  },
+  commentText: {
+    color: '#374151',
+    fontSize: 13,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
   reviewImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
+    width: 78,
+    height: 78,
+    borderRadius: 10,
     marginRight: 8,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#F3F4F6',
   },
-  helpfulSection: {
+  helpfulRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -634,125 +908,191 @@ const styles = StyleSheet.create({
   helpfulText: {
     fontSize: 12,
     color: '#6B7280',
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  replyContainer: {
-    backgroundColor: '#FFF5F0',
-    borderLeftWidth: 3,
-    borderLeftColor: '#FF5722',
-    padding: 12,
-    borderRadius: 8,
+  replyBox: {
+    backgroundColor: '#FFF6F1',
+    borderWidth: 1,
+    borderColor: '#FED7C5',
+    borderRadius: 12,
+    padding: 10,
   },
   replyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
     marginBottom: 6,
   },
-  replyLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FF5722',
-  },
-  replyText: {
-    fontSize: 12,
-    color: '#4B5563',
-    lineHeight: 18,
-  },
-  replyButton: {
+  replyTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#FF5722',
-    borderRadius: 8,
+    gap: 5,
   },
-  replyButtonText: {
-    fontSize: 13,
+  replyTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: BRAND,
+  },
+  replyDate: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  replyMessage: {
+    fontSize: 12,
+    color: '#374151',
+    lineHeight: 18,
+  },
+  replyActionRow: {
+    flexDirection: 'row',
+    gap: 14,
+    marginTop: 8,
+  },
+  inlineAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  inlineActionText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#FF5722',
+    color: BRAND,
+  },
+  emptyReplyActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  replyPrimaryButton: {
+    flex: 1,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: BRAND,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  replyPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  reportButton: {
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  reportText: {
+    color: '#6B7280',
+    fontSize: 12,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
+  modalKeyboardWrap: {
+    width: '100%',
+  },
+  modalSheet: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
+    padding: 16,
+    paddingBottom: 24,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: '#1F2937',
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  modalReviewPreview: {
+    backgroundColor: '#FFF4EC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 10,
+    marginBottom: 12,
+  },
+  modalReviewLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  modalReviewText: {
+    fontSize: 13,
+    color: '#374151',
+    fontStyle: 'italic',
   },
   modalInput: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFF4EC',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     borderRadius: 12,
     padding: 12,
+    minHeight: 120,
+    color: '#111827',
     fontSize: 14,
-    minHeight: 100,
-    marginBottom: 16,
   },
-  modalActions: {
+  modalActionRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
+    marginTop: 12,
   },
   modalCancelButton: {
     flex: 1,
-    paddingVertical: 14,
+    height: 44,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#D1D5DB',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalCancelText: {
-    fontSize: 15,
-    fontWeight: '700',
     color: '#6B7280',
+    fontSize: 14,
+    fontWeight: '700',
   },
   modalSubmitButton: {
     flex: 1,
-    paddingVertical: 14,
+    height: 44,
     borderRadius: 12,
-    backgroundColor: '#FF5722',
+    backgroundColor: BRAND,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalSubmitText: {
-    fontSize: 15,
-    fontWeight: '700',
     color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
-  toastContainer: {
+  toastWrap: {
     position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
+    left: 16,
+    right: 16,
     alignItems: 'center',
-    zIndex: 999,
+    zIndex: 90,
   },
   toast: {
+    backgroundColor: '#16A34A',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#10B981', // Success Green
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 100,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    gap: 7,
   },
   toastText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

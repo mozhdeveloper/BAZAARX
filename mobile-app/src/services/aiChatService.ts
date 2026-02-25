@@ -1,0 +1,1047 @@
+/**
+ * AI Chat Service - Gemini 2.5 Flash powered professional chat assistant
+ * Provides intelligent, professional responses about products, stores, and BazaarX policies
+ * 
+ * Features:
+ * - Complete product analysis with all details
+ * - Comprehensive store information
+ * - Professional and helpful responses
+ * - Context-aware conversation
+ */
+
+import { supabase } from '../lib/supabase';
+
+// SECURITY: API keys should be stored in .env files and NEVER committed to Git
+// React Native uses process.env, not import.meta
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+// Using gemini-2.5-flash (stable version, released June 2025)
+// Supports up to 1M tokens and multimodal input
+// Free tier: 1500 requests/day, 1M tokens/minute
+const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+// Log initialization (without exposing the actual key)
+if (__DEV__) {
+  console.log('[AIChat] Gemini API initialized | Model:', GEMINI_MODEL, '| API Key configured:', !!GEMINI_API_KEY);
+}
+
+export interface ProductContext {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  originalPrice?: number;
+  discountPercentage?: number;
+  category?: string;
+  brand?: string;
+  colors?: string[];
+  sizes?: string[];
+  variants?: Array<{ size?: string; color?: string; stock?: number; price?: number }>;
+  specifications?: Record<string, any>;
+  stock?: number;
+  lowStockThreshold?: number;
+  rating?: number;
+  reviewCount?: number;
+  salesCount?: number;
+  images?: string[];
+  isFreeShipping?: boolean;
+  weight?: number;
+  dimensions?: { length?: number; width?: number; height?: number };
+  tags?: string[];
+  isActive?: boolean;
+  approvalStatus?: string;
+}
+
+export interface StoreContext {
+  id: string;
+  store_name: string;
+  store_description?: string;
+  owner_name?: string;
+  approval_status?: string;
+  avatar_url?: string;
+  rating?: number;
+  totalSales?: number;
+  verified_at?: string;
+  created_at?: string;
+  // Nested objects from related tables
+  business_profile?: {
+    business_type?: string;
+    business_registration_number?: string;
+    tax_id_number?: string;
+    address_line_1?: string;
+    address_line_2?: string;
+    city?: string;
+    province?: string;
+    postal_code?: string;
+  };
+  payout_account?: {
+    bank_name?: string;
+    account_name?: string;
+    account_number?: string;
+  };
+  verification_documents?: {
+    business_permit_url?: string;
+    valid_id_url?: string;
+    proof_of_address_url?: string;
+    dti_registration_url?: string;
+    tax_id_url?: string;
+  };
+  // Legacy/computed fields
+  storeCategory?: string[];
+  productCount?: number;
+  followerCount?: number;
+}
+
+export interface ReviewSummary {
+  averageRating: number;
+  totalReviews: number;
+  fiveStarCount: number;
+  fourStarCount: number;
+  threeStarCount: number;
+  twoStarCount: number;
+  oneStarCount: number;
+  recentReviews: Array<{
+    rating: number;
+    comment: string;
+    buyerName: string;
+    date: string;
+  }>;
+}
+
+export interface ChatContext {
+  product?: ProductContext;
+  store?: StoreContext;
+  reviews?: ReviewSummary;
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+}
+
+// BazaarX Platform Policies and Information - Comprehensive
+const BAZAARX_POLICIES = `
+# BazaarX Platform - Complete Information & Policies
+
+## About BazaarX
+BazaarX is the Philippines' premier e-commerce marketplace, connecting Filipino buyers with trusted local and international sellers. We offer a wide selection of products across all categories including Fashion, Electronics, Home & Living, Beauty, Sports, and more. Our platform is designed to provide a seamless, secure, and enjoyable shopping experience.
+
+## Shipping Information
+
+### Standard Shipping
+- **Metro Manila**: 3-5 business days
+- **Luzon (outside Metro Manila)**: 5-7 business days
+- **Visayas**: 7-10 business days
+- **Mindanao**: 7-12 business days
+- **Shipping Fee**: Starts at ₱50, varies by location and weight
+
+### Express Shipping
+- **Metro Manila**: 1-2 business days
+- **Other Areas**: 2-4 business days
+- **Additional Fee**: ₱50-100 on top of standard shipping
+
+### Free Shipping
+- Orders ₱1,500 and above qualify for free shipping (seller-dependent)
+- Look for the 🚚 Free Shipping badge on products
+- Some sellers offer free shipping on all orders
+
+### Cash on Delivery (COD)
+- Available in most areas nationwide
+- Maximum COD limit: ₱10,000 per order
+- Pay with cash upon delivery
+- COD fee: ₱0-50 depending on seller
+
+### Order Tracking
+- Real-time tracking available in app and website
+- SMS and email notifications at every stage
+- Estimated delivery date shown at checkout
+
+## Return & Refund Policy
+
+### 7-Day Easy Returns
+- Return window: 7 days from delivery date
+- Free returns for defective/damaged items
+- Return shipping may apply for change of mind
+
+### Valid Return Reasons
+1. **Defective/Damaged**: Item arrived broken or not working
+2. **Wrong Item**: Received different product than ordered
+3. **Incomplete**: Missing parts or accessories
+4. **Not as Described**: Significant difference from listing
+5. **Change of Mind**: 7-day return (buyer pays return shipping)
+
+### Return Process
+1. Submit return request in app/website
+2. Wait for seller approval (24-48 hours)
+3. Ship item back or schedule pickup
+4. Receive refund after inspection
+
+### Refund Options
+- **Original Payment Method**: 5-7 business days
+- **BazCoins Credit**: Instant (100 BazCoins = ₱1)
+- **Bank Transfer**: 3-5 business days
+
+## Payment Methods
+
+### Credit/Debit Cards
+- Visa, Mastercard, JCB, American Express
+- Secure 3D verification
+- Save cards for faster checkout
+
+### E-Wallets
+- GCash - Instant payment
+- Maya - Instant payment
+- GrabPay - Instant payment
+- ShopeePay - Instant payment
+
+### Bank Transfer
+- BDO, BPI, Metrobank, UnionBank, Landbank
+- InstaPay for instant transfer
+- PESONet for next-day transfer
+
+### Cash on Delivery (COD)
+- Pay when you receive
+- No advance payment needed
+- Exact change preferred
+
+### BazCoins
+- Use earned BazCoins as payment
+- 100 BazCoins = ₱1 discount
+- Can be combined with other payment methods
+
+## BazCoins Rewards Program
+
+### Earning BazCoins
+- **Purchases**: 1 BazCoin per ₱100 spent
+- **Reviews**: 10 BazCoins for verified purchase reviews with photos
+- **Referrals**: 100 BazCoins when friend makes first purchase
+- **Daily Check-in**: 1-5 BazCoins daily
+- **Special Events**: Bonus BazCoins during sales
+
+### Using BazCoins
+- Minimum 100 BazCoins to use (₱1 value)
+- Maximum 50% of order value can be paid with BazCoins
+- BazCoins never expire
+- Cannot be converted to cash
+
+## Buyer Protection Guarantee
+
+### Secure Transactions
+- SSL encryption on all payments
+- PCI DSS compliant payment processing
+- Two-factor authentication available
+
+### Verified Sellers
+- ✓ Verified badge = Business documents verified
+- Identity and address confirmation
+- Track record monitoring
+
+### Quality Assurance
+- All products pass digital QA review
+- Counterfeit items strictly prohibited
+- Report and investigation system
+
+### Purchase Protection
+- Full refund for non-delivery
+- Return protection for defective items
+- Dispute resolution within 7 days
+
+## Customer Support
+
+### Contact Channels
+- **In-App Chat**: 24/7 AI + Human support
+- **Email**: support@bazaarx.ph (Response: 24 hours)
+- **Hotline**: 1-800-BAZAAR (Mon-Sun 8AM-10PM)
+- **Social Media**: Facebook, Twitter, Instagram
+
+### Help Center
+- Extensive FAQ database
+- Video tutorials
+- Order tracking guide
+- Return/refund guide
+
+## Seller Ratings Explained
+- ⭐⭐⭐⭐⭐ (4.8-5.0): Premium Seller - Exceptional service
+- ⭐⭐⭐⭐ (4.0-4.7): Trusted Seller - Reliable and consistent
+- ⭐⭐⭐ (3.0-3.9): Standard Seller - Generally satisfactory
+- ⭐⭐ (2.0-2.9): Needs Improvement - Some issues reported
+- ⭐ (Below 2.0): High Risk - Exercise extreme caution
+
+## Product Authenticity
+- QA team verifies all listed products
+- Authenticity guarantee on branded items
+- Report suspicious listings
+- Full refund for counterfeit items
+`;
+
+class AIChatService {
+  private conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+  /**
+   * Get or create a conversation for a specific product
+   * Note: Since ai_conversations doesn't have metadata column, we store product_id in the title
+   * Format: "product:{productId}:{productName}"
+   */
+  async getOrCreateProductConversation(
+    userId: string,
+    productId: string,
+    productName: string
+  ): Promise<{ id: string; product_id?: string; product_name?: string } | null> {
+    try {
+      // Title format to identify product-specific conversations
+      const titlePrefix = `product:${productId}:`;
+      
+      // Try to find existing conversation for this product
+      const { data: existing, error: findError } = await supabase
+        .from('ai_conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('user_type', 'buyer')
+        .ilike('title', `${titlePrefix}%`)
+        .order('last_message_at', { ascending: false })
+        .limit(1);
+
+      if (!findError && existing && existing.length > 0) {
+        const conv = existing[0];
+        // Parse product info from title
+        const parts = conv.title?.split(':') || [];
+        return {
+          id: conv.id,
+          product_id: parts[1] || productId,
+          product_name: parts.slice(2).join(':') || productName,
+        };
+      }
+
+      // Create new conversation for this product
+      const { data: newConv, error: createError } = await supabase
+        .from('ai_conversations')
+        .insert({
+          user_id: userId,
+          user_type: 'buyer',
+          title: `${titlePrefix}${productName}`,
+          last_message_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('[AIChatService] Error creating conversation:', createError);
+        return null;
+      }
+
+      return {
+        id: newConv.id,
+        product_id: productId,
+        product_name: productName,
+      };
+    } catch (error) {
+      console.error('[AIChatService] Error in getOrCreateProductConversation:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get messages for a conversation
+   */
+  async getMessages(conversationId: string): Promise<Array<{ id: string; sender: 'user' | 'ai'; message: string; created_at: string; metadata?: any }> | null> {
+    try {
+      const { data, error } = await supabase
+        .from('ai_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('[AIChatService] Error fetching messages:', error);
+        return null;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('[AIChatService] Error in getMessages:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Send a message and save to history (overloaded for both DB and AI)
+   */
+  async sendMessage(
+    conversationIdOrText: string,
+    senderOrContext: 'user' | 'ai' | ChatContext,
+    messageOrMetadata?: string | any,
+    metadata?: any
+  ): Promise<any> {
+    // If first arg is a UUID and second is user/ai, it's a DB save
+    if (typeof senderOrContext === 'string' && (senderOrContext === 'user' || senderOrContext === 'ai')) {
+      return this.saveMessageToDb(conversationIdOrText, senderOrContext, messageOrMetadata as string, metadata);
+    } else {
+      // Otherwise, it's the AI chat API call
+      return this.sendAIMessage(conversationIdOrText, senderOrContext as ChatContext);
+    }
+  }
+
+  /**
+   * Save message to database
+   */
+  async saveMessageToDb(
+    conversationId: string,
+    sender: 'user' | 'ai',
+    message: string,
+    metadata?: any
+  ): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('ai_messages')
+        .insert({
+          conversation_id: conversationId,
+          sender,
+          message,
+          metadata: metadata || null,
+        });
+
+      if (error) {
+        console.error('[AIChatService] Error saving message:', error);
+        return false;
+      }
+
+      // Update conversation's last_message_at
+      await supabase
+        .from('ai_conversations')
+        .update({
+          last_message_at: new Date().toISOString(),
+        })
+        .eq('id', conversationId);
+
+      return true;
+    } catch (error) {
+      console.error('[AIChatService] Error in saveMessageToDb:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Fetch complete product details from database
+   */
+  async getProductDetails(productId: string): Promise<ProductContext | null> {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          id, name, description, price, brand, sku,
+          specifications, low_stock_threshold, is_free_shipping,
+          weight, dimensions, approval_status, disabled_at,
+          category:categories!products_category_id_fkey(id, name, slug),
+          images:product_images(image_url, is_primary),
+          variants:product_variants(id, sku, variant_name, size, color, price, stock)
+        `)
+        .eq('id', productId)
+        .single();
+
+      if (error || !data) {
+        console.error('Error fetching product:', error);
+        return null;
+      }
+
+      const primaryImage = data.images?.find((img: any) => img.is_primary) || data.images?.[0];
+      const totalStock = data.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+      const categoryData = data.category as any;
+      const categoryName = categoryData?.name || '';
+
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        originalPrice: undefined,
+        discountPercentage: 0,
+        category: categoryName,
+        brand: data.brand || '',
+        colors: [...new Set(data.variants?.map((v: any) => v.color).filter(Boolean))] as string[],
+        sizes: [...new Set(data.variants?.map((v: any) => v.size).filter(Boolean))] as string[],
+        variants: data.variants || [],
+        specifications: data.specifications || {},
+        stock: totalStock,
+        lowStockThreshold: data.low_stock_threshold,
+        rating: 0,
+        reviewCount: 0,
+        salesCount: 0,
+        images: data.images?.map((img: any) => img.image_url) || [],
+        isFreeShipping: data.is_free_shipping,
+        weight: data.weight,
+        dimensions: data.dimensions,
+        tags: [],
+        isActive: !data.disabled_at,
+        approvalStatus: data.approval_status,
+      };
+    } catch (error) {
+      console.error('Error in getProductDetails:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch complete store details from database
+   */
+  async getStoreDetails(sellerId: string): Promise<StoreContext | null> {
+    try {
+      // Fetch seller details with business profile
+      const { data: seller, error: sellerError } = await supabase
+        .from('sellers')
+        .select(`
+          id, store_name, store_description, avatar_url, owner_name, approval_status, verified_at, created_at,
+          business_profile:seller_business_profiles(business_type, business_registration_number, tax_id_number, address_line_1, address_line_2, city, province, postal_code)
+        `)
+        .eq('id', sellerId)
+        .single();
+
+      if (sellerError || !seller) {
+        console.error('Error fetching seller:', sellerError);
+        return null;
+      }
+
+      // Fetch product count for this seller
+      const { count: productCount } = await supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('seller_id', sellerId)
+        .is('disabled_at', null)
+        .eq('approval_status', 'approved');
+
+      // Fetch follower count
+      const { count: followerCount } = await supabase
+        .from('store_followers')
+        .select('id', { count: 'exact', head: true })
+        .eq('seller_id', sellerId);
+
+      // Extract business_profile (Supabase returns it as an array for one-to-one)
+      const bp = Array.isArray(seller.business_profile) && seller.business_profile.length > 0 
+        ? seller.business_profile[0] 
+        : null;
+
+      return {
+        id: seller.id,
+        store_name: seller.store_name,
+        store_description: seller.store_description,
+        owner_name: seller.owner_name,
+        approval_status: seller.approval_status,
+        business_profile: bp || undefined,
+        storeCategory: [],
+        rating: 0,
+        totalSales: 0,
+        verified_at: seller.verified_at,
+        created_at: seller.created_at,
+        productCount: productCount || 0,
+        followerCount: followerCount || 0,
+      };
+    } catch (error) {
+      console.error('Error in getStoreDetails:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch review summary for product or seller
+   */
+  async getReviewSummary(productId?: string, sellerId?: string): Promise<ReviewSummary | null> {
+    try {
+      let query = supabase
+        .from('reviews')
+        .select(`
+          rating, comment, created_at, buyer_id
+        `)
+        .eq('is_hidden', false)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (productId) {
+        query = query.eq('product_id', productId);
+      } else if (sellerId) {
+        query = query.eq('seller_id', sellerId);
+      } else {
+        return null;
+      }
+
+      const { data: reviews, error } = await query;
+
+      if (error) {
+        console.error('Error fetching reviews:', error);
+        return null;
+      }
+
+      // Get rating distribution
+      const ratingQuery = supabase
+        .from('reviews')
+        .select('rating')
+        .eq('is_hidden', false);
+
+      if (productId) {
+        ratingQuery.eq('product_id', productId);
+      } else if (sellerId) {
+        ratingQuery.eq('seller_id', sellerId);
+      }
+
+      const { data: allRatings } = await ratingQuery;
+
+      const ratingCounts = {
+        5: 0, 4: 0, 3: 0, 2: 0, 1: 0
+      };
+
+      allRatings?.forEach(r => {
+        if (r.rating >= 1 && r.rating <= 5) {
+          ratingCounts[r.rating as keyof typeof ratingCounts]++;
+        }
+      });
+
+      const totalReviews = allRatings?.length || 0;
+      const averageRating = totalReviews > 0
+        ? allRatings!.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+        : 0;
+
+      return {
+        averageRating: Math.round(averageRating * 10) / 10,
+        totalReviews,
+        fiveStarCount: ratingCounts[5],
+        fourStarCount: ratingCounts[4],
+        threeStarCount: ratingCounts[3],
+        twoStarCount: ratingCounts[2],
+        oneStarCount: ratingCounts[1],
+        recentReviews: reviews?.map(r => ({
+          rating: r.rating,
+          comment: r.comment || '',
+          buyerName: 'Anonymous', // Simplified - can enhance later by fetching from profiles
+          date: r.created_at,
+        })) || [],
+      };
+    } catch (error) {
+      console.error('Error in getReviewSummary:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Build comprehensive system prompt with all context
+   */
+  private buildSystemPrompt(context: ChatContext): string {
+    let systemPrompt = `You are BazBot, the professional AI shopping assistant for BazaarX, the Philippines' leading e-commerce marketplace. Your role is to provide helpful, accurate, and professional assistance to buyers.
+
+## Your Professional Standards
+1. Be warm, professional, and courteous at all times
+2. Provide accurate information based ONLY on the data provided - never fabricate details
+3. Structure responses clearly with good formatting
+4. Use appropriate emojis sparingly for friendliness (not excessively)
+5. For questions you cannot answer with available data, politely suggest "Talk to Seller"
+6. Always prioritize the customer's best interest
+
+## Communication Style
+- Professional yet approachable tone
+- Clear and concise responses
+- Use bullet points for lists
+- Highlight important information (prices, stock status, shipping)
+- Acknowledge the customer's question before answering
+
+## Response Guidelines
+1. **Product Questions**: Answer with specific details from the product data
+2. **Store Questions**: Provide store information with trust indicators (verified status, ratings, sales)
+3. **Policy Questions**: Quote specific policies accurately
+4. **Comparison/Recommendations**: Only compare based on available data
+5. **Price Negotiations/Custom Requests**: Direct to seller
+6. **Order Issues/Shipping Updates**: Direct to seller or customer support
+7. **Technical Issues**: Direct to customer support
+
+## What You Should NEVER Do
+- Make up product specifications or features not in the data
+- Promise discounts or deals you cannot verify
+- Share personal opinions on product quality beyond verified reviews
+- Provide medical, legal, or financial advice
+- Discuss competitors negatively
+
+${BAZAARX_POLICIES}
+`;
+
+    // Add comprehensive product context
+    if (context.product) {
+      const p = context.product;
+      const stockStatus = p.stock === 0 ? '❌ OUT OF STOCK' 
+        : p.stock && p.lowStockThreshold && p.stock <= p.lowStockThreshold 
+        ? `⚠️ Low Stock (${p.stock} left)` 
+        : p.stock ? `✅ In Stock (${p.stock} available)` : 'Stock info unavailable';
+
+      systemPrompt += `
+
+## 📦 CURRENT PRODUCT DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Product Name**: ${p.name}
+**Product ID**: ${p.id}
+
+### Pricing
+- **Current Price**: ₱${p.price?.toLocaleString() || 'N/A'}
+${p.originalPrice && p.originalPrice > p.price ? `- **Original Price**: ₱${p.originalPrice.toLocaleString()} (${p.discountPercentage}% OFF! 🔥)` : ''}
+
+### Category & Brand
+- **Category**: ${p.category || 'Not specified'}
+- **Brand**: ${p.brand || 'Unbranded/Generic'}
+
+### Availability
+- **Stock Status**: ${stockStatus}
+${p.sizes?.length ? `- **Available Sizes**: ${p.sizes.join(', ')}` : ''}
+${p.colors?.length ? `- **Available Colors**: ${p.colors.join(', ')}` : ''}
+
+### Shipping
+- **Free Shipping**: ${p.isFreeShipping ? '✅ Yes! Free shipping on this item' : '❌ Standard shipping rates apply'}
+${p.weight ? `- **Weight**: ${p.weight} kg` : ''}
+${p.dimensions ? `- **Dimensions**: ${p.dimensions.length || 0}×${p.dimensions.width || 0}×${p.dimensions.height || 0} cm` : ''}
+
+### Ratings & Reviews
+- **Rating**: ${p.rating ? `⭐ ${p.rating}/5` : 'No ratings yet'}
+- **Total Reviews**: ${p.reviewCount || 0}
+- **Units Sold**: ${p.salesCount || 0}
+
+### Product Description
+${p.description || 'No description provided.'}
+
+${p.specifications && Object.keys(p.specifications).length > 0 ? `### Specifications
+${Object.entries(p.specifications).map(([key, value]) => `- **${key}**: ${value}`).join('\n')}` : ''}
+
+${p.variants && p.variants.length > 0 ? `### Variant Options
+${p.variants.slice(0, 10).map(v => `- ${v.color || ''} ${v.size || ''}: ${v.stock || 0} in stock${v.price ? ` (₱${v.price})` : ''}`).join('\n')}
+${p.variants.length > 10 ? `\n... and ${p.variants.length - 10} more variants` : ''}` : ''}
+
+${p.tags?.length ? `### Tags
+${p.tags.join(', ')}` : ''}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+    }
+
+    // Add comprehensive store context
+    if (context.store) {
+      const s = context.store;
+      const memberSince = s.created_at ? new Date(s.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long' }) : 'Unknown';
+      
+      let sellerBadge = '';
+      if (s.rating && s.rating >= 4.8) sellerBadge = '🏆 Premium Seller';
+      else if (s.rating && s.rating >= 4.0) sellerBadge = '⭐ Trusted Seller';
+      else if (s.rating && s.rating >= 3.0) sellerBadge = '✓ Standard Seller';
+      else sellerBadge = 'New Seller';
+
+      systemPrompt += `
+
+## 🏪 STORE/SELLER INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Store Name**: ${s.store_name}
+**Business Name**: ${s.business_profile?.business_type || s.store_name}
+**Seller Badge**: ${sellerBadge}
+
+### Trust Indicators
+- **Verified Seller**: ${s.approval_status === 'verified' ? '✅ Yes - Business documents verified' : '❌ Not yet verified'}
+- **Seller Rating**: ${s.rating ? `⭐ ${s.rating}/5` : 'No rating yet'}
+- **Total Sales**: ${s.totalSales?.toLocaleString() || 0} successful orders
+- **Products Listed**: ${s.productCount || 0} active products
+- **Followers**: ${s.followerCount?.toLocaleString() || 0}
+- **Member Since**: ${memberSince}
+
+### Store Categories
+${s.storeCategory?.length ? s.storeCategory.join(', ') : 'Various products'}
+
+### Location
+${s.business_profile?.city && s.business_profile?.province ? `📍 ${s.business_profile.city}, ${s.business_profile.province}` : 'Location not specified'}
+${s.business_profile?.address_line_1 ? `\n📮 ${s.business_profile.address_line_1}` : ''}
+
+### About This Store
+${s.store_description || 'No store description available.'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+    }
+
+    // Add review context if available
+    if (context.reviews && context.reviews.totalReviews > 0) {
+      const r = context.reviews;
+      systemPrompt += `
+
+## 📝 REVIEW SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Average Rating**: ⭐ ${r.averageRating}/5 (${r.totalReviews} reviews)
+
+### Rating Distribution
+- ⭐⭐⭐⭐⭐ (5 stars): ${r.fiveStarCount} reviews (${Math.round(r.fiveStarCount / r.totalReviews * 100)}%)
+- ⭐⭐⭐⭐ (4 stars): ${r.fourStarCount} reviews (${Math.round(r.fourStarCount / r.totalReviews * 100)}%)
+- ⭐⭐⭐ (3 stars): ${r.threeStarCount} reviews (${Math.round(r.threeStarCount / r.totalReviews * 100)}%)
+- ⭐⭐ (2 stars): ${r.twoStarCount} reviews (${Math.round(r.twoStarCount / r.totalReviews * 100)}%)
+- ⭐ (1 star): ${r.oneStarCount} reviews (${Math.round(r.oneStarCount / r.totalReviews * 100)}%)
+
+${r.recentReviews.length > 0 ? `### Recent Reviews
+${r.recentReviews.slice(0, 3).map(rev => `- **${rev.buyerName}** (⭐${rev.rating}): "${rev.comment.slice(0, 100)}${rev.comment.length > 100 ? '...' : ''}"`).join('\n')}` : ''}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+    }
+
+    return systemPrompt;
+  }
+
+  /**
+   * Send message to Gemini AI and get professional response
+   */
+  async sendAIMessage(
+    userMessage: string,
+    context: ChatContext
+  ): Promise<{ response: string; suggestTalkToSeller: boolean }> {
+    if (!GEMINI_API_KEY) {
+      console.error('Gemini API key not configured');
+      return {
+        response: "I apologize, but I'm currently unavailable. Please tap 'Talk to Seller' to get assistance directly from the seller.",
+        suggestTalkToSeller: true,
+      };
+    }
+
+    // Add user message to history
+    this.conversationHistory.push({ role: 'user', content: userMessage });
+
+    // Keep only last 10 messages for context
+    if (this.conversationHistory.length > 10) {
+      this.conversationHistory = this.conversationHistory.slice(-10);
+    }
+
+    // Build the conversation for Gemini
+    const systemPrompt = this.buildSystemPrompt(context);
+
+    // Validate API key
+    if (!GEMINI_API_KEY) {
+      console.error('[AIChat] No Gemini API key found! Check EXPO_PUBLIC_GEMINI_API_KEY in .env');
+      throw new Error('Gemini API key not configured');
+    }
+
+    // Log in development mode only
+    if (__DEV__) {
+      console.log('[AIChat] Sending message to Gemini | User:', userMessage.substring(0, 50), '...');
+    }
+
+    try {
+      const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: systemPrompt }],
+            },
+            {
+              role: 'model',
+              parts: [{ text: "Understood! I'm BazBot, your professional shopping assistant. I have complete access to the product and store information provided. I'll give accurate, helpful responses and direct customers to the seller when appropriate. How may I assist you today?" }],
+            },
+            ...this.conversationHistory.map((msg) => ({
+              role: msg.role === 'user' ? 'user' : 'model',
+              parts: [{ text: msg.content }],
+            })),
+          ],
+          generationConfig: {
+            temperature: 0.6, // Slightly lower for more consistent/professional responses
+            topK: 40,
+            topP: 0.9,
+            maxOutputTokens: 800, // Allow longer responses for detailed answers
+          },
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        // Log detailed errors only in development
+        if (__DEV__) {
+          console.error('[AIChat] Gemini API error:', JSON.stringify(errorData, null, 2));
+          console.error('[AIChat] Response status:', response.status, response.statusText);
+        }
+        throw new Error(`Gemini API error: ${errorData.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      
+      // Log success only in development
+      if (__DEV__) {
+        console.log('[AIChat] Gemini response received successfully');
+      }
+      
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 
+        "I apologize, but I couldn't process your request. Please try again or tap 'Talk to Seller' for direct assistance.";
+
+      // Add AI response to history
+      this.conversationHistory.push({ role: 'assistant', content: aiResponse });
+
+      // Check if AI is suggesting to talk to seller
+      const suggestTalkToSeller = 
+        aiResponse.toLowerCase().includes('talk to the seller') ||
+        aiResponse.toLowerCase().includes('talk to seller') ||
+        aiResponse.toLowerCase().includes('contact the seller') ||
+        aiResponse.toLowerCase().includes('reach out to the seller') ||
+        aiResponse.toLowerCase().includes('ask the seller') ||
+        aiResponse.toLowerCase().includes('message the seller') ||
+        aiResponse.toLowerCase().includes('directly with the seller');
+
+      return {
+        response: aiResponse,
+        suggestTalkToSeller,
+      };
+    } catch (error) {
+      // Log errors only in development mode
+      if (__DEV__) {
+        console.error('[AIChat] Error calling Gemini API:', error);
+        console.error('[AIChat] Error details:', error instanceof Error ? error.message : String(error));
+      }
+      return {
+        response: "I apologize for the inconvenience. I'm experiencing technical difficulties. Please tap 'Talk to Seller' for immediate assistance, or try again in a moment.",
+        suggestTalkToSeller: true,
+      };
+    }
+  }
+
+  /**
+   * Send notification to seller that buyer wants to chat
+   */
+  async notifySellerForChat(
+    sellerId: string,
+    buyerId: string,
+    buyerName: string,
+    productId?: string,
+    productName?: string
+  ): Promise<boolean> {
+    try {
+      // Insert into seller_chat_requests table
+      const { error } = await supabase.from('seller_chat_requests').insert({
+        seller_id: sellerId,
+        buyer_id: buyerId,
+        buyer_name: buyerName,
+        product_id: productId || null,
+        product_name: productName || null,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error('Error notifying seller:', error);
+        // Continue to create notification even if chat request fails
+      }
+
+      // Create a notification for the seller
+      const { error: notifError } = await supabase.from('notifications').insert({
+        user_id: sellerId,
+        user_type: 'seller',
+        type: 'chat_request',
+        title: '💬 New Chat Request',
+        message: `${buyerName} would like to chat with you${productName ? ` about "${productName}"` : ''}. Tap to respond.`,
+        action_url: '/seller/messages',
+        action_data: {
+          buyer_id: buyerId,
+          buyer_name: buyerName,
+          product_id: productId,
+          product_name: productName,
+        },
+        is_read: false,
+        priority: 'high',
+        created_at: new Date().toISOString(),
+      });
+
+      if (notifError) {
+        console.error('Error creating notification:', notifError);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in notifySellerForChat:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Reset conversation history
+   */
+  resetConversation(): void {
+    this.conversationHistory = [];
+  }
+
+  /**
+   * Get smart quick replies based on context
+   */
+  getQuickReplies(context: ChatContext): string[] {
+    const quickReplies: string[] = [];
+
+    // Product-specific quick replies
+    if (context.product) {
+      const p = context.product;
+      
+      // Stock-related
+      if (p.stock !== undefined) {
+        quickReplies.push(p.stock > 0 ? 'Is this still available?' : 'When will this be restocked?');
+      }
+      
+      // Variant-related
+      if (p.sizes?.length) {
+        quickReplies.push('What sizes are available?');
+      }
+      if (p.colors?.length) {
+        quickReplies.push('What colors can I choose?');
+      }
+      
+      // Price-related
+      if (p.originalPrice && p.originalPrice > p.price) {
+        quickReplies.push('How long is this sale?');
+      }
+      
+      // Shipping
+      quickReplies.push(p.isFreeShipping ? 'Tell me about shipping' : 'Is there free shipping?');
+      
+      // Quality
+      if (p.reviewCount && p.reviewCount > 0) {
+        quickReplies.push('What do buyers say about this?');
+      }
+    }
+
+    // Store-specific quick replies
+    if (context.store && !context.product) {
+      quickReplies.push(
+        'Tell me about this store',
+        'Is this seller reliable?',
+        'What products do they sell?',
+        'Where are they located?'
+      );
+    }
+
+    // Always include these general options
+    if (quickReplies.length < 4) {
+      quickReplies.push('What is the return policy?');
+    }
+    if (quickReplies.length < 4) {
+      quickReplies.push('How do I track my order?');
+    }
+    if (quickReplies.length < 4) {
+      quickReplies.push('What payment methods are accepted?');
+    }
+
+    // Return unique quick replies, max 4
+    return [...new Set(quickReplies)].slice(0, 4);
+  }
+
+  /**
+   * Generate a professional greeting based on context
+   */
+  getWelcomeMessage(context: ChatContext): string {
+    if (context.product && context.store) {
+      return `👋 Hi there! I'm BazBot, your AI shopping assistant.\n\nI see you're looking at **"${context.product.name}"** from **${context.store.store_name}**. I have all the details about this product and store ready for you!\n\nFeel free to ask me anything, or tap 'Talk to Seller' if you need to speak directly with the seller.`;
+    } else if (context.store) {
+      return `👋 Welcome! I'm BazBot, your AI shopping assistant.\n\nI can help you with any questions about **${context.store.store_name}** and their products.\n\nWhat would you like to know?`;
+    } else {
+      return `👋 Hello! I'm BazBot, your AI shopping assistant for BazaarX.\n\nI can help you with product information, store details, shipping policies, returns, and more.\n\nHow may I assist you today?`;
+    }
+  }
+}
+
+export const aiChatService = new AIChatService();

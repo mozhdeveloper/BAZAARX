@@ -8,11 +8,15 @@ import { Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Mail, Home } from 
 export function SellerPendingApproval() {
   const navigate = useNavigate();
   const { seller, logout, updateSellerDetails, authenticateSeller } = useAuthStore();
-  const { sellers, approveSeller } = useAdminSellers();
+  const { sellers, approveSeller, loadSellers } = useAdminSellers();
   const [isApproving, setIsApproving] = useState(false);
 
   // Find the seller's status from admin store
   const sellerStatus = sellers.find(s => s.id === seller?.id);
+
+  useEffect(() => {
+    loadSellers();
+  }, [loadSellers]);
 
   useEffect(() => {
     // If approved, redirect to dashboard
@@ -23,10 +27,10 @@ export function SellerPendingApproval() {
 
   if (!seller) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[var(--brand-wash)] flex items-center justify-center p-4 font-sans">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">Please log in to view your application status</p>
-          <Link to="/seller/login" className="text-orange-600 hover:underline">
+          <p className="text-[var(--text-secondary)] mb-4 font-medium">Please log in to view your application status</p>
+          <Link to="/seller/login" className="text-[var(--brand-primary)] hover:underline font-bold">
             Go to Login
           </Link>
         </div>
@@ -45,26 +49,26 @@ export function SellerPendingApproval() {
 
   const handleCheckStatus = async () => {
     if (!seller || !sellerStatus) return;
-    
+
     setIsApproving(true);
-    
+
     // Simulate approval process (2 seconds)
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     // Approve the seller in admin store
     await approveSeller(seller.id);
-    
+
     // Update seller store to mark as verified and approved
     updateSellerDetails({
       isVerified: true,
       approvalStatus: 'approved'
     });
-    
+
     // Authenticate the seller so they can access dashboard
     authenticateSeller();
-    
+
     setIsApproving(false);
-    
+
     // Redirect to dashboard
     navigate('/seller');
   };
@@ -72,22 +76,23 @@ export function SellerPendingApproval() {
   // Pending status
   if (!sellerStatus || sellerStatus.status === 'pending') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 py-12 px-4">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-[var(--brand-wash)] py-12 px-4 font-sans flex items-center justify-center">
+        <div className="max-w-2xl mx-auto w-full">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-xl overflow-hidden"
+            className="bg-white rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-8 py-6">
-              <div className="flex items-center justify-center mb-4">
-                <div className="h-16 w-16 bg-white/20 rounded-full flex items-center justify-center">
-                  <Clock className="h-8 w-8 text-white animate-pulse" />
+            <div className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] px-8 py-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+              <div className="flex items-center justify-center mb-6 relative z-10">
+                <div className="h-20 w-20 bg-white/20 backdrop-blur-md rounded-[24px] flex items-center justify-center shadow-lg shadow-orange-900/20">
+                  <Clock className="h-10 w-10 text-white animate-pulse" />
                 </div>
               </div>
-              <h1 className="text-3xl font-bold text-white text-center">Application Under Review</h1>
-              <p className="text-orange-100 text-center mt-2">
+              <h1 className="text-3xl font-black text-white text-center font-heading tracking-tight relative z-10">Application Under Review</h1>
+              <p className="text-orange-50 text-center mt-2 font-medium relative z-10">
                 Your seller application is being reviewed by our team
               </p>
             </div>
@@ -238,25 +243,32 @@ export function SellerPendingApproval() {
   }
 
   // Rejected status
-  if (sellerStatus.status === 'rejected') {
+  if (sellerStatus.status === 'rejected' || sellerStatus.status === 'needs_resubmission') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 py-12 px-4">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-[var(--brand-wash)] py-12 px-4 font-sans flex items-center justify-center">
+        <div className="max-w-2xl mx-auto w-full">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-xl overflow-hidden"
+            className="bg-white rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-red-500 to-red-600 px-8 py-6">
-              <div className="flex items-center justify-center mb-4">
-                <div className="h-16 w-16 bg-white/20 rounded-full flex items-center justify-center">
-                  <XCircle className="h-8 w-8 text-white" />
+            <div className="bg-gradient-to-r from-red-500 to-red-600 px-8 py-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+              <div className="flex items-center justify-center mb-6 relative z-10">
+                <div className="h-20 w-20 bg-white/20 backdrop-blur-md rounded-[24px] flex items-center justify-center shadow-lg shadow-red-900/20">
+                  <XCircle className="h-10 w-10 text-white" />
                 </div>
               </div>
-              <h1 className="text-3xl font-bold text-white text-center">Application Needs Revision</h1>
-              <p className="text-red-100 text-center mt-2">
-                Your seller application requires some changes
+              <h1 className="text-3xl font-black text-white text-center font-heading tracking-tight relative z-10">
+                {sellerStatus.status === 'needs_resubmission'
+                  ? 'Documents Need Resubmission'
+                  : 'Application Needs Revision'}
+              </h1>
+              <p className="text-red-50 text-center mt-2 font-medium relative z-10">
+                {sellerStatus.status === 'needs_resubmission'
+                  ? 'Please replace the flagged documents and resubmit'
+                  : 'Your seller application requires some changes'}
               </p>
             </div>
 
@@ -273,10 +285,10 @@ export function SellerPendingApproval() {
                     </p>
                     {sellerStatus.rejectedAt && (
                       <p className="text-xs text-red-700 mt-2">
-                        Reviewed on: {new Date(sellerStatus.rejectedAt).toLocaleDateString('en-US', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
+                        Reviewed on: {new Date(sellerStatus.rejectedAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
                         })}
                       </p>
                     )}
@@ -353,21 +365,22 @@ export function SellerPendingApproval() {
   // Suspended status
   if (sellerStatus.status === 'suspended') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 py-12 px-4">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-[var(--brand-wash)] py-12 px-4 font-sans flex items-center justify-center">
+        <div className="max-w-2xl mx-auto w-full">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-xl overflow-hidden"
+            className="bg-white rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden"
           >
-            <div className="bg-gradient-to-r from-gray-700 to-gray-800 px-8 py-6">
-              <div className="flex items-center justify-center mb-4">
-                <div className="h-16 w-16 bg-white/20 rounded-full flex items-center justify-center">
-                  <AlertCircle className="h-8 w-8 text-white" />
+            <div className="bg-gradient-to-r from-gray-700 to-gray-800 px-8 py-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+              <div className="flex items-center justify-center mb-6 relative z-10">
+                <div className="h-20 w-20 bg-white/20 backdrop-blur-md rounded-[24px] flex items-center justify-center shadow-lg shadow-black/20">
+                  <AlertCircle className="h-10 w-10 text-white" />
                 </div>
               </div>
-              <h1 className="text-3xl font-bold text-white text-center">Account Suspended</h1>
-              <p className="text-gray-200 text-center mt-2">
+              <h1 className="text-3xl font-black text-white text-center font-heading tracking-tight relative z-10">Account Suspended</h1>
+              <p className="text-gray-200 text-center mt-2 font-medium relative z-10">
                 Your seller account has been temporarily suspended
               </p>
             </div>

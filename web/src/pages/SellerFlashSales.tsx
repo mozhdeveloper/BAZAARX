@@ -14,36 +14,14 @@ import {
   Clock,
   Trash2,
   Edit,
-  LogOut
+  LogOut,
+  Users
 } from 'lucide-react';
+import { cn } from "@/lib/utils";
 
 // Logo components defined outside of render
-const Logo = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
-      className="h-5 w-6 flex-shrink-0"
-    />
-    <motion.span
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="font-medium text-black whitespace-pre"
-    >
-      BazaarPH Seller
-    </motion.span>
-  </Link>
-);
+// Logo components defined outside of render
 
-const LogoIcon = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
-      className="h-8 w-8 object-contain flex-shrink-0"
-    />
-  </Link>
-);
 
 interface FlashSale {
   id: string;
@@ -105,37 +83,67 @@ export default function SellerFlashSales() {
   ];
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
+    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
       <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
+        <SidebarBody className="justify-between gap-4 bg-white z-50 transition-all duration-300">
+          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
+            <SellerLogo open={open} />
             <div className="mt-8 flex flex-col gap-2">
               {sellerLinks.map((link, idx) => (
                 <SidebarLink key={idx} link={link} />
               ))}
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3 pt-6 border-t border-gray-50">
             <SidebarLink
               link={{
-                label: seller?.storeName || "Store",
-                href: "/seller/store-profile",
+                label: seller?.storeName || seller?.ownerName || "Seller",
+                href: "/seller/profile",
                 icon: (
-                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-                    <span className="text-white text-xs font-medium">
-                      {seller?.storeName?.charAt(0) || 'S'}
+                  <div className="h-8 w-8 flex-shrink-0 rounded-xl bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] flex items-center justify-center shadow-lg shadow-orange-500/20">
+                    <span className="text-white text-xs font-bold">
+                      {(seller?.storeName || "S").charAt(0).toUpperCase()}
                     </span>
                   </div>
                 ),
               }}
             />
             <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+              onClick={async () => {
+                const hasBuyerAccount = await useAuthStore.getState().createBuyerAccount();
+                if (hasBuyerAccount) navigate('/profile');
+              }}
+              className="flex items-center gap-3 w-full px-3 py-3 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-xl transition-all group overflow-hidden"
             >
-              <LogOut className="h-5 w-5 flex-shrink-0" />
-              {open && <span>Logout</span>}
+              <Users className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors" />
+              <motion.span
+                animate={{
+                  opacity: open ? 1 : 0,
+                  width: open ? "auto" : 0,
+                  display: open ? "block" : "none"
+                }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="whitespace-nowrap overflow-hidden"
+              >
+                Switch to Buyer Mode
+              </motion.span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 w-full px-3 py-3 text-sm font-medium text-[var(--text-secondary)] hover:text-red-600 hover:bg-red-50 rounded-xl transition-all group overflow-hidden"
+            >
+              <LogOut className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-red-500 transition-colors" />
+              <motion.span
+                animate={{
+                  opacity: open ? 1 : 0,
+                  width: open ? "auto" : 0,
+                  display: open ? "block" : "none"
+                }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="whitespace-nowrap overflow-hidden"
+              >
+                Logout
+              </motion.span>
             </button>
           </div>
         </SidebarBody>
@@ -146,61 +154,67 @@ export default function SellerFlashSales() {
           <div className="max-w-7xl mx-auto p-8">
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Flash Sales</h1>
-                <p className="text-gray-600 mt-2">Manage your flash sale campaigns and boost sales</p>
+                <h1 className="text-3xl font-extrabold text-[var(--text-headline)] font-heading tracking-tight">Flash Sales</h1>
+                <p className="text-[var(--text-muted)] mt-1 font-medium">Manage your flash sale campaigns and boost sales</p>
               </div>
-              <Button className="bg-orange-600 hover:bg-orange-700">
-                <Plus className="w-4 h-4 mr-2" />
+              <Button className="rounded-xl px-6 py-6 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:opacity-90 transition-all shadow-lg shadow-orange-500/20 text-white font-bold">
+                <Plus className="w-5 h-5 mr-2" />
                 Join Campaign
               </Button>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
               {flashSales.map((sale) => (
-                <Card key={sale.id} className="overflow-hidden">
-                  <CardHeader className="bg-gray-50 border-b pb-4">
+                <Card key={sale.id} className="overflow-hidden bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 rounded-[32px] hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-white border-b border-orange-50 pb-6 pt-6 px-8">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="p-2 bg-orange-100 rounded-lg">
-                          <Zap className="w-6 h-6 text-orange-600" />
+                        <div className="p-3 bg-white rounded-2xl shadow-sm border border-orange-100">
+                          <Zap className="w-6 h-6 text-[var(--brand-primary)] fill-orange-500" />
                         </div>
                         <div>
-                          <CardTitle className="text-lg">{sale.name}</CardTitle>
-                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4" />
+                          <CardTitle className="text-xl font-bold text-[var(--text-headline)] font-heading">{sale.name}</CardTitle>
+                          <div className="flex items-center gap-4 mt-2 text-sm text-[var(--text-secondary)] font-medium">
+                            <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-gray-100 shadow-sm">
+                              <Calendar className="w-4 h-4 text-[var(--text-muted)]" />
                               {sale.startDate.toLocaleDateString()} - {sale.endDate.toLocaleDateString()}
                             </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-4 h-4" />
+                            <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-gray-100 shadow-sm">
+                              <Clock className="w-4 h-4 text-[var(--text-muted)]" />
                               {sale.status === 'active' ? 'Ends in 2 days' : 'Starts in 5 days'}
                             </div>
                           </div>
                         </div>
                       </div>
-                      <Badge className={
-                        sale.status === 'active' ? 'bg-green-500' :
-                        sale.status === 'scheduled' ? 'bg-blue-500' : 'bg-gray-500'
-                      }>
+                      <Badge className={cn(
+                        "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide",
+                        sale.status === 'active' ? 'bg-green-100 text-green-700 hover:bg-green-100 border-green-200' :
+                          sale.status === 'scheduled' ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-100 border-gray-200'
+                      )}>
                         {sale.status.toUpperCase()}
                       </Badge>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="mb-4">
-                      <h3 className="font-medium mb-3">Participating Products</h3>
+                  <CardContent className="p-8">
+                    <div className="mb-6">
+                      <h3 className="font-bold text-[var(--text-headline)] mb-4 text-sm uppercase tracking-wider">Participating Products</h3>
                       {sale.products.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {sale.products.map((product) => (
-                            <div key={product.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                              <img src={product.image} alt={product.name} className="w-16 h-16 rounded-md object-cover" />
-                              <div>
-                                <p className="font-medium text-sm line-clamp-1">{product.name}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-orange-600 font-bold">₱{product.flashPrice}</span>
-                                  <span className="text-gray-400 text-xs line-through">₱{product.originalPrice}</span>
+                            <div key={product.id} className="flex items-center gap-4 p-4 border border-gray-100 rounded-[20px] bg-gray-50/50 hover:bg-white hover:shadow-md hover:border-orange-100 transition-all cursor-pointer group">
+                              <div className="relative">
+                                <img src={product.image} alt={product.name} className="w-20 h-20 rounded-2xl object-cover shadow-sm group-hover:scale-105 transition-transform" />
+                                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                                  -50%
                                 </div>
-                                <div className="text-xs text-gray-500 mt-1">
+                              </div>
+                              <div>
+                                <p className="font-bold text-[var(--text-headline)] text-sm line-clamp-1 group-hover:text-[var(--brand-primary)] transition-colors">{product.name}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[var(--brand-primary)] font-black text-lg">₱{product.flashPrice}</span>
+                                  <span className="text-gray-400 text-xs line-through font-medium">₱{product.originalPrice}</span>
+                                </div>
+                                <div className="text-xs text-[var(--text-secondary)] font-medium mt-1 bg-white px-2 py-0.5 rounded-full inline-block border border-gray-100">
                                   {product.sold} / {product.stock} sold
                                 </div>
                               </div>
@@ -208,18 +222,18 @@ export default function SellerFlashSales() {
                           ))}
                         </div>
                       ) : (
-                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                          <p className="text-gray-500 mb-2">No products added yet</p>
-                          <Button variant="outline" size="sm">Add Products</Button>
+                        <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-[24px] bg-gray-50/50">
+                          <p className="text-[var(--text-muted)] font-medium mb-3">No products added yet</p>
+                          <Button variant="outline" size="sm" className="rounded-xl font-bold border-gray-200 text-gray-600 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)]">Add Products</Button>
                         </div>
                       )}
                     </div>
-                    <div className="flex justify-end gap-2 pt-4 border-t">
-                      <Button variant="outline" size="sm">
+                    <div className="flex justify-end gap-3 pt-6 border-t border-gray-50">
+                      <Button variant="outline" size="sm" className="rounded-xl h-10 px-5 font-bold border-gray-200 text-gray-600 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)] bg-white">
                         <Edit className="w-4 h-4 mr-2" />
                         Edit
                       </Button>
-                      <Button variant="destructive" size="sm">
+                      <Button variant="destructive" size="sm" className="rounded-xl h-10 px-5 font-bold bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 shadow-none">
                         <Trash2 className="w-4 h-4 mr-2" />
                         Withdraw
                       </Button>
@@ -234,3 +248,28 @@ export default function SellerFlashSales() {
     </div>
   );
 }
+
+// Sidebar Logo Component
+const SellerLogo = ({ open }: { open: boolean }) => (
+  <Link to="/seller" className={cn(
+    "flex items-center py-2 mb-6 group transition-all duration-300",
+    open ? "justify-start px-2 gap-3" : "justify-center px-0 gap-0"
+  )}>
+    <div className="w-10 h-10 bg-gradient-to-tr from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
+      <img src="/BazaarX.png" alt="BazaarX Logo" className="h-6 w-6 brightness-0 invert" />
+    </div>
+
+    <motion.div
+      animate={{
+        opacity: open ? 1 : 0,
+        width: open ? "auto" : 0,
+        display: open ? "flex" : "none"
+      }}
+      transition={{ duration: 0.2, ease: "easeInOut" }}
+      className="flex-col overflow-hidden whitespace-nowrap"
+    >
+      <span className="font-black text-xl text-[var(--text-headline)] font-heading tracking-tight leading-none">BazaarX</span>
+      <span className="text-[10px] text-[var(--brand-primary)] font-bold tracking-widest uppercase">Seller Hub</span>
+    </motion.div>
+  </Link>
+);

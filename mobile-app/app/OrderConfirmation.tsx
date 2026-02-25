@@ -8,18 +8,21 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CheckCircle, HelpCircle } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { CheckCircle, HelpCircle, Package, ChevronRight, Home, Flame } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
+import { safeImageUri } from '../src/utils/imageUtils';
+import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderConfirmation'>;
 
 export default function OrderConfirmation({ navigation, route }: Props) {
-  const { order } = route.params as { order: Order };
+  const { order, earnedBazcoins = 0 } = route.params as { order: Order; earnedBazcoins?: number };
   
   const handleViewPurchases = () => {
-    navigation.navigate('MainTabs', { screen: 'Orders', params: {} });
+    navigation.navigate('Orders', {});
   };
 
   const handleViewOrderStatus = () => {
@@ -27,222 +30,371 @@ export default function OrderConfirmation({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
-      <ScrollView 
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Success Icon */}
-        <View style={styles.successIcon}>
-          <CheckCircle size={64} color="#FF5722" strokeWidth={3} />
-        </View>
+    <LinearGradient
+      colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Success Icon */}
+          <View style={styles.successIconContainer}>
+            <LinearGradient
+              colors={[COLORS.primary, '#D97706']}
+              style={styles.successIconGradient}
+            >
+              <CheckCircle size={80} color="#FFFFFF" strokeWidth={2.5} />
+            </LinearGradient>
+          </View>
 
-        {/* Product Thumbnails */}
-        <View style={styles.thumbnailsContainer}>
-          {order.items.slice(0, 3).map((item, index) => (
-            <View key={index} style={styles.thumbnailWrapper}>
-              <Image
-                source={{ uri: item.image }}
-                style={styles.thumbnail}
-              />
+          {/* Success Message */}
+          <Text style={styles.title}>Order Placed Successfully!</Text>
+          <Text style={styles.subtitle}>
+            Your order has been confirmed and {order.isPaid ? 'paid successfully' : 'will be paid on delivery'}!
+          </Text>
+
+
+          {/* Rewards Card */}
+          {earnedBazcoins > 0 && (
+            <View style={styles.rewardsCard}>
+              <View style={styles.rewardsIconContainer}>
+                <Flame size={24} color="#FFFFFF" fill="#FFFFFF" />
+              </View>
+              <View style={styles.rewardsInfo}>
+                <Text style={styles.rewardsTitle}>Rewards Earned!</Text>
+                <Text style={styles.rewardsValue}>You earned {earnedBazcoins.toLocaleString()} Bazcoins</Text>
+              </View>
             </View>
-          ))}
-        </View>
+          )}
 
-        {/* Success Message */}
-        <Text style={styles.successTitle}>Checkout Successful.</Text>
-        <Text style={styles.successSubtitle}>
-          Your order has been confirmed and {order.isPaid ? 'paid successfully' : 'will be paid on delivery'}!
-        </Text>
+          {/* Order Number Card */}
+          <View style={styles.orderNumberCard}>
+            <Text style={styles.orderNumberLabel}>Order Number</Text>
+            <Text style={styles.orderNumber}>#{order.transactionId}</Text>
+          </View>
 
-        {/* Order Info */}
-        <View style={styles.orderInfo}>
-          <Text style={styles.totalAmount}>₱{order.total.toLocaleString()}</Text>
-          <Text style={styles.orderId}>Order #{order.transactionId}</Text>
-        </View>
+          {/* Order Summary */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Package size={20} color="#D97706" />
+              <Text style={styles.sectionTitle}>Order Summary</Text>
+            </View>
+            <View style={styles.card}>
+              {order.items.map((item, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.productRow,
+                    index < order.items.length - 1 && styles.productRowBorder,
+                  ]}
+                >
+                  <Image
+                    source={{ uri: safeImageUri(item.image) }}
+                    style={styles.productImage}
+                  />
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.productQty}>Qty: {item.quantity}</Text>
+                  </View>
+                  <Text style={styles.productPrice}>
+                    ₱{((item.price ?? 0) * item.quantity).toLocaleString()}
+                  </Text>
+                </View>
+              ))}
 
-        {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={handleViewPurchases}
-          >
-            <Text style={styles.primaryButtonText}>See My Purchases</Text>
-          </Pressable>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total Amount</Text>
+                <Text style={styles.totalAmount}>₱{order.total.toLocaleString()}</Text>
+              </View>
+            </View>
+          </View>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={handleViewOrderStatus}
-          >
-            <Text style={styles.secondaryButtonText}>See Order Status</Text>
-          </Pressable>
+          {/* Action Buttons */}
+          <View style={styles.buttonsContainer}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.viewOrderButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={handleViewOrderStatus}
+            >
+              <Text style={styles.viewOrderButtonText}>Track Order Status</Text>
+              <ChevronRight size={20} color={COLORS.primary} />
+            </Pressable>
 
-          <Pressable
-            style={styles.helpButton}
-            onPress={() => {}}
-          >
-            <HelpCircle size={18} color="#FF5722" strokeWidth={2.5} />
-            <Text style={styles.helpButtonText}>I need help with this</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.viewAllOrdersButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={handleViewPurchases}
+            >
+              <Text style={styles.viewAllOrdersButtonText}>See My Purchases</Text>
+            </Pressable>
 
-        {/* You might also like section */}
-        <View style={styles.recommendationsSection}>
-          <View style={styles.recommendationsHeader}>
-            <Text style={styles.recommendationsTitle}>💡 You might also like</Text>
-            <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Shop', params: {} })}>
-              <Text style={styles.seeAllText}>See All</Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.continueButton,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+            >
+              <Home size={20} color="#FFFFFF" />
+              <Text style={styles.continueButtonText}>Continue Shopping</Text>
             </Pressable>
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
-  content: {
-    alignItems: 'center',
-    paddingTop: 40,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 60,
   },
-  successIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#FFF4ED',
+  successIconContainer: {
     alignItems: 'center',
+    marginVertical: 40,
+  },
+  successIconGradient: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     justifyContent: 'center',
-    marginBottom: 24,
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  thumbnailsContainer: {
-    flexDirection: 'row',
-    gap: 12,
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 40,
+    paddingHorizontal: 20,
+    lineHeight: 24,
+  },
+  orderNumberCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#FEF3C7',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 32,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  orderNumberLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  orderNumber: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: COLORS.primary,
+  },
+  section: {
     marginBottom: 32,
   },
-  thumbnailWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: '#F5F5F7',
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  thumbnail: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 8,
-  },
-  successTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  successSubtitle: {
-    fontSize: 15,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-    paddingHorizontal: 20,
-  },
-  orderInfo: {
+  sectionHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 16,
+    gap: 10,
   },
-  totalAmount: {
-    fontSize: 24,
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827', // Black
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#FEF3C7',
+  },
+  productRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  productRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDF2E9',
+  },
+  productImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+  },
+  productInfo: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  productName: {
+    fontSize: 15,
     fontWeight: '700',
-    color: '#111827',
+    color: COLORS.textHeadline,
     marginBottom: 6,
   },
-  orderId: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  actionsContainer: {
-    width: '100%',
-    gap: 12,
-  },
-  primaryButton: {
-    backgroundColor: '#FF5722',
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: {
-    fontSize: 16,
+  productQty: {
+    fontSize: 13,
+    color: COLORS.textMuted,
     fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
   },
-  secondaryButton: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FF5722',
-  },
-  secondaryButtonText: {
+  productPrice: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FF5722',
-    letterSpacing: 0.3,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
   },
-  helpButton: {
+  totalRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
+    justifyContent: 'space-between',
+    paddingTop: 20,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#FDF2E9',
   },
-  helpButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FF5722',
+  totalLabel: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
+  },
+  totalAmount: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: COLORS.primary,
+  },
+  buttonsContainer: {
+    gap: 16,
+  },
+  viewOrderButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 18,
+    borderRadius: 16,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    gap: 8,
+  },
+  viewOrderButtonText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  viewAllOrdersButton: {
+    paddingVertical: 18,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  viewAllOrdersButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  continueButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 18,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
+    gap: 10,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  continueButtonText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   buttonPressed: {
-    opacity: 0.7,
+    opacity: 0.8,
     transform: [{ scale: 0.98 }],
   },
-  recommendationsSection: {
-    width: '100%',
-    marginTop: 40,
-  },
-  recommendationsHeader: {
+  rewardsCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    backgroundColor: '#FFF7ED',
+    marginHorizontal: 4,
+    marginBottom: 24,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#FED7AA',
   },
-  recommendationsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+  rewardsIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FB8C00',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    shadowColor: '#FB8C00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  seeAllText: {
+  rewardsInfo: {
+    flex: 1,
+  },
+  rewardsTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FF5722',
+    fontWeight: '700',
+    color: '#9A3412',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  rewardsValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#431407',
+    marginTop: 2,
   },
 });

@@ -143,7 +143,7 @@ export default function OnboardingScreen({ navigation }: Props) {
         {currentIndex === slides.length - 1 ? (
           <Pressable style={styles.getStartedButton} onPress={handleGetStarted}>
             <LinearGradient
-              colors={['#FF6A00', '#FF8C42']}
+              colors={['#FB8C00', '#FFA000']} // Warm Orange Gradient
               style={styles.buttonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -164,7 +164,7 @@ export default function OnboardingScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFBF0', // Warm Ivory
   },
   skipButton: {
     position: 'absolute',
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#111827',
+    color: '#7C2D12', // Warm Brown
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 24,
-    backgroundColor: '#FF6A00',
+    backgroundColor: '#FB8C00', // Warm Orange
   },
   bottomContainer: {
     paddingHorizontal: 20,
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   nextButton: {
-    backgroundColor: '#FF6A00',
+    backgroundColor: '#FB8C00', // Warm Orange
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',

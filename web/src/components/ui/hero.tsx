@@ -10,6 +10,8 @@ interface Action {
   label: string;
   href?: string;
   onClick?: () => void;
+  className?: string;
+  icon?: React.ReactNode;
   variant?:
   | "default"
   | "destructive"
@@ -28,6 +30,7 @@ interface HeroProps extends Omit<React.HTMLAttributes<HTMLElement>, "title"> {
   titleClassName?: string;
   subtitleClassName?: string;
   actionsClassName?: string;
+  children?: React.ReactNode;
 }
 
 const Hero = React.forwardRef<HTMLElement, HeroProps>(
@@ -42,6 +45,7 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
       titleClassName,
       subtitleClassName,
       actionsClassName,
+      children,
       ...props
     },
     ref
@@ -50,7 +54,7 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
       <section
         ref={ref}
         className={cn(
-          "relative z-0 flex min-h-[70vh] w-full flex-col items-center justify-center overflow-hidden rounded-md bg-background py-8 sm:py-12 md:py-16",
+          "relative z-0 flex min-h-[70vh] w-full flex-col items-center justify-center overflow-hidden rounded-md bg-transparent py-8 sm:py-12 md:py-16",
           className
         )}
         {...props}
@@ -62,7 +66,7 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
             )}
 
             {/* Main glow */}
-            <div className="absolute inset-auto z-50 h-36 w-[50rem] -translate-y-[-30%] rounded-full bg-primary/60 opacity-80 blur-3xl" />
+            <div className="absolute inset-auto z-50 h-36 w-[50rem] -translate-y-[-30%] rounded-full bg-gradient-to-r from-[#FFD280] to-[#FFC166] opacity-80 blur-3xl" />
 
             {/* Lamp effect */}
             <motion.div
@@ -70,7 +74,7 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
               viewport={{ once: true }}
               transition={{ ease: "easeInOut", delay: 0.5, duration: 0.8 }}
               whileInView={{ width: "16rem" }}
-              className="absolute top-0 z-30 h-36 -translate-y-[20%] rounded-full bg-primary/60 blur-2xl"
+              className="absolute top-0 z-30 h-36 -translate-y-[20%] rounded-full bg-gradient-to-b from-[#FFD280] to-[#FFC166] blur-2xl"
             />
 
 
@@ -103,6 +107,7 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
                 {subtitle}
               </p>
             )}
+            {children}
             {actions && actions.length > 0 && (
               <div className={cn("flex gap-4", actionsClassName)}>
                 {actions.map((action, index) =>
@@ -111,16 +116,22 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
                       key={index}
                       variant={action.variant || "default"}
                       onClick={action.onClick}
+                      className={action.className}
                     >
                       {action.label}
+                      {action.icon}
                     </Button>
                   ) : (
                     <Button
                       key={index}
                       variant={action.variant || "default"}
                       asChild
+                      className={action.className}
                     >
-                      <Link to={action.href!}>{action.label}</Link>
+                      <Link to={action.href!}>
+                        {action.label}
+                        {action.icon}
+                      </Link>
                     </Button>
                   )
                 )}

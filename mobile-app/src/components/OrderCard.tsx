@@ -1,295 +1,406 @@
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
-import { Calendar, MapPin, Eye } from 'lucide-react-native';
+import { Calendar, MapPin, Eye, Copy, MessageCircle } from 'lucide-react-native';
 import { Order } from '../types';
-import { BadgePill } from './BadgePill';
+import * as Clipboard from 'expo-clipboard';
+import { COLORS } from '../constants/theme';
 
 interface OrderCardProps {
   order: Order;
   onPress: () => void;
   onTrack?: () => void;
+  onCancel?: () => void;
+  onReceive?: () => void;
+  onReview?: () => void;
+  onShopPress?: (shopId: string) => void;
 }
 
-export const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onTrack }) => {
+export const OrderCard: React.FC<OrderCardProps> = ({
+  order,
+  onPress,
+  onTrack,
+  onCancel,
+  onReceive,
+  onReview,
+  onShopPress
+}) => {
+  const buyerUiStatus = order.buyerUiStatus || (
+    order.status === 'processing'
+      ? 'confirmed'
+      : order.status === 'shipped'
+        ? 'shipped'
+        : order.status === 'delivered'
+          ? 'delivered'
+          : order.status === 'cancelled'
+            ? 'cancelled'
+            : 'pending'
+  );
+
   const getStatusColor = () => {
-    switch (order.status) {
+    switch (buyerUiStatus) {
       case 'pending':
-        return '#F59E0B';
-      case 'processing':
-        return '#3B82F6';
+        return '#F59E0B'; // Yellow
+      case 'confirmed':
+        return '#3B82F6'; // Blue
       case 'shipped':
-        return '#8B5CF6';
+        return '#8B5CF6'; // Violet
       case 'delivered':
-        return '#22C55E';
+        return '#22C55E'; // Green
+      case 'reviewed':
+        return '#16A34A';
+      case 'returned':
+        return '#F97316';
+      case 'cancelled':
+        return '#EF4444'; // Red
       default:
         return '#6B7280';
     }
   };
 
   const getStatusText = () => {
-    switch (order.status) {
+    switch (buyerUiStatus) {
       case 'pending':
         return 'Pending';
-      case 'processing':
+      case 'confirmed':
         return 'Processing';
       case 'shipped':
         return 'Shipped';
       case 'delivered':
         return 'Delivered';
+      case 'reviewed':
+        return 'Reviewed';
+      case 'returned':
+        return 'Return/Refund';
+      case 'cancelled':
+        return 'Cancelled';
       default:
-        return order.status;
+        return buyerUiStatus;
     }
   };
 
-  // Safety check for empty items
-  if (!order.items || order.items.length === 0) {
-    return null;
-  }
+  const handleCopyOrderId = async () => {
+    await Clipboard.setStringAsync(order.transactionId);
+  };
 
-  const firstItem = order.items[0];
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  // Safety check for empty items - Relaxed for debugging
+  const hasItems = order.items && order.items.length > 0;
+  const firstItem = hasItems ? order.items[0] : {
+    id: 'unknown',
+    name: 'Order Details Unavailable',
+    quantity: 0,
+    image: '',
+    seller: 'Unknown Shop',
+    sellerId: ''
+  };
+  const itemCount = hasItems ? order.items.length : 0;
+  const shopName = firstItem.seller || 'Shop Name';
+  const shopId = firstItem.sellerId;
 
   return (
-    <Pressable 
-      onPress={onPress} 
-      style={({ pressed }) => [
-        styles.container,
-        pressed && styles.containerPressed,
-      ]}
-      android_ripple={{ color: '#FEF3E8' }}
-    >
-      {/* Status Badge at Top */}
-      <View style={styles.topSection}>
-        <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor()}15` }]}>
-          <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
+    <View style={styles.container}>
+      {/* Header Section */}
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => shopId && onShopPress?.(shopId)}>
+            <Text style={styles.shopName}>{shopName} {'>'}</Text>
+          </Pressable>
           <Text style={[styles.statusText, { color: getStatusColor() }]}>
             {getStatusText()}
           </Text>
         </View>
-        <Text style={styles.transactionId}>{order.transactionId}</Text>
+        <View style={styles.metadataRow}>
+          <Text style={styles.dateText}>{formatDate(order.createdAt)}</Text>
+          <Pressable style={styles.orderIdContainer} onPress={handleCopyOrderId}>
+            <Text style={styles.orderIdText}>ID: {order.transactionId}</Text>
+            <Copy size={12} color="#6B7280" style={{ marginLeft: 4 }} />
+          </Pressable>
+        </View>
       </View>
 
-      {/* Product Preview */}
-      <View style={styles.productSection}>
-        <View style={styles.imageContainer}>
-          <Image 
-            source={{ uri: firstItem.image || 'https://via.placeholder.com/80' }} 
-            style={styles.thumbnail} 
-          />
-          {order.items.length > 1 && (
-            <View style={styles.itemCountBadge}>
-              <Text style={styles.itemCountText}>+{order.items.length - 1}</Text>
-            </View>
-          )}
-        </View>
-        
-        <View style={styles.productInfo}>
-          <Text style={styles.productName} numberOfLines={2}>
+      <Pressable onPress={onPress}>
+        {/* Product Section */}
+        <View style={styles.productSection}>
+          <View style={styles.imageStack}>
+            {/* First Image */}
+            <Image
+              source={{ uri: firstItem.image || 'https://via.placeholder.com/80' }}
+              style={styles.productImage}
+            />
+            {/* Second Image (Offset) if multiple items */}
+            {itemCount > 1 && order.items[1] && (
+              <View style={styles.offsetImageContainer}>
+                <Image
+                  source={{ uri: order.items[1].image || 'https://via.placeholder.com/80' }}
+                  style={[styles.productImage, { opacity: 0.5 }]}
+                />
+                <View style={styles.moreItemsOverlay}>
+                  <Text style={styles.moreItemsText}>+{itemCount - 1}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.productDetails}>
+            <Text style={styles.productTitle} numberOfLines={1}>
             {firstItem.name}
           </Text>
-          <View style={styles.infoRow}>
-            <Calendar size={14} color="#6B7280" />
-            <Text style={styles.infoText}>{order.scheduledDate}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <MapPin size={14} color="#6B7280" />
-            <Text style={styles.infoText} numberOfLines={1}>
-              {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
-            </Text>
+          {/* Display variant information with dynamic labels */}
+          {'selectedVariant' in firstItem && firstItem.selectedVariant && (firstItem.selectedVariant.option1Value || firstItem.selectedVariant.option2Value || firstItem.selectedVariant.size || firstItem.selectedVariant.color) && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 4 }}>
+              {/* Dynamic option 1 */}
+              {firstItem.selectedVariant.option1Value && (
+                <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                  {firstItem.selectedVariant.option1Label || 'Option'}: {firstItem.selectedVariant.option1Value}
+                </Text>
+              )}
+              {/* Dynamic option 2 */}
+              {firstItem.selectedVariant.option2Value && (
+                <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                  {firstItem.selectedVariant.option2Label || 'Option'}: {firstItem.selectedVariant.option2Value}
+                </Text>
+              )}
+              {/* Legacy size fallback */}
+              {!firstItem.selectedVariant.option1Value && !firstItem.selectedVariant.option2Value && firstItem.selectedVariant.size && (
+                <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                  {firstItem.selectedVariant.size}
+                </Text>
+              )}
+              {/* Legacy color fallback */}
+              {!firstItem.selectedVariant.option1Value && !firstItem.selectedVariant.option2Value && firstItem.selectedVariant.color && (
+                <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                  {firstItem.selectedVariant.color}
+                </Text>
+              )}
+            </View>
+          )}
+          <Text style={styles.quantityText}>x{firstItem.quantity}</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>
+                Total ({itemCount} items): <Text style={styles.totalPrice}>₱{order.total.toLocaleString()}</Text>
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
+      </Pressable>
 
-      {/* Footer with Price and Actions */}
-      <View style={styles.footer}>
-        <View style={styles.priceContainer}>
-          <Text style={styles.priceLabel}>Total Amount</Text>
-          <Text style={styles.price}>₱{order.total.toLocaleString()}</Text>
-        </View>
-        <View style={styles.actions}>
-          {order.status === 'delivered' ? (
-            <Pressable 
-              onPress={onPress} 
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.viewButton,
-                pressed && styles.actionButtonPressed,
-              ]}
-            >
-              <Eye size={16} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>View</Text>
+      {/* Action Buttons */}
+      <View style={styles.actionButtonsContainer}>
+        {order.status === 'pending' && (
+          <>
+            {onCancel && (
+              <Pressable style={styles.outlineButton} onPress={onCancel}>
+                <Text style={styles.outlineButtonText}>Cancel Order</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.solidButton} onPress={onPress}>
+              <Text style={styles.solidButtonText}>View Details</Text>
             </Pressable>
-          ) : onTrack ? (
-            <Pressable 
-              onPress={onTrack}
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.trackButton,
-                pressed && styles.actionButtonPressed,
-              ]}
-            >
-              <MapPin size={16} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>Track</Text>
+          </>
+        )}
+
+        {order.status === 'processing' && (
+          <Pressable style={styles.solidButton} onPress={onPress}>
+            <Text style={styles.solidButtonText}>View Details</Text>
+          </Pressable>
+        )}
+
+        {order.status === 'shipped' && (
+          <>
+            {onReceive && (
+              <Pressable style={styles.solidButton} onPress={onReceive}>
+                <Text style={styles.solidButtonText}>Order Received</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.outlineButton} onPress={onPress}>
+              <Text style={styles.outlineButtonText}>View Details</Text>
             </Pressable>
-          ) : null}
-        </View>
+          </>
+        )}
+
+        {order.status === 'delivered' && (
+          <>
+            {onReview && (
+              <Pressable style={styles.outlineButton} onPress={onReview}>
+                <Text style={styles.outlineButtonText}>Review</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.solidButton} onPress={onPress}>
+              <Text style={styles.solidButtonText}>View Details</Text>
+            </Pressable>
+          </>
+        )}
+
+        {order.status === 'cancelled' && (
+          <Pressable style={styles.solidButton} onPress={onPress}>
+            <Text style={styles.solidButtonText}>View Details</Text>
+          </Pressable>
+        )}
       </View>
-    </Pressable>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    marginBottom: 16,
     padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
-    elevation: 3,
+    elevation: 4,
   },
-  containerPressed: {
-    transform: [{ scale: 0.98 }],
-    shadowOpacity: 0.12,
+  header: {
+    marginBottom: 12,
   },
-  topSection: {
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  shopName: {
+    fontWeight: '600',
+    fontSize: 14,
+    color: '#111827',
+  },
+  statusText: {
+    fontWeight: '500',
+    fontSize: 12,
+  },
+  metadataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dateText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  orderIdContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+  },
+  orderIdText: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   productSection: {
     flexDirection: 'row',
-    marginBottom: 14,
-    gap: 14,
+    marginBottom: 12,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F9FAFB',
   },
-  imageContainer: {
+  imageStack: {
+    width: 70,
+    height: 70,
+    marginRight: 12,
     position: 'relative',
   },
-  thumbnail: {
-    width: 80,
-    height: 80,
-    borderRadius: 14,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  itemCountBadge: {
+  productImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 4,
+    backgroundColor: '#F3F4F6',
     position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#FF6A00',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    top: 0,
+    left: 0,
+    zIndex: 2,
   },
-  itemCountText: {
-    fontSize: 10,
-    fontWeight: '700',
+  offsetImageContainer: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    width: 70,
+    height: 70,
+    zIndex: 1,
+  },
+  moreItemsOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 4,
+  },
+  moreItemsText: {
     color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  productInfo: {
+  productDetails: {
     flex: 1,
     justifyContent: 'space-between',
   },
-  productName: {
-    fontSize: 15,
-    fontWeight: '600',
+  productTitle: {
+    fontSize: 14,
     color: '#111827',
-    lineHeight: 20,
-    marginBottom: 6,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     marginBottom: 4,
   },
-  infoText: {
+  quantityText: {
     fontSize: 12,
     color: '#6B7280',
-    flex: 1,
+    marginBottom: 4,
   },
-  transactionId: {
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  summaryText: {
     fontSize: 12,
+    color: '#111827',
+  },
+  totalPrice: {
     fontWeight: '600',
-    color: '#6B7280',
-    letterSpacing: 0.5,
+    color: '#F59E0B', // Default Brand Color, can be customized
   },
-  statusBadge: {
+  actionButtonsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 5,
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 14,
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
   },
-  priceContainer: {
-    flex: 1,
+  solidButton: {
+    backgroundColor: COLORS.primary, // Primary Color
+    paddingHorizontal: 16, // Reduced padding for better fit on small screens
+    paddingVertical: 8,
+    borderRadius: 4,
   },
-  priceLabel: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  price: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FF6A00',
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionButtonPressed: {
-    transform: [{ scale: 0.96 }],
-    shadowOpacity: 0.1,
-  },
-  trackButton: {
-    backgroundColor: '#22C55E',
-  },
-  viewButton: {
-    backgroundColor: '#FF6A00',
-  },
-  actionButtonText: {
+  solidButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  outlineButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  outlineButtonText: {
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

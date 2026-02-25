@@ -1,22 +1,68 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, Image, Pressable, StatusBar } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, Image, Pressable, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { ArrowLeft, Store, MapPin, Star, Users, CheckCircle2 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { officialStores } from '../src/data/stores';
 import { COLORS } from '../src/constants/theme';
+import { sellerService } from '../src/services/sellerService';
+import { safeImageUri, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
 
 export default function AllStoresScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
     const BRAND_COLOR = COLORS.primary;
+
+    const pageTitle = route.params?.title || 'Official Stores';
+
+    // Real stores state
+    const [realStores, setRealStores] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch real stores on mount
+    useEffect(() => {
+        const fetchStores = async () => {
+            setLoading(true);
+            try {
+                // By default getPublicStores returns approved & verified sellers
+                const stores = await sellerService.getPublicStores({ sortBy: 'rating' });
+                if (stores && stores.length > 0) {
+                    // Map database stores to display format
+                    const mappedStores = stores.map(s => ({
+                        id: s.id,
+                        name: s.business_name || s.store_name || 'Store',
+                        logo: (s.store_name || s.business_name || 'S').substring(0, 1).toUpperCase(),
+                        banner: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=300&fit=crop',
+                        rating: s.rating || 5.0,
+                        location: s.city || s.province || 'Philippines',
+                        followers: 0, // backend doesn't return this yet in list view efficiently
+                        products: Array(s.products_count || 0).fill({}),
+                        categories: [], // Categories not on SellerData type
+                        isVerified: s.is_verified
+                    }));
+                    setRealStores(mappedStores);
+                }
+            } catch (error) {
+                console.error('Error fetching stores:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStores();
+    }, []);
+
+    // Use real stores if available, fallback to official stores (which might be empty or mock)
+    const displayStores = realStores.length > 0 ? realStores : officialStores;
 
     const renderStoreItem = ({ item }: { item: any }) => (
         <Pressable 
             style={styles.shopCard} 
             onPress={() => navigation.navigate('StoreDetail', { store: item })}
         >
-            <Image source={{ uri: item.banner }} style={styles.shopImage} />
+            <Image source={{ uri: safeImageUri(item.banner, PLACEHOLDER_BANNER) }} style={styles.shopImage} />
             <View style={styles.overlay} />
             <View style={styles.logoContainer}>
                 <Text style={{ fontSize: 24 }}>{item.logo}</Text>
@@ -24,6 +70,12 @@ export default function AllStoresScreen() {
             <View style={styles.shopInfo}>
                 <View style={styles.shopHeader}>
                     <Text style={styles.shopName}>{item.name}</Text>
+                    {item.isVerified && (
+                         <View style={{ marginLeft: 4 }}>
+                            <CheckCircle2 size={16} color={BRAND_COLOR} fill="#FFF" />
+                         </View>
+                    )}
+                    <View style={{ flex: 1 }} />
                     <View style={styles.ratingBadge}>
                         <Star size={14} color="#FBBF24" fill="#FBBF24" />
                         <Text style={styles.ratingText}>{item.rating}</Text>
@@ -36,10 +88,6 @@ export default function AllStoresScreen() {
                 </View>
 
                 <View style={styles.statsRow}>
-                    <View style={styles.statItem}>
-                        <Users size={14} color="#6B7280" />
-                        <Text style={styles.statText}>{item.followers > 1000 ? (item.followers / 1000).toFixed(1) + 'k' : item.followers} followers</Text>
-                    </View>
                     <View style={styles.statItem}>
                         <Store size={14} color="#6B7280" />
                         <Text style={styles.statText}>{item.products.length} products</Text>
@@ -65,21 +113,38 @@ export default function AllStoresScreen() {
             <StatusBar barStyle="dark-content" />
 
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top }]}>
+            <LinearGradient
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.header, { paddingTop: insets.top }]}
+            >
                 <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color="#1F2937" />
+                    <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
                 </Pressable>
-                <Text style={styles.headerTitle}>Official Stores</Text>
+                <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>{pageTitle}</Text>
                 <View style={{ width: 40 }} />
-            </View>
+            </LinearGradient>
 
-            <FlatList
-                data={officialStores}
-                renderItem={renderStoreItem}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-            />
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={BRAND_COLOR} />
+                    <Text style={styles.loadingText}>Loading stores...</Text>
+                </View>
+            ) : displayStores.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <Store size={48} color="#9CA3AF" />
+                    <Text style={styles.emptyText}>No stores available yet</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={displayStores}
+                    renderItem={renderStoreItem}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                />
+            )}
         </View>
     );
 }
@@ -87,17 +152,21 @@ export default function AllStoresScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
+        backgroundColor: COLORS.background,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingBottom: 16,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
+        paddingBottom: 20,
+        borderBottomLeftRadius: 25,
+        borderBottomRightRadius: 25,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
     },
     backButton: {
         padding: 8,
@@ -213,5 +282,25 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
         color: '#FFFFFF',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#6B7280',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#9CA3AF',
     },
 });

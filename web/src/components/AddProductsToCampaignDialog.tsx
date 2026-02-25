@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Search, Package, Check } from "lucide-react";
-import { useProductStore, SellerProduct } from "@/stores/sellerStore";
+import { useProductStore } from "@/stores/sellerStore";
 import { discountService } from "@/services/discountService";
 import { useToast } from "@/hooks/use-toast";
 import type { DiscountCampaign } from "@/types/discount";
@@ -264,6 +264,7 @@ export function AddProductsToCampaignDialog({
                 const isInCampaign = existingProducts.has(product.id);
                 const isSelected = selections[product.id]?.selected || false;
                 const stockLimit = selections[product.id]?.discountedStock;
+                const productImage = product.images?.[0];
 
                 return (
                   <div
@@ -286,9 +287,9 @@ export function AddProductsToCampaignDialog({
 
                       {/* Product Image */}
                       <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
-                        {product.primaryImage ? (
+                        {productImage ? (
                           <img
-                            src={product.primaryImage}
+                            src={productImage}
                             alt={product.name}
                             className="w-full h-full object-cover"
                           />

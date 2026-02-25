@@ -107,143 +107,147 @@ const AdminAnalytics: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar open={open} setOpen={setOpen} />
-      
+
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
-              <p className="text-gray-600 mt-1">Comprehensive platform insights and metrics</p>
+        <div className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-8 py-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
+                <p className="text-gray-600 mt-1">Comprehensive platform insights and metrics</p>
+              </div>
+              <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500">
+                <option>Last 30 days</option>
+                <option>Last 90 days</option>
+                <option>Last year</option>
+                <option>All time</option>
+              </select>
             </div>
-            <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500">
-              <option>Last 30 days</option>
-              <option>Last 90 days</option>
-              <option>Last year</option>
-              <option>All time</option>
-            </select>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 overflow-auto p-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {statsCards.map((stat, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <p className="text-sm text-gray-600">{stat.title}</p>
-                      <div className={`w-10 h-10 rounded-lg bg-${stat.color}-100 flex items-center justify-center`}>
-                        <stat.icon className={`w-5 h-5 text-${stat.color}-600`} />
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto px-8 py-8">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {statsCards.map((stat, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <p className="text-sm text-gray-600">{stat.title}</p>
+                        <div className={`w-10 h-10 rounded-lg bg-${stat.color}-100 flex items-center justify-center`}>
+                          <stat.icon className={`w-5 h-5 text-${stat.color}-600`} />
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900 mb-2">{stat.value}</p>
-                    <div className="flex items-center gap-1 text-sm">
-                      {stat.isPositive ? (
-                        <ArrowUpRight className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <ArrowDownRight className="w-4 h-4 text-red-600" />
-                      )}
-                      <span className={stat.isPositive ? 'text-green-600' : 'text-red-600'}>
-                        {stat.change}
-                      </span>
-                      <span className="text-gray-500">vs last period</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+                      <p className="text-2xl font-bold text-gray-900 mb-2">{stat.value}</p>
+                      <div className="flex items-center gap-1 text-sm">
+                        {stat.isPositive ? (
+                          <ArrowUpRight className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <ArrowDownRight className="w-4 h-4 text-red-600" />
+                        )}
+                        <span className={stat.isPositive ? 'text-green-600' : 'text-red-600'}>
+                          {stat.change}
+                        </span>
+                        <span className="text-gray-500">vs last period</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
 
-          {/* Charts Row 1 */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            {/* Revenue Chart */}
-            <Card className="lg:col-span-2">
+            {/* Charts Row 1 */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+              {/* Revenue Chart */}
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle>Revenue & Orders Trend</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={revenueData}>
+                      <defs>
+                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#FF6A00" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#FF6A00" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="month" stroke="#888" />
+                      <YAxis stroke="#888" />
+                      <Tooltip />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke="#FF6A00"
+                        fillOpacity={1}
+                        fill="url(#colorRevenue)"
+                        name="Revenue (₱)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Category Distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Sales by Category</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Top Products Chart */}
+            <Card>
               <CardHeader>
-                <CardTitle>Revenue & Orders Trend</CardTitle>
+                <CardTitle>Top Selling Products</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={revenueData}>
-                    <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#FF6A00" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#FF6A00" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
+                  <BarChart data={topProductsData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="month" stroke="#888" />
+                    <XAxis dataKey="name" stroke="#888" />
                     <YAxis stroke="#888" />
                     <Tooltip />
                     <Legend />
-                    <Area 
-                      type="monotone" 
-                      dataKey="revenue" 
-                      stroke="#FF6A00" 
-                      fillOpacity={1} 
-                      fill="url(#colorRevenue)" 
-                      name="Revenue (₱)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Category Distribution */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Sales by Category</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
+                    <Bar dataKey="sales" fill="#FF6A00" name="Units Sold" />
+                    <Bar dataKey="revenue" fill="#FFA366" name="Revenue (₱)" />
+                  </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
-
-          {/* Top Products Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Selling Products</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={topProductsData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="name" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="sales" fill="#FF6A00" name="Units Sold" />
-                  <Bar dataKey="revenue" fill="#FFA366" name="Revenue (₱)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

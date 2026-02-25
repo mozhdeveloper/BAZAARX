@@ -8,10 +8,16 @@ import SellerPOSScreen from './pos';
 import SellerFlashSalesScreen from './flash-sales';
 import SellerMessagesScreen from './messages';
 import SellerReviewsScreen from './reviews';
+import SellerNotificationsScreen from './notifications';
 import SellerReturnDetailScreen from './ReturnDetailScreen';
+import SellerOrderDetailScreen from './OrderDetailScreen';
+import TicketListScreen from '../tickets/TicketListScreen';
+import SellerHelpCenterScreen from './SellerHelpCenterScreen';
+import SellerCreateTicketScreen from './SellerCreateTicketScreen';
+import TicketDetailScreen from '../tickets/TicketDetailScreen';
 
 export type SellerStackParamList = {
-  SellerTabs: undefined;
+  SellerTabs: { screen?: string } | undefined;
   Analytics: undefined;
   StoreProfile: undefined;
   Earnings: undefined;
@@ -19,7 +25,13 @@ export type SellerStackParamList = {
   FlashSales: undefined;
   Messages: undefined;
   Reviews: undefined;
+  Notifications: undefined;
   ReturnDetail: { returnId: string };
+  SellerOrderDetail: { orderId: string };
+  TicketList: undefined;
+  SellerHelpCenter: undefined;
+  SellerCreateTicket: undefined;
+  SellerTicketDetail: { ticketId: string };
 };
 
 const Stack = createNativeStackNavigator<SellerStackParamList>();
@@ -41,7 +53,13 @@ export default function SellerStack() {
       <Stack.Screen name="FlashSales" component={SellerFlashSalesScreen} />
       <Stack.Screen name="Messages" component={SellerMessagesScreen} />
       <Stack.Screen name="Reviews" component={SellerReviewsScreen} />
+      <Stack.Screen name="Notifications" component={SellerNotificationsScreen} />
       <Stack.Screen name="ReturnDetail" component={SellerReturnDetailScreen} />
+      <Stack.Screen name="SellerOrderDetail" component={SellerOrderDetailScreen} />
+      <Stack.Screen name="TicketList" component={TicketListScreen} />
+      <Stack.Screen name="SellerHelpCenter" component={SellerHelpCenterScreen} />
+      <Stack.Screen name="SellerCreateTicket" component={SellerCreateTicketScreen} />
+      <Stack.Screen name="SellerTicketDetail" component={TicketDetailScreen} />
     </Stack.Navigator>
   );
 }

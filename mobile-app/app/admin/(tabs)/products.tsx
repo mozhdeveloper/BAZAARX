@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Menu, Bell, Package, Search, Edit, Ban, CheckCircle, Eye, XCircle, X } from 'lucide-react-native';
+import { safeImageUri } from '../../../src/utils/imageUtils';
 import AdminDrawer from '../../../src/components/AdminDrawer';
 import { useAdminProducts } from '../../../src/stores/adminStore';
 import { COLORS } from '../../../src/constants/theme';
@@ -195,7 +196,7 @@ export default function AdminProductsScreen() {
             return (
               <View key={product.id} style={styles.productCard}>
                 <View style={styles.cardHeader}>
-                  <Image source={{ uri: product.images[0] }} style={styles.productImage} />
+                  <Image source={{ uri: safeImageUri(product.images?.[0]) }} style={styles.productImage} />
                   <View style={styles.productInfo}>
                     <View style={styles.productNameRow}>
                       <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
@@ -389,7 +390,7 @@ export default function AdminProductsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },
-  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20 },
   headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   menuButton: { padding: 4 },

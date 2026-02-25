@@ -12,16 +12,26 @@ import {
   ActivityIndicator,
   Linking,
   Image,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store, Shield } from 'lucide-react-native';
+import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store, Shield, ChevronDown, X } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
 import { supabase } from '../src/lib/supabase';
+import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
+
+// Test accounts with BazCoins - All have password: Test@123456
+const TEST_ACCOUNTS = [
+  { email: 'buyer1@gmail.com', password: 'Test@123456', name: 'Angela Cruz', note: '⭐ 1500 BazCoins' },
+  { email: 'buyer2@gmail.com', password: 'Test@123456', name: 'John Mendoza', note: '💰 2300 BazCoins' },
+  { email: 'buyer3@gmail.com', password: 'Test@123456', name: 'Sofia Reyes', note: '💰 800 BazCoins' },
+  { email: 'buyer4@gmail.com', password: 'Test@123456', name: 'Carlos Garcia', note: '💰 450 BazCoins' },
+];
 
 
 export default function LoginScreen({ navigation }: Props) {
@@ -30,6 +40,13 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showTestAccounts, setShowTestAccounts] = useState(false);
+
+  const selectTestAccount = (account: typeof TEST_ACCOUNTS[0]) => {
+    setEmail(account.email);
+    setPassword(account.password);
+    setShowTestAccounts(false);
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -40,7 +57,7 @@ export default function LoginScreen({ navigation }: Props) {
     setIsLoading(true);
 
     try {
-      // 2. Sign in with Supabase
+      // Sign in with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password,
@@ -53,41 +70,58 @@ export default function LoginScreen({ navigation }: Props) {
       }
 
       if (data.user) {
-        // 3. Fetch the profile to check user_type (buyer/seller)
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('user_type')
+        // Verify buyer role exists
+        const { data: buyerData, error: buyerError } = await supabase
+          .from('buyers')
+          .select('*')
           .eq('id', data.user.id)
           .single();
 
-        if (profileError) {
-          Alert.alert('Profile Error', 'Could not fetch user profile.');
-        } else if (profile.user_type === 'buyer') {
-
-          // SYNC USER TO GLOBAL STORE
-          const { data: profileDetails } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-
-          if (profileDetails) {
-            useAuthStore.getState().setUser({
-              id: data.user.id,
-              name: profileDetails.full_name || 'BazaarX User',
-              email: data.user.email || '',
-              phone: profileDetails.phone || '',
-              avatar: profileDetails.avatar_url || ''
-            });
-          }
-
-          navigation.replace('MainTabs', { screen: 'Home' });
-        } else if (profile.user_type === 'seller') {
-          Alert.alert('Seller Account', 'This is the buyer portal. Please use the Seller Centre.');
-          await supabase.auth.signOut(); // Log them out if they are in the wrong place
+        if (buyerError || !buyerData) {
+          Alert.alert('Access Denied', 'This account is not registered as a buyer.');
+          await supabase.auth.signOut();
+          setIsLoading(false);
+          return;
         }
+
+        // Get profile data
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        const firstName = (profileData as any)?.first_name || '';
+        const lastName = (profileData as any)?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim() || 'BazaarX User';
+        const bazcoins = (buyerData as any)?.bazcoins ?? 0;
+
+        // Sync user to global store
+        useAuthStore.getState().setUser({
+          id: data.user.id,
+          name: fullName,
+          email: data.user.email || '',
+          phone: (profileData as any)?.phone || '',
+          avatar: (buyerData as any)?.avatar_url || 
+                  (profileData as any)?.avatar_url ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=FF6B35&color=fff`,
+          bazcoins: bazcoins
+        });
+
+        // Update last login
+        await supabase
+          .from('profiles')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', data.user.id);
+
+        // Fetch orders
+        const { useOrderStore } = await import('../src/stores/orderStore');
+        useOrderStore.getState().fetchOrders(data.user.id);
+
+        navigation.replace('MainTabs', { screen: 'Home' });
       }
     } catch (err) {
+      console.error('Login error:', err);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
@@ -119,18 +153,23 @@ export default function LoginScreen({ navigation }: Props) {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.brandName}>BazaarX</Text>
-            <Text style={styles.welcomeText}>Welcome back!</Text>
-            <Text style={styles.subtitle}>Sign in to continue shopping</Text>
+            <Text style={[styles.brandName, { color: COLORS.textHeadline }]}>BazaarX</Text>
+            <Text style={[styles.welcomeText, { color: COLORS.textHeadline }]}>Welcome back!</Text>
+            <Text style={[styles.subtitle, { color: COLORS.textMuted }]}>Sign in to continue shopping</Text>
           </View>
 
           {/* Demo Credentials Banner */}
-          <Pressable style={styles.demoBanner} onPress={fillDemoCredentials}>
+          <Pressable
+            style={styles.demoBanner}
+            onPress={() => setShowTestAccounts(true)}
+          >
             <View style={styles.demoContent}>
-              <Text style={styles.demoTitle}>🎉 Demo Credentials</Text>
-              <Text style={styles.demoText}>Email: buyer@bazaarx.ph</Text>
-              <Text style={styles.demoText}>Password: password</Text>
-              <Text style={styles.demoHint}>Tap here to auto-fill</Text>
+              <Text style={styles.demoTitle}>🧪 Test Accounts</Text>
+              <Text style={styles.demoText}>Tap to select a test account</Text>
+              <View style={styles.demoHintRow}>
+                <Text style={styles.demoHint}>All accounts have messages & data</Text>
+                <ChevronDown size={16} color="#F97316" />
+              </View>
             </View>
           </Pressable>
 
@@ -140,7 +179,7 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email Address</Text>
               <View style={styles.inputWrapper}>
-                <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Mail size={20} color={COLORS.primary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
@@ -158,7 +197,7 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
               <View style={styles.inputWrapper}>
-                <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Lock size={20} color="#EA580C" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your password"
@@ -193,7 +232,7 @@ export default function LoginScreen({ navigation }: Props) {
               disabled={isLoading}
             >
               <LinearGradient
-                colors={['#FF6A00', '#FF8C42']}
+                colors={['#D97706', '#B45309']} // Amber Gradient
                 style={styles.buttonGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -240,6 +279,45 @@ export default function LoginScreen({ navigation }: Props) {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Test Accounts Modal */}
+      <Modal
+        visible={showTestAccounts}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowTestAccounts(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Test Account</Text>
+              <Pressable onPress={() => setShowTestAccounts(false)}>
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.accountsList}>
+              {TEST_ACCOUNTS.map((account, index) => (
+                <Pressable
+                  key={index}
+                  style={styles.accountItem}
+                  onPress={() => selectTestAccount(account)}
+                >
+                  <View style={styles.accountInfo}>
+                    <Text style={styles.accountName}>{account.name}</Text>
+                    <Text style={styles.accountEmail}>{account.email}</Text>
+                    <Text style={styles.accountDetails}>
+                      {/* Unicode character for key */}
+                      🔑 Password: {account.password} • {account.note}
+                    </Text>
+                  </View>
+                  <ArrowRight size={20} color="#FF6A00" />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -247,7 +325,7 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
   },
   keyboardView: {
     flex: 1,
@@ -273,18 +351,18 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#111827',
+    color: COLORS.textHeadline, // Warm Brown
     marginBottom: 8,
   },
   welcomeText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#111827',
+    color: COLORS.textHeadline, // Warm Brown
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.textMuted,
   },
   demoBanner: {
     backgroundColor: '#FFF7ED',
@@ -306,13 +384,17 @@ const styles = StyleSheet.create({
   demoText: {
     fontSize: 13,
     color: '#F97316',
-    marginBottom: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    marginBottom: 4,
+  },
+  demoHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
   },
   demoHint: {
     fontSize: 12,
     color: '#FF6A00',
-    marginTop: 8,
     fontWeight: '600',
   },
   form: {
@@ -448,5 +530,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#8B5CF6',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  accountsList: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  accountItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  accountName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  accountEmail: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  accountDetails: {
+    fontSize: 12,
+    color: '#9CA3AF',
   },
 });

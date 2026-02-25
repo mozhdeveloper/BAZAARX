@@ -31,6 +31,7 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import { useAuthStore } from '../../../src/stores/authStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
 type SettingTab = 'profile' | 'store' | 'documents' | 'notifications' | 'security' | 'payments';
@@ -41,35 +42,35 @@ export default function SellerSettingsScreen() {
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<SettingTab>('profile');
   const [drawerVisible, setDrawerVisible] = useState(false);
-  
+
   // Edit modes
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingStore, setIsEditingStore] = useState(false);
   const [isEditingPayments, setIsEditingPayments] = useState(false);
-  
-  // Profile
-  const [ownerName, setOwnerName] = useState(seller.ownerName);
-  const [email, setEmail] = useState(seller.email);
-  const [phone, setPhone] = useState(seller.phone);
 
-  // Store & Business
-  const [storeName, setStoreName] = useState(seller.storeName);
-  const [businessName, setBusinessName] = useState(seller.businessName);
-  const [storeDescription, setStoreDescription] = useState(seller.storeDescription);
-  const [businessType, setBusinessType] = useState(seller.businessType);
-  const [businessRegistrationNumber, setBusinessRegistrationNumber] = useState(seller.businessRegistrationNumber);
-  const [taxIdNumber, setTaxIdNumber] = useState(seller.taxIdNumber);
+  // Profile - matches database schema (sellers table)
+  const [ownerName, setOwnerName] = useState(seller?.owner_name || '');
+  const [email, setEmail] = useState(seller?.email || '');
+  const [phone, setPhone] = useState(seller?.phone || '');
 
-  // Address
-  const [address, setAddress] = useState(seller.businessAddress);
-  const [city, setCity] = useState(seller.city);
-  const [province, setProvince] = useState(seller.province);
-  const [postalCode, setPostalCode] = useState(seller.postalCode);
-  
-  // Payments
-  const [bankName, setBankName] = useState(seller.bankName);
-  const [accountName, setAccountName] = useState(seller.accountName);
-  const [accountNumber, setAccountNumber] = useState(seller.accountNumber);
+  // Store & Business - matches database schema (sellers + business_profiles tables)
+  const [storeName, setStoreName] = useState(seller?.store_name || '');
+  const [businessName, setBusinessName] = useState(seller?.store_name || ''); // Using store_name as business name
+  const [storeDescription, setStoreDescription] = useState(seller?.store_description || '');
+  const [businessType, setBusinessType] = useState(seller?.business_profile?.business_type || '');
+  const [businessRegistrationNumber, setBusinessRegistrationNumber] = useState(seller?.business_profile?.business_registration_number || '');
+  const [taxIdNumber, setTaxIdNumber] = useState(seller?.business_profile?.tax_id_number || '');
+
+  // Address - matches database schema (business_profiles table)
+  const [address, setAddress] = useState(seller?.business_profile?.address_line_1 || '');
+  const [city, setCity] = useState(seller?.business_profile?.city || '');
+  const [province, setProvince] = useState(seller?.business_profile?.province || '');
+  const [postalCode, setPostalCode] = useState(seller?.business_profile?.postal_code || '');
+
+  // Payments - matches database schema (payout_accounts table)
+  const [bankName, setBankName] = useState(seller?.payout_account?.bank_name || '');
+  const [accountName, setAccountName] = useState(seller?.payout_account?.account_name || '');
+  const [accountNumber, setAccountNumber] = useState(seller?.payout_account?.account_number || '');
   const [gcashNumber, setGcashNumber] = useState(''); // Assuming distinct from phone
 
   const [notifications, setNotifications] = useState({
@@ -81,24 +82,36 @@ export default function SellerSettingsScreen() {
     lowStock: true,
   });
 
+  // Early return if seller is null
+  if (!seller) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Loading seller data...</Text>
+      </View>
+    );
+  }
+
   const handleSave = () => {
     updateSellerInfo({
-      ownerName,
+      owner_name: ownerName,
       email,
       phone,
-      storeName,
-      businessName,
-      storeDescription,
-      businessType,
-      businessRegistrationNumber,
-      taxIdNumber,
-      businessAddress: address,
-      city,
-      province,
-      postalCode,
-      bankName,
-      accountName,
-      accountNumber,
+      store_name: storeName,
+      store_description: storeDescription,
+      business_profile: {
+        business_type: businessType,
+        business_registration_number: businessRegistrationNumber,
+        tax_id_number: taxIdNumber,
+        address_line_1: address,
+        city,
+        province,
+        postal_code: postalCode,
+      },
+      payout_account: {
+        bank_name: bankName,
+        account_name: accountName,
+        account_number: accountNumber,
+      },
     });
     // Reset edit modes
     setIsEditingProfile(false);
@@ -118,7 +131,19 @@ export default function SellerSettingsScreen() {
     ]);
   };
 
-  const handleSwitchToBuyer = () => {
+  const handleSwitchToBuyer = async () => {
+    const authStore = useAuthStore.getState();
+    authStore.switchRole('buyer');
+
+    // Ensure buyer data is loaded if it's the first switch
+    if (authStore.user?.id) {
+      const { useOrderStore } = await import('../../../src/stores/orderStore');
+      // Only fetch if we currently have dummy data or none
+      if (useOrderStore.getState().orders.length <= 8) { // dummyOrders has exactly 8 items
+        useOrderStore.getState().fetchOrders(authStore.user.id);
+      }
+    }
+
     navigation.navigate('MainTabs' as never);
   };
 
@@ -134,14 +159,14 @@ export default function SellerSettingsScreen() {
             <View style={styles.formSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Owner Information</Text>
-                <Pressable 
+                <Pressable
                   style={styles.editButton}
                   onPress={() => setIsEditingProfile(!isEditingProfile)}
                 >
-                  <Edit3 size={18} color={isEditingProfile ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                  <Edit3 size={18} color={isEditingProfile ? '#D97706' : '#6B7280'} strokeWidth={2.5} />
                 </Pressable>
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Full Name</Text>
                 <TextInput
@@ -190,14 +215,14 @@ export default function SellerSettingsScreen() {
             <View style={styles.formSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Store Details</Text>
-                <Pressable 
+                <Pressable
                   style={styles.editButton}
                   onPress={() => setIsEditingStore(!isEditingStore)}
                 >
-                  <Edit3 size={18} color={isEditingStore ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                  <Edit3 size={18} color={isEditingStore ? '#D97706' : '#6B7280'} strokeWidth={2.5} />
                 </Pressable>
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Store Name</Text>
                 <TextInput
@@ -228,7 +253,7 @@ export default function SellerSettingsScreen() {
 
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>Business Information</Text>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Business Name</Text>
                 <TextInput
@@ -343,25 +368,35 @@ export default function SellerSettingsScreen() {
                 Documents submitted for business verification.
               </Text>
 
-              {seller.documents.map((doc) => (
-                <View key={doc.id} style={styles.documentItem}>
+              {/* Document URLs from verification_documents table */}
+              {seller.verification_documents?.business_permit_url && (
+                <View style={styles.documentItem}>
                   <View style={styles.documentIcon}>
-                    <FileText size={24} color="#FF5722" strokeWidth={2} />
+                    <FileText size={24} color="#D97706" strokeWidth={2} />
                   </View>
                   <View style={styles.documentInfo}>
-                    <Text style={styles.documentName}>{doc.type.replace('_', ' ').toUpperCase()}</Text>
-                    <Text style={styles.documentFile}>{doc.fileName}</Text>
-                    <Text style={styles.documentDate}>Uploaded on {doc.uploadDate}</Text>
+                    <Text style={styles.documentName}>BUSINESS PERMIT</Text>
+                    <Text style={styles.documentFile}>business_permit.pdf</Text>
                   </View>
                   <View style={styles.documentStatus}>
-                    {doc.isVerified ? (
-                      <CheckCircle size={20} color="#10B981" strokeWidth={2.5} />
-                    ) : (
-                      <Clock size={20} color="#F59E0B" strokeWidth={2.5} />
-                    )}
+                    <CheckCircle size={20} color="#10B981" strokeWidth={2.5} />
                   </View>
                 </View>
-              ))}
+              )}
+              {seller.verification_documents?.valid_id_url && (
+                <View style={styles.documentItem}>
+                  <View style={styles.documentIcon}>
+                    <FileText size={24} color="#D97706" strokeWidth={2} />
+                  </View>
+                  <View style={styles.documentInfo}>
+                    <Text style={styles.documentName}>VALID ID</Text>
+                    <Text style={styles.documentFile}>valid_id.pdf</Text>
+                  </View>
+                  <View style={styles.documentStatus}>
+                    <CheckCircle size={20} color="#10B981" strokeWidth={2.5} />
+                  </View>
+                </View>
+              )}
             </View>
           </View>
         );
@@ -384,7 +419,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, newOrders: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -402,7 +437,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, orderUpdates: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -420,7 +455,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, promotions: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -438,7 +473,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, reviews: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -456,7 +491,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, messages: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -474,7 +509,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, lowStock: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -488,7 +523,7 @@ export default function SellerSettingsScreen() {
           <View style={styles.formCard}>
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>Password & Security</Text>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Current Password</Text>
                 <TextInput
@@ -525,7 +560,7 @@ export default function SellerSettingsScreen() {
               <Text style={styles.sectionDescription}>
                 Add an extra layer of security to your account
               </Text>
-              
+
               <Pressable style={styles.enableButton}>
                 <Text style={styles.enableButtonText}>Enable 2FA</Text>
               </Pressable>
@@ -539,14 +574,14 @@ export default function SellerSettingsScreen() {
             <View style={styles.formSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Bank Account</Text>
-                <Pressable 
+                <Pressable
                   style={styles.editButton}
                   onPress={() => setIsEditingPayments(!isEditingPayments)}
                 >
-                  <Edit3 size={18} color={isEditingPayments ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                  <Edit3 size={18} color={isEditingPayments ? '#D97706' : '#6B7280'} strokeWidth={2.5} />
                 </Pressable>
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Bank Name</Text>
                 <TextInput
@@ -587,7 +622,7 @@ export default function SellerSettingsScreen() {
 
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>GCash</Text>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>GCash Number</Text>
                 <TextInput
@@ -606,6 +641,15 @@ export default function SellerSettingsScreen() {
     }
   };
 
+  // Null guard for seller
+  if (!seller) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Loading seller information...</Text>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -618,23 +662,25 @@ export default function SellerSettingsScreen() {
       {/* Immersive Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={styles.headerLeft}>
             <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
+              <Menu size={24} color="#1F2937" strokeWidth={2} />
             </Pressable>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>Store Settings</Text>
-              <Text style={styles.headerSubtitle}>Manage your store</Text>
+            <View>
+              <Text style={styles.headerTitle} numberOfLines={1}>Store Settings</Text>
+              <View style={styles.subtitleRow}>
+                <Store size={12} color="#4B5563" style={{ marginRight: 6 }} />
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  Seller Mode • Manage your store
+                </Text>
+              </View>
             </View>
           </View>
+          <Pressable style={styles.notificationButton} onPress={() => navigation.getParent()?.navigate('Notifications')}>
+            <Bell size={22} color="#1F2937" strokeWidth={2.5} />
+            <View style={styles.notificationBadge} />
+          </Pressable>
         </View>
-        {/* Notification positioned absolutely to prevent cutoff */}
-        <Pressable
-          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
-        >
-          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-          <View style={styles.notificationBadge} />
-        </Pressable>
       </View>
 
       <ScrollView
@@ -648,7 +694,7 @@ export default function SellerSettingsScreen() {
             {/* Avatar with Camera Badge */}
             <View style={styles.avatarContainer}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{seller.storeLogo}</Text>
+                <Text style={styles.avatarText}>{seller.store_name?.[0]?.toUpperCase() || 'S'}</Text>
               </View>
               <Pressable style={styles.cameraBadge} onPress={handleCameraPress}>
                 <Camera size={14} color="#FFFFFF" strokeWidth={2.5} />
@@ -657,13 +703,13 @@ export default function SellerSettingsScreen() {
 
             {/* Store Info */}
             <View style={styles.storeInfo}>
-              <Text style={styles.storeName}>{seller.storeName}</Text>
+              <Text style={styles.storeName}>{seller.store_name}</Text>
               <Text style={styles.storeEmail}>{seller.email}</Text>
             </View>
 
             {/* Preview Button */}
             <Pressable style={styles.previewButton}>
-              <Eye size={20} color="#FF5722" strokeWidth={2.5} />
+              <Eye size={20} color="#D97706" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -790,7 +836,7 @@ export default function SellerSettingsScreen() {
         <Pressable style={styles.switchAccountButton} onPress={handleSwitchToBuyer}>
           <View style={styles.switchAccountContent}>
             <View style={styles.switchAccountIcon}>
-              <User size={20} color="#FF5722" strokeWidth={2.5} />
+              <User size={20} color="#D97706" strokeWidth={2.5} />
             </View>
             <View style={styles.switchAccountInfo}>
               <Text style={styles.switchAccountTitle}>Switch to Buyer Mode</Text>
@@ -816,61 +862,47 @@ export default function SellerSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#FFFBF0',
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#FFF4EC', // Peach Background
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderBottomLeftRadius: 20, 
+    paddingBottom: 10,
+    borderBottomLeftRadius: 30,
     borderBottomRightRadius: 20,
+    elevation: 3,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)', // Subtle dark overlay
+    padding: 10,
     borderRadius: 12,
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
+    fontWeight: '800', // Bold Charcoal text
+    color: '#1F2937',
+  },
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
+    color: '#4B5563', // Gray Subtitle
     fontWeight: '500',
   },
-  notificationButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    zIndex: 5,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 10,
-    height: 10,
-    borderRadius: 10,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#FF5722',
-  },
+  notificationButton: { position: 'relative' },
+  notificationBadge: { position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#FFF4EC' },
   scrollView: {
     flex: 1,
   },
@@ -903,7 +935,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -917,7 +949,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -946,7 +978,7 @@ const styles = StyleSheet.create({
   previewText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FF5722',
+    color: '#D97706',
   },
   // Pill Tabs
   pillTabs: {
@@ -963,8 +995,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   pillTabActive: {
-    backgroundColor: '#FF5722',
-    borderColor: '#FF5722',
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
   },
   pillTabText: {
     fontSize: 14,
@@ -1003,7 +1035,7 @@ const styles = StyleSheet.create({
   editButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   sectionDescription: {
     fontSize: 13,
@@ -1020,7 +1052,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -1046,7 +1078,7 @@ const styles = StyleSheet.create({
   documentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -1055,7 +1087,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1106,31 +1138,31 @@ const styles = StyleSheet.create({
   },
   // Enable Button (for 2FA)
   enableButton: {
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#FF5722',
+    borderColor: '#D97706',
     alignItems: 'center',
   },
   enableButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FF5722',
+    color: '#D97706',
   },
   // Save Button
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     marginHorizontal: 20,
     marginTop: 20,
     paddingVertical: 16,
     borderRadius: 16,
     gap: 8,
-    shadowColor: '#FF5722',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
@@ -1154,7 +1186,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#FFF5F0',
+    borderColor: '#FFF4EC',
   },
   switchAccountContent: {
     flexDirection: 'row',
@@ -1164,7 +1196,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -1187,7 +1219,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
     marginHorizontal: 20,
     marginTop: 12,
     paddingVertical: 16,

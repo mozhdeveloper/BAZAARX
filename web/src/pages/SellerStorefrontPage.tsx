@@ -24,7 +24,8 @@ import {
   Filter,
   Grid,
   List,
-  ThumbsUp
+  ThumbsUp,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -37,6 +38,14 @@ import {
 import { Textarea } from "../components/ui/textarea";
 
 import { useProductStore } from '../stores/sellerStore';
+import { sellerService, type SellerData } from '../services/sellerService';
+import { ProductService } from '../services/productService';
+import {
+  computeReviewStats,
+  reviewService,
+  type ReviewFeedItem,
+} from '../services/reviewService';
+import type { ProductWithSeller } from '@/types/database.types';
 
 interface Reply {
   id: number;
@@ -48,7 +57,7 @@ interface Reply {
 }
 
 interface Review {
-  id: number;
+  id: string;
   author: string;
   avatar: string;
   rating: number;
@@ -57,6 +66,10 @@ interface Review {
   helpfulCount: number;
   isLiked?: boolean;
   replies: Reply[];
+  productName?: string;
+  productImage?: string;
+  images?: string[];
+  variantLabel?: string;
 }
 
 export default function SellerStorefrontPage() {
@@ -76,24 +89,22 @@ export default function SellerStorefrontPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('popular');
   const [reviewFilter, setReviewFilter] = useState('all');
-  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
 
-  const [reviews, setReviews] = useState<Review[]>(
-    Array.from({ length: 5 }).map((_, i) => ({
-      id: i + 1,
-      author: "Maria S.",
-      avatar: `https://images.unsplash.com/photo-${1594750108750 + i}?w=40&h=40&fit=crop&crop=face`,
-      rating: 5,
-      date: "2 days ago",
-      content: "Excellent seller! Fast shipping and product exactly as described. Highly recommended! The packaging was secure and the item arrived in perfect condition.",
-      helpfulCount: 12,
-      isLiked: false,
-      replies: []
-    }))
-  );
+  // Real data state
+  const [realSeller, setRealSeller] = useState<SellerData | null>(null);
+  const [realProducts, setRealProducts] = useState<ProductWithSeller[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reviewStats, setReviewStats] = useState<{ total: number; avgRating: number; distribution: number[] }>({
+    total: 0,
+    avgRating: 0,
+    distribution: [0, 0, 0, 0, 0] // 1-5 stars
+  });
 
-  const handleToggleLike = (reviewId: number) => {
+  const [reviews, setReviews] = useState<Review[]>([]);
+
+  const handleToggleLike = (reviewId: string) => {
     setReviews(prev => prev.map(review => {
       if (review.id === reviewId) {
         return {
@@ -106,7 +117,7 @@ export default function SellerStorefrontPage() {
     }));
   };
 
-  const handlePostReply = (reviewId: number) => {
+  const handlePostReply = (reviewId: string) => {
     if (!replyText.trim()) return;
 
     setReviews(prev => prev.map(review => {
@@ -130,16 +141,130 @@ export default function SellerStorefrontPage() {
     setReplyingTo(null);
   };
 
-  // Get seller data
+  // Fetch real seller and products from database
+  useEffect(() => {
+    const fetchSellerData = async () => {
+      if (!sellerId) return;
+
+      setLoading(true);
+      try {
+        // Fetch seller data
+        const sellerData = await sellerService.getStoreById(sellerId);
+        if (sellerData) {
+          setRealSeller(sellerData);
+        }
+
+        // Fetch products for this seller - use 'approved' status for public view
+        const productsData = await ProductService.getInstance().getProducts({
+          sellerId: sellerId,
+          isActive: true,
+          approvalStatus: 'approved'
+        });
+        if (productsData && productsData.length > 0) {
+          setRealProducts(productsData);
+        }
+
+        // Fetch real reviews for this seller
+        try {
+          const reviewsData = await reviewService.getSellerReviews(sellerId);
+          const mappedReviews: Review[] = (reviewsData || []).map((review: ReviewFeedItem) => ({
+            id: review.id,
+            author: review.buyerName,
+            avatar: review.buyerAvatar,
+            rating: review.rating,
+            date: formatRelativeDate(review.createdAt),
+            content: review.comment || 'Great product!',
+            helpfulCount: review.helpfulCount,
+            isLiked: false,
+            replies: review.sellerReply
+              ? [
+                {
+                  id: 1,
+                  text: review.sellerReply.message,
+                  author: 'Seller',
+                  date: review.sellerReply.repliedAt
+                    ? formatRelativeDate(review.sellerReply.repliedAt)
+                    : 'Recently',
+                  avatar:
+                    sellerData?.avatar_url ||
+                    'https://ui-avatars.com/api/?name=S&background=FF6A00&color=fff',
+                  isSeller: true,
+                },
+              ]
+              : [],
+            productName: review.productName || undefined,
+            productImage: review.productImage || undefined,
+            images: review.images || [],
+            variantLabel: review.variantLabel || undefined,
+          }));
+
+          setReviews(mappedReviews);
+
+          const stats = computeReviewStats(reviewsData || []);
+          setReviewStats({
+            total: stats.total,
+            avgRating: stats.averageRating,
+            distribution: stats.distribution,
+          });
+        } catch (reviewError) {
+          console.error('Error fetching reviews:', reviewError);
+        }
+      } catch (error) {
+        console.error('Error fetching seller data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSellerData();
+  }, [sellerId]);
+
+  // Helper function to format relative dates
+  const formatRelativeDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${diffDays >= 14 ? 's' : ''} ago`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} month${diffDays >= 60 ? 's' : ''} ago`;
+    return `${Math.floor(diffDays / 365)} year${diffDays >= 730 ? 's' : ''} ago`;
+  };
+
+  // Get seller data - prioritize real data
   const demoSeller = demoSellers.find(s => s.id === sellerId);
 
   // Try to find seller from products if not in demo
   const dbSellerProduct = !demoSeller ? allProducts.find(p => p.sellerId === sellerId) : null;
 
-  const seller = demoSeller || (dbSellerProduct ? {
+  // Build seller object from real data or fallback to demo
+  const seller = realSeller ? {
+    id: realSeller.id,
+    name: realSeller.store_name || realSeller.business_name || 'Verified Seller',
+    avatar: realSeller.avatar_url || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
+    rating:
+      reviewStats.total > 0
+        ? Number(reviewStats.avgRating.toFixed(1))
+        : Number((realSeller as any).rating || 0),
+    totalReviews:
+      reviewStats.total ||
+      Number((realSeller as any).total_reviews || 0),
+    followers: 0,
+    isVerified: realSeller.is_verified || false,
+    description: realSeller.store_description || realSeller.business_description || 'Welcome to our store!',
+    location: [realSeller.city, realSeller.province].filter(Boolean).join(', ') || 'Philippines',
+    established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
+    badges: realSeller.is_verified ? ['Verified Seller'] : [],
+    responseTime: '< 24 hours',
+    categories: (realSeller as any).product_categories || (realSeller as any).store_category || ['General'],
+    products: []
+  } : demoSeller || (dbSellerProduct ? {
     id: dbSellerProduct.sellerId,
     name: dbSellerProduct.sellerName || "Verified Seller",
-    avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop', // Default avatar
+    avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
     rating: dbSellerProduct.sellerRating || 5.0,
     totalReviews: 10,
     followers: 5,
@@ -159,7 +284,7 @@ export default function SellerStorefrontPage() {
     }
   }, [seller, addViewedSeller]);
 
-  // Demo products for the seller
+  // Demo products for the seller (fallback only)
   const demoProducts = [
     {
       id: 'prod-1',
@@ -196,9 +321,24 @@ export default function SellerStorefrontPage() {
     }
   ];
 
+  // Map real products to display format
+  const displayProducts = realProducts.length > 0
+    ? realProducts.map(p => ({
+      id: p.id,
+      name: p.name || 'Untitled Product',
+      price: p.price || 0,
+      originalPrice: p.original_price || undefined,
+      image: p.primary_image || (p.images && p.images[0]) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
+      rating: p.rating || 5.0,
+      sold: p.sales_count || 0,
+      category: p.category || 'General',
+      isFreeShipping: p.is_free_shipping || false
+    }))
+    : demoProducts;
+
   const filteredProducts = selectedCategory === 'all'
-    ? demoProducts
-    : demoProducts.filter(p => p.category === selectedCategory);
+    ? displayProducts
+    : displayProducts.filter(p => p.category === selectedCategory);
 
   const handleAddToCart = (product: any) => {
     const cartProduct = {
@@ -215,34 +355,53 @@ export default function SellerStorefrontPage() {
     addToCart(cartProduct, 1);
   };
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header hideSearch />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-[#FF6A00]" />
+            <p className="text-gray-500">Loading store...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header transparentOnTop />
+      <Header hideSearch />
 
-      {/* Seller Header - Clean Style */}
-      <div className="bg-gray-50 pb-6 pt-28 rounded-b-[3rem] border-b-2 border-[#ff6a00] relative overflow-hidden">
+      {/* Seller Header - Modern Dark Orange Style */}
+      <div className="relative bg-[#2b1203]/80 pt-12 pb-10 overflow-hidden">
+        {/* Background Image with Dark Orange Overlay */}
         <div className="absolute inset-0">
           <div
-            className="absolute inset-0 bg-center bg-cover opacity-30"
+            className="absolute inset-0 bg-center bg-cover opacity-50 scale-105"
             style={{ backgroundImage: `url(${seller.avatar})` }}
           />
-
+          <div className="absolute inset-0 bg-gradient-to-t from-[#2b1203]/85 via-[#4d2000]/60 to-[#7a3300]/30" />
         </div>
+
         <div className="max-w-7xl mx-auto px-4 relative z-10">
-          <div className="mb-4">
+          <div className="mb-6">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate(-1)}
-              className="hover:bg-transparent px-0 -ml-1 text-gray-600 hover:text-[#ff6a00] transition-colors"
+              className="hover:bg-white/10 px-3 -ml-2 text-white/80 hover:text-white transition-all rounded-full backdrop-blur-md bg-white/5"
             >
               <ChevronLeft className="w-5 h-5 mr-1" />
               Back
             </Button>
           </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 text-gray-900">
-            <div className="relative group">
-              <div className="w-24 h-24 rounded-full bg-white p-1 shadow-md border border-gray-200">
+
+          <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8">
+            {/* Store Avatar */}
+            <div className="relative">
+              <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-white p-1 shadow-2xl overflow-hidden">
                 <img
                   src={seller.avatar}
                   alt={seller.name}
@@ -250,100 +409,82 @@ export default function SellerStorefrontPage() {
                 />
               </div>
               {seller.isVerified && (
-                <div className="absolute bottom-1 right-1 bg-orange-500 text-white p-1.5 rounded-full shadow-lg border-2 border-white">
-                  <Shield className="w-4 h-4" />
+                <div className="absolute bottom-2 right-2 bg-[#FF6A00] text-white p-1.5 rounded-full shadow-lg border-[3px] border-[#1a0b02]">
+                  <Shield className="w-4 h-4 fill-current" />
                 </div>
               )}
             </div>
 
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-3xl font-bold">
+            {/* Store Details */}
+            <div className="flex-1 text-center md:text-left">
+              <div className="flex flex-col md:flex-row items-center gap-3 mb-2">
+                <h1 className="text-3xl font-bold text-white tracking-tight">
                   {seller.name}
                 </h1>
                 {seller.isVerified && (
-                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-medium border border-orange-200 flex items-center gap-1">
-                    <Shield className="w-3 h-3" />
-                    Verified Seller
-                  </span>
+                  <Badge className="bg-white text-[#FF6A00] hover:bg-white border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    Verified Store
+                  </Badge>
                 )}
               </div>
 
-              <div className="flex items-center gap-4 text-gray-600 text-sm font-medium">
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5" />
-                  {seller.location}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5" />
-                  Est. {seller.established}
-                </span>
-              </div>
-              <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-4">
-                <div className="flex flex-col items-start gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Followers
+              <div className="flex flex-col gap-1 mb-5">
+                <div className="flex items-center justify-center md:justify-start gap-4 text-white/80 text-sm font-medium">
+                  <span className="flex items-center">
+                    {seller.location}
                   </span>
-                  <span className="flex items-center gap-1.5 text-lg font-bold text-[#ff6a00]">
-                    <Users className="w-5 h-5" />
-                    {seller.followers.toLocaleString()}
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500/50 hidden md:block" />
+                  <span className="flex items-center">
+                    Est. {seller.established}
                   </span>
                 </div>
 
-                <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
-
-                <div className="flex flex-col items-start gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Rating
-                  </span>
-                  <span className="flex items-center gap-1.5 text-lg font-bold text-[#ff6a00]">
-                    <Star className="w-5 h-5 fill-current" />
-                    {seller.rating}
-                  </span>
-                </div>
-
-                <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
-
-                <div className="flex flex-col items-start gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Response Time
-                  </span>
-                  <span className="flex items-center gap-1.5 text-lg font-bold text-[#ff6a00]">
-                    <MessageCircle className="w-5 h-5" />
-                    {seller.responseTime}
-                  </span>
+                <div className="flex items-center justify-center md:justify-start gap-6 mt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-base font-bold">{seller.rating}</span>
+                    <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Rating</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-base font-bold">{seller.followers.toLocaleString()}</span>
+                    <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Followers</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white hover:bg-[#ff6a00] text-gray-700 border-gray-200 shadow-sm"
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Chat
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white hover:bg-[#ff6a00] text-gray-700 border-gray-200 shadow-sm"
-              >
-                <Share2 className="h-4 w-4 mr-2" />
-                Share
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => isFollowing(seller.id) ? unfollowShop(seller.id) : followShop(seller.id)}
-                className={`shadow-sm ${isFollowing(seller.id)
-                  ? 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                  : 'bg-[#ff6a00] text-white hover:bg-[#ff6a00]/90'
-                  }`}
-              >
-                <Heart className={cn('h-4 w-4 mr-2', isFollowing(seller.id) && 'fill-current')} />
-                {isFollowing(seller.id) ? 'Unfollow' : 'Follow'}
-              </Button>
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-6">
+                <Button
+                  onClick={() => isFollowing(seller.id) ? unfollowShop(seller.id) : followShop(seller.id)}
+                  className={cn(
+                    "h-10 px-8 rounded-xl font-bold transition-all duration-300 min-w-[130px]",
+                    isFollowing(seller.id)
+                      ? "bg-white/10 text-white border border-white/20 hover:bg-white/20 backdrop-blur-md"
+                      : "bg-[#FF6A00] text-white hover:bg-[#E65A00] shadow-lg shadow-orange-600/20"
+                  )}
+                >
+                  {isFollowing(seller.id) ? (
+                    <><Heart className="w-4 h-4 mr-2 fill-current" /> Following</>
+                  ) : (
+                    <><Heart className="w-4 h-4 mr-2" /> Follow</>
+                  )}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/messages?sellerId=${seller.id}`)}
+                  className="h-10 px-8 rounded-xl font-bold bg-transparent border-2 border-white/20 text-white hover:bg-white hover:text-[#1a0b02] transition-all min-w-[130px]"
+                >
+                  Chat
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 rounded-xl bg-white/5 text-white border border-white/10 hover:bg-white/10 backdrop-blur-md transition-all"
+                >
+                  <Share2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -383,30 +524,61 @@ export default function SellerStorefrontPage() {
               {/* Filters and Controls */}
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <Filter className="h-4 w-4 text-gray-400" />
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="w-[180px] bg-white border-gray-200 text-sm font-medium focus:ring-[#ff6a00] focus:ring-offset-0">
+                      <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
                         <SelectValue placeholder="Category" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
+                      <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                        <SelectItem
+                          value="all"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          All Categories
+                        </SelectItem>
                         {seller.categories.map((cat) => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                          <SelectItem
+                            key={cat}
+                            value={cat}
+                            className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          >
+                            {cat}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger className="w-[180px] bg-white border-gray-200 text-sm font-medium focus:ring-[#ff6a00] focus:ring-offset-0">
+                      <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="popular">Popular</SelectItem>
-                        <SelectItem value="newest">Newest</SelectItem>
-                        <SelectItem value="price-low">Price: Low to High</SelectItem>
-                        <SelectItem value="price-high">Price: High to Low</SelectItem>
+                      <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                        <SelectItem
+                          value="popular"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          Popular
+                        </SelectItem>
+                        <SelectItem
+                          value="newest"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          Newest
+                        </SelectItem>
+                        <SelectItem
+                          value="price-low"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          Price: Low to High
+                        </SelectItem>
+                        <SelectItem
+                          value="price-high"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          Price: High to Low
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -429,66 +601,69 @@ export default function SellerStorefrontPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
+                    className="product-card-premium product-card-premium-interactive"
+                    onClick={() => navigate(`/product/${product.id}`)}
                   >
-                    <Card className="overflow-hidden hover:shadow-lg transition-shadow group">
-                      <div className="relative">
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className={cn(
-                            "w-full object-cover group-hover:scale-105 transition-transform",
-                            viewMode === 'grid' ? 'h-48' : 'h-32 md:h-48'
-                          )}
-                        />
-                        {product.originalPrice && (
-                          <Badge className="absolute top-2 left-2 bg-red-500">
-                            {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
-                          </Badge>
+                    <div className="relative">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className={cn(
+                          "w-full object-cover group-hover:scale-105 transition-transform",
+                          viewMode === 'grid' ? 'h-48' : 'h-32 md:h-48'
                         )}
-                        {product.isFreeShipping && (
-                          <Badge variant="outline" className="absolute top-2 right-2 bg-white text-green-600">
-                            <Truck className="h-3 w-3 mr-1" />
-                            Free Ship
-                          </Badge>
-                        )}
-                      </div>
-                      <CardContent className="p-4">
-                        <div className={cn(
-                          "space-y-3",
-                          viewMode === 'list' && 'flex items-center gap-4'
-                        )}>
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2">{product.name}</h3>
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="flex items-center gap-1">
-                                <Star className="h-3 w-3 fill-current text-yellow-400" />
-                                <span className="text-sm text-gray-600">{product.rating}</span>
-                              </div>
-                              <span className="text-gray-300">•</span>
-                              <span className="text-sm text-gray-600">{product.sold} sold</span>
+                      />
+                      {product.originalPrice && (
+                        <Badge className="absolute top-2 left-2 bg-red-500">
+                          {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
+                        </Badge>
+                      )}
+                      {product.isFreeShipping && (
+                        <Badge variant="outline" className="absolute top-2 right-2 bg-white text-green-600">
+                          <Truck className="h-3 w-3 mr-1" />
+                          Free Ship
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="p-4 flex-1 flex flex-col">
+                      <div className={cn(
+                        "space-y-3",
+                        viewMode === 'list' && 'flex items-center gap-4'
+                      )}>
+                        <div className="flex-1">
+                          <h3 className="product-title-premium line-clamp-2 mb-2">{product.name}</h3>
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-1">
+                              <Star className="h-3 w-3 fill-current text-yellow-400" />
+                              <span className="text-sm text-gray-600">{product.rating}</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg font-bold text-orange-600">
-                                ₱{product.price.toLocaleString()}
-                              </span>
-                              {product.originalPrice && (
-                                <span className="text-sm text-gray-500 line-through">
-                                  ₱{product.originalPrice.toLocaleString()}
-                                </span>
-                              )}
-                            </div>
+                            <span className="text-gray-300">•</span>
+                            <span className="text-sm text-gray-600">{product.sold} sold</span>
                           </div>
-                          <Button
-                            onClick={() => handleAddToCart(product)}
-                            size="sm"
-                            className="bg-orange-500 hover:bg-orange-600 w-full"
-                          >
-                            <ShoppingCart className="h-4 w-4 mr-2" />
-                            Add to Cart
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg product-price-premium">
+                              ₱{product.price.toLocaleString()}
+                            </span>
+                            {product.originalPrice && (
+                              <span className="text-sm text-gray-500 line-through">
+                                ₱{product.originalPrice.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddToCart(product);
+                          }}
+                          size="sm"
+                          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] w-full text-white font-bold"
+                        >
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                          Add to Cart
+                        </Button>
+                      </div>
+                    </div>
                   </motion.div>
                 ))}
               </motion.div>
@@ -506,39 +681,51 @@ export default function SellerStorefrontPage() {
               <div className="md:col-span-5 lg:col-span-4 sticky top-36">
                 <div>
                   <div className="text-center mb-2">
-                    <div className="text-4xl font-bold text-gray-900 leading-none mb-1">{seller.rating}</div>
+                    <div className="text-4xl font-bold text-gray-900 leading-none mb-1">
+                      {reviewStats.total > 0 ? reviewStats.avgRating.toFixed(1) : seller.rating}
+                    </div>
                     <div className="flex items-center justify-center gap-1 mb-1">
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
                           className={cn(
                             "h-3 w-3",
-                            i < Math.floor(seller.rating) ? "fill-current text-yellow-400" : "text-gray-300"
+                            i < Math.floor(reviewStats.total > 0 ? reviewStats.avgRating : seller.rating)
+                              ? "fill-current text-yellow-400"
+                              : "text-gray-300"
                           )}
                         />
                       ))}
                     </div>
-                    <div className="text-xs text-gray-500 font-medium">{seller.totalReviews.toLocaleString()} reviews</div>
+                    <div className="text-xs text-gray-500 font-medium">
+                      {reviewStats.total > 0 ? reviewStats.total.toLocaleString() : seller.totalReviews.toLocaleString()} reviews
+                    </div>
                   </div>
 
                   <div className="space-y-1">
-                    {[5, 4, 3, 2, 1].map((star) => (
-                      <div key={star} className="flex items-center gap-3">
-                        <div className="flex items-center justify-end gap-1.5 w-12 shrink-0">
-                          <span className="text-sm font-medium text-gray-700">{star}</span>
-                          <Star className="h-3 w-3 fill-current text-yellow-400" />
+                    {[5, 4, 3, 2, 1].map((star) => {
+                      const count = reviewStats.distribution[star - 1] || 0;
+                      const percentage = reviewStats.total > 0
+                        ? Math.round((count / reviewStats.total) * 100)
+                        : (star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1);
+                      return (
+                        <div key={star} className="flex items-center gap-3">
+                          <div className="flex items-center justify-end gap-1.5 w-12 shrink-0">
+                            <span className="text-sm font-medium text-gray-700">{star}</span>
+                            <Star className="h-3 w-3 fill-current text-yellow-400" />
+                          </div>
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-yellow-400 rounded-full"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-400 w-8 text-right tabular-nums">
+                            {percentage}%
+                          </span>
                         </div>
-                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-yellow-400 rounded-full"
-                            style={{ width: `${star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-400 w-8 text-right tabular-nums">
-                          {star === 5 ? '70%' : star === 4 ? '20%' : star === 3 ? '6%' : star === 2 ? '3%' : '1%'}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -563,113 +750,179 @@ export default function SellerStorefrontPage() {
                   ))}
                 </div>
 
-                {reviews.map((review) => (
-                  <Card key={review.id} className="border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <img
-                          src={review.avatar}
-                          alt={review.author}
-                          className="w-10 h-10 rounded-full object-cover border border-gray-100"
-                        />
-                        <div className="flex-1">
-                          <div className="mb-2">
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-gray-900 text-sm">{review.author}</span>
-                              <span className="text-xs text-gray-400 mb-1">{review.date}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={cn(
-                                    "h-3 w-3",
-                                    i < review.rating ? "fill-current text-yellow-400" : "text-gray-200"
-                                  )}
-                                />
-                              ))}
-                            </div>
-                          </div>
+                {/* Filter reviews based on selected filter */}
+                {(() => {
+                  const filteredReviews = reviews.filter(review => {
+                    if (reviewFilter === 'all') return true;
+                    if (reviewFilter === 'media') return review.images && review.images.length > 0;
+                    return review.rating === parseInt(reviewFilter);
+                  });
 
-                          <p className="text-sm text-gray-600 mb-3 leading-relaxed">
-                            {review.content}
-                          </p>
-
-                          {/* Existing Replies */}
-                          {review.replies.length > 0 && (
-                            <div className="mb-4 pl-4 border-l-2 border-gray-100 space-y-3">
-                              {review.replies.map(reply => (
-                                <div key={reply.id} className="bg-gray-50/50 p-3 rounded-lg">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-semibold text-xs text-gray-900">{reply.author}</span>
-                                    <span className="text-[10px] text-gray-400">{reply.date}</span>
-                                  </div>
-                                  <p className="text-xs text-gray-600 leading-relaxed">{reply.text}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
-                            <button
-                              onClick={() => handleToggleLike(review.id)}
-                              className={cn(
-                                "transition-colors flex items-center gap-1.5 group",
-                                review.isLiked ? "text-orange-600" : "hover:text-orange-600"
-                              )}
-                            >
-                              <ThumbsUp className={cn(
-                                "h-3.5 w-3.5 transition-colors",
-                                review.isLiked ? "fill-current text-orange-600" : "group-hover:text-orange-600"
-                              )} />
-                              Helpful ({review.helpfulCount})
-                            </button>
-                            <button
-                              onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
-                              className="hover:text-orange-600 transition-colors"
-                            >
-                              Reply
-                            </button>
-                          </div>
-
-                          {replyingTo === review.id && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                              animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <Textarea
-                                  value={replyText}
-                                  onChange={(e) => setReplyText(e.target.value)}
-                                  placeholder="Write a reply..."
-                                  className="min-h-[80px] bg-white border-gray-200 focus:border-[#ff6a00] focus:ring-[#ff6a00] mb-3 text-sm resize-none"
-                                />
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setReplyingTo(null)}
-                                    className="h-8 text-xs hover:bg-gray-200 hover:text-gray-900"
-                                  >
-                                    Cancel
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handlePostReply(review.id)}
-                                    className="h-8 text-xs bg-[#ff6a00] hover:bg-[#ff6a00]/90 text-white"
-                                  >
-                                    Post Reply
-                                  </Button>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
+                  if (filteredReviews.length === 0) {
+                    return (
+                      <div className="text-center py-12">
+                        <div className="text-gray-400 mb-2">
+                          <Star className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         </div>
+                        <h3 className="text-lg font-semibold text-gray-600 mb-2">No Reviews Yet</h3>
+                        <p className="text-gray-500 text-sm">
+                          {reviewFilter === 'all'
+                            ? 'Be the first to review products from this store!'
+                            : `No ${reviewFilter === 'media' ? 'reviews with photos' : `${reviewFilter}-star reviews`} found.`}
+                        </p>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    );
+                  }
+
+                  return filteredReviews.map((review) => (
+                    <Card key={review.id} className="border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                      <CardContent className="p-5">
+                        <div className="flex items-start gap-4">
+                          <img
+                            src={review.avatar}
+                            alt={review.author}
+                            className="w-10 h-10 rounded-full object-cover border border-gray-100"
+                          />
+                          <div className="flex-1">
+                            <div className="mb-2">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-gray-900 text-sm">{review.author}</span>
+                                <span className="text-xs text-gray-400 mb-1">{review.date}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={cn(
+                                      "h-3 w-3",
+                                      i < review.rating ? "fill-current text-yellow-400" : "text-gray-200"
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Product info if available */}
+                            {review.productName && (
+                              <div className="flex items-center gap-2 mb-2 bg-gray-50 rounded-lg p-2">
+                                {review.productImage && (
+                                  <img
+                                    src={review.productImage}
+                                    alt={review.productName}
+                                    className="w-8 h-8 rounded object-cover"
+                                  />
+                                )}
+                                <span className="text-xs text-gray-600">
+                                  Purchased: <span className="font-medium text-gray-800">{review.productName}</span>
+                                </span>
+                              </div>
+                            )}
+
+                            {review.variantLabel && (
+                              <div className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 text-orange-700 text-[11px] px-2.5 py-1 mb-3">
+                                Variant: {review.variantLabel}
+                              </div>
+                            )}
+
+                            <p className="text-sm text-gray-600 mb-3 leading-relaxed">
+                              {review.content}
+                            </p>
+
+                            {/* Review Images if available */}
+                            {review.images && review.images.length > 0 && (
+                              <div className="flex gap-2 mb-3 flex-wrap">
+                                {review.images.map((img, idx) => (
+                                  <img
+                                    key={idx}
+                                    src={img}
+                                    alt={`Review image ${idx + 1}`}
+                                    className="w-16 h-16 rounded-lg object-cover border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Existing Replies */}
+                            {review.replies.length > 0 && (
+                              <div className="mb-4 pl-4 border-l-2 border-gray-100 space-y-3">
+                                {review.replies.map(reply => (
+                                  <div key={reply.id} className="bg-gray-50/50 p-3 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-semibold text-xs text-gray-900">{reply.author}</span>
+                                      {reply.isSeller && (
+                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-50 text-orange-600 border-orange-200">
+                                          Seller
+                                        </Badge>
+                                      )}
+                                      <span className="text-[10px] text-gray-400">{reply.date}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 leading-relaxed">{reply.text}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                              <button
+                                onClick={() => handleToggleLike(review.id)}
+                                className={cn(
+                                  "transition-colors flex items-center gap-1.5 group",
+                                  review.isLiked ? "text-orange-600" : "hover:text-orange-600"
+                                )}
+                              >
+                                <ThumbsUp className={cn(
+                                  "h-3.5 w-3.5 transition-colors",
+                                  review.isLiked ? "fill-current text-orange-600" : "group-hover:text-orange-600"
+                                )} />
+                                Helpful ({review.helpfulCount})
+                              </button>
+                              <button
+                                onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
+                                className="hover:text-orange-600 transition-colors"
+                              >
+                                Reply
+                              </button>
+                            </div>
+
+                            {replyingTo === review.id && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                  <Textarea
+                                    value={replyText}
+                                    onChange={(e) => setReplyText(e.target.value)}
+                                    placeholder="Write a reply..."
+                                    className="min-h-[80px] bg-white border-gray-200 focus:border-[#ff6a00] focus:ring-[#ff6a00] mb-3 text-sm resize-none"
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setReplyingTo(null)}
+                                      className="h-8 text-xs hover:bg-gray-200 hover:text-gray-900"
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handlePostReply(review.id)}
+                                      className="h-8 text-xs bg-[#ff6a00] hover:bg-[#ff6a00]/90 text-white"
+                                    >
+                                      Post Reply
+                                    </Button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ));
+                })()}
               </div>
             </motion.div>
           </TabsContent>
@@ -721,6 +974,6 @@ export default function SellerStorefrontPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </div >
   );
 }

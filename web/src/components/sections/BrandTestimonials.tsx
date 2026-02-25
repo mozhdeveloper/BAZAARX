@@ -38,28 +38,28 @@ function BrandTestimonials() {
   const prev = () => setIndex((prev) => (prev - 1 + TESTIMONIALS.length) % TESTIMONIALS.length);
 
   return (
-    <main className="w-full bg-[#fdf8f4] py-20 overflow-hidden">
+    <main className="w-full bg-transparent py-20 overflow-hidden">
       <section className="container mx-auto px-6 flex flex-col lg:flex-row items-center gap-12" ref={testimonialRef}>
 
         {/* LEFT COLUMN: STATIC CONTENT */}
         <div className="lg:w-2/5 space-y-6">
-          <span className="text-[#ff6a00] font-bold tracking-widest text-sm uppercase">
+          <span className="text-[var(--brand-primary)] font-bold tracking-[0.3em] text-xs sm:text-sm uppercase mb-4">
             Testimonials
           </span>
-          <h2 className="text-5xl lg:text-6xl font-extrabold text-[#1a2b3b] leading-tight">
+          <h2 className="text-5xl lg:text-6xl font-extrabold text-[var(--text-headline)] leading-tight">
             Trusted by Leading <br />
-            <span className="text-[#ff6a00]">Brands</span>
+            <span className="text-[var(--brand-primary)]">Brands</span>
           </h2>
-          <p className="text-gray-600 text-lg max-w-md">
+          <p className="text-[var(--text-primary)] text-lg max-w-md text-justify font-medium">
             See what business owners and entrepreneurs say about BazaarX.
           </p>
         </div>
 
-        {/* RIGHT COLUMN: CARD + CONTROLS ON THE RIGHT */}
-        <div className="lg:w-3/5 flex flex-col md:flex-row items-center gap-8">
+        {/* RIGHT COLUMN: CARD + CONTROLS BELOW */}
+        <div className="lg:w-3/5 flex flex-col items-center lg:items-start gap-8">
 
           {/* THE REVIEW CARD */}
-          <div className="relative w-full max-w-xl min-h-[400px] flex items-center">
+          <div className="relative w-full min-h-[300px] flex items-center">
             <AnimatePresence mode="wait">
               <motion.div
                 key={index}
@@ -67,15 +67,15 @@ function BrandTestimonials() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
-                className="bg-white p-10 rounded-3xl shadow-xl shadow-gray-200/50 w-full z-10"
+                className="bg-white/40 backdrop-blur-md p-10 rounded-3xl border border-white/40 shadow-xl shadow-orange-600/5 w-full z-10"
               >
                 <div className="flex gap-1 mb-6">
                   {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-[#ff6a00] text-[#ff6a00]" />
+                    <Star key={i} className="w-5 h-5 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
                   ))}
                 </div>
 
-                <blockquote className="text-xl text-gray-700 leading-relaxed mb-8 italic min-h-[120px]">
+                <blockquote className="text-xl text-[var(--text-primary)] leading-relaxed mb-8 italic min-h-[120px]">
                   "{TESTIMONIALS[index].quote}"
                 </blockquote>
 
@@ -83,45 +83,56 @@ function BrandTestimonials() {
                   <img
                     src={TESTIMONIALS[index].img}
                     alt={TESTIMONIALS[index].name}
-                    className="w-14 h-14 rounded-full object-cover border-2 border-[#ff8555]"
+                    className="w-14 h-14 rounded-full object-cover border-2 border-[var(--brand-primary)]"
                   />
                   <div>
-                    <h4 className="font-bold text-[#1a2b3b] text-lg leading-tight">{TESTIMONIALS[index].name}</h4>
-                    <p className="text-gray-500 text-sm font-medium">{TESTIMONIALS[index].role}</p>
+                    <h4 className="font-bold text-[var(--text-headline)] text-lg leading-tight">{TESTIMONIALS[index].name}</h4>
+                    <p className="text-[var(--text-muted)] text-sm font-medium">{TESTIMONIALS[index].role}</p>
                   </div>
                 </div>
               </motion.div>
             </AnimatePresence>
           </div>
 
-          <div className="flex items-center gap-2 px-2">
-            {TESTIMONIALS.map((_, i) => (
-              <div
-                key={i}
-                className={`transition-all duration-300 rounded-full h-1.5 ${i === index ? "w-8 bg-[#FF6A00]" : "w-2 bg-gray-300"}`}
-              />
-            ))}
-          </div>
+          {/* CONTROLS (BARS + ARROWS) BELOW CARD */}
+          <div className="w-full flex items-center justify-between px-2">
 
-          <div className="flex flex-col items-center md:items-start gap-10">
+            {/* PAGINATION BARS */}
+            <div className="flex items-center gap-2">
+              {TESTIMONIALS.map((_, i) => (
+                <div
+                  key={i}
+                  onClick={() => setIndex(i)}
+                  className={`cursor-pointer transition-all duration-300 rounded-full h-1.5 ${i === index ? "w-8 bg-[var(--brand-primary)]" : "w-2 bg-[var(--brand-accent-light)] hover:bg-[var(--brand-primary)]/50"
+                    }`}
+                />
+              ))}
+            </div>
+
+            {/* NAVIGATION ARROWS */}
             <div className="flex gap-4">
               <button
                 onClick={prev}
-                className="p-4 rounded-full border border-gray-200 bg-white hover:bg-[#FF6A00] transition-all active:scale-95 shadow-sm group"
+                className="p-4 rounded-full border border-[var(--brand-accent-light)]/30 bg-white hover:bg-[var(--brand-primary)] transition-all active:scale-95 shadow-sm group"
+                aria-label="Previous testimonial"
               >
-                <ArrowLeft className="w-6 h-6 text-gray-700 group-hover:text-white transition-colors" />
+                <ArrowLeft className="w-6 h-6 text-[var(--text-primary)] group-hover:text-white transition-colors" />
               </button>
               <button
                 onClick={next}
-                className="p-4 rounded-full border border-gray-200 bg-white hover:bg-[#FF6A00] transition-all active:scale-95 shadow-sm group"
+                className="p-4 rounded-full border border-[var(--brand-accent-light)]/30 bg-white hover:bg-[var(--brand-primary)] transition-all active:scale-95 shadow-sm group"
+                aria-label="Next testimonial"
               >
-                <ArrowRight className="w-6 h-6 text-gray-700 group-hover:text-white transition-colors" />
+                <ArrowRight className="w-6 h-6 text-[var(--text-primary)] group-hover:text-white transition-colors" />
               </button>
             </div>
+
           </div>
 
         </div>
       </section>
+
+
     </main>
   );
 }

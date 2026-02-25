@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Link, LinkProps } from "react-router-dom";
+import { Link, LinkProps, useLocation } from "react-router-dom";
 import React, { useState, createContext, useContext } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
@@ -89,7 +89,7 @@ export const DesktopSidebar = ({
   return (
     <motion.div
       className={cn(
-        "h-full px-4 py-4 hidden md:flex md:flex-col bg-white border-r border-gray-200 flex-shrink-0 shadow-sm",
+        "h-full px-4 py-4 hidden md:flex md:flex-col bg-white border-r border-gray-100 flex-shrink-0 shadow-sm",
         !open && "[&>*]:overflow-hidden [&>*]:scrollbar-hide",
         className
       )}
@@ -169,14 +169,22 @@ export const SidebarLink = ({
 }: {
   link: Links;
   className?: string;
-  props?: LinkProps;
-}) => {
+} & Omit<LinkProps, "to">) => {
   const { open, animate } = useSidebar();
+  const location = useLocation();
+  const isActive =
+    link.href === "/seller"
+      ? location.pathname === link.href
+      : location.pathname.startsWith(link.href);
+
   return (
     <Link
       to={link.href}
       className={cn(
-        "flex items-center justify-start gap-3 group/sidebar py-3 px-3 rounded-lg hover:bg-orange-50 hover:text-orange-600 transition-all duration-200 min-h-[48px]",
+        "flex items-center justify-start gap-3 group/sidebar py-2 px-3 rounded-lg min-h-[48px] transition-all duration-200",
+        isActive
+          ? "text-[var(--text-accent)] font-bold"
+          : "text-gray-700 hover:text-[var(--text-accent)]",
         className
       )}
       {...props}
@@ -190,7 +198,7 @@ export const SidebarLink = ({
           width: animate ? (open ? "auto" : 0) : "auto",
         }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="text-gray-700 text-sm font-medium group-hover/sidebar:text-orange-600 transition duration-150 whitespace-nowrap overflow-hidden"
+        className="text-sm font-medium whitespace-nowrap overflow-hidden"
         style={{
           display: animate ? (open ? "block" : "none") : "block",
         }}

@@ -5,20 +5,20 @@ const BazaarHistory: React.FC = () => {
   return (
     <section className="bg-transparent">
       <HeroScrollVideo
-        title={<span className="font-fondamento font-bold tracking-wider">bāzār</span>}
-        subtitle={<span className="font-fondamento text-white">بازار</span>}
+        title={<span className="font-fondamento font-bold tracking-wider text-[var(--brand-primary)]">bāzār</span>}
+        subtitle={<span className="font-fondamento text-[var(--brand-primary-dark)]">بازار</span>}
         media={'/bazaar.mp4'}
         overlay={{
           caption: "ORIGIN",
           heading: (
-            <span className="font-fondamento font-bold">bazaar</span>
+            <span className="font-fondamento font-bold text-white">bazaar</span>
           ),
           paragraphs: [
             <div key="etymology-layout" className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 sm:gap-8 items-start text-left w-full max-w-[900px] mx-auto">
-              <div className="text-[length:clamp(14px,1.8vw,20px)] leading-[1.75] text-[#f3f4f6] opacity-95">
+              <div className="text-[length:clamp(14px,1.8vw,20px)] leading-[1.75] text-white opacity-95">
                 <br></br>Derived from the Persian root words <em>bā</em> ("with" or "together") and <em>zār</em> ("place" or "ground")
               </div>
-              <div className="text-[length:clamp(12px,1.8vw,22px)] font-mono whitespace-nowrap text-[#f6f5f3ff] mt-2 sm:mt-0">
+              <div className="text-[length:clamp(12px,1.8vw,22px)] font-mono whitespace-nowrap text-white mt-2 sm:mt-0">
                 <br></br>['bāzār']
               </div>
             </div>,
@@ -34,12 +34,12 @@ const BazaarHistory: React.FC = () => {
         overlayRevealDelay={0.3}
         smoothScroll={true}
         className="!hsv-root-bazaar"
-        bgTransition={{ from: '#D94F00', to: '#FFFFFF' }}
+        bgTransition={{ from: '#FFF6E5', to: '#FFF6E5' }}
         style={{
-          ['--accent' as any]: '#ffffff',
-          ['--accent-2' as any]: '#FF8A4D',
-          ['--text' as any]: '#ffffff',
-          ['--subtitle-color' as any]: '#ffffff',
+          ['--accent' as any]: '#FB8C00',
+          ['--accent-2' as any]: '#EA580C',
+          ['--text' as any]: '#7C2D12',
+          ['--subtitle-color' as any]: '#EA580C',
         }}
       />
     </section>

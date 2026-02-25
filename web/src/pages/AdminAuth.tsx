@@ -125,37 +125,58 @@ const AdminAuth: React.FC = () => {
 
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Demo Credentials */}
+                {/* Test Credentials */}
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
                   className="bg-gradient-to-r from-orange-50 to-orange-100/50 border border-orange-200 rounded-xl p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-orange-900 mb-1.5 flex items-center gap-2">
-                        <Shield className="w-4 h-4" />
-                        Demo Admin Account
-                      </h3>
-                      <div className="space-y-1 text-sm text-orange-700">
-                        <p className="font-mono">admin@gmail.com</p>
-                        <p className="font-mono">password</p>
+                  <h3 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    Test Admin Accounts
+                  </h3>
+                  <div className="space-y-3">
+                    {/* Demo Admin */}
+                    <div className="flex items-center justify-between gap-3 p-2 bg-white/60 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-800">Demo Admin</p>
+                        <p className="text-xs font-mono text-orange-700">admin@gmail.com / password</p>
                       </div>
+                      <Button
+                        type="button"
+                        onClick={handleDemoLogin}
+                        disabled={isLoading}
+                        size="sm"
+                        variant="outline"
+                        className="border-orange-300 hover:bg-orange-100 text-orange-700"
+                      >
+                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      onClick={handleDemoLogin}
-                      disabled={isLoading}
-                      size="sm"
-                      className="bg-orange-600 hover:bg-orange-700 text-white shadow-md hover:shadow-lg transition-all"
-                    >
-                      {isLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        "Try Demo"
-                      )}
-                    </Button>
+                    {/* Since Admin */}
+                    <div className="flex items-center justify-between gap-3 p-2 bg-white/60 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-800">Since Admin</p>
+                        <p className="text-xs font-mono text-orange-700">sinceadmin@gmail.com / password</p>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setFormData({ email: 'sinceadmin@gmail.com', password: 'password' });
+                          setTimeout(async () => {
+                            const success = await login('sinceadmin@gmail.com', 'password');
+                            if (success) navigate('/admin', { replace: true });
+                          }, 300);
+                        }}
+                        disabled={isLoading}
+                        size="sm"
+                        variant="outline"
+                        className="border-orange-300 hover:bg-orange-100 text-orange-700"
+                      >
+                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
+                      </Button>
+                    </div>
                   </div>
                 </motion.div>
 

@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { notificationService } from '@/services/notificationService';
+import type { PaymentStatus, ShipmentStatus } from '@/types/database.types';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // Unified Product interface for cart system
 export interface Product {
@@ -8,6 +11,8 @@ export interface Product {
   price: number;
   image: string;
   seller: string;
+  sellerId?: string; // Seller UUID for database notifications
+  seller_id?: string;
   rating: number;
   category: string;
   originalPrice?: number;
@@ -21,16 +26,27 @@ export interface Product {
 // Cart item with quantity
 export interface CartItem extends Product {
   quantity: number;
+  cartItemId?: string; // DB cart_item id
+  variant?: {
+    id?: string;
+    name?: string;
+    size?: string;
+    color?: string;
+    sku?: string;
+  };
 }
 
 // Unified order interface
 export interface Order {
   id: string;
+  dbId?: string;
   orderNumber?: string; // User-friendly order number
   items: CartItem[];
   total: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'reviewed';
   isPaid: boolean; // Payment status
+  shipmentStatus?: ShipmentStatus;
+  paymentStatus?: PaymentStatus;
   createdAt: Date;
   date: string; // Formatted date string
   shippingAddress: {
@@ -46,6 +62,8 @@ export interface Order {
     details?: string;
   };
   estimatedDelivery: Date;
+  shippedAt?: Date;
+  deliveredAt?: Date;
   deliveryDate?: Date; // Actual delivery date
   trackingNumber?: string;
   returnRequest?: {
@@ -62,12 +80,32 @@ export interface Order {
     images: string[];
     submittedAt: Date;
   };
+  pricing?: {
+    subtotal: number;
+    shipping: number;
+    tax?: number;
+    campaignDiscount: number;
+    voucherDiscount: number;
+    bazcoinDiscount?: number;
+    total: number;
+  };
 }
 
 export interface OrderNotification {
   id: string;
   orderId: string;
-  type: 'seller_confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  orderNumber?: string;
+  type:
+  | 'seller_confirmed'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+  // Seller notifications
+  | 'seller_new_order'
+  | 'seller_cancellation_request'
+  | 'seller_return_request'
+  | 'seller_return_approved'
+  | 'seller_return_rejected';
   message: string;
   timestamp: Date;
   read: boolean;
@@ -75,8 +113,11 @@ export interface OrderNotification {
 
 interface CartStore {
   items: CartItem[];
+  cartId: string | null;
+  isLoading: boolean;
   orders: Order[];
   notifications: OrderNotification[];
+  initializeCart: (userId: string) => Promise<void>;
   addToCart: (product: Product) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
@@ -87,10 +128,12 @@ interface CartStore {
   getOrderById: (orderId: string) => Order | undefined;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   simulateOrderProgression: (orderId: string) => void;
-  addNotification: (orderId: string, type: OrderNotification['type'], message: string) => void;
+  addNotification: (orderId: string, type: OrderNotification['type'], message: string, orderNumber?: string) => void;
+  addSellerNotification: (orderId: string, type: 'seller_new_order' | 'seller_cancellation_request' | 'seller_return_request' | 'seller_return_approved' | 'seller_return_rejected', message: string, orderNumber?: string) => void;
   markNotificationRead: (notificationId: string) => void;
   clearNotifications: () => void;
   getUnreadNotifications: () => OrderNotification[];
+  hydrateBuyerOrders: (orders: Order[]) => void;
   updateOrderWithReturnRequest: (orderId: string, returnRequest: Order['returnRequest']) => void;
   updateOrderWithReview: (orderId: string, review: Order['review']) => void;
 }
@@ -263,65 +306,208 @@ const sampleOrders: Order[] = [
   }
 ];
 
+// Helper for local-only cart add (fallback when no DB)
+function addToCartLocal(set: any, get: any, product: Product) {
+  set((state: any) => {
+    const existingItem = state.items.find((item: CartItem) => item.id === product.id);
+    if (existingItem) {
+      return {
+        ...state,
+        items: state.items.map((item: CartItem) =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        ),
+      };
+    } else {
+      return {
+        ...state,
+        items: [...state.items, { ...product, quantity: 1 }],
+      };
+    }
+  });
+}
+
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      cartId: null,
+      isLoading: false,
       orders: [],
-      notifications: [
-        {
-          id: 'notif-1',
-          orderId: 'order-001',
-          type: 'seller_confirmed',
-          message: 'Your order has been confirmed by the seller!',
-          timestamp: new Date(Date.now() - 5 * 60000), // 5 minutes ago
-          read: false,
-        },
-        {
-          id: 'notif-2',
-          orderId: 'order-002',
-          type: 'shipped',
-          message: 'Your order is on the way! Track your delivery.',
-          timestamp: new Date(Date.now() - 30 * 60000), // 30 minutes ago
-          read: false,
-        },
-        {
-          id: 'notif-3',
-          orderId: 'order-003',
-          type: 'delivered',
-          message: 'Your order has been delivered!',
-          timestamp: new Date(Date.now() - 2 * 3600000), // 2 hours ago
-          read: true,
-        },
-      ],
+      notifications: [],
+
+      initializeCart: async (userId: string) => {
+        if (!isSupabaseConfigured()) return;
+        set({ isLoading: true });
+        try {
+          // Get or create cart
+          let { data: cart } = await supabase
+            .from('carts')
+            .select('id')
+            .eq('buyer_id', userId)
+            .maybeSingle();
+
+          if (!cart) {
+            const { data: newCart, error } = await supabase
+              .from('carts')
+              .insert({ buyer_id: userId })
+              .select('id')
+              .single();
+            if (error) throw error;
+            cart = newCart;
+          }
+
+          set({ cartId: cart!.id });
+
+          // Fetch cart items with product details
+          const { data: rawItems, error } = await supabase
+            .from('cart_items')
+            .select(`
+              *,
+              product:products (
+                id, name, description, price, seller_id, is_free_shipping,
+                variant_label_1, variant_label_2,
+                category:categories (name),
+                images:product_images (image_url, is_primary, sort_order),
+                seller:sellers!products_seller_id_fkey (id, store_name, avatar_url)
+              ),
+              variant:product_variants (
+                id, sku, variant_name, size, color, option_1_value, option_2_value,
+                price, stock, thumbnail_url
+              )
+            `)
+            .eq('cart_id', cart!.id)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          // Map DB rows to flat CartItem format
+          const items: CartItem[] = (rawItems || []).map((ci: any) => {
+            const product = ci.product || {};
+            const variant = ci.variant || null;
+            const productImages = product.images || [];
+            const primaryImg = productImages.find((img: any) => img.is_primary);
+            const firstImg = [...productImages].sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))[0];
+            const imageUrl = variant?.thumbnail_url || primaryImg?.image_url || firstImg?.image_url || '';
+            const price = (variant?.price != null && variant.price > 0) ? variant.price : (product.price || 0);
+            const seller = product.seller || {};
+
+            return {
+              id: product.id || ci.product_id,
+              cartItemId: ci.id,
+              name: product.name || 'Product',
+              price,
+              image: imageUrl,
+              seller: seller.store_name || 'Shop',
+              sellerId: seller.id || product.seller_id || '',
+              seller_id: seller.id || product.seller_id || '',
+              rating: 0,
+              category: product.category?.name || '',
+              description: product.description || '',
+              isFreeShipping: !!product.is_free_shipping,
+              quantity: ci.quantity || 1,
+              variant: variant ? {
+                id: variant.id,
+                name: variant.variant_name,
+                size: variant.size,
+                color: variant.color,
+                sku: variant.sku,
+              } : undefined,
+            } as CartItem;
+          });
+
+          set({ items });
+        } catch (e: any) {
+          console.error('[WebCartStore] Failed to init cart:', e);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
 
       addToCart: (product: Product) => {
-        set((state) => {
-          const existingItem = state.items.find(item => item.id === product.id);
+        const cartId = get().cartId;
 
-          if (existingItem) {
-            return {
-              ...state,
-              items: state.items.map(item =>
-                item.id === product.id
-                  ? { ...item, quantity: item.quantity + 1 }
-                  : item
-              ),
-            };
-          } else {
-            return {
-              ...state,
-              items: [...state.items, { ...product, quantity: 1 }],
-            };
-          }
-        });
+        if (cartId && isSupabaseConfigured()) {
+          // DB-backed add
+          (async () => {
+            try {
+              const variantId = (product as any).variant?.id || (product as any).selectedVariant?.variantId || null;
+
+              // Check for existing item
+              let query = supabase
+                .from('cart_items')
+                .select('id, quantity')
+                .eq('cart_id', cartId)
+                .eq('product_id', product.id);
+
+              if (variantId) {
+                query = query.eq('variant_id', variantId);
+              } else {
+                query = query.is('variant_id', null);
+              }
+
+              const { data: existing } = await query.maybeSingle();
+
+              if (existing) {
+                await supabase
+                  .from('cart_items')
+                  .update({ quantity: existing.quantity + 1 })
+                  .eq('id', existing.id);
+              } else {
+                await supabase
+                  .from('cart_items')
+                  .insert({
+                    cart_id: cartId,
+                    product_id: product.id,
+                    quantity: 1,
+                    variant_id: variantId,
+                  });
+              }
+
+              // Re-fetch items to get full product details
+              // Get the user from supabase auth
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) await get().initializeCart(user.id);
+            } catch (e) {
+              console.error('[WebCartStore] DB add failed, using local:', e);
+              // Fallback to local
+              addToCartLocal(set, get, product);
+            }
+          })();
+        } else {
+          // Local-only fallback
+          addToCartLocal(set, get, product);
+        }
       },
 
       removeFromCart: (productId: string) => {
-        set((state) => ({
-          ...state,
-          items: state.items.filter(item => item.id !== productId),
-        }));
+        const cartId = get().cartId;
+
+        if (cartId && isSupabaseConfigured()) {
+          (async () => {
+            try {
+              const item = get().items.find(i => i.id === productId);
+              if (item?.cartItemId) {
+                await supabase.from('cart_items').delete().eq('id', item.cartItemId);
+              } else {
+                // Fallback: find by product_id
+                const { data } = await supabase
+                  .from('cart_items')
+                  .select('id')
+                  .eq('cart_id', cartId)
+                  .eq('product_id', productId);
+                if (data?.[0]) {
+                  await supabase.from('cart_items').delete().eq('id', data[0].id);
+                }
+              }
+              set((state) => ({ items: state.items.filter(i => i.id !== productId) }));
+            } catch (e) {
+              console.error('[WebCartStore] DB remove failed:', e);
+              set((state) => ({ items: state.items.filter(i => i.id !== productId) }));
+            }
+          })();
+        } else {
+          set((state) => ({ items: state.items.filter(i => i.id !== productId) }));
+        }
       },
 
       updateQuantity: (productId: string, quantity: number) => {
@@ -330,18 +516,45 @@ export const useCartStore = create<CartStore>()(
           return;
         }
 
-        set((state) => ({
-          ...state,
-          items: state.items.map(item =>
-            item.id === productId
-              ? { ...item, quantity }
-              : item
-          ),
-        }));
+        const cartId = get().cartId;
+
+        if (cartId && isSupabaseConfigured()) {
+          (async () => {
+            try {
+              const item = get().items.find(i => i.id === productId);
+              if (item?.cartItemId) {
+                await supabase
+                  .from('cart_items')
+                  .update({ quantity })
+                  .eq('id', item.cartItemId);
+              }
+              set((state) => ({
+                items: state.items.map(i => i.id === productId ? { ...i, quantity } : i)
+              }));
+            } catch (e) {
+              console.error('[WebCartStore] DB update qty failed:', e);
+              set((state) => ({
+                items: state.items.map(i => i.id === productId ? { ...i, quantity } : i)
+              }));
+            }
+          })();
+        } else {
+          set((state) => ({
+            items: state.items.map(i => i.id === productId ? { ...i, quantity } : i)
+          }));
+        }
       },
 
-      clearCart: () => {
-        set((state) => ({ ...state, items: [] }));
+      clearCart: async () => {
+        const cartId = get().cartId;
+        if (cartId && isSupabaseConfigured()) {
+          try {
+            await supabase.from('cart_items').delete().eq('cart_id', cartId);
+          } catch (e) {
+            console.error('[WebCartStore] Failed to clear cart:', e);
+          }
+        }
+        set({ items: [] });
       },
 
       getTotalItems: () => {
@@ -353,9 +566,12 @@ export const useCartStore = create<CartStore>()(
       },
 
       createOrder: (orderData) => {
+        console.log('📋 createOrder called with:', { orderData });
         const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const currentItems = get().items;
         const total = get().getTotalPrice();
+
+        console.log('📋 Order items:', { count: currentItems.length, items: currentItems });
 
         // Generate tracking number
         const trackingNumber = `BPH${new Date().getFullYear()}${String(Date.now()).slice(-6)}`;
@@ -381,6 +597,7 @@ export const useCartStore = create<CartStore>()(
           isPaid: orderData.paymentMethod?.type !== 'cod', // COD is unpaid, others are paid
           shippingAddress: orderData.shippingAddress,
           paymentMethod: orderData.paymentMethod,
+          orderNumber: orderId.slice(-8),
         };
 
         set((state) => ({
@@ -407,8 +624,10 @@ export const useCartStore = create<CartStore>()(
             });
 
             // Create a seller order for each seller with proper validation
+            console.log('🛍️ Processing seller orders:', { sellerCount: Object.keys(itemsBySeller).length, sellers: Object.keys(itemsBySeller) });
             Object.entries(itemsBySeller).forEach(([sellerName, items]) => {
               try {
+                console.log(`🏪 Creating seller order for: ${sellerName} with ${items.length} items`);
                 const sellerTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
                 // Validate seller order data before creating
@@ -441,17 +660,45 @@ export const useCartStore = create<CartStore>()(
 
                 // Create the seller order
                 const sellerOrderId = sellerOrderStore.addOrder(sellerOrderData);
-                console.log(`Created seller order ${sellerOrderId} for ${sellerName}`);
+                console.log(`✅ Created seller order ${sellerOrderId} for ${sellerName}`);
+
+                // Send seller notification about new order (both local and database)
+                get().addSellerNotification(
+                  orderId,
+                  'seller_new_order',
+                  `New order #${newOrder.orderNumber} from ${orderData.shippingAddress.fullName}. Total: ₱${sellerTotal.toLocaleString()}`,
+                  newOrder.orderNumber
+                );
+
+                // Save notification to database if we have seller_id
+                const firstItem = items[0];
+                console.log('🔍 First item for seller notification:', firstItem);
+                console.log('🔍 First item keys:', firstItem ? Object.keys(firstItem) : 'null');
+                console.log('🔍 First item sellerId:', firstItem?.sellerId);
+                if (firstItem?.sellerId) {
+                  console.log('✅ Saving seller notification to database for seller:', firstItem.sellerId);
+                  notificationService.notifySellerNewOrder({
+                    sellerId: firstItem.sellerId,
+                    orderId,
+                    orderNumber: newOrder.orderNumber,
+                    buyerName: orderData.shippingAddress.fullName || 'Unknown Buyer',
+                    total: sellerTotal
+                  }).catch(error => {
+                    console.error('Failed to save seller notification to database:', error);
+                  });
+                } else {
+                  console.warn('⚠️ No sellerId found in items, skipping DB notification');
+                }
               } catch (sellerOrderError) {
-                console.error(`Failed to create seller order for ${sellerName}:`, sellerOrderError);
+                console.error(`❌ Failed to create seller order for ${sellerName}:`, sellerOrderError);
                 // Log but don't fail - buyer order is already created
               }
             });
           }).catch(importError => {
-            console.error('Failed to import seller store:', importError);
+            console.error('❌ Failed to import seller store:', importError);
           });
         } catch (error) {
-          console.error('Error in seller order creation process:', error);
+          console.error('❌ Error in seller order creation process:', error);
           // Don't fail the buyer order if seller order creation fails
         }
 
@@ -474,14 +721,72 @@ export const useCartStore = create<CartStore>()(
               : order
           ),
         }));
+
+        // Auto-generate seller notifications based on status change
+        const order = get().orders.find(o => o.id === orderId);
+        if (order) {
+          const sellerName = order.items[0]?.seller || 'Seller';
+
+          // Map status changes to seller notification types
+          let notificationType: OrderNotification['type'] | null = null;
+          let notificationMessage = '';
+
+          switch (status) {
+            case 'confirmed':
+              notificationType = 'seller_confirmed';
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been confirmed. Please prepare for shipment.`;
+              break;
+            case 'shipped':
+              notificationType = 'shipped';
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been marked as shipped.`;
+              break;
+            case 'delivered':
+              notificationType = 'delivered';
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been delivered to the customer.`;
+              break;
+            case 'cancelled':
+              notificationType = 'cancelled';
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been cancelled.`;
+              break;
+            case 'returned':
+              notificationType = 'seller_return_approved';
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been returned by the customer.`;
+              break;
+            default:
+              break;
+          }
+
+          if (notificationType) {
+            get().addNotification(orderId, notificationType, notificationMessage, order.orderNumber);
+          }
+        }
       },
-      addNotification: (orderId, type, message) => {
+      addNotification: (orderId, type, message, orderNumber) => {
         const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         set((state) => ({
           notifications: [
             {
               id: notificationId,
               orderId,
+              orderNumber,
+              type,
+              message,
+              timestamp: new Date(),
+              read: false
+            },
+            ...state.notifications
+          ]
+        }));
+      },
+
+      addSellerNotification: (orderId, type, message, orderNumber) => {
+        const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        set((state) => ({
+          notifications: [
+            {
+              id: notificationId,
+              orderId,
+              orderNumber,
               type,
               message,
               timestamp: new Date(),
@@ -506,6 +811,12 @@ export const useCartStore = create<CartStore>()(
 
       getUnreadNotifications: () => {
         return get().notifications.filter(n => !n.read);
+      },
+      hydrateBuyerOrders: (orders: Order[]) => {
+        set((state) => ({
+          ...state,
+          orders,
+        }));
       },
       // Simulate realistic order progression
       simulateOrderProgression: (orderId: string) => {

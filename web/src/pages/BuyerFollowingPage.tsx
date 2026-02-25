@@ -15,7 +15,9 @@ import {
   TrendingUp,
   Search,
   Store,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft,
+  Users
 } from 'lucide-react';
 
 // Mock followed shops data
@@ -106,124 +108,82 @@ export default function BuyerFollowingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Background Decor */}
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
+        <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-8 relative z-10">
         {/* Page Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Following</h1>
-          <p className="text-gray-600">Shops you're following</p>
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all group mb-4"
+          >
+            <ChevronLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+          </button>
+
+          <h1 className="text-3xl font-extrabold font-heading text-[var(--text-headline)] tracking-tight mb-2">Following</h1>
+          <p className="text-[var(--text-muted)] -mb-4">Shops you're following</p>
         </motion.div>
 
-        {/* Stats Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8"
-        >
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Total Following</p>
-                  <p className="text-2xl font-bold text-gray-900">{filteredShops.length}</p>
-                </div>
-                <Store className="h-8 w-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Verified Shops</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {filteredShops.filter(s => s.isVerified).length}
-                  </p>
-                </div>
-                <Badge className="bg-blue-500 text-white">✓</Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Total Products</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {filteredShops.reduce((acc, s) => acc + s.productCount, 0)}
-                  </p>
-                </div>
-                <Package className="h-8 w-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Avg Rating</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {(filteredShops.reduce((acc, s) => acc + s.rating, 0) / filteredShops.length).toFixed(1)}
-                  </p>
-                </div>
-                <Star className="h-8 w-8 text-orange-500 fill-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
 
         {/* Search Bar */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="mb-6"
+          className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-6"
         >
-          <Card>
-            <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  placeholder="Search followed shops..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-sm text-[var(--text-muted)]">Total Following</span>
+            <div className="flex items-center gap-2">
+              <Store className="w-4 h-4 text-[var(--brand-primary)]" />
+              <span className="text-xl font-medium text-[var(--brand-primary)] leading-none">{filteredShops.length}</span>
+            </div>
+          </div>
+
+          <div className="relative w-full sm:w-80 lg:w-96 flex-shrink-0 self-center">
+            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[var(--brand-primary)] w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search followed shops..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-1.5 border-2 border-[var(--brand-wash-gold)]/20 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/10 focus:border-[var(--brand-primary)] bg-white text-xs sm:text-sm text-[var(--text-headline)] placeholder-[var(--text-muted)] shadow-sm transition-all hover:border-[var(--brand-primary)]/30 h-10"
+            />
+          </div>
         </motion.div>
 
         {/* Shops Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredShops.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="col-span-2"
+              className="col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-4"
             >
               <Card>
                 <CardContent className="p-12 text-center">
-                  <Heart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500 text-lg mb-2">No shops found</p>
-                  <p className="text-gray-400 text-sm">
+                  <Heart className="h-16 w-16 text-[var(--text-muted)] mx-auto mb-4" />
+                  <p className="text-[var(--text-muted)] text-lg mb-2">No shops found</p>
+                  <p className="text-[var(--text-muted)] text-sm">
                     {searchQuery
                       ? 'Try a different search term'
                       : 'Start following shops to see them here!'}
                   </p>
                   <Button
                     onClick={() => navigate('/shop')}
-                    className="mt-6 bg-orange-500 hover:bg-orange-600"
+                    className="mt-6 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                   >
                     Discover Shops
                   </Button>
@@ -238,7 +198,7 @@ export default function BuyerFollowingPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
               >
-                <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group">
+                <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 group h-full flex flex-col">
                   {/* Banner */}
                   <div className="relative h-32 overflow-hidden">
                     <img
@@ -247,90 +207,57 @@ export default function BuyerFollowingPage() {
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <Badge className="absolute top-3 right-3 bg-white/90 text-gray-900">
-                      {shop.category}
-                    </Badge>
+
                   </div>
 
-                  <CardContent className="p-6">
-                    {/* Shop Info */}
-                    <div className="flex items-start gap-4 mb-4">
+                  <CardContent className="p-5 flex-1 flex flex-col">
+                    {/* Shop Brand Area */}
+                    <div className="flex items-center gap-3 mb-3">
                       <img
                         src={shop.logo}
                         alt={shop.name}
-                        className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-md -mt-10 relative z-10"
+                        className="w-12 h-12 rounded-full object-cover border-2 border-orange-50 shadow-sm shrink-0"
                       />
-                      <div className="flex-1 mt-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-lg text-gray-900">{shop.name}</h3>
-                          {shop.isVerified && (
-                            <Badge className="bg-blue-500 text-white text-xs px-2 py-0">
-                              ✓ Verified
-                            </Badge>
-                          )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <h3 className="font-bold text-base text-[var(--text-headline)] leading-tight truncate">
+                            {shop.name}
+                          </h3>
+                          <button
+                            onClick={() => handleVisitShop(shop.id)}
+                            className="p-1 rounded-full hover:bg-orange-50 text-[var(--brand-primary)] transition-all group/visit shrink-0"
+                          >
+                            <ChevronRight className="h-4 w-4 group-hover/visit:translate-x-0.5 transition-transform" />
+                          </button>
                         </div>
-                        <p className="text-sm text-gray-600 line-clamp-2">{shop.description}</p>
+                        <p className="text-xs text-[var(--text-muted)] line-clamp-1">
+                          {shop.location}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {shop.tags.map((tag, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
+                    <p className="text-sm text-[var(--text-muted)] line-clamp-3 mb-4 flex-1">
+                      {shop.description}
+                    </p>
 
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-3 mb-4 py-3 border-t border-b border-gray-100">
-                      <div className="text-center">
-                        <div className="flex items-center justify-center gap-1 text-orange-500 mb-1">
-                          <Star className="h-4 w-4 fill-orange-500" />
-                          <span className="font-semibold">{shop.rating}</span>
+                    <div className="pt-4 border-t border-gray-50 mt-auto flex items-center justify-between gap-2">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
+                          <span className="text-[11px] font-bold text-[var(--brand-primary)]">{shop.rating}</span>
                         </div>
-                        <p className="text-xs text-gray-500">{shop.reviewCount} reviews</p>
-                      </div>
-                      <div className="text-center border-x border-gray-100">
-                        <div className="font-semibold text-gray-900 mb-1">{shop.productCount}</div>
-                        <p className="text-xs text-gray-500">Products</p>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-semibold text-gray-900 mb-1">
-                          {shop.followerCount.toLocaleString()}
+                        <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                          <Users className="h-3.5 w-3.5 text-gray-400" />
+                          <span>{shop.followerCount.toLocaleString()} Followers</span>
                         </div>
-                        <p className="text-xs text-gray-500">Followers</p>
                       </div>
-                    </div>
 
-                    {/* Location & Activity */}
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <MapPin className="h-4 w-4" />
-                        <span>{shop.location}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <TrendingUp className="h-4 w-4" />
-                        <span>Active {shop.lastActive}</span>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button
-                        onClick={() => handleVisitShop(shop.id)}
-                        className="bg-orange-500 hover:bg-orange-600 text-white"
-                      >
-                        Visit Shop
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
                       <Button
                         onClick={() => handleUnfollow(shop.id)}
                         variant="outline"
-                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        className="text-[var(--brand-primary)] border-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white hover:border-[var(--brand-primary)] px-4 h-9 text-xs font-semibold transition-all duration-300 rounded-full shrink-0"
                       >
-                        <Heart className="h-4 w-4 mr-2 fill-current" />
-                        Unfollow
+                        Following
                       </Button>
                     </div>
                   </CardContent>

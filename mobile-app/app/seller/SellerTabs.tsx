@@ -7,7 +7,7 @@ import SellerQAProductsScreen from './(tabs)/qa-products';
 import SellerOrdersScreen from './(tabs)/orders';
 import SellerPOSScreen from './pos';
 import SellerSettingsScreen from './(tabs)/settings';
-import { useSellerStore } from '../../src/stores/sellerStore';
+import { useSellerStore, useAuthStore } from '../../src/stores/sellerStore';
 
 export type SellerTabParamList = {
   Dashboard: undefined;
@@ -25,25 +25,23 @@ export default function SellerTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#FF5722',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: '#D97706',
+        tabBarInactiveTintColor: '#92400E', // Match the brown color from screenshot
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#F3F4F6',
+          backgroundColor: '#FFFBF0', // Cream background
+          borderTopWidth: 1, // Flat border
+          borderTopColor: '#FDE68A', // Light amber/gold border on top
           height: 70,
           paddingBottom: 10,
-          paddingTop: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
-          elevation: 8,
+          paddingTop: 10,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '600',
-          marginTop: 4,
+          marginTop: 2,
+          marginBottom: 2,
         },
       }}
     >
@@ -62,8 +60,8 @@ export default function SellerTabs() {
         }}
         listeners={{
           tabPress: (e) => {
-            const { seller } = useSellerStore.getState();
-            if (seller.approval_status === 'pending') {
+            const { seller } = useAuthStore.getState();
+            if (seller?.approval_status === 'pending') {
               e.preventDefault();
             }
           },
@@ -77,8 +75,8 @@ export default function SellerTabs() {
         }}
         listeners={{
           tabPress: (e) => {
-            const { seller } = useSellerStore.getState();
-            if (seller.approval_status === 'pending') {
+            const { seller } = useAuthStore.getState();
+            if (seller?.approval_status === 'pending') {
               e.preventDefault();
             }
           },
@@ -92,8 +90,8 @@ export default function SellerTabs() {
         }}
         listeners={{
           tabPress: (e) => {
-            const { seller } = useSellerStore.getState();
-            if (seller.approval_status === 'pending') {
+            const { seller } = useAuthStore.getState();
+            if (seller?.approval_status === 'pending') {
               e.preventDefault();
             }
           },
@@ -107,8 +105,8 @@ export default function SellerTabs() {
         }}
         listeners={{
           tabPress: (e) => {
-            const { seller } = useSellerStore.getState();
-            if (seller.approval_status === 'pending') {
+            const { seller } = useAuthStore.getState();
+            if (seller?.approval_status === 'pending') {
               e.preventDefault();
             }
           },
