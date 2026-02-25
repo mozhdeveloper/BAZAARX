@@ -410,7 +410,7 @@ CREATE TABLE public.product_assessment_logistics (
 );
 CREATE TABLE public.product_assessments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  product_id uuid NOT NULL,
+  product_id uuid NOT NULL UNIQUE,
   status text NOT NULL DEFAULT 'pending_digital_review'::text CHECK (status = ANY (ARRAY['pending_digital_review'::text, 'waiting_for_sample'::text, 'pending_physical_review'::text, 'verified'::text, 'for_revision'::text, 'rejected'::text])),
   submitted_at timestamp with time zone NOT NULL DEFAULT now(),
   verified_at timestamp with time zone,
@@ -678,13 +678,25 @@ CREATE TABLE public.seller_payout_accounts (
   CONSTRAINT seller_payout_accounts_pkey PRIMARY KEY (seller_id),
   CONSTRAINT seller_payout_accounts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
+CREATE TABLE public.seller_rejection_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  rejection_id uuid NOT NULL,
+  document_field text NOT NULL CHECK (document_field = ANY (ARRAY['business_permit_url'::text, 'valid_id_url'::text, 'proof_of_address_url'::text, 'dti_registration_url'::text, 'tax_id_url'::text])),
+  reason text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT seller_rejection_items_pkey PRIMARY KEY (id),
+  CONSTRAINT seller_rejection_items_rejection_id_fkey FOREIGN KEY (rejection_id) REFERENCES public.seller_rejections(id)
+);
 CREATE TABLE public.seller_rejections (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  description text NOT NULL,
+  description text,
   created_by uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  seller_id uuid NOT NULL,
+  rejection_type text NOT NULL DEFAULT 'full'::text CHECK (rejection_type = ANY (ARRAY['full'::text, 'partial'::text])),
   CONSTRAINT seller_rejections_pkey PRIMARY KEY (id),
-  CONSTRAINT seller_rejections_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
+  CONSTRAINT seller_rejections_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id),
+  CONSTRAINT seller_rejections_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
 CREATE TABLE public.seller_verification_documents (
   seller_id uuid NOT NULL,
@@ -703,7 +715,7 @@ CREATE TABLE public.sellers (
   store_description text,
   avatar_url text,
   owner_name text,
-  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'verified'::text, 'rejected'::text])),
+  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'verified'::text, 'rejected'::text, 'needs_resubmission'::text])),
   verified_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),

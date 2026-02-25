@@ -1117,9 +1117,7 @@ export const useProductStore = create<ProductStore>()(
                                         v.variantLabel2Value || null,
                                     stock: v.stock || 0,
                                     price: v.price || product.price,
-                                    sku:
-                                        v.sku ||
-                                        `${newProduct.id.substring(0, 8)}-${index}`,
+                                    sku: `${newProduct.id.substring(0, 8)}-${(v.sku || `V${index}`).replace(/[^a-zA-Z0-9-]/g, '').substring(0, 20)}`,
                                     thumbnail_url: v.image || null,
                                     barcode: null,
                                     embedding: null,

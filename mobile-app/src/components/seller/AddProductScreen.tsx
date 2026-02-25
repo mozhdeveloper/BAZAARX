@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Camera, Package as PackageIcon, X, Info, Layers, Trash2, Tag } from 'lucide-react-native';
+import { ArrowLeft, Camera, Package as PackageIcon, X, Info, Layers, Trash2, Tag, Link } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore, SellerProduct } from '../../../src/stores/sellerStore';
@@ -34,6 +34,7 @@ export default function AddProductScreen() {
 
   const [variants, setVariants] = useState<Variant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
+  const [imageUploadMode, setImageUploadMode] = useState<'upload' | 'url'>('url');
   
   // Variations and Colors inputs
   const [variationInput, setVariationInput] = useState('');
@@ -114,6 +115,11 @@ export default function AddProductScreen() {
     if (formData.images.length > 1) {
       setFormData({ ...formData, images: formData.images.filter((_, i) => i !== index) });
     }
+  };
+  const handleImageChange = (index: number, value: string) => {
+    const newImages = [...formData.images];
+    newImages[index] = value;
+    setFormData({ ...formData, images: newImages });
   };
 
   // --- Submit ---
@@ -227,31 +233,86 @@ export default function AddProductScreen() {
             <View style={styles.sectionHeader}>
                <Camera size={20} color="#D97706" />
                <Text style={styles.sectionTitle}>Images</Text>
+               <View style={{ flex: 1 }} />
+               <View style={{ flexDirection: 'row', backgroundColor: '#F3F4F6', borderRadius: 20, padding: 2 }}>
+                 <TouchableOpacity
+                   style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 4 }, imageUploadMode === 'upload' && { backgroundColor: '#D97706' }]}
+                   onPress={() => setImageUploadMode('upload')}
+                 >
+                   <Camera size={14} color={imageUploadMode === 'upload' ? '#FFFFFF' : '#6B7280'} />
+                   <Text style={{ fontSize: 12, fontWeight: '600', color: imageUploadMode === 'upload' ? '#FFFFFF' : '#6B7280' }}>Upload</Text>
+                 </TouchableOpacity>
+                 <TouchableOpacity
+                   style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 4 }, imageUploadMode === 'url' && { backgroundColor: '#D97706' }]}
+                   onPress={() => setImageUploadMode('url')}
+                 >
+                   <Link size={14} color={imageUploadMode === 'url' ? '#FFFFFF' : '#6B7280'} />
+                   <Text style={{ fontSize: 12, fontWeight: '600', color: imageUploadMode === 'url' ? '#FFFFFF' : '#6B7280' }}>URL</Text>
+                 </TouchableOpacity>
+               </View>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageList}>
-              {formData.images.map((img, index) => (
-                <View key={index} style={styles.imageWrapper}>
-                   <TouchableOpacity onPress={() => handlePickImage(index)} style={styles.imageBox}>
-                      {img && !img.startsWith('http') ? (
-                        <Image source={{ uri: img }} style={styles.imagePreview} />
-                      ) : (
-                        <View style={styles.imagePlaceholder}>
-                           <Camera size={24} color="#9CA3AF" />
-                           <Text style={styles.addImgText}>Upload</Text>
-                        </View>
-                      )}
-                   </TouchableOpacity>
-                   {formData.images.length > 1 && (
-                     <TouchableOpacity style={styles.removeImgBtn} onPress={() => removeImageField(index)}>
-                        <X size={12} color="#FFF" />
+
+            {imageUploadMode === 'upload' ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageList}>
+                {formData.images.map((img, index) => (
+                  <View key={index} style={styles.imageWrapper}>
+                     <TouchableOpacity onPress={() => handlePickImage(index)} style={styles.imageBox}>
+                        {img ? (
+                          <Image source={{ uri: img }} style={styles.imagePreview} />
+                        ) : (
+                          <View style={styles.imagePlaceholder}>
+                             <Camera size={24} color="#9CA3AF" />
+                             <Text style={styles.addImgText}>Upload</Text>
+                          </View>
+                        )}
                      </TouchableOpacity>
-                   )}
-                </View>
-              ))}
-              <TouchableOpacity onPress={addImageField} style={styles.addMoreBtn}>
-                  <Text style={styles.addMoreText}>+ Add</Text>
-              </TouchableOpacity>
-            </ScrollView>
+                     {formData.images.length > 1 && (
+                       <TouchableOpacity style={styles.removeImgBtn} onPress={() => removeImageField(index)}>
+                          <X size={12} color="#FFF" />
+                       </TouchableOpacity>
+                     )}
+                  </View>
+                ))}
+                <TouchableOpacity onPress={addImageField} style={styles.addMoreBtn}>
+                    <Text style={styles.addMoreText}>+ Add</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            ) : (
+              <View>
+                {formData.images.map((img, index) => (
+                  <View key={index} style={{ marginBottom: 12 }}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        placeholder={`https://example.com/image${index + 1}.jpg`}
+                        value={img}
+                        onChangeText={(text) => handleImageChange(index, text)}
+                        placeholderTextColor="#9CA3AF"
+                        autoCapitalize="none"
+                        keyboardType="url"
+                      />
+                      {formData.images.length > 1 && (
+                        <TouchableOpacity
+                          style={{ justifyContent: 'center', paddingHorizontal: 8 }}
+                          onPress={() => removeImageField(index)}
+                        >
+                          <X size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    {img && img.startsWith('http') && (
+                      <Image source={{ uri: img }} style={{ width: '100%', height: 150, borderRadius: 12, marginTop: 8 }} resizeMode="cover" />
+                    )}
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={[styles.addMoreBtn, { width: '100%', height: 44, flexDirection: 'row', gap: 4 }]}
+                  onPress={addImageField}
+                >
+                  <Text style={styles.addMoreText}>+ Add Another Image</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {/* 2. DETAILS */}

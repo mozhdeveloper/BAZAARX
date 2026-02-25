@@ -392,7 +392,7 @@ export default function SellerProductsScreen() {
       originalPrice: product.originalPrice?.toString() || '',
       stock: product.stock.toString(),
       category: categoryName,
-      images: product.images,
+      images: product.images && product.images.length > 0 ? product.images : [''],
       colors: product.colors && product.colors.length > 0 ? product.colors : [''],
       sizes: product.sizes && product.sizes.length > 0 ? product.sizes : [''],
     });
