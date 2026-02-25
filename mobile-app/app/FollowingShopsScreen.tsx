@@ -1,94 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Image, StatusBar } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { officialStores } from '../src/data/stores';
 import { COLORS } from '../src/constants/theme';
-
-import { sellerService } from '../src/services/sellerService';
-import { safeImageUri, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FollowingShops'>;
 
 export default function FollowingShopsScreen({ navigation }: Props) {
-    const { isGuest, user } = useAuthStore();
+    const { isGuest } = useAuthStore();
+    const [showGuestModal, setShowGuestModal] = useState(false);
     const insets = useSafeAreaInsets();
 
-    // State
-    const [followingShops, setFollowingShops] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    // Fetch followed shops
-    const fetchFollowedShops = async () => {
-        if (!user?.id) return;
-        setLoading(true);
-        try {
-            const shops = await sellerService.getFollowedShops(user.id);
-            setFollowingShops(shops);
-        } catch (error) {
-            console.error('Error fetching followed shops:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
-        if (isGuest) return;
-
-        // Fetch initially
-        fetchFollowedShops();
-
-        // Add focus listener to refresh when coming back
-        const unsubscribe = navigation.addListener('focus', () => {
-            fetchFollowedShops();
-        });
-
-        return unsubscribe;
-    }, [isGuest, user?.id, navigation]);
-
-    const handleUnfollow = async (shopId: string) => {
-        if (!user?.id) return;
-
-        // Optimistic update
-        setFollowingShops(prev => prev.filter(s => s.id !== shopId));
-
-        try {
-            await sellerService.unfollowSeller(user.id, shopId);
-        } catch (error) {
-            console.error('Error unfollowing shop:', error);
-            // Re-fetch on error to restore state
-            fetchFollowedShops();
+        if (isGuest) {
+            setShowGuestModal(true);
         }
+    }, [isGuest]);
+
+    // Simulate following random official stores for demo purposes
+    const followingShops = officialStores;
+
+    const handleUnfollow = (shopId: string) => {
+        console.log('Unfollow shop:', shopId);
+        // In a real app, this would update state/backend
     };
 
     const handleVisitShop = (shop: any) => {
-        // Ensure we pass the minimal required store object
         navigation.navigate('StoreDetail', { store: shop });
     };
 
     if (isGuest) {
         return (
             <View style={styles.container}>
-            <StatusBar barStyle="dark-content" />
-            {/* Header - Guest View */}
-            <LinearGradient
-                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
-            >
-                <View style={styles.headerTop}>
-                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
-                    </Pressable>
-                    <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Following Shops</Text>
-                    <View style={{ width: 40 }} />
+                <StatusBar barStyle="light-content" />
+                {/* Header - Guest View */}
+                <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+                    <View style={styles.headerTop}>
+                        <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                        </Pressable>
+                        <Text style={styles.headerTitle}>Following Shops</Text>
+                        <View style={{ width: 40 }} />
+                    </View>
                 </View>
-            </LinearGradient>
 
                 <GuestLoginModal
                     visible={true}
@@ -105,23 +64,18 @@ export default function FollowingShopsScreen({ navigation }: Props) {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="dark-content" />
-
+            <StatusBar barStyle="light-content" />
+            
             {/* Header */}
-            <LinearGradient
-                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
-            >
+             <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
                 <View style={styles.headerTop}>
                     <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
                     </Pressable>
-                    <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Following Shops</Text>
+                    <Text style={styles.headerTitle}>Following Shops</Text>
                     <View style={{ width: 40 }} />
                 </View>
-            </LinearGradient>
+            </View>
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
                 {followingShops.length === 0 ? (
@@ -135,7 +89,7 @@ export default function FollowingShopsScreen({ navigation }: Props) {
                 ) : (
                     followingShops.map((shop) => (
                         <Pressable key={shop.id} style={styles.shopCard} onPress={() => handleVisitShop(shop)}>
-                            <Image source={{ uri: safeImageUri(shop.banner, PLACEHOLDER_BANNER) }} style={styles.shopImage} />
+                            <Image source={{ uri: shop.banner }} style={styles.shopImage} />
                             <View style={styles.overlay} />
                             <View style={styles.logoContainer}>
                                 <Text style={{ fontSize: 24 }}>{shop.logo}</Text>
@@ -157,11 +111,11 @@ export default function FollowingShopsScreen({ navigation }: Props) {
                                 <View style={styles.statsRow}>
                                     <View style={styles.statItem}>
                                         <Users size={14} color="#6B7280" />
-                                        <Text style={styles.statText}>{shop.followers_count > 1000 ? (shop.followers_count / 1000).toFixed(1) + 'k' : shop.followers_count} followers</Text>
+                                        <Text style={styles.statText}>{shop.followers > 1000 ? (shop.followers / 1000).toFixed(1) + 'k' : shop.followers} followers</Text>
                                     </View>
                                     <View style={styles.statItem}>
                                         <Store size={14} color="#6B7280" />
-                                        <Text style={styles.statText}>{shop.products_count} products</Text>
+                                        <Text style={styles.statText}>{shop.products.length} products</Text>
                                     </View>
                                 </View>
 
@@ -197,28 +151,23 @@ export default function FollowingShopsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: '#F9FAFB',
     },
     headerContainer: {
         paddingHorizontal: 20,
-        paddingBottom: 25,
         borderBottomLeftRadius: 30,
         borderBottomRightRadius: 30,
-        elevation: 2,
+        paddingBottom: 20,
+        marginBottom: 10,
+        elevation: 4,
         shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        zIndex: 10,
     },
     headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    headerIconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: { fontSize: 20, fontWeight: '800' },
+    headerIconButton: { padding: 4 },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
     scrollView: {
         flex: 1,
     },
@@ -249,10 +198,10 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         overflow: 'hidden',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 5,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     shopImage: {
         width: '100%',
@@ -306,7 +255,7 @@ const styles = StyleSheet.create({
     ratingText: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#FB8C00', // Warm Orange
+        color: '#FF6A00',
     },
     locationRow: {
         flexDirection: 'row',
@@ -338,13 +287,13 @@ const styles = StyleSheet.create({
     },
     visitButton: {
         flex: 1,
-        backgroundColor: '#FB8C00', // Warm Orange
+        backgroundColor: '#FF6A00',
         paddingVertical: 12,
         borderRadius: 12,
         alignItems: 'center',
     },
     visitButtonPressed: {
-        backgroundColor: '#E67E00',
+        backgroundColor: '#E55F00',
     },
     visitButtonText: {
         fontSize: 14,

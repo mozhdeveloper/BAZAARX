@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -27,11 +26,7 @@ import {
   Eye,
   EyeOff,
   Save,
-  Loader2,
-  Map,
-  LocateFixed,
-  Check,
-  ChevronLeft
+  Loader2
 } from 'lucide-react';
 import {
   Dialog,
@@ -46,7 +41,6 @@ import { useBuyerStore, Address } from '../stores/buyerStore';
 import { useToast } from '@/hooks/use-toast';
 import { regions, provinces, cities, barangays } from "select-philippines-address";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AddressPicker } from '@/components/ui/address-picker';
 
 // Mock data
 const mockAddresses = [
@@ -95,7 +89,6 @@ const mockPaymentMethods = [
 ];
 
 export default function BuyerSettingsPage() {
-  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('addresses');
   const { toast } = useToast();
@@ -122,14 +115,8 @@ export default function BuyerSettingsPage() {
     province: '',
     region: '',
     postalCode: '',
-    isDefault: false,
-    coordinates: null as { lat: number; lng: number } | null,
-    landmark: '',
-    deliveryInstructions: '',
+    isDefault: false
   });
-
-  // Map picker state
-  const [showMapPicker, setShowMapPicker] = useState(false);
 
   // Load regions on mount
   useEffect(() => {
@@ -158,12 +145,7 @@ export default function BuyerSettingsPage() {
   const handleOpenAddressModal = async (address?: Address) => {
     if (address) {
       setEditingId(address.id);
-      setNewAddress({
-        ...address,
-        coordinates: address.coordinates || null,
-        landmark: address.landmark || '',
-        deliveryInstructions: address.deliveryInstructions || '',
-      });
+      setNewAddress({ ...address });
 
       // 1. Re-populate the lists based on existing names
       try {
@@ -200,20 +182,9 @@ export default function BuyerSettingsPage() {
       setCityList([]);
       setBarangayList([]);
       setNewAddress({
-        label: 'Home',
-        firstName: profile?.firstName || '',
-        lastName: profile?.lastName || '',
-        phone: profile?.phone || '',
-        street: '',
-        barangay: '',
-        city: '',
-        province: '',
-        region: '',
-        postalCode: '',
-        isDefault: addresses.length === 0,
-        coordinates: null,
-        landmark: '',
-        deliveryInstructions: '',
+        label: 'Home', firstName: profile?.firstName || '', lastName: profile?.lastName || '',
+        phone: profile?.phone || '', street: '', barangay: '', city: '',
+        province: '', region: '', postalCode: '', isDefault: addresses.length === 0
       });
     }
     setIsAddressOpen(true);
@@ -223,11 +194,14 @@ export default function BuyerSettingsPage() {
     if (!profile) return;
     setIsSaving(true);
     try {
-      const { addressService } = await import('../services/addressService');
+      const { supabase } = await import('../lib/supabase');
 
       // FIX: Clear existing default in DB and Local State
       if (newAddress.isDefault) {
-        await addressService.setDefaultAddress(profile.id, ''); // Clear all defaults first
+        await supabase
+          .from('addresses')
+          .update({ is_default: false })
+          .eq('user_id', profile.id);
 
         // Update local store to reset other defaults
         addresses.forEach(addr => {
@@ -235,35 +209,34 @@ export default function BuyerSettingsPage() {
         });
       }
 
-      const addressPayload: any = {
+      const dbPayload = {
         user_id: profile.id,
         label: newAddress.label,
-        address_line_1: `${newAddress.firstName} ${newAddress.lastName}, ${newAddress.phone}, ${newAddress.street}`,
-        address_line_2: newAddress.landmark || null,
+        first_name: newAddress.firstName,
+        last_name: newAddress.lastName,
+        phone: newAddress.phone,
+        street: newAddress.street,
         barangay: newAddress.barangay,
         city: newAddress.city,
         province: newAddress.province,
         region: newAddress.region,
-        postal_code: newAddress.postalCode,
+        zip_code: newAddress.postalCode,
         is_default: newAddress.isDefault,
-        delivery_instructions: newAddress.deliveryInstructions || null,
-        address_type: 'residential',
       };
 
-      // Include coordinates if available
-      if (newAddress.coordinates) {
-        addressPayload.coordinates = newAddress.coordinates;
-      }
-
       if (editingId) {
-        const updatedAddress = await addressService.updateAddress(editingId, addressPayload);
-        updateAddress(editingId, updatedAddress);
+        const { error } = await supabase.from('addresses').update(dbPayload).eq('id', editingId);
+        if (error) throw error;
+        updateAddress(editingId, { ...newAddress, id: editingId });
       } else {
-        const savedAddress = await addressService.createAddress(addressPayload);
-        addAddress(savedAddress);
+        const { data, error } = await supabase.from('addresses').insert([dbPayload]).select().single();
+        if (error) throw error;
+        addAddress({
+          ...newAddress, id: data.id,
+          fullName: ''
+        });
       }
       setIsAddressOpen(false);
-      setShowMapPicker(false);
       toast({ title: editingId ? "Address updated" : "Address added" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -292,7 +265,7 @@ export default function BuyerSettingsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -302,43 +275,34 @@ export default function BuyerSettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all group mb-4"
-          >
-            <ChevronLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-          </button>
-          <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Settings</h1>
-          <p className="text-[var(--text-muted)]">Manage your account settings and preferences</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
+          <p className="text-gray-600">Manage your account settings and preferences</p>
         </motion.div>
 
         {/* Settings Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <div className="overflow-x-auto scrollbar-hide pb-0.5">
-            <div className="inline-flex items-center p-1 bg-white rounded-full border border-orange-100/50 shadow-sm min-w-full md:min-w-max">
-              {[
-                { value: 'addresses', label: 'Addresses', icon: MapPin },
-                { value: 'payment', label: 'Payment', icon: CreditCard },
-                { value: 'wallet', label: 'Wallet', icon: Wallet },
-                { value: 'notifications', label: 'Notifications', icon: Bell },
-                { value: 'security', label: 'Security', icon: Shield },
-              ].map((tab) => (
-                <button
-                  key={tab.value}
-                  onClick={() => setActiveTab(tab.value)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all duration-300",
-                    activeTab === tab.value
-                      ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
-                      : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50"
-                  )}
-                >
-                  <tab.icon className="h-3.5 w-3.5" />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+            <TabsTrigger value="addresses">
+              <MapPin className="h-4 w-4 mr-2" />
+              Addresses
+            </TabsTrigger>
+            <TabsTrigger value="payment">
+              <CreditCard className="h-4 w-4 mr-2" />
+              Payment
+            </TabsTrigger>
+            <TabsTrigger value="wallet">
+              <Wallet className="h-4 w-4 mr-2" />
+              Wallet
+            </TabsTrigger>
+            <TabsTrigger value="notifications">
+              <Bell className="h-4 w-4 mr-2" />
+              Notifications
+            </TabsTrigger>
+            <TabsTrigger value="security">
+              <Shield className="h-4 w-4 mr-2" />
+              Security
+            </TabsTrigger>
+          </TabsList>
 
           {/* Addresses Tab */}
           <TabsContent value="addresses">
@@ -354,11 +318,11 @@ export default function BuyerSettingsPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium">{address.label}</span>
-                        {address.isDefault && <Badge className="bg-[var(--brand-wash)] text-[var(--brand-primary)]">Default</Badge>}
+                        {address.isDefault && <Badge className="bg-orange-100 text-orange-700">Default</Badge>}
                       </div>
-                      <p className="text-sm text-[var(--text-headline)]">{address.firstName} {address.lastName}</p>
-                      <p className="text-sm text-[var(--text-muted)]">{address.phone}</p>
-                      <p className="text-sm text-[var(--text-muted)]">{address.street}, {address.barangay}, {address.city}, {address.province}</p>
+                      <p className="text-sm text-gray-900">{address.firstName} {address.lastName}</p>
+                      <p className="text-sm text-gray-500">{address.phone}</p>
+                      <p className="text-sm text-gray-500">{address.street}, {address.barangay}, {address.city}, {address.province}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -367,14 +331,9 @@ export default function BuyerSettingsPage() {
                     </Button>
                     <Button variant="ghost" size="sm" className="text-red-500" onClick={async () => {
                       if (confirm("Delete?")) {
-                        try {
-                          const { addressService } = await import('../services/addressService');
-                          await addressService.deleteAddress(address.id);
-                          deleteAddress(address.id);
-                          toast({ title: "Address deleted" });
-                        } catch (error: any) {
-                          toast({ title: "Error", description: error.message, variant: "destructive" });
-                        }
+                        const { supabase } = await import('../lib/supabase');
+                        await supabase.from('addresses').delete().eq('id', address.id);
+                        deleteAddress(address.id);
                       }
                     }}>
                       <Trash2 className="h-4 w-4" />
@@ -405,7 +364,7 @@ export default function BuyerSettingsPage() {
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-semibold">{method.name}</h3>
                             {method.isDefault && (
-                              <Badge className="bg-[var(--brand-primary)]">Default</Badge>
+                              <Badge className="bg-orange-500">Default</Badge>
                             )}
                           </div>
                           <p className="text-sm text-gray-600">
@@ -461,21 +420,21 @@ export default function BuyerSettingsPage() {
               className="space-y-6"
             >
               {/* Wallet Balance */}
-              <Card className="bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white">
+              <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
                 <CardContent className="p-8">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-white/80 mb-2">Available Balance</p>
+                      <p className="text-orange-100 mb-2">Available Balance</p>
                       <h2 className="text-4xl font-bold">₱1,234.50</h2>
                     </div>
-                    <Wallet className="h-16 w-16 text-white/20" />
+                    <Wallet className="h-16 w-16 text-orange-200" />
                   </div>
                   <div className="grid grid-cols-2 gap-4 mt-6">
-                    <Button className="bg-white text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]">
+                    <Button className="bg-white text-orange-600 hover:bg-orange-50">
                       <Plus className="h-4 w-4 mr-2" />
                       Top Up
                     </Button>
-                    <Button variant="outline" className="border-white text-white hover:bg-[var(--brand-primary-dark)]">
+                    <Button variant="outline" className="border-white text-white hover:bg-orange-600">
                       Withdraw
                     </Button>
                   </div>
@@ -520,17 +479,17 @@ export default function BuyerSettingsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="border-2 border-dashed border-[var(--brand-wash-gold)]/40 rounded-lg p-4 bg-[var(--brand-wash)]">
+                    <div className="border-2 border-dashed border-orange-300 rounded-lg p-4 bg-orange-50">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge className="bg-[var(--brand-primary)]">20% OFF</Badge>
+                        <Badge className="bg-orange-500">20% OFF</Badge>
                         <span className="text-xs text-gray-500">Valid until Feb 28</span>
                       </div>
                       <p className="text-sm font-medium">Purchase above ₱1000</p>
                       <code className="text-xs bg-white px-2 py-1 rounded mt-2 inline-block">SAVE20</code>
                     </div>
-                    <div className="border-2 border-dashed border-[var(--brand-wash-gold)]/40 rounded-lg p-4 bg-[var(--brand-wash)]">
+                    <div className="border-2 border-dashed border-orange-300 rounded-lg p-4 bg-orange-50">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge className="bg-[var(--brand-primary)]">Free Shipping</Badge>
+                        <Badge className="bg-orange-500">Free Shipping</Badge>
                         <span className="text-xs text-gray-500">Valid until Jan 31</span>
                       </div>
                       <p className="text-sm font-medium">No minimum purchase</p>
@@ -552,7 +511,7 @@ export default function BuyerSettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Bell className="h-5 w-5 text-[var(--brand-primary)]" />
+                    <Bell className="h-5 w-5 text-orange-600" />
                     Notification Channels
                   </CardTitle>
                   <CardDescription>Choose how you want to receive notifications</CardDescription>
@@ -655,7 +614,7 @@ export default function BuyerSettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Lock className="h-5 w-5 text-[var(--brand-primary)]" />
+                    <Lock className="h-5 w-5 text-orange-600" />
                     Password & Authentication
                   </CardTitle>
                 </CardHeader>
@@ -688,7 +647,7 @@ export default function BuyerSettingsPage() {
                     <Input type="password" placeholder="Confirm new password" />
                   </div>
 
-                  <Button className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]">
+                  <Button className="w-full bg-orange-500 hover:bg-orange-600">
                     <Save className="h-4 w-4 mr-2" />
                     Update Password
                   </Button>
@@ -711,7 +670,7 @@ export default function BuyerSettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-[var(--brand-primary)]" />
+                    <Shield className="h-5 w-5 text-orange-600" />
                     Privacy & Security
                   </CardTitle>
                 </CardHeader>
@@ -781,213 +740,132 @@ export default function BuyerSettingsPage() {
       </div>
       <BazaarFooter />
 
-      <Dialog open={isAddressOpen} onOpenChange={(open) => { setIsAddressOpen(open); if (!open) setShowMapPicker(false); }}>
-        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-hidden flex flex-col">
+      <Dialog open={isAddressOpen} onOpenChange={setIsAddressOpen}>
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Edit Address' : 'Add New Address'}</DialogTitle>
           </DialogHeader>
-
-          {/* Map Picker View */}
-          {showMapPicker ? (
-            <div className="flex-1 overflow-hidden" style={{ height: '450px' }}>
-              <AddressPicker
-                initialCoordinates={newAddress.coordinates || undefined}
-                onLocationSelect={(location) => {
-                  setNewAddress({
-                    ...newAddress,
-                    street: location.street || newAddress.street,
-                    barangay: location.barangay || newAddress.barangay,
-                    city: location.city || newAddress.city,
-                    province: location.province || newAddress.province,
-                    region: location.region || newAddress.region,
-                    postalCode: location.postalCode || newAddress.postalCode,
-                    coordinates: location.coordinates,
-                  });
-                  setShowMapPicker(false);
-                }}
-                onClose={() => setShowMapPicker(false)}
-              />
-            </div>
-          ) : (
-            <div className="grid gap-4 py-4 flex-1 overflow-y-auto">
-              {/* Map Picker Button */}
-              <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-orange-500 rounded-full p-2">
-                      <Map className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">Pick from Map</p>
-                      <p className="text-xs text-gray-500">Use GPS or search location</p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowMapPicker(true)}
-                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                  >
-                    <LocateFixed className="w-4 h-4 mr-1" />
-                    Open Map
-                  </Button>
-                </div>
-                {newAddress.coordinates && (
-                  <div className="mt-2 pt-2 border-t border-orange-200">
-                    <p className="text-xs text-green-600 flex items-center gap-1">
-                      <Check className="w-3 h-3" />
-                      Location: {newAddress.coordinates.lat.toFixed(4)}, {newAddress.coordinates.lng.toFixed(4)}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* 1. Address Label & Phone Number */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="label">Address Label</Label>
-                  <Input
-                    id="label"
-                    placeholder="e.g. Home, Office"
-                    value={newAddress.label}
-                    onChange={e => setNewAddress({ ...newAddress, label: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    placeholder="0912 345 6789"
-                    value={newAddress.phone}
-                    onChange={e => setNewAddress({ ...newAddress, phone: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Street and House No. */}
+          <div className="grid gap-4 py-4">
+            {/* 1. Address Label & Phone Number */}
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Street / House No.</Label>
-                <Input value={newAddress.street} onChange={e => setNewAddress({ ...newAddress, street: e.target.value })} />
-              </div>
-
-              {/* Region and Province */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Region</Label>
-                  <Select
-                    // Maps the saved Name back to the Code for the dropdown value
-                    value={regionList.find(r => r.region_name === newAddress.region)?.region_code}
-                    onValueChange={onRegionChange}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select Region" /></SelectTrigger>
-                    <SelectContent>
-                      {regionList.map(r => <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Province</Label>
-                  <Select
-                    // Maps saved Province Name back to Code
-                    value={provinceList.find(p => p.province_name === newAddress.province)?.province_code}
-                    onValueChange={onProvinceChange}
-                    disabled={!provinceList.length}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select Province" /></SelectTrigger>
-                    <SelectContent>
-                      {provinceList.map(p => <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* City and Barangay */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>City</Label>
-                  <Select
-                    // Maps saved City Name back to Code
-                    value={cityList.find(c => c.city_name === newAddress.city)?.city_code}
-                    onValueChange={onCityChange}
-                    disabled={!cityList.length}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select City" /></SelectTrigger>
-                    <SelectContent>
-                      {cityList.map(c => <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Barangay</Label>
-                  <Select
-                    // Barangay usually works by name directly in this library
-                    value={newAddress.barangay}
-                    onValueChange={v => setNewAddress({ ...newAddress, barangay: v })}
-                    disabled={!barangayList.length}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select Barangay" /></SelectTrigger>
-                    <SelectContent>
-                      {barangayList.map(b => <SelectItem key={b.brgy_code} value={b.brgy_name}>{b.brgy_name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* 2. Postal Code & Set to Default Toggle */}
-              <div className="grid grid-cols-2 gap-4 items-center pt-2">
-                <div className="space-y-2">
-                  <Label htmlFor="postalCode">Postal Code</Label>
-                  <Input
-                    id="postalCode"
-                    placeholder="1234"
-                    value={newAddress.postalCode}
-                    onChange={e => setNewAddress({ ...newAddress, postalCode: e.target.value })}
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2 pt-6">
-                  <Switch
-                    id="set-default"
-                    checked={newAddress.isDefault}
-                    onCheckedChange={(checked) => setNewAddress({ ...newAddress, isDefault: checked })}
-                  />
-                  <Label htmlFor="set-default" className="cursor-pointer">Set as Default</Label>
-                </div>
-              </div>
-
-              {/* Landmark (Optional) */}
-              <div className="space-y-2">
-                <Label htmlFor="landmark">Landmark (Optional)</Label>
+                <Label htmlFor="label">Address Label</Label>
                 <Input
-                  id="landmark"
-                  placeholder="Near SM Mall, In front of church, etc."
-                  value={newAddress.landmark}
-                  onChange={e => setNewAddress({ ...newAddress, landmark: e.target.value })}
+                  id="label"
+                  placeholder="e.g. Home, Office"
+                  value={newAddress.label}
+                  onChange={e => setNewAddress({ ...newAddress, label: e.target.value })}
                 />
               </div>
-
-              {/* Delivery Instructions (Optional) */}
               <div className="space-y-2">
-                <Label htmlFor="deliveryInstructions">Delivery Instructions (Optional)</Label>
+                <Label htmlFor="phone">Phone Number</Label>
                 <Input
-                  id="deliveryInstructions"
-                  placeholder="Gate code, leave at door, call upon arrival, etc."
-                  value={newAddress.deliveryInstructions}
-                  onChange={e => setNewAddress({ ...newAddress, deliveryInstructions: e.target.value })}
+                  id="phone"
+                  placeholder="0912 345 6789"
+                  value={newAddress.phone}
+                  onChange={e => setNewAddress({ ...newAddress, phone: e.target.value })}
                 />
               </div>
             </div>
-          )}
 
-          {!showMapPicker && (
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddressOpen(false)}>Cancel</Button>
-              <Button onClick={handleSaveAddress} disabled={isSaving} className="bg-[#ff6a00] hover:bg-[#e65e00] text-white">
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {editingId ? 'Update Address' : 'Save Address'}
-              </Button>
-            </DialogFooter>
-          )}
+            {/* Street and House No. */}
+            <div className="space-y-2">
+              <Label>Street / House No.</Label>
+              <Input value={newAddress.street} onChange={e => setNewAddress({ ...newAddress, street: e.target.value })} />
+            </div>
+
+            {/* Region and Province */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Region</Label>
+                <Select
+                  // Maps the saved Name back to the Code for the dropdown value
+                  value={regionList.find(r => r.region_name === newAddress.region)?.region_code}
+                  onValueChange={onRegionChange}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Region" /></SelectTrigger>
+                  <SelectContent>
+                    {regionList.map(r => <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Province</Label>
+                <Select
+                  // Maps saved Province Name back to Code
+                  value={provinceList.find(p => p.province_name === newAddress.province)?.province_code}
+                  onValueChange={onProvinceChange}
+                  disabled={!provinceList.length}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Province" /></SelectTrigger>
+                  <SelectContent>
+                    {provinceList.map(p => <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* City and Barangay */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>City</Label>
+                <Select
+                  // Maps saved City Name back to Code
+                  value={cityList.find(c => c.city_name === newAddress.city)?.city_code}
+                  onValueChange={onCityChange}
+                  disabled={!cityList.length}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select City" /></SelectTrigger>
+                  <SelectContent>
+                    {cityList.map(c => <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Barangay</Label>
+                <Select
+                  // Barangay usually works by name directly in this library
+                  value={newAddress.barangay}
+                  onValueChange={v => setNewAddress({ ...newAddress, barangay: v })}
+                  disabled={!barangayList.length}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Barangay" /></SelectTrigger>
+                  <SelectContent>
+                    {barangayList.map(b => <SelectItem key={b.brgy_code} value={b.brgy_name}>{b.brgy_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* 2. Postal Code & Set to Default Toggle */}
+            <div className="grid grid-cols-2 gap-4 items-center pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="postalCode">Postal Code</Label>
+                <Input
+                  id="postalCode"
+                  placeholder="1234"
+                  value={newAddress.postalCode}
+                  onChange={e => setNewAddress({ ...newAddress, postalCode: e.target.value })}
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-6">
+                <Switch
+                  id="set-default"
+                  checked={newAddress.isDefault}
+                  onCheckedChange={(checked) => setNewAddress({ ...newAddress, isDefault: checked })}
+                />
+                <Label htmlFor="set-default" className="cursor-pointer">Set as Default Address</Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddressOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveAddress} disabled={isSaving} className="bg-[#ff6a00] hover:bg-[#e65e00] text-white">
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {editingId ? 'Update Address' : 'Save Address'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

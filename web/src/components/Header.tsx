@@ -9,15 +9,12 @@ import {
   ChevronDown,
   ShoppingBag,
   Camera,
-  MessageCircle,
-  Headset,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { useBuyerStore } from "../stores/buyerStore";
 import VisualSearchModal from "./VisualSearchModal";
 import ProductRequestModal from "./ProductRequestModal";
-import SupportModal from "./SupportModal";
 import {
   trendingProducts,
   bestSellerProducts,
@@ -26,17 +23,15 @@ import {
 
 interface HeaderProps {
   transparentOnTop?: boolean;
-  hideSearch?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = false }) => {
+const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, logout, getTotalCartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
-  const [showSupportModal, setShowSupportModal] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -72,9 +67,9 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
   }, []);
 
   const headerClasses = transparentOnTop
-    ? `fixed top-0 w-full z-[100] transition-all duration-300 ${isScrolled ? "bg-[var(--bg-secondary)]/80 backdrop-blur-md shadow-sm" : "bg-transparent"
+    ? `fixed top-0 w-full z-[100] transition-all duration-300 ${isScrolled ? "bg-white/80 backdrop-blur-md shadow-sm" : "bg-transparent"
     }`
-    : "sticky top-0 z-[100] bg-[var(--brand-wash)]";
+    : "sticky top-0 z-[100] bg-gray-50";
 
   return (
     <header className={headerClasses}>
@@ -91,69 +86,62 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                 alt="BazaarX Logo"
                 className="h-12 w-auto object-contain"
               />
-              <span
+              <span 
                 className="font-['Tenor Sans'] text-2xl font-bold tracking-tight hidden md:block text-[var(--brand-primary)]">
                 BazaarX
               </span>
             </div>
           </div>
 
-          {(!isSearchPage || location.pathname === "/stores") && !hideSearch && (
+          {!isSearchPage && (
             <div className={`hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg
-                    className="h-5 w-5 text-[var(--brand-primary)]"
+                    className="h-5 w-5 text-gray-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                  >
+                  > 
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth="2.5"
+                      strokeWidth="2"
                       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                     />
                   </svg>
                 </div>
                 <input
                   type="text"
-                  placeholder={location.pathname === "/stores" ? "Search for stores..." : "Search for products, brands, categories"}
-                  className="w-full pl-11 pr-12 py-3 bg-white border border-gray-100 rounded-full text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-0 focus:border-[var(--brand-primary)] transition-all text-sm shadow-md hover:shadow-lg"
+                  placeholder="Search for products, brands, categories"
+                  className="w-full pl-10 pr-12 py-2.5 bg-white border-2 border-transparent focus:border-[#ff6a00] rounded-full text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-orange-100 transition-all text-sm shadow-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       const query = (e.target as HTMLInputElement).value;
-                      if (location.pathname === "/stores") {
-                        navigate(`/stores${query ? "?q=" + encodeURIComponent(query) : ""}`);
-                        // Force a re-render or state update if needed, though navigate should trigger location change in StoresPage
-                      } else {
-                        navigate(
-                          `/search${query ? "?q=" + encodeURIComponent(query) : ""
-                          }`
-                        );
-                      }
+                      navigate(
+                        `/search${query ? "?q=" + encodeURIComponent(query) : ""
+                        }`
+                      );
                     }
                   }}
-                  defaultValue={new URLSearchParams(location.search).get("q") || ""}
                 />
 
-                {location.pathname !== "/stores" && (
-                  <button
-                    onClick={() => setShowVisualSearchModal(true)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors rounded-full hover:bg-[var(--brand-wash)] p-1"
-                    title="Search by image"
-                  >
-                    <Camera className="w-5 h-5" />
-                  </button>
-                )}
+                {/* Camera Button */}
+                <button
+                  onClick={() => setShowVisualSearchModal(true)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-[#ff6a00] transition-colors rounded-full hover:bg-gray-100"
+                  title="Search by image"
+                >
+                  <Camera className="w-5 h-5" />
+                </button>
               </div>
             </div>
           )}
 
           {/* Right Navigation */}
-          <div
-            className="flex items-center justify-end text-[var(--text-primary)] shrink-0 gap-[var(--spacing-md)]">
-            {!isSearchPage && !hideSearch && (
+          <div 
+            className="flex items-center justify-end text-gray-700 shrink-0 gap-[var(--spacing-md)]">
+            {!isSearchPage && (
               <button
                 onClick={() => navigate("/search")}
                 className="md:hidden p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -174,14 +162,10 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
               </button>
             )}
 
-
             {/* Cart */}
             <button
               onClick={() => navigate("/enhanced-cart")}
-              className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname === "/enhanced-cart"
-                ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
-                : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
-                }`}
+              className="relative p-2 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors"
               title="Shopping Cart"
             >
               <svg
@@ -207,10 +191,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
             {/* Orders */}
             <button
               onClick={() => navigate("/orders")}
-              className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname === "/orders"
-                ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
-                : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
-                }`}
+              className="relative p-2 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors"
               title="My Orders"
             >
               <svg
@@ -228,18 +209,6 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
               </svg>
             </button>
 
-            {/* Messages */}
-            <button
-              onClick={() => navigate("/messages")}
-              className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname === "/messages"
-                ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
-                : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
-                }`}
-              title="Messages"
-            >
-              <MessageCircle className="h-6 w-6" />
-            </button>
-
             {/* Notifications */}
             <NotificationsDropdown />
 
@@ -252,16 +221,16 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
                   >
                     <div className="hidden xl:block text-right">
-                      <p className="text-sm font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors leading-none">
+                      <p className="text-sm font-medium text-gray-700 group-hover:text-[#ff6a00] transition-colors leading-none">
                         Hi, {profile.firstName}
                       </p>
-                      <p className="text-[10px] text-[var(--text-accent)] mt-1 uppercase tracking-wider">
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-medium">
                         {profile.bazcoins} Bazcoins
                       </p>
                     </div>
 
                     <div className="relative">
-                      <div className="w-9 h-9 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden shadow-sm hover:scale-105 transition-transform border border-white/50">
+                      <div className="w-9 h-9 bg-[#ff6a00] rounded-full flex items-center justify-center overflow-hidden shadow-sm hover:scale-105 transition-transform">
                         {profile.avatar ? (
                           <img src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
                         ) : (
@@ -280,10 +249,10 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
                   {/* Profile Dropdown */}
                   {showProfileMenu && (
-                    <div className="absolute right-0 mt-2 w-56 bg-[var(--bg-secondary)] rounded-xl shadow-xl z-50 overflow-hidden text-[var(--text-primary)] animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="p-3 bg-[var(--brand-wash)]/50">
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden text-gray-800 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-3 bg-gray-50/50 border-b border-gray-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden shadow-md text-white font-bold text-base">
+                          <div className="w-10 h-10 bg-[#ff6a00] rounded-full flex items-center justify-center overflow-hidden shadow-md text-white font-bold text-base">
                             {profile.avatar ? (
                               <img src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
                             ) : (
@@ -310,7 +279,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                             navigate("/profile");
                             setShowProfileMenu(false);
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
                         >
                           <User className="h-3.5 w-3.5" />
                           My Profile
@@ -318,10 +287,21 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
                         <button
                           onClick={() => {
+                            navigate("/orders");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
+                        >
+                          <ShoppingBag className="h-3.5 w-3.5" />
+                          My Orders
+                        </button>
+
+                        <button
+                          onClick={() => {
                             navigate("/my-reviews");
                             setShowProfileMenu(false);
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
                         >
                           <Star className="h-3.5 w-3.5" />
                           My Reviews
@@ -329,10 +309,10 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
                         <button
                           onClick={() => {
-                            navigate("/profile?tab=following");
+                            navigate("/following");
                             setShowProfileMenu(false);
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
                         >
                           <Heart className="h-3.5 w-3.5" />
                           Following
@@ -345,22 +325,10 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                             navigate("/settings");
                             setShowProfileMenu(false);
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
                         >
                           <Settings className="h-3.5 w-3.5" />
                           Settings
-                        </button>
-
-
-                        <button
-                          onClick={() => {
-                            navigate('/buyer-support');
-                            setShowProfileMenu(false);
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
-                        >
-                          <Headset className="h-3.5 w-3.5" />
-                          Help Center
                         </button>
 
                         <button
@@ -383,10 +351,10 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                   onClick={() => navigate('/login')}
                   className="flex items-center gap-3 group"
                 >
-                  <span className="text-sm font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors">
+                  <span className="text-sm font-medium text-gray-700 group-hover:text-[#ff6a00] transition-colors">
                     Sign In
                   </span>
-                  <div className="w-9 h-9 bg-[var(--brand-primary)] rounded-full flex items-center justify-center text-white shadow-sm hover:scale-105 transition-transform border border-white/50">
+                  <div className="w-9 h-9 bg-[#ff6a00] rounded-full flex items-center justify-center text-white shadow-sm hover:scale-105 transition-transform">
                     <User className="w-5 h-5" />
                   </div>
                 </button>
@@ -409,11 +377,6 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
       <ProductRequestModal
         isOpen={showRequestModal}
         onClose={() => setShowRequestModal(false)}
-      />
-
-      <SupportModal
-        isOpen={showSupportModal}
-        onClose={() => setShowSupportModal(false)}
       />
     </header>
   );

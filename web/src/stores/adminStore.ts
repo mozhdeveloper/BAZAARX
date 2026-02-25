@@ -1,22 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { notificationService } from '@/services/notificationService';
-
-export type SellerDocumentField =
-  | 'business_permit_url'
-  | 'valid_id_url'
-  | 'proof_of_address_url'
-  | 'dti_registration_url'
-  | 'tax_id_url';
-
-export interface PartialSellerRejectionInput {
-  note?: string;
-  items: {
-    documentField: SellerDocumentField;
-    reason?: string;
-  }[];
-}
 
 // Admin Types
 export interface AdminUser {
@@ -82,7 +66,7 @@ export interface Seller {
   accountNumber: string;
 
   // Status and Documents
-  status: 'pending' | 'approved' | 'rejected' | 'suspended' | 'needs_resubmission';
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
   documents: SellerDocument[];
   metrics: SellerMetrics;
 
@@ -100,15 +84,11 @@ export interface Seller {
 
 export interface SellerDocument {
   id: string;
-  field: SellerDocumentField;
   type: string;
   fileName: string;
   url: string;
   uploadDate: Date;
   isVerified: boolean;
-  isRejected?: boolean;
-  rejectionReason?: string;
-  wasResubmitted?: boolean;
 }
 
 export interface SellerMetrics {
@@ -119,93 +99,6 @@ export interface SellerMetrics {
   responseRate: number;
   fulfillmentRate: number;
 }
-
-interface SellerRejectionRecord {
-  id: string;
-  seller_id: string;
-  description: string | null;
-  rejection_type: 'full' | 'partial';
-  created_at: string;
-  created_by: string | null;
-  items?: {
-    document_field: SellerDocumentField;
-    reason: string | null;
-    created_at: string | null;
-  }[];
-}
-
-const SELLER_DOCUMENT_CONFIG: {
-  field: SellerDocumentField;
-  type: string;
-  fileName: string;
-  label: string;
-}[] = [
-  {
-    field: 'business_permit_url',
-    type: 'business_permit',
-    fileName: 'business-permit',
-    label: 'Business Permit',
-  },
-  {
-    field: 'valid_id_url',
-    type: 'valid_id',
-    fileName: 'valid-id',
-    label: 'Valid ID',
-  },
-  {
-    field: 'proof_of_address_url',
-    type: 'proof_of_address',
-    fileName: 'proof-of-address',
-    label: 'Proof of Address',
-  },
-  {
-    field: 'dti_registration_url',
-    type: 'dti_registration',
-    fileName: 'dti-registration',
-    label: 'DTI/SEC Registration',
-  },
-  {
-    field: 'tax_id_url',
-    type: 'tax_id',
-    fileName: 'tax-id',
-    label: 'BIR Tax ID (TIN)',
-  },
-];
-
-const DOCUMENT_FIELD_LABELS: Record<SellerDocumentField, string> = {
-  business_permit_url: 'Business Permit',
-  valid_id_url: 'Valid ID',
-  proof_of_address_url: 'Proof of Address',
-  dti_registration_url: 'DTI/SEC Registration',
-  tax_id_url: 'BIR Tax ID (TIN)',
-};
-
-const toUiSellerStatus = (
-  status: string | null | undefined,
-  latestRejectionType?: 'full' | 'partial',
-): Seller['status'] => {
-  if (status === 'verified' || status === 'approved') {
-    return 'approved';
-  }
-
-  if (status === 'needs_resubmission') {
-    return 'needs_resubmission';
-  }
-
-  if (status === 'rejected' && latestRejectionType === 'partial') {
-    return 'needs_resubmission';
-  }
-
-  if (status === 'rejected') {
-    return 'rejected';
-  }
-
-  if (status === 'suspended') {
-    return 'suspended';
-  }
-
-  return 'pending';
-};
 
 export interface Buyer {
   id: string;
@@ -301,15 +194,8 @@ export const useAdminAuth = create<AdminAuthState>()(
               return false;
             }
 
-            // Verify user is an admin by checking the admins table
-            const { data: adminRecord, error: adminError } = await supabase
-              .from('admins')
-              .select('*')
-              .eq('id', authData.user.id)
-              .single();
-
-            if (adminError || !adminRecord) {
-              console.error('Admin record not found:', adminError);
+            // Verify user is an admin
+            if (profile.user_type !== 'admin') {
               await supabase.auth.signOut();
               set({
                 error: 'Access denied. Admin account required.',
@@ -319,13 +205,12 @@ export const useAdminAuth = create<AdminAuthState>()(
             }
 
             // Create admin user object
-            const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Admin User';
             const adminUser: AdminUser = {
               id: authData.user.id,
               email: profile.email || email,
-              name: fullName,
+              name: profile.full_name || 'Admin User',
               role: 'admin',
-              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=FF6A00&color=fff`,
+              avatar: profile.avatar_url || `https://ui-avatars.io/api/?name=${encodeURIComponent(profile.full_name || 'Admin')}&background=FF6A00&color=fff`,
               lastLogin: new Date(),
               permissions: [
                 { id: '1', name: 'Full Access', resource: 'users', actions: ['read', 'write', 'delete'] },
@@ -365,7 +250,7 @@ export const useAdminAuth = create<AdminAuthState>()(
               email: 'admin@bazaarph.com',
               name: 'Admin User',
               role: 'super_admin' as const,
-              avatar: 'https://ui-avatars.com/api/?name=Admin+User&background=FF6A00&color=fff',
+              avatar: 'https://ui-avatars.io/api/?name=Admin+User&background=FF6A00&color=fff',
               lastLogin: new Date(),
               permissions: [
                 { id: '1', name: 'Full Access', resource: 'users' as const, actions: ['read', 'write', 'delete'] as ('read' | 'write' | 'delete' | 'approve')[] },
@@ -575,8 +460,7 @@ interface SellersState {
   error: string | null;
   loadSellers: () => Promise<void>;
   approveSeller: (id: string) => Promise<void>;
-  rejectSeller: (id: string, reason?: string) => Promise<void>;
-  partiallyRejectSeller: (id: string, payload: PartialSellerRejectionInput) => Promise<void>;
+  rejectSeller: (id: string, reason: string) => Promise<void>;
   suspendSeller: (id: string, reason: string) => Promise<void>;
   selectSeller: (seller: Seller | null) => void;
   addSeller: (seller: Seller) => void;
@@ -599,35 +483,14 @@ export const useAdminSellers = create<SellersState>()(
         // Try to load from Supabase if configured
         if (isSupabaseConfigured()) {
           try {
-            let sellersData: any[] | null = null;
-            let sellersError: any = null;
-
-            const primaryResult = await supabase
+            // Fetch sellers from Supabase with profile data (left join to include sellers without profiles)
+            const { data: sellersData, error: sellersError } = await supabase
               .from('sellers')
               .select(`
                 *,
-                profiles(*),
-                business_profile:seller_business_profiles(*),
-                payout_account:seller_payout_accounts(*),
-                verification_documents:seller_verification_documents(*)
+                profiles(email, full_name, phone)
               `)
               .order('created_at', { ascending: false });
-
-            sellersData = primaryResult.data as any[] | null;
-            sellersError = primaryResult.error;
-
-            if (sellersError) {
-              const fallbackResult = await supabase
-                .from('sellers')
-                .select(`
-                  *,
-                  profiles(*)
-                `)
-                .order('created_at', { ascending: false });
-
-              sellersData = fallbackResult.data as any[] | null;
-              sellersError = fallbackResult.error;
-            }
 
             if (sellersError) {
               console.error('Error loading sellers:', sellersError);
@@ -635,221 +498,114 @@ export const useAdminSellers = create<SellersState>()(
               return;
             }
 
-            const sellerIds = (sellersData || []).map((seller) => seller.id).filter(Boolean);
-            const latestRejectionsBySeller = new Map<string, SellerRejectionRecord>();
-            const verificationDocsBySeller = new Map<string, any>();
+            console.log('Raw sellers data from Supabase:', sellersData);
+            console.log('Number of sellers fetched:', sellersData?.length);
 
-            if (sellerIds.length > 0) {
-              const { data: verificationRows, error: verificationError } = await supabase
-                .from('seller_verification_documents')
-                .select('*')
-                .in('seller_id', sellerIds);
-
-              if (verificationError) {
-                console.warn('[AdminSellers] Could not load seller verification documents:', verificationError.message);
-              } else {
-                for (const row of verificationRows || []) {
-                  if (!row?.seller_id) continue;
-                  verificationDocsBySeller.set(row.seller_id, row);
-                }
-              }
-
-              const { data: rejectionRows, error: rejectionError } = await supabase
-                .from('seller_rejections')
-                .select(`
-                  id,
-                  seller_id,
-                  description,
-                  rejection_type,
-                  created_at,
-                  created_by,
-                  items:seller_rejection_items(document_field, reason, created_at)
-                `)
-                .in('seller_id', sellerIds)
-                .order('created_at', { ascending: false });
-
-              if (rejectionError) {
-                console.warn('[AdminSellers] Could not load rejection details:', rejectionError.message);
-              } else {
-                for (const row of (rejectionRows || []) as SellerRejectionRecord[]) {
-                  if (!row?.seller_id || latestRejectionsBySeller.has(row.seller_id)) {
-                    continue;
-                  }
-                  latestRejectionsBySeller.set(row.seller_id, row);
-                }
-              }
-            }
-
+            // Map Supabase data to admin seller format
             const sellers: Seller[] = (sellersData || []).map((seller: any) => {
-              const profileRaw = seller.profiles || seller.profile || null;
-              const profile = Array.isArray(profileRaw) ? profileRaw[0] : profileRaw;
-              const businessProfile = seller.business_profile || seller.seller_business_profiles || {};
-              const payoutAccount = seller.payout_account || seller.seller_payout_accounts || {};
-              const embeddedVerificationDocuments =
-                seller.verification_documents || seller.seller_verification_documents || null;
-              const verificationDocuments = Array.isArray(embeddedVerificationDocuments)
-                ? embeddedVerificationDocuments[0]
-                : embeddedVerificationDocuments;
-              const fallbackVerificationDocuments = verificationDocsBySeller.get(seller.id) || {};
-              const latestRejection = latestRejectionsBySeller.get(seller.id);
-              const status = toUiSellerStatus(seller.approval_status, latestRejection?.rejection_type);
-              const shouldShowDocumentRejectionFeedback =
-                status === 'needs_resubmission' && latestRejection?.rejection_type === 'partial';
-              const verificationUpdatedAt =
-                verificationDocuments?.updated_at ||
-                fallbackVerificationDocuments?.updated_at ||
-                verificationDocuments?.created_at ||
-                fallbackVerificationDocuments?.created_at ||
-                null;
-              const verificationUpdatedAtMs = verificationUpdatedAt
-                ? new Date(verificationUpdatedAt).getTime()
-                : null;
-
-              const rejectionItemsMap = new Map<
-                SellerDocumentField,
-                { reason?: string; createdAt?: string }
-              >();
-              const resubmittedItems = new Set<SellerDocumentField>();
-              if (shouldShowDocumentRejectionFeedback && Array.isArray(latestRejection.items)) {
-                for (const item of latestRejection.items) {
-                  if (!item?.document_field) continue;
-
-                  const itemCreatedAtMs = item.created_at
-                    ? new Date(item.created_at).getTime()
-                    : null;
-
-                  const wasUpdatedAfterRejection =
-                    Number.isFinite(verificationUpdatedAtMs) &&
-                    Number.isFinite(itemCreatedAtMs) &&
-                    (verificationUpdatedAtMs as number) > (itemCreatedAtMs as number);
-
-                  if (wasUpdatedAfterRejection) {
-                    resubmittedItems.add(item.document_field);
-                    continue;
-                  }
-
-                  rejectionItemsMap.set(item.document_field, {
-                    reason: item.reason || undefined,
-                    createdAt: item.created_at || undefined,
-                  });
-                }
-              }
-
-              const businessAddress =
-                businessProfile.address_line_1 ||
-                seller.business_address ||
-                'Not provided';
-              const city = businessProfile.city || seller.city || 'Not specified';
-              const province = businessProfile.province || seller.province || 'Not specified';
-              const postalCode = businessProfile.postal_code || seller.postal_code || 'N/A';
-
-              const addressParts = [businessAddress, city, province, postalCode].filter(Boolean);
+              // Build full address
+              const addressParts = [
+                seller.business_address,
+                seller.city,
+                seller.province,
+                seller.postal_code
+              ].filter(Boolean);
               const fullAddress = addressParts.join(', ');
 
-              const profileName =
-                profile?.full_name ||
-                [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim();
-
-              const parsedStoreCategory = Array.isArray(seller.store_category)
-                ? seller.store_category
-                : typeof seller.store_category === 'string' && seller.store_category.trim().length > 0
-                  ? seller.store_category
-                    .split(',')
-                    .map((entry: string) => entry.trim())
-                    .filter(Boolean)
-                  : ['General'];
-
-              const documents: SellerDocument[] = SELLER_DOCUMENT_CONFIG.reduce((acc, config) => {
-                const url =
-                  verificationDocuments?.[config.field] ||
-                  fallbackVerificationDocuments?.[config.field] ||
-                  seller?.[config.field];
-                if (!url) return acc;
-
-                const rejectionInfo = rejectionItemsMap.get(config.field);
-                acc.push({
-                  id: `doc_${config.field}_${seller.id}`,
-                  field: config.field,
-                  type: config.type,
-                  fileName: config.fileName,
-                  url,
-                  uploadDate: new Date(
-                    verificationDocuments?.created_at ||
-                      fallbackVerificationDocuments?.created_at ||
-                      seller.created_at ||
-                      Date.now(),
-                  ),
-                  isVerified: status === 'approved',
-                  isRejected: Boolean(rejectionInfo),
-                  rejectionReason:
-                    rejectionInfo?.reason ||
-                    (rejectionInfo ? latestRejection?.description || undefined : undefined),
-                  wasResubmitted: resubmittedItems.has(config.field),
+              // Build documents array from document URL fields
+              const documents: SellerDocument[] = [];
+              if (seller.business_permit_url) {
+                documents.push({
+                  id: `doc_bp_${seller.id}`,
+                  type: 'business_permit',
+                  fileName: 'business-permit',
+                  url: seller.business_permit_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
                 });
-
-                return acc;
-              }, [] as SellerDocument[]);
+              }
+              if (seller.valid_id_url) {
+                documents.push({
+                  id: `doc_id_${seller.id}`,
+                  type: 'valid_id',
+                  fileName: 'valid-id',
+                  url: seller.valid_id_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
+                });
+              }
+              if (seller.proof_of_address_url) {
+                documents.push({
+                  id: `doc_poa_${seller.id}`,
+                  type: 'proof_of_address',
+                  fileName: 'proof-of-address',
+                  url: seller.proof_of_address_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
+                });
+              }
+              if (seller.dti_registration_url) {
+                documents.push({
+                  id: `doc_dti_${seller.id}`,
+                  type: 'dti_registration',
+                  fileName: 'dti-registration',
+                  url: seller.dti_registration_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
+                });
+              }
+              if (seller.tax_id_url) {
+                documents.push({
+                  id: `doc_tax_${seller.id}`,
+                  type: 'tax_id',
+                  fileName: 'tax-id',
+                  url: seller.tax_id_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
+                });
+              }
 
               return {
                 id: seller.id,
-                businessName:
-                  seller.business_name ||
-                  businessProfile.business_name ||
-                  seller.store_name ||
-                  'Unknown Business',
+                businessName: seller.business_name || seller.store_name || 'Unknown Business',
                 storeName: seller.store_name || 'Unknown Store',
                 storeDescription: seller.store_description || '',
-                storeCategory: parsedStoreCategory,
-                businessType: seller.business_type || businessProfile.business_type || 'sole_proprietor',
-                businessRegistrationNumber:
-                  seller.business_registration_number ||
-                  businessProfile.business_registration_number ||
-                  'N/A',
-                taxIdNumber:
-                  seller.tax_id_number ||
-                  businessProfile.tax_id_number ||
-                  'N/A',
+                storeCategory: Array.isArray(seller.store_category) ? seller.store_category : ['General'],
+                businessType: seller.business_type || 'sole_proprietor',
+                businessRegistrationNumber: seller.business_registration_number || 'N/A',
+                taxIdNumber: seller.tax_id_number || 'N/A',
                 description: seller.store_description || '',
-                logo:
-                  seller.avatar_url ||
-                  profile?.avatar_url ||
-                  seller.logo_url ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.store_name || seller.business_name || 'S')}&background=FF6A00&color=fff`,
-                ownerName: seller.owner_name || profileName || seller.business_name || seller.store_name || 'Unknown Owner',
-                email: profile?.email || seller.email || 'No email',
-                phone: profile?.phone || seller.phone || 'No phone',
-                businessAddress,
-                city,
-                province,
-                postalCode,
-                address: fullAddress || 'Address not provided',
-                bankName: seller.bank_name || payoutAccount.bank_name || 'Not provided',
-                accountName: seller.account_name || payoutAccount.account_name || 'Not provided',
-                accountNumber: seller.account_number || payoutAccount.account_number || 'Not provided',
-                status,
-                documents,
+                logo: `https://ui-avatars.io/api/?name=${encodeURIComponent(seller.store_name || 'S')}&background=FF6A00&color=fff`,
+                ownerName: seller.profiles?.full_name || seller.business_name || 'Unknown Owner',
+                email: seller.profiles?.email || 'No email',
+                phone: seller.profiles?.phone || 'No phone',
+                businessAddress: seller.business_address || 'Not provided',
+                city: seller.city || 'Not specified',
+                province: seller.province || 'Not specified',
+                postalCode: seller.postal_code || 'N/A',
+                address: fullAddress || seller.business_address || 'Address not provided',
+                bankName: seller.bank_name || 'Not provided',
+                accountName: seller.account_name || 'Not provided',
+                accountNumber: seller.account_number || 'Not provided',
+                status: seller.approval_status as 'pending' | 'approved' | 'rejected' | 'suspended',
+                documents: documents,
                 metrics: {
                   totalProducts: 0,
                   totalOrders: 0,
-                  totalRevenue: Number(seller.total_sales) || 0,
-                  rating: Number.parseFloat(seller.rating) || 0,
+                  totalRevenue: seller.total_sales || 0,
+                  rating: parseFloat(seller.rating) || 0,
                   responseRate: 0,
-                  fulfillmentRate: 0,
+                  fulfillmentRate: 0
                 },
-                joinDate: new Date(seller.join_date || seller.created_at || Date.now()),
-                approvedAt: seller.approved_at ? new Date(seller.approved_at) : seller.verified_at ? new Date(seller.verified_at) : undefined,
+                joinDate: new Date(seller.join_date || seller.created_at),
+                approvedAt: seller.approved_at ? new Date(seller.approved_at) : undefined,
                 approvedBy: seller.approved_by || undefined,
-                rejectedAt: seller.rejected_at ? new Date(seller.rejected_at) : latestRejection?.created_at ? new Date(latestRejection.created_at) : undefined,
-                rejectedBy: seller.rejected_by || latestRejection?.created_by || undefined,
-                rejectionReason:
-                  seller.rejection_reason ||
-                  latestRejection?.description ||
-                  (latestRejection?.rejection_type === 'partial'
-                    ? 'Some submitted documents require updates before approval.'
-                    : undefined),
+                rejectedAt: seller.rejected_at ? new Date(seller.rejected_at) : undefined,
+                rejectedBy: seller.rejected_by || undefined,
+                rejectionReason: seller.rejection_reason || undefined,
                 suspendedAt: seller.suspended_at ? new Date(seller.suspended_at) : undefined,
                 suspendedBy: seller.suspended_by || undefined,
-                suspensionReason: seller.suspension_reason || undefined,
+                suspensionReason: seller.suspension_reason || undefined
               };
             });
 
@@ -894,12 +650,11 @@ export const useAdminSellers = create<SellersState>()(
             bankName: 'BDO',
             accountName: 'TechHub Electronics Corp.',
             accountNumber: '1234567890',
-            logo: 'https://ui-avatars.com/api/?name=TechHub&background=FF6A00&color=fff',
+            logo: 'https://ui-avatars.io/api/?name=TechHub&background=FF6A00&color=fff',
             status: 'approved',
             documents: [
               {
                 id: 'doc_1',
-                field: 'business_permit_url',
                 type: 'business_permit',
                 fileName: 'business-permit.pdf',
                 url: '/documents/business-permit.pdf',
@@ -908,7 +663,6 @@ export const useAdminSellers = create<SellersState>()(
               },
               {
                 id: 'doc_1a',
-                field: 'valid_id_url',
                 type: 'valid_id',
                 fileName: 'owners-id.pdf',
                 url: '/documents/owners-id.pdf',
@@ -917,7 +671,6 @@ export const useAdminSellers = create<SellersState>()(
               },
               {
                 id: 'doc_1b',
-                field: 'proof_of_address_url',
                 type: 'proof_of_address',
                 fileName: 'utility-bill.pdf',
                 url: '/documents/utility-bill.pdf',
@@ -962,7 +715,6 @@ export const useAdminSellers = create<SellersState>()(
             documents: [
               {
                 id: 'doc_2',
-                field: 'business_permit_url',
                 type: 'business_permit',
                 fileName: 'permit-fashion.pdf',
                 url: '/documents/permit-fashion.pdf',
@@ -971,7 +723,6 @@ export const useAdminSellers = create<SellersState>()(
               },
               {
                 id: 'doc_3',
-                field: 'dti_registration_url',
                 type: 'dti_registration',
                 fileName: 'dti-registration.pdf',
                 url: '/documents/dti-registration.pdf',
@@ -980,7 +731,6 @@ export const useAdminSellers = create<SellersState>()(
               },
               {
                 id: 'doc_4',
-                field: 'valid_id_url',
                 type: 'valid_id',
                 fileName: 'valid-id.pdf',
                 url: '/documents/valid-id.pdf',
@@ -989,7 +739,6 @@ export const useAdminSellers = create<SellersState>()(
               },
               {
                 id: 'doc_5',
-                field: 'proof_of_address_url',
                 type: 'proof_of_address',
                 fileName: 'proof-address.pdf',
                 url: '/documents/proof-address.pdf',
@@ -1032,7 +781,6 @@ export const useAdminSellers = create<SellersState>()(
             documents: [
               {
                 id: 'doc_6',
-                field: 'business_permit_url',
                 type: 'business_permit',
                 fileName: 'food-permit.pdf',
                 url: '/documents/food-permit.pdf',
@@ -1067,71 +815,30 @@ export const useAdminSellers = create<SellersState>()(
       },
 
       approveSeller: async (id) => {
-        set({ isLoading: true, error: null });
-        const now = new Date();
-        const nowIso = now.toISOString();
-        const adminId = useAdminAuth.getState().user?.id || 'admin';
+        set({ isLoading: true });
 
         if (isSupabaseConfigured()) {
           try {
-            const statusUpdateCandidates = [
-              {
-                approval_status: 'verified',
-                updated_at: nowIso,
-                verified_at: nowIso,
-              },
-              {
+            const { error } = await supabase
+              .from('sellers')
+              .update({
                 approval_status: 'approved',
-                updated_at: nowIso,
-              },
-            ];
-
-            let statusUpdateError: any = null;
-            for (const statusUpdate of statusUpdateCandidates) {
-              const { error } = await supabase
-                .from('sellers')
-                .update(statusUpdate)
-                .eq('id', id);
-
-              if (!error) {
-                statusUpdateError = null;
-                break;
-              }
-
-              statusUpdateError = error;
-            }
-
-            if (statusUpdateError) {
-              throw statusUpdateError;
-            }
-
-            await notificationService
-              .notifySellerVerificationApproved({
-                sellerId: id,
+                approved_at: new Date().toISOString(),
+                approved_by: 'admin' // TODO: Get actual admin ID from auth
               })
-              .catch((notificationError) => {
-                console.warn('[AdminSellers] Failed to send approval notification:', notificationError);
-              });
+              .eq('id', id);
+
+            if (error) {
+              console.error('Error approving seller:', error);
+              set({ error: 'Failed to approve seller', isLoading: false });
+              return;
+            }
 
             // Update local state
             set(state => {
               const updatedSellers = state.sellers.map(seller =>
                 seller.id === id
-                  ? {
-                    ...seller,
-                    status: 'approved' as const,
-                    approvedAt: now,
-                    approvedBy: adminId,
-                    rejectedAt: undefined,
-                    rejectedBy: undefined,
-                    rejectionReason: undefined,
-                    documents: seller.documents.map((doc) => ({
-                      ...doc,
-                      isVerified: true,
-                      isRejected: false,
-                      rejectionReason: undefined,
-                    })),
-                  }
+                  ? { ...seller, status: 'approved' as const, approvedAt: new Date(), approvedBy: 'admin' }
                   : seller
               );
 
@@ -1154,21 +861,7 @@ export const useAdminSellers = create<SellersState>()(
         set(state => {
           const updatedSellers = state.sellers.map(seller =>
             seller.id === id
-              ? {
-                ...seller,
-                status: 'approved' as const,
-                approvedAt: now,
-                approvedBy: adminId,
-                rejectedAt: undefined,
-                rejectedBy: undefined,
-                rejectionReason: undefined,
-                documents: seller.documents.map((doc) => ({
-                  ...doc,
-                  isVerified: true,
-                  isRejected: false,
-                  rejectionReason: undefined,
-                })),
-              }
+              ? { ...seller, status: 'approved' as const, approvedAt: new Date(), approvedBy: 'admin_1' }
               : seller
           );
 
@@ -1181,48 +874,25 @@ export const useAdminSellers = create<SellersState>()(
       },
 
       rejectSeller: async (id, reason) => {
-        set({ isLoading: true, error: null });
-        const now = new Date();
-        const nowIso = now.toISOString();
-        const adminId = useAdminAuth.getState().user?.id || 'admin';
-        const normalizedReason = reason?.trim();
-        const rejectionDescription = normalizedReason || 'Your seller verification submission was rejected.';
+        set({ isLoading: true });
 
         if (isSupabaseConfigured()) {
           try {
-            const { error: statusError } = await supabase
+            const { error } = await supabase
               .from('sellers')
               .update({
                 approval_status: 'rejected',
-                updated_at: nowIso,
+                rejected_at: new Date().toISOString(),
+                rejected_by: 'admin', // TODO: Get actual admin ID from auth
+                rejection_reason: reason
               })
               .eq('id', id);
 
-            if (statusError) {
-              throw statusError;
+            if (error) {
+              console.error('Error rejecting seller:', error);
+              set({ error: 'Failed to reject seller', isLoading: false });
+              return;
             }
-
-            const { error: rejectionInsertError } = await supabase
-              .from('seller_rejections')
-              .insert({
-                seller_id: id,
-                description: rejectionDescription,
-                rejection_type: 'full',
-                created_by: adminId,
-              });
-
-            if (rejectionInsertError) {
-              console.warn('[AdminSellers] Could not record full rejection event:', rejectionInsertError.message);
-            }
-
-            await notificationService
-              .notifySellerVerificationRejected({
-                sellerId: id,
-                reason: rejectionDescription,
-              })
-              .catch((notificationError) => {
-                console.warn('[AdminSellers] Failed to send rejection notification:', notificationError);
-              });
 
             // Update local state
             set(state => {
@@ -1231,13 +901,9 @@ export const useAdminSellers = create<SellersState>()(
                   ? {
                     ...seller,
                     status: 'rejected' as const,
-                    rejectedAt: now,
-                    rejectedBy: adminId,
-                    rejectionReason: rejectionDescription,
-                    documents: seller.documents.map((doc) => ({
-                      ...doc,
-                      isVerified: false,
-                    })),
+                    rejectedAt: new Date(),
+                    rejectedBy: 'admin',
+                    rejectionReason: reason
                   }
                   : seller
               );
@@ -1264,13 +930,9 @@ export const useAdminSellers = create<SellersState>()(
               ? {
                 ...seller,
                 status: 'rejected' as const,
-                rejectedAt: now,
-                rejectedBy: adminId,
-                rejectionReason: rejectionDescription,
-                documents: seller.documents.map((doc) => ({
-                  ...doc,
-                  isVerified: false,
-                })),
+                rejectedAt: new Date(),
+                rejectedBy: 'admin_1',
+                rejectionReason: reason
               }
               : seller
           );
@@ -1280,184 +942,6 @@ export const useAdminSellers = create<SellersState>()(
             pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
             isLoading: false,
             error: null
-          };
-        });
-      },
-
-      partiallyRejectSeller: async (id, payload) => {
-        set({ isLoading: true, error: null });
-        const now = new Date();
-        const nowIso = now.toISOString();
-        const adminId = useAdminAuth.getState().user?.id || 'admin';
-        const selectedItems = payload.items.filter((item) => Boolean(item.documentField));
-
-        if (selectedItems.length === 0) {
-          set({
-            isLoading: false,
-            error: 'Select at least one document for partial rejection.',
-          });
-          return;
-        }
-
-        const normalizedNote = payload.note?.trim();
-        const rejectionDescription = normalizedNote || 'Some submitted documents need to be updated before approval.';
-        const selectedFields = new Set(selectedItems.map((item) => item.documentField));
-        const itemReasons = new Map<SellerDocumentField, string | undefined>();
-        selectedItems.forEach((item) => {
-          itemReasons.set(item.documentField, item.reason?.trim() || undefined);
-        });
-
-        if (isSupabaseConfigured()) {
-          try {
-            let rejectionId: string | null = null;
-
-            const { data: rejectionRecord, error: rejectionInsertError } = await supabase
-              .from('seller_rejections')
-              .insert({
-                seller_id: id,
-                description: rejectionDescription,
-                rejection_type: 'partial',
-                created_by: adminId,
-              })
-              .select('id')
-              .single();
-
-            if (rejectionInsertError) {
-              console.warn('[AdminSellers] Could not create partial rejection record:', rejectionInsertError.message);
-            } else {
-              rejectionId = rejectionRecord?.id || null;
-            }
-
-            if (rejectionId) {
-              const { error: rejectionItemsError } = await supabase
-                .from('seller_rejection_items')
-                .insert(
-                  selectedItems.map((item) => ({
-                    rejection_id: rejectionId,
-                    document_field: item.documentField,
-                    reason: item.reason?.trim() || null,
-                  })),
-                );
-
-              if (rejectionItemsError) {
-                console.warn('[AdminSellers] Could not insert partial rejection items:', rejectionItemsError.message);
-              }
-            }
-
-            const statusCandidates = [
-              {
-                approval_status: 'needs_resubmission',
-                updated_at: nowIso,
-              },
-              {
-                approval_status: 'rejected',
-                updated_at: nowIso,
-              },
-            ];
-
-            let appliedDbStatus: 'needs_resubmission' | 'rejected' = 'needs_resubmission';
-            let statusUpdateError: any = null;
-
-            for (const statusCandidate of statusCandidates) {
-              const { error } = await supabase
-                .from('sellers')
-                .update(statusCandidate)
-                .eq('id', id);
-
-              if (!error) {
-                appliedDbStatus = statusCandidate.approval_status as 'needs_resubmission' | 'rejected';
-                statusUpdateError = null;
-                break;
-              }
-
-              statusUpdateError = error;
-            }
-
-            if (statusUpdateError) {
-              throw statusUpdateError;
-            }
-
-            await notificationService
-              .notifySellerVerificationPartiallyRejected({
-                sellerId: id,
-                rejectedDocuments: selectedItems.map((item) => DOCUMENT_FIELD_LABELS[item.documentField]),
-                note: normalizedNote,
-              })
-              .catch((notificationError) => {
-                console.warn('[AdminSellers] Failed to send partial rejection notification:', notificationError);
-              });
-
-            const nextUiStatus = toUiSellerStatus(appliedDbStatus, 'partial');
-
-            set(state => {
-              const updatedSellers = state.sellers.map((seller) => {
-                if (seller.id !== id) return seller;
-
-                return {
-                  ...seller,
-                  status: nextUiStatus,
-                  rejectedAt: now,
-                  rejectedBy: adminId,
-                  rejectionReason: rejectionDescription,
-                  documents: seller.documents.map((doc) => {
-                    const reason = itemReasons.get(doc.field);
-                    const isRejected = selectedFields.has(doc.field);
-
-                    return {
-                      ...doc,
-                      isVerified: false,
-                      isRejected,
-                      rejectionReason: isRejected ? reason || rejectionDescription : undefined,
-                    };
-                  }),
-                };
-              });
-
-              return {
-                sellers: updatedSellers,
-                pendingSellers: updatedSellers.filter((seller) => seller.status === 'pending'),
-                isLoading: false,
-                error: null,
-              };
-            });
-          } catch (error) {
-            console.error('Error partially rejecting seller:', error);
-            set({ error: 'Failed to partially reject seller', isLoading: false });
-          }
-          return;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        set(state => {
-          const updatedSellers = state.sellers.map((seller) => {
-            if (seller.id !== id) return seller;
-
-            return {
-              ...seller,
-              status: 'needs_resubmission' as const,
-              rejectedAt: now,
-              rejectedBy: adminId,
-              rejectionReason: rejectionDescription,
-              documents: seller.documents.map((doc) => {
-                const reason = itemReasons.get(doc.field);
-                const isRejected = selectedFields.has(doc.field);
-
-                return {
-                  ...doc,
-                  isVerified: false,
-                  isRejected,
-                  rejectionReason: isRejected ? reason || rejectionDescription : undefined,
-                };
-              }),
-            };
-          });
-
-          return {
-            sellers: updatedSellers,
-            pendingSellers: updatedSellers.filter((seller) => seller.status === 'pending'),
-            isLoading: false,
-            error: null,
           };
         });
       },
@@ -1536,11 +1020,11 @@ export const useAdminSellers = create<SellersState>()(
 
       hasCompleteRequirements: (seller: Seller) => {
         // Check if seller has all required documents
-        const requiredDocTypes = ['business_permit', 'valid_id', 'proof_of_address', 'dti_registration', 'tax_id'];
+        const requiredDocTypes = ['valid_id', 'proof_of_address', 'dti_registration', 'tax_id'];
         const sellerDocTypes = seller.documents.map(doc => doc.type);
 
         // Check if all required documents exist
-        const hasAllDocs = requiredDocTypes.every(type => sellerDocTypes.includes(type));
+        const hasAllDocs = requiredDocTypes.every(type => sellerDocTypes.includes(type as any));
 
         // Also check if business address exists
         const hasBusinessAddress = seller.businessAddress && seller.businessAddress !== 'Not provided';
@@ -1588,7 +1072,7 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
         firstName: 'Anna',
         lastName: 'Reyes',
         phone: '+63 917 111 2222',
-        avatar: 'https://ui-avatars.com/api/?name=Anna+Reyes&background=FF6A00&color=fff',
+        avatar: 'https://ui-avatars.io/api/?name=Anna+Reyes&background=FF6A00&color=fff',
         dateOfBirth: new Date('1990-05-15'),
         gender: 'female',
         isEmailVerified: true,
@@ -1622,7 +1106,7 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
         firstName: 'Miguel',
         lastName: 'Cruz',
         phone: '+63 917 333 4444',
-        avatar: 'https://ui-avatars.com/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
+        avatar: 'https://ui-avatars.io/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
         dateOfBirth: new Date('1985-08-20'),
         gender: 'male',
         isEmailVerified: true,
@@ -1817,8 +1301,6 @@ export interface Voucher {
   minPurchase: number;
   maxDiscount?: number;
   usageLimit: number;
-  /** Max uses per customer (claim_limit). 1 = once per person, null = unlimited */
-  claimLimit?: number | null;
   usedCount: number;
   startDate: Date;
   endDate: Date;
@@ -1844,203 +1326,152 @@ interface VouchersState {
   clearError: () => void;
 }
 
-export const useAdminVouchers = create<VouchersState>((set, get) => ({
+export const useAdminVouchers = create<VouchersState>((set) => ({
   vouchers: [],
   selectedVoucher: null,
   isLoading: false,
   error: null,
 
   loadVouchers: async () => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
 
-    try {
-      const { voucherService } = await import('../services/voucherService');
-      const dbVouchers = await voucherService.getAllVouchers();
+    const demoVouchers: Voucher[] = [
+      {
+        id: 'vouch_1',
+        code: 'WELCOME20',
+        title: 'Welcome Discount',
+        description: '20% off for new customers',
+        type: 'percentage',
+        value: 20,
+        minPurchase: 500,
+        maxDiscount: 500,
+        usageLimit: 1000,
+        usedCount: 342,
+        startDate: new Date('2024-12-01'),
+        endDate: new Date('2025-03-31'),
+        isActive: true,
+        applicableTo: 'all',
+        createdAt: new Date('2024-11-15'),
+        updatedAt: new Date('2024-12-15')
+      },
+      {
+        id: 'vouch_2',
+        code: 'FREESHIP',
+        title: 'Free Shipping',
+        description: 'Free shipping on orders over ₱1000',
+        type: 'free_shipping',
+        value: 0,
+        minPurchase: 1000,
+        usageLimit: 5000,
+        usedCount: 1256,
+        startDate: new Date('2024-12-01'),
+        endDate: new Date('2025-01-31'),
+        isActive: true,
+        applicableTo: 'all',
+        createdAt: new Date('2024-11-20'),
+        updatedAt: new Date('2024-12-10')
+      },
+      {
+        id: 'vouch_3',
+        code: 'FLASH500',
+        title: 'Flash Sale Discount',
+        description: '₱500 off on purchases ₱3000 and above',
+        type: 'fixed',
+        value: 500,
+        minPurchase: 3000,
+        usageLimit: 500,
+        usedCount: 478,
+        startDate: new Date('2024-12-15'),
+        endDate: new Date('2024-12-20'),
+        isActive: true,
+        applicableTo: 'category',
+        targetIds: ['cat_1', 'cat_2'],
+        createdAt: new Date('2024-12-10'),
+        updatedAt: new Date('2024-12-14')
+      },
+      {
+        id: 'vouch_4',
+        code: 'XMAS2024',
+        title: 'Christmas Special',
+        description: '15% off all items',
+        type: 'percentage',
+        value: 15,
+        minPurchase: 1000,
+        maxDiscount: 1000,
+        usageLimit: 10000,
+        usedCount: 234,
+        startDate: new Date('2024-12-20'),
+        endDate: new Date('2024-12-26'),
+        isActive: false,
+        applicableTo: 'all',
+        createdAt: new Date('2024-11-01'),
+        updatedAt: new Date('2024-12-01')
+      }
+    ];
 
-      // Map database vouchers to admin store format
-      const mappedVouchers: Voucher[] = dbVouchers.map(v => ({
-        id: v.id,
-        code: v.code,
-        title: v.title,
-        description: v.description || '',
-        type: v.voucher_type === 'shipping' ? 'free_shipping' : v.voucher_type as 'percentage' | 'fixed',
-        value: v.value,
-        minPurchase: v.min_order_value,
-        maxDiscount: v.max_discount || undefined,
-        usageLimit: v.usage_limit || 0,
-        claimLimit: v.claim_limit ?? null,
-        usedCount: 0,
-        startDate: new Date(v.claimable_from),
-        endDate: new Date(v.claimable_until),
-        isActive: v.is_active,
-        applicableTo: v.seller_id ? 'seller' : 'all',
-        targetIds: v.seller_id ? [v.seller_id] : undefined,
-        createdAt: new Date(v.created_at),
-        updatedAt: new Date(v.updated_at)
-      }));
-
-      set({ vouchers: mappedVouchers, isLoading: false });
-    } catch (error) {
-      console.error('Error loading vouchers:', error);
-      set({ error: 'Failed to load vouchers', isLoading: false, vouchers: [] });
-    }
+    await new Promise(resolve => setTimeout(resolve, 800));
+    set({ vouchers: demoVouchers, isLoading: false });
   },
 
   addVoucher: async (voucherData) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
 
-    try {
-      const { voucherService } = await import('../services/voucherService');
+    const newVoucher: Voucher = {
+      ...voucherData,
+      id: `vouch_${Date.now()}`,
+      usedCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
 
-      // Map admin store format to database format
-      const dbVoucherData = {
-        code: voucherData.code.toUpperCase(),
-        title: voucherData.title,
-        description: voucherData.description,
-        voucher_type: (voucherData.type === 'free_shipping' ? 'shipping' : voucherData.type) as 'percentage' | 'fixed' | 'shipping',
-        value: voucherData.value,
-        min_order_value: voucherData.minPurchase,
-        max_discount: voucherData.maxDiscount || null,
-        seller_id: voucherData.applicableTo === 'seller' && voucherData.targetIds?.[0] ? voucherData.targetIds[0] : null,
-        claimable_from: voucherData.startDate.toISOString(),
-        claimable_until: voucherData.endDate.toISOString(),
-        usage_limit: voucherData.usageLimit || null,
-        claim_limit: voucherData.claimLimit ?? null,
-        duration: null,
-        is_active: voucherData.isActive
-      };
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const newDbVoucher = await voucherService.createVoucher(dbVoucherData);
-
-      // Map back to admin store format
-      const newVoucher: Voucher = {
-        id: newDbVoucher.id,
-        code: newDbVoucher.code,
-        title: newDbVoucher.title,
-        description: newDbVoucher.description || '',
-        type: newDbVoucher.voucher_type === 'shipping' ? 'free_shipping' : newDbVoucher.voucher_type as 'percentage' | 'fixed',
-        value: newDbVoucher.value,
-        minPurchase: newDbVoucher.min_order_value,
-        maxDiscount: newDbVoucher.max_discount || undefined,
-        usageLimit: newDbVoucher.usage_limit || 0,
-        claimLimit: newDbVoucher.claim_limit ?? null,
-        usedCount: 0,
-        startDate: new Date(newDbVoucher.claimable_from),
-        endDate: new Date(newDbVoucher.claimable_until),
-        isActive: newDbVoucher.is_active,
-        applicableTo: newDbVoucher.seller_id ? 'seller' : 'all',
-        targetIds: newDbVoucher.seller_id ? [newDbVoucher.seller_id] : undefined,
-        createdAt: new Date(newDbVoucher.created_at),
-        updatedAt: new Date(newDbVoucher.updated_at)
-      };
-
-      set(state => ({
-        vouchers: [...state.vouchers, newVoucher],
-        isLoading: false
-      }));
-    } catch (error) {
-      console.error('Error adding voucher:', error);
-      set({ error: 'Failed to create voucher', isLoading: false });
-    }
+    set(state => ({
+      vouchers: [...state.vouchers, newVoucher],
+      isLoading: false
+    }));
   },
 
   updateVoucher: async (id, updates) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
 
-    try {
-      const { voucherService } = await import('../services/voucherService');
+    await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Map admin store updates to database format
-      const dbUpdates: any = {};
-      if (updates.code) dbUpdates.code = updates.code.toUpperCase();
-      if (updates.title) dbUpdates.title = updates.title;
-      if (updates.description !== undefined) dbUpdates.description = updates.description;
-      if (updates.type) dbUpdates.voucher_type = updates.type === 'free_shipping' ? 'shipping' : updates.type;
-      if (updates.value !== undefined) dbUpdates.value = updates.value;
-      if (updates.minPurchase !== undefined) dbUpdates.min_order_value = updates.minPurchase;
-      if (updates.maxDiscount !== undefined) dbUpdates.max_discount = updates.maxDiscount || null;
-      if (updates.usageLimit !== undefined) dbUpdates.usage_limit = updates.usageLimit || null;
-      if (updates.claimLimit !== undefined) dbUpdates.claim_limit = updates.claimLimit ?? null;
-      if (updates.startDate) dbUpdates.claimable_from = updates.startDate.toISOString();
-      if (updates.endDate) dbUpdates.claimable_until = updates.endDate.toISOString();
-      if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
-
-      const updatedDbVoucher = await voucherService.updateVoucher(id, dbUpdates);
-
-      set(state => ({
-        vouchers: state.vouchers.map(voucher =>
-          voucher.id === id
-            ? {
-              ...voucher,
-              code: updatedDbVoucher.code,
-              title: updatedDbVoucher.title,
-              description: updatedDbVoucher.description || '',
-              type: updatedDbVoucher.voucher_type === 'shipping' ? 'free_shipping' : updatedDbVoucher.voucher_type as 'percentage' | 'fixed',
-              value: updatedDbVoucher.value,
-              minPurchase: updatedDbVoucher.min_order_value,
-              maxDiscount: updatedDbVoucher.max_discount || undefined,
-              usageLimit: updatedDbVoucher.usage_limit || 0,
-              claimLimit: updatedDbVoucher.claim_limit ?? null,
-              startDate: new Date(updatedDbVoucher.claimable_from),
-              endDate: new Date(updatedDbVoucher.claimable_until),
-              isActive: updatedDbVoucher.is_active,
-              updatedAt: new Date(updatedDbVoucher.updated_at)
-            }
-            : voucher
-        ),
-        isLoading: false
-      }));
-    } catch (error) {
-      console.error('Error updating voucher:', error);
-      set({ error: 'Failed to update voucher', isLoading: false });
-    }
+    set(state => ({
+      vouchers: state.vouchers.map(voucher =>
+        voucher.id === id
+          ? { ...voucher, ...updates, updatedAt: new Date() }
+          : voucher
+      ),
+      isLoading: false
+    }));
   },
 
   deleteVoucher: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
 
-    try {
-      const { voucherService } = await import('../services/voucherService');
-      await voucherService.deleteVoucher(id);
+    await new Promise(resolve => setTimeout(resolve, 600));
 
-      set(state => ({
-        vouchers: state.vouchers.filter(voucher => voucher.id !== id),
-        selectedVoucher: state.selectedVoucher?.id === id ? null : state.selectedVoucher,
-        isLoading: false
-      }));
-    } catch (error) {
-      console.error('Error deleting voucher:', error);
-      set({ error: 'Failed to delete voucher', isLoading: false });
-    }
+    set(state => ({
+      vouchers: state.vouchers.filter(voucher => voucher.id !== id),
+      selectedVoucher: state.selectedVoucher?.id === id ? null : state.selectedVoucher,
+      isLoading: false
+    }));
   },
 
   toggleVoucherStatus: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
 
-    try {
-      const { voucherService } = await import('../services/voucherService');
-      const currentVoucher = get().vouchers.find(v => v.id === id);
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-      if (!currentVoucher) {
-        throw new Error('Voucher not found');
-      }
-
-      const updatedDbVoucher = await voucherService.updateVoucher(id, {
-        is_active: !currentVoucher.isActive
-      });
-
-      set(state => ({
-        vouchers: state.vouchers.map(voucher =>
-          voucher.id === id
-            ? { ...voucher, isActive: updatedDbVoucher.is_active, updatedAt: new Date(updatedDbVoucher.updated_at) }
-            : voucher
-        ),
-        isLoading: false
-      }));
-    } catch (error) {
-      console.error('Error toggling voucher status:', error);
-      set({ error: 'Failed to toggle voucher status', isLoading: false });
-    }
+    set(state => ({
+      vouchers: state.vouchers.map(voucher =>
+        voucher.id === id
+          ? { ...voucher, isActive: !voucher.isActive, updatedAt: new Date() }
+          : voucher
+      ),
+      isLoading: false
+    }));
   },
 
   selectVoucher: (voucher) => set({ selectedVoucher: voucher }),
@@ -2109,7 +1540,7 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
         productImage: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=200',
         buyerId: 'buyer_1',
         buyerName: 'Anna Reyes',
-        buyerAvatar: 'https://ui-avatars.com/api/?name=Anna+Reyes&background=FF6A00&color=fff',
+        buyerAvatar: 'https://ui-avatars.io/api/?name=Anna+Reyes&background=FF6A00&color=fff',
         sellerId: 'seller_1',
         sellerName: 'TechHub Philippines',
         rating: 5,
@@ -2129,7 +1560,7 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
         productImage: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200',
         buyerId: 'buyer_2',
         buyerName: 'Miguel Cruz',
-        buyerAvatar: 'https://ui-avatars.com/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
+        buyerAvatar: 'https://ui-avatars.io/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
         sellerId: 'seller_2',
         sellerName: 'Fashion Forward Store',
         rating: 1,
@@ -2150,7 +1581,7 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
         productImage: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
         buyerId: 'buyer_3',
         buyerName: 'Sofia Lim',
-        buyerAvatar: 'https://ui-avatars.com/api/?name=Sofia+Lim&background=FF6A00&color=fff',
+        buyerAvatar: 'https://ui-avatars.io/api/?name=Sofia+Lim&background=FF6A00&color=fff',
         sellerId: 'seller_1',
         sellerName: 'TechHub Philippines',
         rating: 4,
@@ -2172,7 +1603,7 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
         productImage: 'https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?w=200',
         buyerId: 'buyer_4',
         buyerName: 'Carlos Tan',
-        buyerAvatar: 'https://ui-avatars.com/api/?name=Carlos+Tan&background=FF6A00&color=fff',
+        buyerAvatar: 'https://ui-avatars.io/api/?name=Carlos+Tan&background=FF6A00&color=fff',
         sellerId: 'seller_3',
         sellerName: 'Home Essentials',
         rating: 3,

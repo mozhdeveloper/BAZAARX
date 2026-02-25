@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,474 +6,347 @@ import {
   StyleSheet,
   Pressable,
   StatusBar,
+  Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, CheckCircle, Circle, Store, Flame } from 'lucide-react-native';
+import { ArrowLeft, ShoppingBag, Tag, Truck, CheckCircle2, Circle, CheckCircle } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
-import { CartItem, Product } from '../src/types';
-import { Alert } from 'react-native';
+import type { CompositeScreenProps } from '@react-navigation/native';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList, TabParamList } from '../App';
 
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<TabParamList, 'Cart'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
-export default function CartScreen({ navigation }: any) {
-  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems } = useCartStore(); // Add clearQuickOrder
+export default function CartScreen({ navigation }: Props) {
+  const { items, removeItem, updateQuantity, getTotal, clearCart, clearQuickOrder } = useCartStore();
   const insets = useSafeAreaInsets();
+  const BRAND_COLOR = COLORS.primary;
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
-  // Use global theme color
-  const BRAND_PRIMARY = COLORS.primary;
-
+  // Clear quick order when user navigates to cart
   useEffect(() => {
-    initializeForCurrentUser();
+    clearQuickOrder();
   }, []);
 
-  // Also refresh when screen is focused (returning from product detail, etc.)
-  useFocusEffect(
-    useCallback(() => {
-      initializeForCurrentUser();
-    }, [])
-  );
+  const [selectedIds, setSelectedIds] = useState<string[]>(items.map(item => item.id));
 
-
-
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  
-  // Edit Variant State
-  const [showVariantModal, setShowVariantModal] = useState(false);
-  const [editingItem, setEditingItem] = useState<CartItem | null>(null);
-
-  const handleEditVariant = (item: CartItem) => {
-    setEditingItem(item);
-    setShowVariantModal(true);
-  };
-
-  const handleSaveVariant = async (
-    variantData: {
-      option1Value?: string;
-      option2Value?: string;
-      variantId?: string;
-    },
-    newQuantity: number
-  ) => {
-    if (!editingItem) return;
-
-    // Build personalized options
-    const newOptions: any = {
-       ...editingItem.selectedVariant, // Keep existing (like fallback)
-       option1Value: variantData.option1Value,
-       option2Value: variantData.option2Value,
-       variantId: variantData.variantId,
-    };
-    // Also update legacy fields if applicable (though store might handle mapping)
-    if (variantData.option1Value) newOptions.color = variantData.option1Value;
-    if (variantData.option2Value) newOptions.size = variantData.option2Value;
-
-    await updateItemVariant(editingItem.cartItemId, variantData.variantId, newOptions);
-    
-    // Also update quantity if changed
-    if (newQuantity !== editingItem.quantity) {
-      updateQuantity(editingItem.id, newQuantity);
-    }
-    
-    setShowVariantModal(false);
-    setEditingItem(null);
-  };
-
-  // Delete Handlers
-  const handleRemoveSingle = (item: CartItem) => {
-    Alert.alert(
-      'Remove Item',
-      'Are you sure you want to remove this item from your cart?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
-          style: 'destructive', 
-          onPress: () => removeItem(item.cartItemId) // Using cartItemId as per store update
-        }
-      ]
-    );
-  };
-
-  const handleClearAll = () => {
-     Alert.alert(
-      'Clear Cart',
-      'Are you sure you want to remove all items?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: clearCart }
-      ]
-    );
-  };
-
-  const handleDeleteSelected = () => {
-    Alert.alert(
-      'Delete Selected',
-      `Remove ${selectedIds.length} item(s) from your cart?`,
-       [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive', 
-          onPress: () => {
-            removeItems(selectedIds);
-            setSelectedIds([]); // Clear selection after delete
-          }
-        }
-      ]
-    );
-  };
-
-  const groupedItems = useMemo(() => {
-    const sortedItems = [...items].reverse();
-    return sortedItems.reduce((groups, item) => {
-      const seller = item.seller || 'Verified Seller';
-      if (!groups[seller]) groups[seller] = [];
-      groups[seller].push(item);
-      return groups;
-    }, {} as Record<string, typeof items>);
-  }, [items]);
-
-  const selectedItems = items.filter(item => selectedIds.includes(item.cartItemId));
-  const subtotal = selectedItems.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
-  const totalSavings = selectedItems.reduce((sum, item) => {
-    const savings = (item.originalPrice && item.originalPrice > (item.price || 0))
-      ? (item.originalPrice - (item.price || 0)) * item.quantity
-      : 0;
-    return sum + savings;
-  }, 0);
-  const shippingFee = (subtotal > 500 || subtotal === 0) ? 0 : 50;
+  const selectedItems = useMemo(() => items.filter(item => selectedIds.includes(item.id)), [items, selectedIds]);
+  const subtotal = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const shippingFee = subtotal > 500 || subtotal === 0 ? 0 : 50;
   const total = subtotal + shippingFee;
+
+  const { isGuest } = useAuthStore();
+
+  if (isGuest) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>My Cart</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        </View>
+        <GuestLoginModal
+            visible={true}
+            onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+            message="Sign up to view your cart."
+            hideCloseButton={true}
+            cancelText="Go back to Home"
+        />
+      </View>
+    );
+  }
 
   const isAllSelected = items.length > 0 && selectedIds.length === items.length;
 
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(items.map(item => item.id));
+    }
+  };
+
   const toggleSelectItem = (id: string) => {
-    setSelectedIds(prev =>
+    setSelectedIds(prev => 
       prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
     );
   };
 
-  const toggleSellerGroup = (sellerProducts: typeof items) => {
-    const sellerItemIds = sellerProducts.map(item => item.cartItemId);
-    const isSellerFullySelected = sellerItemIds.every(id => selectedIds.includes(id));
-
-    if (isSellerFullySelected) {
-      setSelectedIds(prev => prev.filter(id => !sellerItemIds.includes(id)));
-    } else {
-      setSelectedIds(prev => {
-        const newIds = sellerItemIds.filter(id => !prev.includes(id));
-        return [...prev, ...newIds];
-      });
-    }
+  const handleIncrement = (productId: string) => {
+    const item = items.find((i) => i.id === productId);
+    if (item) updateQuantity(productId, item.quantity + 1);
   };
 
-  const handleCheckout = async () => {
-    if (selectedIds.length === 0) return;
-
-    // Clear any previous quick order to ensure we checkout strictly from cart selections
-    clearQuickOrder();
-
-    // Get delivery address from AsyncStorage
-    let deliveryAddress: string | undefined;
-    let deliveryCoordinates: { latitude: number; longitude: number } | undefined;
-
-    try {
-      const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
-      const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
-
-      if (savedAddress) {
-        deliveryAddress = savedAddress;
-      }
-      if (savedCoords) {
-        deliveryCoordinates = JSON.parse(savedCoords);
-      }
-    } catch (error) {
-      console.error('[CartScreen] Error reading delivery address:', error);
-    }
-
-    // Navigate to Checkout with selected items and delivery address
-    navigation.navigate('Checkout', {
-      selectedItems: selectedItems, // Pass the selected cart items
-      deliveryAddress,
-      deliveryCoordinates,
-    });
+  const handleDecrement = (productId: string) => {
+    const item = items.find((i) => i.id === productId);
+    if (item && item.quantity > 1) updateQuantity(productId, item.quantity - 1);
   };
 
+  if (items.length === 0) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        {/* ROUNDED HEADER STYLE COPIED FROM HOME */}
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>My Cart</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        </View>
 
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconContainer}>
+            <ShoppingBag size={64} color={BRAND_COLOR} strokeWidth={1.5} />
+          </View>
+          <Text style={styles.emptyTitle}>Your cart is empty</Text>
+          <Text style={styles.emptyText}>Discover amazing products and deals</Text>
+          <Pressable onPress={() => navigation.navigate('Shop', {})} style={[styles.shopButton, { backgroundColor: BRAND_COLOR }]}>
+            <Text style={styles.shopButtonText}>Explore Products</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-
-      {/* HEADER */}
-      {/* HEADER */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 5 }]}
-      >
+      <StatusBar barStyle="light-content" />
+      
+      {/* 1. BRANDED ROUNDED HEADER */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
         <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>My Cart</Text>
-          <View style={styles.clearTextWrapper}>
-            {selectedIds.length > 0 ? (
-               <Pressable onPress={handleDeleteSelected}>
-                <Text style={[styles.clearText, { color: '#EF4444' }]}>Delete ({selectedIds.length})</Text>
-              </Pressable>
-            ) : (
-              <Pressable onPress={handleClearAll}>
-                <Text style={styles.clearText}>Clear All</Text>
-              </Pressable>
-            )}
-          </View>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>My Cart ({items.length})</Text>
+          <Pressable onPress={clearCart} style={styles.clearButton}>
+            <Text style={styles.clearText}>Clear All</Text>
+          </Pressable>
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* SELECT ALL BAR */}
+      {/* 2. SELECT ALL BAR */}
       <View style={styles.selectAllBar}>
-        <Pressable style={styles.checkboxWrapper} onPress={() => isAllSelected ? setSelectedIds([]) : setSelectedIds(items.map(i => i.cartItemId))}>
-          {isAllSelected ? <CheckCircle size={22} color={BRAND_PRIMARY} fill={BRAND_PRIMARY + '15'} /> : <Circle size={22} color="#D1D5DB" />}
+        <Pressable style={styles.checkboxWrapper} onPress={toggleSelectAll}>
+          {isAllSelected ? (
+            <CheckCircle size={22} color={BRAND_COLOR} fill={BRAND_COLOR + '15'} />
+          ) : (
+            <Circle size={22} color="#D1D5DB" />
+          )}
           <Text style={styles.selectAllText}>Select All Items</Text>
         </Pressable>
+        {selectedIds.length > 0 && (
+          <Pressable onPress={() => setSelectedIds([])}>
+            <Text style={{ color: BRAND_COLOR, fontWeight: '700' }}>Deselect All</Text>
+          </Pressable>
+        )}
       </View>
 
-      <ScrollView
-        style={styles.scrollContainer}
-        contentContainerStyle={{ paddingBottom: 200 }} // Increased padding to ensure visibility
+      <ScrollView 
+        style={styles.scrollContainer} 
+        contentContainerStyle={{ paddingBottom: 200 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* SELLER GROUPS */}
-        {Object.entries(groupedItems).map(([sellerName, sellerProducts]) => {
-          const isSellerSelected = sellerProducts.every(item => selectedIds.includes(item.cartItemId));
-
-          return (
-            <View key={sellerName} style={styles.sellerCard}>
-              {/* STORE HEADER */}
-              <View style={styles.sellerHeader}>
-                <Pressable onPress={() => toggleSellerGroup(sellerProducts)} style={styles.headerCheckbox}>
-                  {isSellerSelected ? (
-                    <CheckCircle size={20} color={BRAND_PRIMARY} fill={BRAND_PRIMARY + '15'} />
-                  ) : (
-                    <Circle size={20} color="#D1D5DB" />
-                  )}
-                </Pressable>
-                <View style={styles.storeInfo}>
-                  <Store size={16} color={COLORS.textPrimary} />
-                  <Text style={styles.sellerName}>{sellerName}</Text>
-                </View>
+        {/* 3. CART ITEMS */}
+        <View style={styles.itemsContainer}>
+          {items.map((item) => (
+            <View key={item.id} style={styles.itemRowCard}>
+              <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.id)}>
+                {selectedIds.includes(item.id) ? (
+                  <CheckCircle size={22} color={BRAND_COLOR} />
+                ) : (
+                  <Circle size={22} color="#D1D5DB" />
+                )}
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <CartItemRow
+                  item={item}
+                  onIncrement={() => handleIncrement(item.id)}
+                  onDecrement={() => handleDecrement(item.id)}
+                  onRemove={() => removeItem(item.id)}
+                />
               </View>
-
-              <View style={styles.cardDivider} />
-
-              {/* PRODUCTS LIST */}
-              {sellerProducts.map((item, index) => (
-                <View key={item.cartItemId}>
-                  <View style={styles.itemRow}>
-                    <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)}>
-                      {selectedIds.includes(item.cartItemId) ? (
-                        <CheckCircle size={20} color={BRAND_PRIMARY} />
-                      ) : (
-                        <Circle size={20} color="#D1D5DB" />
-                      )}
-                    </Pressable>
-                    <View style={{ flex: 1 }}>
-                      <CartItemRow
-                        item={item}
-                        onIncrement={() => updateQuantity(item.id, item.quantity + 1)}
-                        onDecrement={() => item.quantity > 1 && updateQuantity(item.id, item.quantity - 1)}
-                        onChange={(val) => updateQuantity(item.id, val)}
-                        onRemove={() => handleRemoveSingle(item)}
-                        onEdit={item.selectedVariant ? () => handleEditVariant(item) : undefined}
-                      />
-                    </View>
-                  </View>
-                  {/* Add divider if not the last item */}
-                  {index < sellerProducts.length - 1 && <View style={styles.itemSeparator} />}
-                </View>
-              ))}
             </View>
-          );
-        })}
+          ))}
+        </View>
+
+        {/* PROMO / BENEFITS */}
+        {subtotal > 0 && subtotal < 500 && (
+          <View style={styles.benefitBanner}>
+            <Truck size={20} color={BRAND_COLOR} strokeWidth={2.5} />
+            <Text style={styles.benefitText}>
+              Add <Text style={{ color: BRAND_COLOR, fontWeight: '800' }}>₱{(500 - subtotal).toLocaleString()}</Text> more for <Text style={{fontWeight: '800'}}>FREE</Text> shipping
+            </Text>
+          </View>
+        )}
+        
+        {subtotal >= 500 && (
+          <View style={styles.successBanner}>
+            <CheckCircle2 size={20} color="#166534" strokeWidth={2.5} />
+            <Text style={styles.successText}>You've unlocked FREE shipping! 🎉</Text>
+          </View>
+        )}
+
+        {/* ORDER SUMMARY BOX */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <Tag size={18} color={BRAND_COLOR} strokeWidth={2.5} />
+            <Text style={styles.summaryTitle}>Order Summary</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Subtotal</Text><Text style={styles.summaryValue}>₱{subtotal.toLocaleString()}</Text></View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Shipping</Text>
+            <Text style={[styles.summaryValue, shippingFee === 0 && { color: BRAND_COLOR, fontWeight: '800' }]}>{shippingFee === 0 ? 'FREE' : `₱${shippingFee}`}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Grand Total</Text>
+            <Text style={[styles.totalValue, { color: BRAND_COLOR }]}>₱{total.toLocaleString()}</Text>
+          </View>
+        </View>
       </ScrollView>
 
-      {/* FLOATING ACTION BAR */}
-      <View style={[styles.bottomBar, { bottom: insets.bottom + 80 }]}>
+      {/* 4. ENLARGED BRANDED FLOATING ACTION BAR */}
+      <View style={[styles.bottomBar, { bottom: insets.bottom + 20 }]}>
         <View style={styles.bottomBarContent}>
-          <View>
-            <Text style={[styles.totalInfoPrice, { color: BRAND_PRIMARY }]}>₱{total.toLocaleString()}</Text>
-            {totalSavings > 0 && (
-              <Text style={styles.savingsText}>Saved: ₱{totalSavings.toLocaleString()}</Text>
-            )}
+          <View style={styles.totalInfo}>
+            <Text style={styles.totalInfoLabel}>Total Payment</Text>
+            <Text style={[styles.totalInfoPrice, { color: BRAND_COLOR }]}>₱{total.toLocaleString()}</Text>
           </View>
           <Pressable
-            disabled={selectedIds.length === 0}
-            onPress={async () => {
-              // Clear any previous quick order to prioritize cart selection
-              clearQuickOrder();
-
-              // Get delivery address from AsyncStorage
-              try {
-                const deliveryAddress = await AsyncStorage.getItem('currentDeliveryAddress');
-                const coordsStr = await AsyncStorage.getItem('currentDeliveryCoordinates');
-                const deliveryCoordinates = coordsStr ? JSON.parse(coordsStr) : null;
-
-                navigation.navigate('Checkout', {
-                  selectedItems,
-                  deliveryAddress,
-                  deliveryCoordinates
-                });
-              } catch (error) {
-                console.error('Error reading delivery address:', error);
-                navigation.navigate('Checkout', { selectedItems });
+            onPress={() => {
+              const { isGuest } = useAuthStore.getState();
+              if (isGuest) {
+                 setShowGuestModal(true);
+                 return;
               }
+              navigation.navigate('Checkout');
             }}
-            style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}>
+            style={[
+              styles.checkoutBtn, 
+              { backgroundColor: BRAND_COLOR, opacity: selectedIds.length === 0 ? 0.6 : 1 }
+            ]}
+            disabled={selectedIds.length === 0}
+          >
             <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
           </Pressable>
-
         </View>
       </View>
-      {editingItem && (
-        <VariantSelectionModal
-          visible={showVariantModal}
-          onClose={() => setShowVariantModal(false)}
-          product={editingItem as any} // Cast because CartItem has superset of Product props mostly
-          variants={editingItem.variants} // Pass variants for stock validation
-          initialSelectedVariant={editingItem.selectedVariant}
-          initialQuantity={editingItem.quantity}
-          onConfirm={handleSaveVariant}
-          confirmLabel="Update Cart"
-          hideQuantity={true}
-        />
-      )}
+      <GuestLoginModal 
+        visible={showGuestModal} 
+        onClose={() => setShowGuestModal(false)} 
+        message="You need an account to checkout items."
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background }, // Match soft amber theme
-  headerContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    // backgroundColor: '#FFE5CC', // Removed for gradient
-    borderBottomLeftRadius: 32,
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  // HEADER STYLE TO MATCH HOMESCREEN
+  headerContainer: { 
+    paddingHorizontal: 20, 
+    borderBottomLeftRadius: 20, 
     borderBottomRightRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 8,
-    zIndex: 10,
+    paddingBottom: 20,
   },
-  headerTop: {
-    flexDirection: 'row',
+  headerTop: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    height: 40,
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
-  clearTextWrapper: {
-    position: 'absolute',
-    right: 0,
-  },
-  clearText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 13 },
-
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
+  clearButton: { paddingHorizontal: 12 },
+  clearText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
+  
   selectAllBar: {
-    backgroundColor: 'transparent', // Removed box
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 0,
-    paddingHorizontal: 0,
-    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
-    marginBottom: 8,
   },
-  checkboxWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  selectAllText: { fontSize: 15, fontWeight: '700', color: COLORS.textHeadline },
+  checkboxWrapper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  selectAllText: { fontSize: 15, fontWeight: '700', color: '#1F2937' },
 
-  scrollContainer: { flex: 1, paddingTop: 8 },
-
-  // REFACTORED STYLE FOR SELLER GROUP (No boxes)
-  sellerCard: {
+  scrollContainer: { flex: 1 },
+  itemsContainer: { padding: 16 },
+  itemRowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 20,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB', // Professional neutral gray
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  sellerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 0,
+    borderRadius: 20,
     marginBottom: 12,
-  },
-  headerCheckbox: { marginRight: 12 },
-  storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sellerName: { fontSize: 17, fontWeight: '800', color: '#111827' }, // Black subheader
-
-  cardDivider: { height: 1, backgroundColor: '#E5E7EB', marginBottom: 12 },
-
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    backgroundColor: 'transparent',
-  },
-  itemCheckbox: { paddingHorizontal: 12, paddingVertical: 8 },
-  itemSeparator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 12, opacity: 0.6 },
-
-  savingsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
+    paddingLeft: 12,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: '#F1F1F1'
   },
-  savingsIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  savingsBannerText: {
-    fontSize: 13,
-    color: '#B91C1C',
-    fontWeight: '500',
-    flex: 1,
-  },
-  dashedDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 16, borderStyle: 'dashed', borderWidth: 0.5, borderColor: '#D1D5DB' },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: 16, fontWeight: '800', color: COLORS.textHeadline },
-  totalValue: { fontSize: 22, fontWeight: '900', color: COLORS.textHeadline },
+  itemCheckbox: { padding: 8 },
 
-  // BOTTOM BAR
-  bottomBar: { position: 'absolute', left: 16, right: 16, backgroundColor: '#FFFFFF', borderRadius: 15, elevation: 15, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, paddingVertical: 3 },
-  bottomBarContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 12 },
-  totalInfoLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '700', textTransform: 'uppercase' },
-  totalInfoPrice: { fontSize: 24, fontWeight: '900', color: COLORS.textHeadline },
-  checkoutBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 15 },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
+  emptyIconContainer: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937', marginBottom: 8 },
+  emptyText: { fontSize: 15, color: '#888', textAlign: 'center', marginBottom: 30 },
+  shopButton: { paddingHorizontal: 32, paddingVertical: 16, borderRadius: 100 },
+  shopButtonText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+
+  benefitBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF5F0', marginHorizontal: 16, padding: 16, borderRadius: 16, gap: 12 },
+  benefitText: { flex: 1, fontSize: 14, color: '#4B5563' },
+  successBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDF4', marginHorizontal: 16, padding: 16, borderRadius: 16, gap: 12 },
+  successText: { flex: 1, fontSize: 14, color: '#166534', fontWeight: '600' },
+
+  summaryCard: { backgroundColor: '#FFFFFF', margin: 16, borderRadius: 24, padding: 20, elevation: 4, shadowOpacity: 0.05, borderWidth: 1, borderColor: '#F1F1F1' },
+  summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 15 },
+  summaryTitle: { fontSize: 17, fontWeight: '800', color: '#1F2937' },
+  divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  summaryLabel: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
+  summaryValue: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
+  totalLabel: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
+  totalValue: { fontSize: 24, fontWeight: '900' },
+
+  bottomBar: { 
+    position: 'absolute', 
+    left: 12, 
+    right: 12, 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 30, 
+    elevation: 20, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.15, 
+    shadowRadius: 25,
+    paddingVertical: 4
+  },
+  bottomBarContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20 },
+  totalInfo: { flex: 1 },
+  totalInfoLabel: { fontSize: 13, color: '#888', fontWeight: '600', marginBottom: 2 },
+  totalInfoPrice: { fontSize: 24, fontWeight: '900' },
+  checkoutBtn: { paddingHorizontal: 32, paddingVertical: 18, borderRadius: 100 },
   checkoutBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
-  savingsText: { fontSize: 12, color: '#DC2626', fontWeight: '600', marginTop: 2 },
 });

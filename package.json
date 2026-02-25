@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "@supabase/supabase-js": "^2.95.3",
     "lenis": "^1.3.17",
     "zustand": "^5.0.9"
   },

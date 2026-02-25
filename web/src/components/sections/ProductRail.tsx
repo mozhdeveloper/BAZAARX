@@ -9,9 +9,7 @@ interface ProductRailProps {
   subtitle?: string;
   products: any[];
   actionLabel?: string;
-  actionLink?: string;
   onActionClick?: () => void;
-  isFlash?: boolean;
 }
 
 const ProductRail: React.FC<ProductRailProps> = ({
@@ -19,62 +17,57 @@ const ProductRail: React.FC<ProductRailProps> = ({
   subtitle,
   products,
   actionLabel = "View All",
-  actionLink,
-  onActionClick,
-  isFlash
+  onActionClick
 }) => {
   return (
-    <section className="py-20 bg-transparent overflow-hidden">
+    <section className="py-20 bg-[var(--bg-secondary)] overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="grid lg:grid-cols-12 gap-10 items-center">
-          {/* Left Side: Product Cards (Appears second on mobile) */}
-          <div className="lg:col-span-8 order-2 lg:order-1">
+          {/* Left Side: Product Cards */}
+          <div className="lg:col-span-8">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
               {products.map((product, index) => (
                 <ProductCard
                   key={product.id}
                   product={product}
                   index={index}
-                  isFlash={isFlash}
                 />
               ))}
             </div>
           </div>
 
-          {/* Right Side: Descriptive Content (Appears first on mobile) */}
+          {/* Right Side: Descriptive Content */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="lg:col-span-4 order-1 lg:order-2 mb-8 lg:mb-0"
+            className="lg:col-span-4"
           >
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <h2 className="text-4xl lg:text-5xl font-bold text-[var(--text-headline)] mb-6 tracking-tight">
+              <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-6">
                 {title}
               </h2>
             </motion.div>
             {subtitle && (
-              <p className="text-xl text-[var(--text-primary)] mb-8 leading-relaxed font-medium">
+              <p className="text-lg text-[var(--text-secondary)] mb-8 leading-relaxed">
                 {subtitle}
               </p>
             )}
 
             <Link
-              to={actionLink || "#"}
+              to="#"
               onClick={(e) => {
-                if (!actionLink) {
-                  e.preventDefault();
-                  onActionClick?.();
-                }
+                e.preventDefault();
+                onActionClick?.();
               }}
-              className="group flex items-center gap-2 text-[var(--text-headline)] font-medium text-lg hover:text-[var(--brand-primary)] transition-colors mt-6"
+              className="group flex items-center gap-2 text-[var(--text-primary)] font-bold text-lg hover:text-[var(--brand-primary)] transition-colors"
             >
-              <span className="transition-all">{actionLabel}</span>
+              <span className="underline underline-offset-8 decoration-2">{actionLabel}</span>
               <svg
                 width="20" height="20" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"

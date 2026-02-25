@@ -31,7 +31,7 @@ export default function SellerAuthChoice() {
                 {/* Hero Section (Replicating Web Left Side) */}
                 <View style={styles.heroSection}>
                     <LinearGradient
-                        colors={['#FFF4EC', '#FFE4D6']}
+                        colors={['#FFF5F0', '#FFE4D6']}
                         style={styles.heroBackground}
                     />
                     <View style={styles.heroContent}>
@@ -57,7 +57,7 @@ export default function SellerAuthChoice() {
                             onPress={() => navigation.navigate('SellerSignup')}
                         >
                             <LinearGradient
-                                colors={['#D97706', '#B45309']}
+                                colors={['#FF6A00', '#FF8C42']}
                                 style={styles.buttonGradient}
                             >
                                 <View style={styles.buttonIconWrapper}>
@@ -76,8 +76,8 @@ export default function SellerAuthChoice() {
                             style={styles.secondaryButton}
                             onPress={() => navigation.navigate('SellerLogin')}
                         >
-                            <View style={[styles.buttonIconWrapper, { backgroundColor: '#FFF4EC' }]}>
-                                <LogIn size={24} color="#D97706" />
+                            <View style={[styles.buttonIconWrapper, { backgroundColor: '#FFF5F0' }]}>
+                                <LogIn size={24} color="#FF6A00" />
                             </View>
                             <View style={styles.buttonTextWrapper}>
                                 <Text style={[styles.buttonTitle, { color: '#1F2937' }]}>Sign in to your account</Text>
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     },
     quoteMark: {
         fontSize: 60,
-        color: '#D97706',
+        color: '#FF6A00',
         opacity: 0.2,
         position: 'absolute',
         top: 10,
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         overflow: 'hidden',
         elevation: 5,
-        shadowColor: '#D97706',
+        shadowColor: '#FF6A00',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
         shadowRadius: 12,
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     footerLink: {
-        color: '#D97706',
+        color: '#FF6A00',
         fontWeight: '700',
     },
 });

@@ -36,7 +36,7 @@ export const MobileAppScroll = ({
 
   return (
     <div
-      className="h-[60rem] md:h-[90rem] flex items-center justify-center relative p-4 md:p-20 bg-transparent overflow-hidden"
+      className="h-[60rem] md:h-[90rem] flex items-center justify-center relative p-4 md:p-20 bg-white overflow-hidden"
       ref={containerRef}
     >
       <div

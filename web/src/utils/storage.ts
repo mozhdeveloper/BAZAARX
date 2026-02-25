@@ -122,32 +122,16 @@ export const uploadAvatar = async (
  */
 export const uploadReviewImages = async (
   files: File[],
-  reviewId: string,
-  buyerId: string,
+  reviewId: string
 ): Promise<string[]> => {
   if (!isSupabaseConfigured()) {
     return files.map((f) => `https://via.placeholder.com/300?text=${f.name}`);
   }
 
   try {
-    const timestamp = Date.now();
-
-    const uploadPromises = files.map(async (file, index) => {
-      const validation = validateImageFile(file);
-      if (!validation.valid) {
-        console.warn(`Skipping invalid review image: ${validation.error}`);
-        return null;
-      }
-
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const baseName = file.name.replace(/\.[^/.]+$/, '');
-      const safeBaseName = baseName
-        .toLowerCase()
-        .replace(/[^a-z0-9-_]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 40) || 'review-image';
-      const uniqueSuffix = Math.random().toString(36).slice(2, 8);
-      const fileName = `${buyerId}/${reviewId}/${timestamp}-${index}-${uniqueSuffix}-${safeBaseName}.${fileExt}`;
+    const uploadPromises = files.map(async (file) => {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${reviewId}/${Date.now()}.${fileExt}`;
 
       const { error } = await supabase.storage
         .from('review-images')
@@ -165,43 +149,11 @@ export const uploadReviewImages = async (
       return publicUrl;
     });
 
-    const uploaded = await Promise.all(uploadPromises);
-    return uploaded.filter((url): url is string => typeof url === 'string' && url.length > 0);
+    return await Promise.all(uploadPromises);
   } catch (error) {
     console.error('Review images upload failed:', error);
     return [];
   }
-};
-
-/**
- * Validate document file for seller verification
- */
-export const validateDocumentFile = (file: File): { valid: boolean; error?: string } => {
-  const allowedTypes: Record<string, { maxSize: number; label: string }> = {
-    'application/pdf': { maxSize: 10 * 1024 * 1024, label: 'PDF' },
-    'image/jpeg': { maxSize: 5 * 1024 * 1024, label: 'JPEG' },
-    'image/jpg': { maxSize: 5 * 1024 * 1024, label: 'JPG' },
-    'image/png': { maxSize: 5 * 1024 * 1024, label: 'PNG' },
-  };
-
-  const config = allowedTypes[file.type];
-  if (!config) {
-    return {
-      valid: false,
-      error: `Invalid file type "${file.type}". Please upload PDF, JPG, or PNG files.`
-    };
-  }
-
-  if (file.size > config.maxSize) {
-    const maxSizeMB = (config.maxSize / (1024 * 1024)).toFixed(1);
-    const actualSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-    return {
-      valid: false,
-      error: `File too large (${actualSizeMB}MB). Maximum ${maxSizeMB}MB for ${config.label} files.`
-    };
-  }
-
-  return { valid: true };
 };
 
 /**
@@ -214,12 +166,6 @@ export const uploadSellerDocument = async (
 ): Promise<string | null> => {
   if (!isSupabaseConfigured()) {
     return `mock://document/${file.name}`;
-  }
-
-  // Validate file before upload
-  const validation = validateDocumentFile(file);
-  if (!validation.valid) {
-    throw new Error(validation.error);
   }
 
   try {
@@ -242,10 +188,9 @@ export const uploadSellerDocument = async (
     return publicUrl;
   } catch (error) {
     console.error('Document upload failed:', error);
-    throw error;
+    return null;
   }
 };
-
 
 /**
  * Get file size in human-readable format

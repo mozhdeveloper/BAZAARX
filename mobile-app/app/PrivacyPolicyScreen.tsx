@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, StatusBar } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, Lock, Eye, Database, UserCheck, FileText } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -124,22 +123,17 @@ export default function PrivacyPolicyScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       {/* Header */}
-      <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
-      >
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
         <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
             </Pressable>
             <Text style={styles.headerTitle}>Privacy Policy</Text>
             <View style={{ width: 40 }} />
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Hero Section */}
@@ -206,7 +200,7 @@ export default function PrivacyPolicyScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFBF0', // Warm Ivory
+    backgroundColor: '#F9FAFB',
   },
   headerContainer: {
     paddingHorizontal: 20,
@@ -222,7 +216,7 @@ const styles = StyleSheet.create({
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   scrollView: {
     flex: 1,
   },

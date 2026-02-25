@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { handleImageError } from '@/utils/imageUtils';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Package,
+  FileCheck,
+  Clock,
   XCircle,
   AlertCircle,
   Search,
   BadgeCheck,
   RefreshCw,
   User,
-  Store,
+  Store
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,58 +23,71 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useProductQAStore } from '@/stores/productQAStore';
 import { useAuthStore, useProductStore } from '@/stores/sellerStore';
 import { useToast } from '@/hooks/use-toast';
-import { SellerSidebar } from '@/components/seller/SellerSidebar';
-import { cn } from "@/lib/utils";
+import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
+import { sellerLinks } from '@/config/sellerLinks';
+
+// Logo Components
+const Logo = () => {
+  return (
+    <Link
+      to="/seller"
+      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+    >
+      <img 
+        src="/Logo.png" 
+        alt="BazaarPH Logo" 
+        className="h-8 w-8 object-contain flex-shrink-0"
+      />
+      <span className="font-semibold text-gray-900 dark:text-white whitespace-pre">
+        BazaarPH Seller
+      </span>
+    </Link>
+  );
+};
+
+const LogoIcon = () => {
+  return (
+    <Link
+      to="/seller"
+      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+    >
+      <img 
+        src="/Logo.png" 
+        alt="BazaarPH Logo" 
+        className="h-8 w-8 object-contain flex-shrink-0"
+      />
+    </Link>
+  );
+};
 
 const SellerProductStatus = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [logisticsMethod, setLogisticsMethod] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'waiting' | 'qa' | 'revision' | 'verified' | 'rejected'>('all');
-
-  const { products: qaProducts, submitSample, loadProducts, isLoading } = useProductQAStore();
+  
+  const { products: qaProducts, submitSample } = useProductQAStore();
   const { toast } = useToast();
   const { seller } = useAuthStore();
   const { products: sellerProducts } = useProductStore();
 
-  // Load QA products for this seller on mount
-  useEffect(() => {
-    if (seller?.id) {
-      loadProducts(seller.id);
-    }
-  }, [seller?.id, loadProducts]);
-
-  // Filter QA products for this seller using seller ID
+  // Filter QA products for this seller
   const sellerQAProducts = qaProducts.filter(
-    (p) => p.sellerId === seller?.id
+    (p) => p.vendor === (seller?.name || 'Unknown Vendor')
   );
 
   // Get all seller products (including those not in QA yet)
   const activeSellerProducts = sellerProducts.filter((p) => p.isActive);
 
-  // Calculate counts
-  const pendingCount = sellerQAProducts.filter(p => p.status === 'PENDING_DIGITAL_REVIEW').length;
-  const waitingCount = sellerQAProducts.filter(p => p.status === 'WAITING_FOR_SAMPLE').length;
-  const qaQueueCount = sellerQAProducts.filter(p => p.status === 'IN_QUALITY_REVIEW').length;
-  const revisionCount = sellerQAProducts.filter(p => p.status === 'FOR_REVISION').length;
-  const verifiedCount = sellerQAProducts.filter(p => p.status === 'ACTIVE_VERIFIED').length;
-  const rejectedCount = sellerQAProducts.filter(p => p.status === 'REJECTED').length;
-
-  // Calculate unique products for 'All' count
-  const qaProductIdsForCount = new Set(sellerQAProducts.map(p => p.id));
-  const nonQASellerProductsCount = activeSellerProducts.filter(p => !qaProductIdsForCount.has(p.id)).length;
-  const allCount = sellerQAProducts.length + nonQASellerProductsCount;
-
-  const statusOptions = [
-    { value: 'all', label: 'All Products', count: allCount },
-    { value: 'pending', label: 'Pending', count: pendingCount },
-    { value: 'waiting', label: 'Awaiting Sample', count: waitingCount },
-    { value: 'qa', label: 'QA Queue', count: qaQueueCount },
-    { value: 'revision', label: 'For Revision', count: revisionCount },
-    { value: 'verified', label: 'Verified', count: verifiedCount },
-    { value: 'rejected', label: 'Rejected', count: rejectedCount },
-  ];
+  // Calculate stats
+  const pendingCount = sellerQAProducts.filter((p) => p.status === 'PENDING_DIGITAL_REVIEW').length;
+  const waitingCount = sellerQAProducts.filter((p) => p.status === 'WAITING_FOR_SAMPLE').length;
+  const reviewCount = sellerQAProducts.filter((p) => p.status === 'IN_QUALITY_REVIEW').length;
+  const verifiedCount = sellerQAProducts.filter((p) => p.status === 'ACTIVE_VERIFIED').length;
+  const revisionCount = sellerQAProducts.filter((p) => p.status === 'FOR_REVISION').length;
+  const rejectedCount = sellerQAProducts.filter((p) => p.status === 'REJECTED').length;
 
   // Apply search and filter
   const getFilteredProducts = () => {
@@ -112,11 +126,11 @@ const SellerProductStatus = () => {
 
     // Apply search filter
     if (searchQuery.trim()) {
-      filteredQA = filteredQA.filter(p =>
+      filteredQA = filteredQA.filter(p => 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.category.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      filteredSeller = filteredSeller.filter(p =>
+      filteredSeller = filteredSeller.filter(p => 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.category.toLowerCase().includes(searchQuery.toLowerCase())
       );
@@ -126,14 +140,7 @@ const SellerProductStatus = () => {
   };
 
   const { filteredQA: filteredQAProducts, filteredSeller: filteredSellerProducts } = getFilteredProducts();
-
-  // Get product IDs that are already in QA system to avoid duplicates
-  const qaProductIds = new Set(qaProducts.map(p => p.id));
-
-  // Only include seller products that are NOT in the QA system yet
-  const nonQASellerProducts = filteredSellerProducts.filter(p => !qaProductIds.has(p.id));
-
-  const allFilteredProducts = [...filteredQAProducts, ...nonQASellerProducts];
+  const allFilteredProducts = [...filteredQAProducts, ...filteredSellerProducts];
 
   const handleSubmitSample = () => {
     if (!selectedProduct || !logisticsMethod) {
@@ -168,94 +175,253 @@ const SellerProductStatus = () => {
 
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
-      <SellerSidebar />
+    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
+      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
+        <SidebarBody className="justify-between gap-10">
+          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+            {sidebarOpen ? <Logo /> : <LogoIcon />}
+            <div className="mt-8 flex flex-col gap-2">
+              {sellerLinks.map((link, idx) => (
+                <SidebarLink key={idx} link={link} />
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <SidebarLink
+              link={{
+                label: seller?.name || "Seller",
+                href: "/seller/profile",
+                icon: (
+                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
+                    <span className="text-white text-xs font-medium">
+                      {seller?.name?.charAt(0) || 'S'}
+                    </span>
+                  </div>
+                ),
+              }}
+            />
+          </div>
+        </SidebarBody>
+      </Sidebar>
 
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
-          <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
-        </div>
-
-        <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto relative z-10 scrollbar-hide">
-          <div className="max-w-7xl mx-auto space-y-8">
+      <div className="flex-1 overflow-auto">
+        <div className="bg-white border-b">
+          <div className="max-w-7xl mx-auto px-8 py-6">
             <div className="flex items-center gap-3">
+              <div className="p-3 bg-orange-50 rounded-xl">
+                <FileCheck className="w-6 h-6 text-[#FF5722]" />
+              </div>
               <div>
-                <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight">Product QA Status</h1>
-                <p className="text-sm text-[var(--text-muted)] mt-1">Track your product quality assurance status</p>
+                <h1 className="text-2xl font-bold text-gray-900">Product QA Status</h1>
+                <p className="text-sm text-gray-500">Track your product quality assurance status</p>
               </div>
             </div>
+          </div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-8 py-8">
 
-
-
-            {/* Filter Navigation and Search */}
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 mb-8">
-              {/* Status Navigation Container */}
-              <div className="flex-1 relative min-w-0">
-                <div className="overflow-x-auto scrollbar-hide pb-0.5">
-                  <div className="inline-flex items-center p-1 bg-white rounded-full border border-orange-100/50 shadow-sm min-w-full md:min-w-max">
-                    {statusOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => setFilterStatus(option.value as any)}
-                        className={cn(
-                          "px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all duration-300",
-                          filterStatus === option.value
-                            ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
-                            : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50",
-                        )}
-                      >
-                        {option.label}
-                        <span className={cn(
-                          "ml-1 text-[11px] font-medium",
-                          filterStatus === option.value
-                            ? "text-white/90"
-                            : "text-gray-400 group-hover:text-[var(--brand-primary)]"
-                        )}>
-                          ({option.count})
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+          {/* Stat-Filter Cards (Consolidated Navigation) */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            {/* Pending Review */}
+            <Card 
+              onClick={() => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending')}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                filterStatus === 'pending' 
+                  ? 'border-[#FF5722] border-2 bg-orange-50' 
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <Clock className={`w-5 h-5 ${filterStatus === 'pending' ? 'text-[#FF5722]' : 'text-gray-400'}`} />
                 </div>
+                <p className="text-2xl font-bold text-gray-900">{pendingCount}</p>
+                <p className="text-xs font-medium text-gray-600 mt-1">Pending Review</p>
               </div>
+            </Card>
 
-              <div className="relative w-full lg:w-80 flex-shrink-0">
-                <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-orange-200 bg-white rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-300 transition-all shadow-sm"
-                />
+            {/* Awaiting Sample */}
+            <Card 
+              onClick={() => setFilterStatus(filterStatus === 'waiting' ? 'all' : 'waiting')}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                filterStatus === 'waiting' 
+                  ? 'border-[#FF5722] border-2 bg-orange-50' 
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <Package className={`w-5 h-5 ${filterStatus === 'waiting' ? 'text-[#FF5722]' : 'text-gray-400'}`} />
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{waitingCount}</p>
+                <p className="text-xs font-medium text-gray-600 mt-1">Awaiting Sample</p>
               </div>
+            </Card>
+
+            {/* QA Queue */}
+            <Card 
+              onClick={() => setFilterStatus(filterStatus === 'qa' ? 'all' : 'qa')}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                filterStatus === 'qa' 
+                  ? 'border-[#FF5722] border-2 bg-orange-50' 
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <FileCheck className={`w-5 h-5 ${filterStatus === 'qa' ? 'text-[#FF5722]' : 'text-gray-400'}`} />
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{reviewCount}</p>
+                <p className="text-xs font-medium text-gray-600 mt-1">QA Queue</p>
+              </div>
+            </Card>
+
+            {/* For Revision */}
+            <Card 
+              onClick={() => setFilterStatus(filterStatus === 'revision' ? 'all' : 'revision')}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                filterStatus === 'revision' 
+                  ? 'border-[#FF5722] border-2 bg-orange-50' 
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <RefreshCw className={`w-5 h-5 ${filterStatus === 'revision' ? 'text-[#FF5722]' : 'text-gray-400'}`} />
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{revisionCount}</p>
+                <p className="text-xs font-medium text-gray-600 mt-1">For Revision</p>
+              </div>
+            </Card>
+
+            {/* Verified */}
+            <Card 
+              onClick={() => setFilterStatus(filterStatus === 'verified' ? 'all' : 'verified')}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                filterStatus === 'verified' 
+                  ? 'border-[#FF5722] border-2 bg-orange-50' 
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <BadgeCheck className={`w-5 h-5 ${filterStatus === 'verified' ? 'text-[#FF5722]' : 'text-gray-400'}`} />
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{verifiedCount}</p>
+                <p className="text-xs font-medium text-gray-600 mt-1">Verified</p>
+              </div>
+            </Card>
+
+            {/* Rejected */}
+            <Card 
+              onClick={() => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected')}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                filterStatus === 'rejected' 
+                  ? 'border-[#FF5722] border-2 bg-orange-50' 
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <XCircle className={`w-5 h-5 ${filterStatus === 'rejected' ? 'text-[#FF5722]' : 'text-gray-400'}`} />
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{rejectedCount}</p>
+                <p className="text-xs font-medium text-gray-600 mt-1">Rejected</p>
+              </div>
+            </Card>
+          </div>
+          {/* Search Toolbar */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex-1 max-w-md relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
-            {/* Products List */}
-            <Card className="shadow-lg rounded-xl bg-white overflow-hidden border-0">
-              <div>
-                {isLoading ? (
-                  <div className="py-16 text-center">
-                    <RefreshCw className="w-12 h-12 text-gray-300 mx-auto mb-3 animate-spin" />
-                    <p className="text-gray-500 font-medium">Loading products...</p>
-                  </div>
-                ) : allFilteredProducts.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 font-medium">No products found</p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      {filterStatus !== 'all' ? 'Click the filter again to show all products' : 'Try adjusting your search'}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {filteredSellerProducts.map((product) => (
-                      <div key={`seller-${product.id}`} className="p-5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
+          </div>
+          {/* Products List */}
+          <Card>
+            <div className="divide-y">
+              {allFilteredProducts.length === 0 ? (
+                <div className="py-16 text-center">
+                  <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">No products found</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {filterStatus !== 'all' ? 'Click the filter again to show all products' : 'Try adjusting your search'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Show seller products first */}
+                  {filteredSellerProducts.map((product) => (
+                    <div key={`seller-${product.id}`} className="p-5 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-5">
+                        {/* Product Image */}
+                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                          {product.images[0] ? (
+                            <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="w-6 h-6 text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Product Info */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">{product.category}</Badge>
+                            <span className="text-sm text-gray-500 flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {seller?.name || 'Your Shop'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Price */}
+                        <div className="flex-shrink-0">
+                          <p className="text-xl font-bold text-[#FF5722]">₱{product.price.toLocaleString()}</p>
+                        </div>
+
+                        {/* Status Badge */}
+                        <div className="flex-shrink-0">
+                          {product.approvalStatus === 'approved' ? (
+                            <Badge className="bg-green-100 text-green-700 border-0">
+                              <BadgeCheck className="w-3 h-3 mr-1" />
+                              Approved
+                            </Badge>
+                          ) : product.approvalStatus === 'pending' ? (
+                            <Badge variant="outline" className="text-orange-600 border-orange-300">
+                              Pending
+                            </Badge>
+                          ) : product.approvalStatus === 'rejected' ? (
+                            <Badge className="bg-red-100 text-red-700 border-0">
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Rejected
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">{product.approvalStatus || 'Unknown'}</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Show QA products */}
+                  {filteredQAProducts.map((product) => (
+                    <div key={product.id}>
+                      <div className="p-5 hover:bg-gray-50 transition-colors">
                         <div className="flex items-center gap-5">
                           {/* Product Image */}
-                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
-                            {product.images[0] ? (
-                              <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
+                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                            {product.image ? (
+                              <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
                                 <Package className="w-6 h-6 text-gray-400" />
@@ -265,140 +431,81 @@ const SellerProductStatus = () => {
 
                           {/* Product Info */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold text-[var(--secondary-foreground)] truncate">{product.name}</h3>
-                              {product.approvalStatus === 'approved' ? (
-                                <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                  Approved
-                                </Badge>
-                              ) : product.approvalStatus === 'pending' ? (
-                                <Badge className="text-orange-600 bg-orange-50 hover:bg-orange-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                  Pending
-                                </Badge>
-                              ) : product.approvalStatus === 'rejected' ? (
-                                <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                  Rejected
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="h-5 px-2 text-[10px] uppercase tracking-wide">{product.approvalStatus || 'Unknown'}</Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="text-[10px] bg-gray-100 hover:bg-gray-100 text-gray-600 font-normal">{product.category}</Badge>
-                              <span className="text-xs text-gray-400 flex items-center gap-1">
+                            <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className="text-xs">{product.category}</Badge>
+                              <span className="text-sm text-gray-500 flex items-center gap-1">
                                 <User className="w-3 h-3" />
-                                {seller?.name || 'Your Shop'}
+                                {product.vendor}
                               </span>
+                              {product.logistics && (
+                                <span className="text-xs text-gray-500">• {product.logistics}</span>
+                              )}
                             </div>
                           </div>
 
                           {/* Price */}
                           <div className="flex-shrink-0">
-                            <p className="text-lg font-bold text-[var(--secondary-foreground)]">₱{product.price.toLocaleString()}</p>
+                            <p className="text-xl font-bold text-[#FF5722]">₱{product.price.toLocaleString()}</p>
+                          </div>
+
+                          {/* Status and Action */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {product.status === 'WAITING_FOR_SAMPLE' ? (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedProduct(product.id);
+                                  setSubmitModalOpen(true);
+                                }}
+                                className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
+                              >
+                                Submit Sample
+                              </Button>
+                            ) : product.status === 'PENDING_DIGITAL_REVIEW' ? (
+                              <Badge variant="outline" className="text-orange-600 border-orange-300">
+                                Pending Review
+                              </Badge>
+                            ) : product.status === 'IN_QUALITY_REVIEW' ? (
+                              <Badge variant="outline" className="text-purple-600 border-purple-300">
+                                In QA Review
+                              </Badge>
+                            ) : product.status === 'FOR_REVISION' ? (
+                              <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                Needs Revision
+                              </Badge>
+                            ) : product.status === 'ACTIVE_VERIFIED' ? (
+                              <Badge className="bg-green-100 text-green-700 border-0">
+                                <BadgeCheck className="w-3 h-3 mr-1" />
+                                Verified
+                              </Badge>
+                            ) : product.status === 'REJECTED' ? (
+                              <Badge className="bg-red-100 text-red-700 border-0">
+                                <XCircle className="w-3 h-3 mr-1" />
+                                Rejected
+                              </Badge>
+                            ) : null}
                           </div>
                         </div>
                       </div>
-                    ))}
 
-                    {/* Show QA products */}
-                    {filteredQAProducts.map((product) => (
-                      <div key={product.assessmentId || `qa-${product.id}`}>
-                        <div className="p-5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
-                          <div className="flex items-center gap-5">
-                            {/* Product Image */}
-                            <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
-                              {product.image ? (
-                                <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Package className="w-6 h-6 text-gray-400" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Product Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-[var(--secondary-foreground)] truncate">{product.name}</h3>
-                                {product.status === 'PENDING_DIGITAL_REVIEW' ? (
-                                  <Badge className="text-orange-600 bg-orange-50 hover:bg-orange-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Pending Review
-                                  </Badge>
-                                ) : product.status === 'IN_QUALITY_REVIEW' ? (
-                                  <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    In QA Review
-                                  </Badge>
-                                ) : product.status === 'FOR_REVISION' ? (
-                                  <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Needs Revision
-                                  </Badge>
-                                ) : product.status === 'ACTIVE_VERIFIED' ? (
-                                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Verified
-                                  </Badge>
-                                ) : product.status === 'REJECTED' ? (
-                                  <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Rejected
-                                  </Badge>
-                                ) : product.status === 'WAITING_FOR_SAMPLE' ? (
-                                  <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Awaiting Sample
-                                  </Badge>
-                                ) : null}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="secondary" className="text-[10px] bg-gray-100 hover:bg-gray-100 text-gray-600 font-normal">{product.category}</Badge>
-                                <span className="text-xs text-gray-400 flex items-center gap-1">
-                                  <User className="w-3 h-3" />
-                                  {product.vendor}
-                                </span>
-                                {product.logistics && (
-                                  <span className="text-xs text-gray-400">• {product.logistics}</span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Price */}
-                            <div className="flex-shrink-0">
-                              <p className="text-lg font-bold text-[var(--secondary-foreground)]">₱{product.price.toLocaleString()}</p>
-                            </div>
-
-                            {/* Action (Only for waiting sample) */}
-                            {product.status === 'WAITING_FOR_SAMPLE' && (
-                              <div className="flex-shrink-0 ml-4">
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedProduct(product.id);
-                                    setSubmitModalOpen(true);
-                                  }}
-                                  className="bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-full px-4"
-                                >
-                                  Submit Sample
-                                </Button>
-                              </div>
-                            )}
-                          </div>
+                      {/* Show rejection reason if product is rejected */}
+                      {product.status === 'REJECTED' && product.rejectionReason && (
+                        <div className="px-5 pb-5">
+                          <Alert className="border-red-200 bg-red-50">
+                            <XCircle className="h-4 w-4 text-red-600" />
+                            <AlertDescription className="text-red-800">
+                              <span className="font-medium">Rejection Reason:</span> {product.rejectionReason}
+                            </AlertDescription>
+                          </Alert>
                         </div>
-
-                        {/* Show rejection reason if product is rejected */}
-                        {product.status === 'REJECTED' && product.rejectionReason && (
-                          <div className="px-5 pb-5">
-                            <Alert className="border-red-200 bg-red-50">
-                              <XCircle className="h-4 w-4 text-red-600" />
-                              <AlertDescription className="text-red-800">
-                                <span className="font-medium">Rejection Reason:</span> {product.rejectionReason}
-                              </AlertDescription>
-                            </Alert>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            </Card>
-          </div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
 
@@ -481,19 +588,18 @@ const SellerProductStatus = () => {
 
           <DialogFooter>
             <Button
-              variant="ghost"
+              variant="outline"
               onClick={() => {
                 setSubmitModalOpen(false);
                 setLogisticsMethod('');
               }}
-              className="rounded-xl hover:bg-gray-100 text-gray-600"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSubmitSample}
               disabled={!logisticsMethod}
-              className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl transition-all"
+              className="bg-orange-600 hover:bg-orange-700"
             >
               Submit Sample
             </Button>
@@ -503,8 +609,5 @@ const SellerProductStatus = () => {
     </div>
   );
 };
-
-
-
 
 export default SellerProductStatus;

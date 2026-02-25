@@ -1,7 +1,5 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { Star, ArrowRight } from 'lucide-react';
 import { Collection } from '../types';
 
 interface CollectionCardProps {
@@ -10,54 +8,43 @@ interface CollectionCardProps {
 }
 
 const CollectionCard: React.FC<CollectionCardProps> = ({ collection, index = 0 }) => {
-  const navigate = useNavigate();
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="group cursor-pointer"
-      onClick={() => navigate('/shop', { state: { collection: collection.id } })}
+      className="flex-1 bg-white rounded-[2rem] p-7 shadow-sm hover:shadow-xl transition-all duration-500 group cursor-pointer border border-gray-50"
     >
-      <div className="bg-white rounded-[32px] p-6 shadow-golden hover:shadow-xl transition-all duration-500 border border-gray-100/50 flex flex-col h-full group-hover:-translate-y-1 group-hover:border-orange-100">
-        {/* Title Top */}
-        <h3 className="text-2xl font-bold text-[var(--text-headline)] mb-6 tracking-tight leading-tight min-h-[4rem]">
-          {collection.name}
-        </h3>
+      <div className="mb-8">
+        <h4 className="text-xl font-bold text-gray-900 leading-tight">
+          {collection.title}
+        </h4>
+      </div>
 
-        {/* Image Middle */}
-        <div className="relative aspect-square mb-8 overflow-hidden rounded-2xl bg-gray-50 flex items-center justify-center">
-          <motion.img
-            src={collection.image}
-            alt={collection.name}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-          />
+      <div className="relative w-full aspect-[4/5] mb-8 overflow-hidden rounded-2xl">
+        <img
+          src={collection.image}
+          alt={collection.title}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out"
+        />
+      </div>
+
+      <div className="flex items-end justify-between">
+        <div>
+          <span className="block text-sm font-bold text-gray-900">Explore</span>
+          <span className="text-xs text-gray-400">{collection.productCount} products</span>
         </div>
-
-        {/* Footer */}
-        <div className="mt-auto flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-sm text-gray-400 font-medium font-primary">
-              {collection.productCount} products
-            </span>
-          </div>
-
-          <div className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--brand-primary)"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="7" y1="17" x2="17" y2="7"></line>
-              <polyline points="7 7 17 7 17 17"></polyline>
-            </svg>
-          </div>
+        
+        <div className="w-10 h-10 rounded-full border border-gray-100 flex items-center justify-center 
+                        group-hover:bg-[#FF6B00] group-hover:border-[#FF6B00] transition-all duration-300">
+          <svg 
+            width="20" height="20" viewBox="0 0 24 24" fill="none" 
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className="text-[#FF6B00] group-hover:text-white transition-colors duration-300"
+          >
+            <line x1="7" y1="17" x2="17" y2="7"></line>
+            <polyline points="7 7 17 7 17 17"></polyline>
+          </svg>
         </div>
       </div>
     </motion.div>

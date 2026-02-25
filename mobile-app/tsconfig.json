@@ -6,23 +6,10 @@
       "@/*": [
         "./src/*"
       ]
-    },
-    "typeRoots": [
-      "./node_modules/@types",
-      "./src/types"
-    ],
-    "types": [
-      "jest",
-      "node"
-    ]
+    }
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx",
-    "src/types/*.d.ts"
-  ],
-  "exclude": [
-    "supabase/functions",
-    "src/tests/**/*"
+    "**/*.tsx"
   ]
 }

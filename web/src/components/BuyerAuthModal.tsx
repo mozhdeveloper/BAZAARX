@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
-import { authService } from "../services/authService";
+import { signUp, signIn } from "../services/authService";
 import { supabase } from "../lib/supabase";
 
 interface BuyerAuthModalProps {
@@ -67,20 +67,22 @@ export function BuyerAuthModal({
         }
 
         // Supabase signup for buyer
-        const result = await authService.signUp(email, password, {
+        const { user, error: signUpError } = await signUp(email, password, {
           full_name: fullName,
           user_type: "buyer",
-          email: "",
-          password: ""
         });
 
-        if (!result || !result.user) {
-          setError("Signup failed");
+        if (signUpError) {
+          setError(signUpError.message || "Signup failed");
           setIsLoading(false);
           return;
         }
 
-        const { user } = result;
+        if (!user) {
+          setError("Failed to create account");
+          setIsLoading(false);
+          return;
+        }
 
         // Buyer record is already created by authService.signUp()
         // No need to create it again here
@@ -89,15 +91,19 @@ export function BuyerAuthModal({
         onAuthSuccess?.(user.id, email);
       } else {
         // Login with Supabase
-        const result = await authService.signIn(email, password);
+        const { user, error: signInError } = await signIn(email, password);
 
-        if (!result || !result.user) {
+        if (signInError) {
           setError("Invalid email or password");
           setIsLoading(false);
           return;
         }
 
-        const { user } = result;
+        if (!user) {
+          setError("Login failed");
+          setIsLoading(false);
+          return;
+        }
 
         // Verify user is a buyer
         const { data: buyerData, error: buyerError } = await supabase
@@ -116,13 +122,9 @@ export function BuyerAuthModal({
         setIsSuccess(true);
         onAuthSuccess?.(user.id, email);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Authentication error:", err);
-      if (err.message?.includes("User already registered") || err.message?.includes("already exists")) {
-        setError("This email is already registered. Please sign in instead.");
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }

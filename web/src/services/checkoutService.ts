@@ -1,21 +1,10 @@
-/**
- * Checkout Service
- * Handles the checkout process, order creation, and stock management
- * Adheres to the Class-based Service Layer Architecture
- */
-
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { CartItem } from '@/types/database.types';
-import { notificationService } from './notificationService';
-import { orderNotificationService } from './orderNotificationService';
-import { discountService } from './discountService';
-import type { ActiveDiscount } from '@/types/discount';
+import { supabase } from '@/lib/supabase';
+import type { CartItem, ProductVariant } from '@/types/database.types';
 
 // Define the payload for the checkout process
 export interface CheckoutPayload {
     userId: string;
     items: (CartItem & {
-        selected_variant?: any;
         product?: {
             price?: number;
             seller_id?: string;
@@ -32,8 +21,6 @@ export interface CheckoutPayload {
     shippingFee: number;
     discount: number;
     email: string;
-    /** Voucher ID when a voucher was applied (for order_vouchers tracking) */
-    voucherId?: string | null;
 }
 
 export interface CheckoutResult {
@@ -43,383 +30,140 @@ export interface CheckoutResult {
     newBazcoinsBalance?: number;
 }
 
-type CheckoutLinePricing = {
-    item: CheckoutPayload['items'][number];
-    unitPrice: number;
-    quantity: number;
-    campaignDiscountPerUnit: number;
-    campaignDiscountTotal: number;
-    discountedUnitPrice: number;
-    activeDiscount: ActiveDiscount | null;
+/**
+ * Generate a unique order number with format: ORD-(YEAR)029283
+ * Example: ORD-2025029283
+ */
+const generateOrderNumber = (): string => {
+    const year = new Date().getFullYear();
+    const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 digits
+    return `ORD-${year}${randomNum}`;
 };
 
-export class CheckoutService {
-    private static instance: CheckoutService;
+/**
+ * Group items by seller to create separate orders if needed
+ */
 
-    private constructor() { }
+export const processCheckout = async (payload: CheckoutPayload): Promise<CheckoutResult> => {
+    const {
+        userId,
+        items,
+        totalAmount,
+        shippingAddress,
+        paymentMethod,
+        usedBazcoins,
+        earnedBazcoins,
+        shippingFee,
+        discount,
+        email
+    } = payload;
 
-    public static getInstance(): CheckoutService {
-        if (!CheckoutService.instance) {
-            CheckoutService.instance = new CheckoutService();
+    console.log("Starting checkout process...", payload);
+
+    try {
+        // 1. Validate Stock
+        for (const item of items) {
+            if (!item.product_id) continue;
+
+            const { data: product, error: productError } = await supabase
+                .from('products')
+                .select('stock, variants')
+                .eq('id', item.product_id)
+                .single();
+
+            if (productError || !product) {
+                throw new Error(`Product not found for item ${item.product_id}`);
+            }
+
+            if (item.selected_variant) {
+                const variantId = item.selected_variant.id;
+                // Check if variants is an array or JSON object that needs parsing
+                const variantsList = Array.isArray(product.variants) ? product.variants : [];
+                const variant = variantsList.find((v: any) => v.id === variantId);
+
+                if (!variant) {
+                    throw new Error(`Variant not found for product ${item.product_id}`);
+                }
+
+                if (variant.stock < item.quantity) {
+                    throw new Error(`Insufficient stock for ${item.selected_variant.name}`);
+                }
+            } else {
+                if ((product.stock || 0) < item.quantity) {
+                    throw new Error(`Insufficient stock for product`);
+                }
+            }
         }
-        return CheckoutService.instance;
-    }
 
-    /**
-     * Generate a unique order number with format: ORD-(YEAR)029283
-     * Example: ORD-2025029283
-     */
-    private generateOrderNumber(): string {
-        const year = new Date().getFullYear();
-        const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 digits
-        return `ORD-${year}${randomNum}`;
-    }
-
-    /**
-     * Process the checkout
-     */
-    async processCheckout(payload: CheckoutPayload): Promise<CheckoutResult> {
-        if (!isSupabaseConfigured()) {
-            throw new Error('Supabase not configured - cannot process checkout');
-        }
-
-        const {
-            userId,
-            items,
-            shippingAddress,
-            paymentMethod,
-            usedBazcoins,
-            earnedBazcoins,
-            email,
-            voucherId,
-            discount
-        } = payload;
-
-        console.log("Starting checkout process...", payload);
-
-        try {
-            // 1. Validate Stock
-            for (const item of items) {
-                if (!item.product_id) continue;
-
-                // First get product stock
-                const { data: product, error: productError } = await supabase
-                    .from('products')
-                    .select('*')
-                    .eq('id', item.product_id)
-                    .maybeSingle();
-
-                if (productError || !product) {
-                    console.warn(`Product ${item.product_id} not found, skipping stock validation`);
-                    continue; // Skip validation but allow checkout
-                }
-                
-                // Get variants from product_variants table if needed
-                let variantsList: any[] = [];
-                if (item.selected_variant) {
-                    const { data: variants } = await supabase
-                        .from('product_variants')
-                        .select('*')
-                        .eq('product_id', item.product_id);
-                    variantsList = variants || [];
-                }
-
-                if (item.selected_variant) {
-                    const selectedVar = item.selected_variant as any;
-                    
-                    // If product has no variants, treat as regular product
-                    if (variantsList.length === 0) {
-                        console.warn(`Product ${item.product_id} has selected_variant in cart but no variants in database. Using product stock.`);
-                        if ((product.stock || 0) < item.quantity) {
-                            throw new Error(`Insufficient stock for product. Available: ${product.stock || 0}, Requested: ${item.quantity}`);
-                        }
-                    } else {
-                        // Try multiple matching strategies
-                        let variant = null;
-                        
-                        // Strategy 1: Match by ID (if both exist)
-                        if (selectedVar.id) {
-                            variant = variantsList.find((v: any) => v.id === selectedVar.id);
-                        }
-                        
-                        // Strategy 2: Match by SKU (if both exist)
-                        if (!variant && selectedVar.sku) {
-                            variant = variantsList.find((v: any) => v.sku === selectedVar.sku);
-                        }
-                        
-                        // Strategy 3: Match by name
-                        if (!variant && selectedVar.name) {
-                            variant = variantsList.find((v: any) => v.variant_name === selectedVar.name || v.name === selectedVar.name);
-                        }
-                        
-                        // Strategy 4: Match by size/color combination
-                        if (!variant && (selectedVar.size || selectedVar.color)) {
-                            variant = variantsList.find((v: any) => 
-                                (!selectedVar.size || v.size === selectedVar.size) &&
-                                (!selectedVar.color || v.color === selectedVar.color)
-                            );
-                        }
-                        
-                        // Strategy 5: Match by color field (extract from name if needed)
-                        if (!variant && selectedVar.name) {
-                            // Try to extract color from name like "Color: Classic Blue"
-                            const colorMatch = selectedVar.name.match(/Color:\s*(.+)/i);
-                            const colorToFind = selectedVar.color || (colorMatch ? colorMatch[1] : null);
-                            
-                            if (colorToFind) {
-                                // Find first variant with matching color
-                                variant = variantsList.find((v: any) => 
-                                    v.color && v.color.toLowerCase() === colorToFind.toLowerCase()
-                                );
-                            }
-                        }
-                        
-                        // Strategy 6: Match by size field (extract from name if needed)
-                        if (!variant && selectedVar.name) {
-                            const sizeMatch = selectedVar.name.match(/Size:\s*(.+)/i);
-                            const sizeToFind = selectedVar.size || (sizeMatch ? sizeMatch[1] : null);
-                            
-                            if (sizeToFind) {
-                                variant = variantsList.find((v: any) => 
-                                    v.size && v.size.toString() === sizeToFind.toString()
-                                );
-                            }
-                        }
-                        
-                        // Strategy 7: Match by price alone (last resort for same-priced variants)
-                        if (!variant && selectedVar.price) {
-                            const samePrice = variantsList.filter((v: any) => v.price === selectedVar.price);
-                            if (samePrice.length === 1) {
-                                variant = samePrice[0];
-                                console.warn(`Matched variant by price alone for product ${item.product_id}`);
-                            }
-                        }
-                        
-                        if (!variant) {
-                            console.error('Variant matching failed:', {
-                                productId: item.product_id,
-                                selectedVariant: selectedVar,
-                                availableVariants: variantsList
-                            });
-                            console.log('Selected variant structure:', JSON.stringify(selectedVar, null, 2));
-                            console.log('Available variants structure:', JSON.stringify(variantsList, null, 2));
-                            
-                            // Build a readable error message
-                            const variantDescriptions = variantsList.map((v: any) => {
-                                // Try to describe the variant by whatever fields it has
-                                return v.name || v.color || v.size || v.sku || JSON.stringify(v);
-                            }).join(', ');
-                            
-                            throw new Error(
-                                `Variant not found for product ${item.product_id}. ` +
-                                `Looking for: ${JSON.stringify(selectedVar)}. ` +
-                                `Available: ${variantDescriptions || 'No variants'}`
-                            );
-                        }
-
-                        if (variant.stock < item.quantity) {
-                            throw new Error(`Insufficient stock for ${selectedVar.name || 'variant'}. Available: ${variant.stock}, Requested: ${item.quantity}`);
-                        }
-                    }
-                } else {
-                    if ((product.stock || 0) < item.quantity) {
-                        throw new Error(`Insufficient stock for product. Available: ${product.stock || 0}, Requested: ${item.quantity}`);
-                    }
-                }
+        // 2. Create Order Record
+        const itemsBySeller: Record<string, typeof items> = {};
+        items.forEach(item => {
+            const sellerId = item.product?.seller_id;
+            if (!sellerId) {
+                throw new Error("Missing seller information for some items.");
             }
-
-            // 2. Create Order Records
-            const itemsBySeller: Record<string, typeof items> = {};
-            items.forEach(item => {
-                const sellerId = item.product?.seller_id;
-                if (!sellerId) {
-                    throw new Error("Missing seller information for some items.");
-                }
-                if (!itemsBySeller[sellerId]) {
-                    itemsBySeller[sellerId] = [];
-                }
-                itemsBySeller[sellerId].push(item);
-            });
-
-            const createdOrderNumbers: string[] = [];
-            const sharedBaseNumber = this.generateOrderNumber();
-            let orderIndex = 1;
-
-            const getUnitPrice = (item: CheckoutPayload['items'][number]): number => {
-                const base =
-                    Number((item.selected_variant as any)?.original_price) ||
-                    Number((item.selected_variant as any)?.originalPrice) ||
-                    Number(item.product?.price) ||
-                    Number((item.selected_variant as any)?.price) ||
-                    0;
-                return Math.max(0, base);
-            };
-
-            const uniqueProductIds = [...new Set(items.map(item => item.product_id).filter(Boolean) as string[])];
-            const activeDiscountsByProduct = await discountService.getActiveDiscountsForProducts(uniqueProductIds);
-            const linePricing: CheckoutLinePricing[] = items.map(item => {
-                const unitPrice = getUnitPrice(item);
-                const activeDiscount = item.product_id ? (activeDiscountsByProduct[item.product_id] || null) : null;
-                const calculation = discountService.calculateLineDiscount(unitPrice, item.quantity, activeDiscount);
-                return {
-                    item,
-                    unitPrice,
-                    quantity: item.quantity,
-                    campaignDiscountPerUnit: calculation.discountPerUnit,
-                    campaignDiscountTotal: calculation.discountTotal,
-                    discountedUnitPrice: calculation.discountedUnitPrice,
-                    activeDiscount
-                };
-            });
-
-            const campaignDiscountTotal = linePricing.reduce((sum, line) => sum + line.campaignDiscountTotal, 0);
-            const subtotalBeforeDiscount = linePricing.reduce(
-                (sum, line) => sum + (line.unitPrice * line.quantity),
-                0,
-            );
-            const taxAmount = Math.round(subtotalBeforeDiscount * 0.12);
-            const shippingAmount = Number(payload.shippingFee || 0);
-            const voucherDiscount = Number(discount || 0);
-            const bazcoinDiscount = Math.max(0, Number(usedBazcoins || 0));
-            const pricingSummary = {
-                subtotal: subtotalBeforeDiscount,
-                shipping: shippingAmount,
-                tax: taxAmount,
-                campaignDiscount: campaignDiscountTotal,
-                voucherDiscount,
-                bazcoinDiscount,
-                total: Number(payload.totalAmount || 0),
-            };
-
-            // For the normalized schema, we create ONE order and associate items with it
-            // Each order can have items from different sellers
-            const orderNumber = sharedBaseNumber;
-
-            // Calculate totals (these go on order_items, not orders table)
-            const totalAmount = items.reduce((sum, item) =>
-                sum + (item.quantity * ((item.selected_variant as any)?.price || item.product?.price || 0)), 0);
-
-            // First, create or find recipient (for shipping info)
-            let recipientId: string | null = null;
-            try {
-                const { data: recipientData, error: recipientError } = await supabase
-                    .from('order_recipients')
-                    .insert({
-                        first_name: shippingAddress.fullName?.split(' ')[0] || '',
-                        last_name: shippingAddress.fullName?.split(' ').slice(1).join(' ') || '',
-                        phone: shippingAddress.phone || '',
-                        email: email || '',
-                    })
-                    .select()
-                    .single();
-                
-                if (!recipientError && recipientData) {
-                    recipientId = recipientData.id;
-                }
-            } catch (e) {
-                console.warn('Could not create recipient:', e);
+            if (!itemsBySeller[sellerId]) {
+                itemsBySeller[sellerId] = [];
             }
+            itemsBySeller[sellerId].push(item);
+        });
 
-            // Create shipping address entry
-            let shippingAddressId: string | null = null;
-            try {
-                const { data: addressData, error: addressError } = await supabase
-                    .from('shipping_addresses')
-                    .insert({
-                        user_id: userId,
-                        label: 'Order Address',
-                        address_line_1: shippingAddress.street || '',
-                        address_line_2: '',
-                        city: shippingAddress.city || '',
-                        province: shippingAddress.province || '',
-                        region: shippingAddress.province || '', // Fallback to province
-                        postal_code: shippingAddress.postalCode || '',
-                        is_default: false
-                    })
-                    .select()
-                    .single();
-                
-                if (!addressError && addressData) {
-                    shippingAddressId = addressData.id;
-                }
-            } catch (e) {
-                console.warn('Could not create shipping address:', e);
-            }
+        const createdOrderIds: string[] = [];
 
-            // Create the order with the ACTUAL schema columns
-            // Note: orders table doesn't have shipping_address_id - store full address in notes as JSON
-            const addressJson = JSON.stringify({
-                fullName: shippingAddress.fullName,
-                street: shippingAddress.street,
-                city: shippingAddress.city,
-                province: shippingAddress.province,
-                postalCode: shippingAddress.postalCode,
-                phone: shippingAddress.phone
-            });
-            const pricingJson = JSON.stringify(pricingSummary);
-            
+        const sharedBaseNumber = generateOrderNumber();
+        let sellerIndex = 1;
+
+        // Process per seller
+        for (const [sellerId, sellerItems] of Object.entries(itemsBySeller)) {
+            const orderNumber = `${sharedBaseNumber}#${sellerIndex++}`;
+
+            // Calculate subtotals for this specific order
+            const orderSubtotal = sellerItems.reduce((sum, item) => sum + (item.quantity * (item.selected_variant?.price || item.product?.price || 0)), 0);
+
             const { data: orderData, error: orderError } = await supabase
                 .from('orders')
                 .insert({
                     order_number: orderNumber,
                     buyer_id: userId,
-                    order_type: 'ONLINE',
-                    payment_status: paymentMethod === 'cod' ? 'pending_payment' : 'pending_payment',
-                    shipment_status: 'waiting_for_seller',
-                    recipient_id: recipientId,
-                    notes: `SHIPPING_ADDRESS:${addressJson}|PRICING_SUMMARY:${pricingJson}|Payment: ${paymentMethod}`
+                    seller_id: sellerId,
+                    buyer_name: shippingAddress.fullName,
+                    buyer_email: email,
+                    shipping_address: shippingAddress,
+                    payment_method: { type: paymentMethod, details: {} },
+                    status: 'pending_payment',
+                    payment_status: 'pending',
+                    subtotal: orderSubtotal,
+                    total_amount: orderSubtotal, // Simplified
+                    currency: 'PHP',
+                    shipping_cost: 0, // Simplified
+                    discount_amount: 0, // Simplified
+                    tax_amount: 0,
+                    is_reviewed: false,
+                    is_returnable: true,
+                    return_window: 7,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
                 })
                 .select()
                 .single();
 
             if (orderError) throw orderError;
-            createdOrderNumbers.push(orderData.order_number);
+            createdOrderIds.push(orderData.order_number);
 
-            console.log(`✅ Order created: ${orderData.order_number}`);
-
-            // 🔔 Create notifications for sellers (reusing itemsBySeller from above)
-            for (const [sellerId, sellerItems] of Object.entries(itemsBySeller)) {
-                const sellerTotal = sellerItems.reduce((sum, item) =>
-                    sum + (item.quantity * ((item.selected_variant as any)?.price || item.product?.price || 0)), 0);
-                
-                notificationService.notifySellerNewOrder({
-                    sellerId: sellerId,
-                    orderId: orderData.id,
-                    orderNumber: orderData.order_number,
-                    buyerName: shippingAddress.fullName || 'Customer',
-                    total: sellerTotal
-                }).catch(err => {
-                    console.error('❌ Failed to create seller notification:', err);
-                });
-            }
-
-            // 🔔 Create buyer notification for order placed
-            notificationService.notifyBuyerOrderStatus({
-                buyerId: orderData.buyer_id,
-                orderId: orderData.id,
-                orderNumber: orderData.order_number,
-                status: 'placed',
-                message: `Your order #${orderData.order_number} has been placed successfully! The seller will confirm it shortly.`
-            }).catch(err => {
-                console.error('❌ Failed to create buyer notification:', err);
-            });
-
-            // Create Order Items (using actual schema: order_id, product_id, product_name, price, quantity, variant_id, price_discount, shipping_price, shipping_discount)
-            const orderItemsData = linePricing.map(line => ({
+            // Create Order Items
+            const orderItemsData = sellerItems.map(item => ({
                 order_id: orderData.id,
-                product_id: line.item.product_id,
-                product_name: (line.item.selected_variant as any)?.name || line.item.product?.name || 'Unknown Product',
-                primary_image_url: (line.item.selected_variant as any)?.image ||
-                                   (line.item.selected_variant as any)?.thumbnail_url ||
-                                   line.item.product?.primary_image ||
-                                   (line.item.product?.images && line.item.product.images[0]) ||
-                                   null,
-                quantity: line.quantity,
-                price: line.unitPrice,
-                variant_id: (line.item.selected_variant as any)?.id || null,
-                price_discount: line.campaignDiscountPerUnit,
-                shipping_price: 0,
-                shipping_discount: 0
+                product_id: item.product_id,
+                product_name: item.selected_variant?.name || item.product?.name || 'Unknown Product',
+                product_images: item.product?.images || [],
+                quantity: item.quantity,
+                price: item.selected_variant?.price || item.product?.price || 0,
+                subtotal: item.quantity * (item.selected_variant?.price || item.product?.price || 0),
+                selected_variant: item.selected_variant,
+                status: 'pending',
+                is_reviewed: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             }));
 
             const { error: itemsError } = await supabase
@@ -428,114 +172,86 @@ export class CheckoutService {
 
             if (itemsError) throw itemsError;
 
-            // Record campaign discount totals by campaign for analytics/audit
-            if (campaignDiscountTotal > 0) {
-                const campaignTotals = linePricing.reduce<Record<string, number>>((acc, line) => {
-                    const campaignId = line.activeDiscount?.campaignId;
-                    if (!campaignId || line.campaignDiscountTotal <= 0) return acc;
-                    acc[campaignId] = (acc[campaignId] || 0) + line.campaignDiscountTotal;
-                    return acc;
-                }, {});
-
-                const orderDiscountRows = Object.entries(campaignTotals).map(([campaignId, amount]) => ({
-                    buyer_id: userId,
-                    order_id: orderData.id,
-                    campaign_id: campaignId,
-                    discount_amount: amount
-                }));
-
-                if (orderDiscountRows.length > 0) {
-                    const { error: orderDiscountError } = await supabase
-                        .from('order_discounts')
-                        .insert(orderDiscountRows);
-
-                    if (orderDiscountError) {
-                        console.error('Failed to record order campaign discounts:', orderDiscountError);
-                    }
-                }
-
-                // Intentionally disabled: normalized DB flow currently uses
-                // `order_items.price_discount` and `order_discounts` as source of truth.
-                // `discount_usage` remains optional and can be re-enabled if the table is introduced.
-            }
-
-            // Record voucher usage for per-customer limit tracking (claim_limit)
-            if (voucherId && discount > 0 && userId) {
-                const { error: ovError } = await supabase
-                    .from('order_vouchers')
-                    .insert({
-                        buyer_id: userId,
-                        order_id: orderData.id,
-                        voucher_id: voucherId,
-                        discount_amount: discount
-                    });
-
-                if (ovError) {
-                    console.error('Failed to record voucher usage:', ovError);
-                    // Log and continue - don't block checkout
-                }
-            }
-
-            // Update Stock in product_variants (stock is in variants, not products table)
-            for (const item of items) {
+            // Update Stock & Sales Count
+            for (const item of sellerItems) {
                 if (!item.product_id) continue;
 
-                if (item.selected_variant && (item.selected_variant as any)?.id) {
-                    // Update variant stock
-                    const variantId = (item.selected_variant as any).id;
-                    const { data: currentVariant } = await supabase
-                        .from('product_variants')
-                        .select('stock')
-                        .eq('id', variantId)
+                if (item.selected_variant) {
+                    const { data: currentProd } = await supabase
+                        .from('products')
+                        .select('variants, stock, sales_count')
+                        .eq('id', item.product_id)
                         .single();
-                    
-                    if (currentVariant) {
+
+                    if (currentProd) {
+                        const updatedVariants = (currentProd.variants as any[]).map((v: any) => {
+                            if (v.id === item.selected_variant?.id) {
+                                return { ...v, stock: v.stock - item.quantity };
+                            }
+                            return v;
+                        });
+
                         await supabase
-                            .from('product_variants')
-                            .update({ stock: Math.max(0, (currentVariant.stock || 0) - item.quantity) })
-                            .eq('id', variantId);
+                            .from('products')
+                            .update({
+                                variants: updatedVariants,
+                                sales_count: (currentProd.sales_count || 0) + item.quantity
+                            })
+                            .eq('id', item.product_id);
+                    }
+                } else {
+                    const { data: currentProd } = await supabase
+                        .from('products')
+                        .select('stock, sales_count')
+                        .eq('id', item.product_id)
+                        .single();
+
+                    if (currentProd) {
+                        await supabase
+                            .from('products')
+                            .update({
+                                stock: (currentProd.stock || 0) - item.quantity,
+                                sales_count: (currentProd.sales_count || 0) + item.quantity
+                            })
+                            .eq('id', item.product_id);
                     }
                 }
             }
-
-            // 3. Handle Bazcoins (Buyer Update)
-            let newBalance: number | undefined;
-            if (usedBazcoins > 0 || earnedBazcoins > 0) {
-                const { data: buyer } = await supabase
-                    .from('buyers')
-                    .select('bazcoins')
-                    .eq('id', userId)
-                    .single();
-
-                const currentCoins = buyer?.bazcoins || 0;
-                newBalance = currentCoins - usedBazcoins + earnedBazcoins;
-
-                await supabase
-                    .from('buyers')
-                    .update({ bazcoins: newBalance })
-                    .eq('id', userId);
-            }
-
-            // 4. Clear Cart
-            const itemIdsToRemove = items.map(i => i.id);
-            if (itemIdsToRemove.length > 0) {
-                await supabase
-                    .from('cart_items')
-                    .delete()
-                    .in('id', itemIdsToRemove);
-            }
-
-            return {
-                success: true,
-                orderIds: createdOrderNumbers,
-                newBazcoinsBalance: newBalance
-            };
-
-        } catch (error: any) {
-            console.error("Checkout processing failed:", error);
-            throw new Error(error.message || 'Checkout process failed.');
         }
-    }
-}
 
-export const checkoutService = CheckoutService.getInstance();
+        // 3. Handle Bazcoins (Profile Update)
+        if (usedBazcoins > 0 || earnedBazcoins > 0) {
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('bazcoins')
+                .eq('id', userId)
+                .single();
+
+            const currentCoins = profile?.bazcoins || 0;
+            const newBalance = currentCoins - usedBazcoins + earnedBazcoins;
+
+            await supabase
+                .from('profiles')
+                .update({ bazcoins: newBalance })
+                .eq('id', userId);
+        }
+
+        // 4. Clear Cart
+        const itemIdsToRemove = items.map(i => i.id);
+        if (itemIdsToRemove.length > 0) {
+            await supabase
+                .from('cart_items')
+                .delete()
+                .in('id', itemIdsToRemove);
+        }
+
+        return {
+            success: true,
+            orderIds: createdOrderIds
+        };
+
+    } catch (error: any) {
+        console.error("Checkout processing failed:", error);
+        return { success: false, error: error.message };
+    }
+};

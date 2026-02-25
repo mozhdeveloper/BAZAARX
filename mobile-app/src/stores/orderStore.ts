@@ -2,44 +2,18 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Order, CartItem, ShippingAddress } from '../types';
-import { orderService } from '../services/orderService';
-import { orderReadService } from '../services/orders/orderReadService';
-import { orderMutationService } from '../services/orders/orderMutationService';
-import { authService } from '../services/authService';
-import type { POSOrderCreateResult, SellerOrderSnapshot } from '../types/orders';
-import { mapSellerUiToNormalizedStatus } from '../utils/orders/status';
-
-export type SellerOrder = SellerOrderSnapshot;
 
 interface OrderStore {
-  // Buyer Orders
   orders: Order[];
-  ordersLoading: boolean;
   createOrder: (
     items: CartItem[],
     shippingAddress: ShippingAddress,
-    paymentMethod: string,
-    options?: { isGift?: boolean; isAnonymous?: boolean; recipientId?: string }
-  ) => Promise<Order>; // Changed to Promise
-  fetchOrders: (userId: string) => Promise<void>; // Added fetchOrders
+    paymentMethod: string
+  ) => Order;
   getOrderById: (orderId: string) => Order | undefined;
-  updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>; // Changed to Promise
+  updateOrderStatus: (orderId: string, status: Order['status']) => void;
   getActiveOrders: () => Order[];
   getCompletedOrders: () => Order[];
-
-  // Seller Orders
-  sellerOrders: SellerOrder[];
-  sellerOrdersLoading: boolean;
-  fetchSellerOrders: (sellerId?: string, startDate?: Date | null, endDate?: Date | null) => Promise<void>;
-  updateSellerOrderStatus: (orderId: string, status: SellerOrder['status']) => Promise<void>;
-  addOfflineOrder: (
-    cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[],
-    total: number,
-    note?: string,
-    paymentMethod?: 'cash' | 'card' | 'ewallet' | 'bank_transfer',
-  ) => Promise<POSOrderCreateResult>;
-  markOrderAsShipped: (orderId: string, trackingNumber: string) => Promise<void>;
-  markOrderAsDelivered: (orderId: string) => Promise<void>;
 }
 
 // Dummy orders for testing - showcasing all status types with mixed payment statuses
@@ -50,7 +24,6 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '1',
-        cartItemId: 'cart-1',
         name: 'Premium Wireless Earbuds - Noise Cancelling',
         price: 2499,
         originalPrice: 3999,
@@ -90,7 +63,6 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '2',
-        cartItemId: 'cart-2',
         name: 'Sustainable Water Bottle - BPA Free',
         price: 899,
         image: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400',
@@ -129,7 +101,6 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '3',
-        cartItemId: 'cart-3',
         name: 'Minimalist Leather Wallet - Genuine Leather',
         price: 1299,
         image: 'https://images.unsplash.com/photo-1627123424574-724758594e93?w=400',
@@ -168,7 +139,6 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '4',
-        cartItemId: 'cart-4',
         name: 'Smart Watch - Fitness Tracker',
         price: 3599,
         originalPrice: 4999,
@@ -209,7 +179,6 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '5',
-        cartItemId: 'cart-5',
         name: 'Organic Cotton T-Shirt - Unisex',
         price: 599,
         image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
@@ -227,7 +196,7 @@ const dummyOrders: Order[] = [
     ],
     total: 1847,
     shippingFee: 50,
-    status: 'cancelled',
+    status: 'canceled',
     isPaid: false, // COD - Canceled before payment
     scheduledDate: '12/18/2025',
     shippingAddress: {
@@ -248,7 +217,6 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '6',
-        cartItemId: 'cart-6',
         name: 'Portable Bluetooth Speaker - Waterproof',
         price: 1899,
         originalPrice: 2499,
@@ -288,7 +256,6 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '7',
-        cartItemId: 'cart-7',
         name: 'Wireless Gaming Mouse - RGB',
         price: 1599,
         originalPrice: 2299,
@@ -328,7 +295,6 @@ const dummyOrders: Order[] = [
     items: [
       {
         id: '8',
-        cartItemId: 'cart-8',
         name: 'Stainless Steel Water Tumbler 500ml',
         price: 699,
         image: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400',
@@ -368,27 +334,14 @@ export const useOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
-      ordersLoading: false,
 
-      fetchOrders: async (userId: string) => {
-        set({ ordersLoading: true });
-        try {
-          const orders = await orderService.getOrders(userId);
-          set({ orders: orders });
-        } catch (error) {
-          console.error('Error fetching orders:', error);
-        } finally {
-          set({ ordersLoading: false });
-        }
-      },
-
-      createOrder: async (items, shippingAddress, paymentMethod, options) => {
+      createOrder: (items, shippingAddress, paymentMethod) => {
         // Ensure items array is not empty
         if (!items || items.length === 0) {
           throw new Error('Cannot create order with empty cart');
         }
 
-        const total = items.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);
+        const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
         const shippingFee = total >= 1000 ? 0 : 50;
         const transactionId = `TXN${Date.now().toString().slice(-8)}`;
         const scheduledDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
@@ -414,52 +367,48 @@ export const useOrderStore = create<OrderStore>()(
           shippingAddress,
           paymentMethod,
           createdAt: new Date().toISOString(),
-          isGift: options?.isGift,
-          isAnonymous: options?.isAnonymous,
-          recipientId: options?.recipientId,
         };
 
         // Add to buyer's order list
         set({ orders: [...get().orders, newOrder] });
 
+        // SYNC TO SELLER: Also add to seller's order store
+        try {
+          // Dynamically import seller store to avoid circular dependency
+          import('./sellerStore').then(({ useSellerStore }) => {
+            const sellerStore = useSellerStore.getState();
+            
+            // Convert buyer order to seller order format
+            const sellerOrder: import('./sellerStore').SellerOrder = {
+              id: newOrder.id,
+              orderId: newOrder.transactionId,
+              customerName: shippingAddress.name,
+              customerEmail: shippingAddress.email,
+              items: validatedItems.map(item => ({
+                productId: item.id,
+                productName: item.name,
+                image: item.image,
+                quantity: item.quantity,
+                price: item.price,
+              })),
+              total: newOrder.total,
+              status: isPaidOrder ? 'to-ship' : 'pending',
+              createdAt: newOrder.createdAt,
+              type: 'ONLINE',
+            };
 
-        // SYNC TO SELLER: Also add to seller's order store (local state)
-        const sellerOrder: SellerOrder = {
-          id: newOrder.id,
-          orderNumber: newOrder.transactionId,
-          buyerName: shippingAddress.name,
-          buyerEmail: shippingAddress.email,
-          items: validatedItems.map(item => ({
-            productId: item.id,
-            productName: item.name || 'Unknown Product',
-            image: item.image,
-            quantity: item.quantity,
-            price: item.price ?? 0,
-          })),
-          total: newOrder.total,
-          status: isPaidOrder ? 'confirmed' : 'pending',
-          paymentStatus: isPaidOrder ? 'paid' : 'pending',
-          orderDate: newOrder.createdAt,
-          type: 'ONLINE',
-          shippingAddress: {
-            fullName: shippingAddress.name,
-            street: shippingAddress.address,
-            city: shippingAddress.city,
-            province: shippingAddress.region,
-            region: shippingAddress.region,
-            postalCode: shippingAddress.postalCode,
-            phone: shippingAddress.phone,
-          },
-          orderId: newOrder.transactionId,
-          customerName: shippingAddress.name,
-          customerEmail: shippingAddress.email,
-          createdAt: newOrder.createdAt,
-        };
+            // Add to seller's orders
+            const currentSellerOrders = sellerStore.orders || [];
+            useSellerStore.setState({
+              orders: [sellerOrder, ...currentSellerOrders]
+            });
 
-        // Add to seller's orders in local state
-        set((state) => ({
-          sellerOrders: [sellerOrder, ...state.sellerOrders]
-        }));
+            console.log('✅ Order synced to seller:', sellerOrder.orderId);
+          });
+        } catch (error) {
+          console.error('Failed to sync order to seller:', error);
+          // Don't throw - order is still created for buyer
+        }
 
         return newOrder;
       },
@@ -468,22 +417,22 @@ export const useOrderStore = create<OrderStore>()(
         return get().orders.find((order) => order.id === orderId);
       },
 
-      updateOrderStatus: async (orderId, status) => {
+      updateOrderStatus: (orderId, status) => {
         set({
           orders: get().orders.map((order) =>
             order.id === orderId
               ? {
-                ...order,
-                status,
-                deliveryDate:
-                  status === 'delivered'
-                    ? new Date().toLocaleDateString('en-US', {
-                      month: '2-digit',
-                      day: '2-digit',
-                      year: 'numeric',
-                    })
-                    : order.deliveryDate,
-              }
+                  ...order,
+                  status,
+                  deliveryDate:
+                    status === 'delivered'
+                      ? new Date().toLocaleDateString('en-US', {
+                          month: '2-digit',
+                          day: '2-digit',
+                          year: 'numeric',
+                        })
+                      : order.deliveryDate,
+                }
               : order
           ),
         });
@@ -499,281 +448,6 @@ export const useOrderStore = create<OrderStore>()(
         return get().orders.filter(
           (order) => order.status === 'delivered'
         );
-      },
-
-      // ============================================
-      // SELLER ORDERS
-      // ============================================
-      sellerOrders: [],
-      sellerOrdersLoading: false,
-
-      fetchSellerOrders: async (sellerId?: string, startDate?: Date | null, endDate?: Date | null) => {
-        let actualSellerId = sellerId;
-        const isValidUUID =
-          sellerId &&
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerId);
-
-        if (!isValidUUID) {
-          const session = await authService.getSession();
-          if (session?.user?.id) {
-            actualSellerId = session.user.id;
-          } else {
-            console.warn('[OrderStore] No authenticated session for fetchSellerOrders');
-            set({ sellerOrdersLoading: false });
-            return;
-          }
-        }
-
-        if (!actualSellerId) {
-          console.warn('[OrderStore] No seller ID available for fetchSellerOrders');
-          return;
-        }
-
-        set({ sellerOrdersLoading: true });
-        try {
-          const snapshots = await orderReadService.getSellerOrders({
-            sellerId: actualSellerId,
-            startDate,
-            endDate,
-          });
-          set({ sellerOrders: snapshots, sellerOrdersLoading: false });
-        } catch (error) {
-          console.error('[OrderStore] Error fetching seller orders:', error);
-          set({ sellerOrdersLoading: false });
-        }
-      },
-
-      updateSellerOrderStatus: async (orderId, status) => {
-        const target = get().sellerOrders.find((o) => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
-        if (!target) {
-          throw new Error('Order not found');
-        }
-
-        const previous = { ...target };
-        const actualOrderId = target.id;
-
-        set((state) => ({
-          sellerOrders: state.sellerOrders.map((order) =>
-            order.id === actualOrderId ? { ...order, status } : order,
-          ),
-        }));
-
-        try {
-          const session = await authService.getSession();
-          const actorId = session?.user?.id;
-          const nextStatus = mapSellerUiToNormalizedStatus(status);
-
-          await orderMutationService.updateOrderStatus({
-            orderId: actualOrderId,
-            nextStatus,
-            note: `Seller updated order to ${status}`,
-            actorId,
-            actorRole: 'seller',
-          });
-
-          const buyerStatus =
-            status === 'pending'
-              ? 'pending'
-              : status === 'confirmed'
-                ? 'processing'
-                : status === 'shipped'
-                  ? 'shipped'
-                  : status === 'delivered'
-                    ? 'delivered'
-                    : 'cancelled';
-
-          set((state) => ({
-            orders: state.orders.map((order) =>
-              order.transactionId === target.orderNumber || order.orderId === actualOrderId
-                ? {
-                  ...order,
-                  status: buyerStatus as Order['status'],
-                  deliveryDate:
-                    buyerStatus === 'delivered'
-                      ? new Date().toLocaleDateString('en-US', {
-                        month: '2-digit',
-                        day: '2-digit',
-                        year: 'numeric',
-                      })
-                      : order.deliveryDate,
-                }
-                : order,
-            ),
-          }));
-        } catch (error) {
-          console.error('[OrderStore] Failed to update order status:', error);
-          set((state) => ({
-            sellerOrders: state.sellerOrders.map((order) =>
-              order.id === actualOrderId ? previous : order,
-            ),
-          }));
-          throw error;
-        }
-      },
-
-      addOfflineOrder: async (cartItems, total, note, paymentMethod) => {
-        // Get seller ID from session
-        const session = await authService.getSession();
-        const sellerId = session?.user?.id;
-
-        if (!sellerId) {
-          throw new Error('Not authenticated. Please log in to create orders.');
-        }
-
-        // Validate cart items
-        if (!cartItems || cartItems.length === 0) {
-          throw new Error('Cart is empty');
-        }
-
-        if (total <= 0) {
-          throw new Error('Invalid order total');
-        }
-
-        try {
-          const sellerProfile = await authService.getSellerProfile(sellerId);
-          const result = await orderMutationService.createPOSOrder({
-            sellerId,
-            sellerName: sellerProfile?.store_name || 'Store',
-            items: cartItems,
-            total,
-            note,
-            paymentMethod,
-          });
-
-          if (!result) {
-            throw new Error('Failed to create POS order');
-          }
-
-          await get().fetchSellerOrders(sellerId);
-
-          console.log(`[OrderStore] Offline order created: ${result.orderNumber}`);
-          return result;
-        } catch (error) {
-          console.error('[OrderStore] Failed to create offline order:', error);
-          throw error;
-        }
-      },
-      markOrderAsShipped: async (orderId, trackingNumber) => {
-        const target = get().sellerOrders.find((o) => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
-        if (!target) {
-          throw new Error('Order not found');
-        }
-
-        const previous = { ...target };
-        const actualOrderId = target.id;
-        const nextTracking = trackingNumber.trim().toUpperCase();
-
-        if (!nextTracking) {
-          throw new Error('Tracking number is required');
-        }
-
-        set((state) => ({
-          sellerOrders: state.sellerOrders.map((order) =>
-            order.id === actualOrderId
-              ? {
-                ...order,
-                status: 'shipped',
-                trackingNumber: nextTracking,
-                shipmentStatusRaw: 'shipped',
-                shippedAt: new Date().toISOString(),
-              }
-              : order,
-          ),
-        }));
-
-        // Get seller ID from session/cache
-        const session = await authService.getSession();
-        const sellerId = session?.user?.id;
-
-        if (!sellerId) {
-          throw new Error('Not authenticated');
-        }
-
-        try {
-          await orderMutationService.markOrderShipped({
-            orderId: actualOrderId,
-            trackingNumber: nextTracking,
-            sellerId,
-          });
-          console.log(`[OrderStore] Order marked as shipped: ${orderId} with tracking ${trackingNumber}`);
-        } catch (error) {
-          console.error('[OrderStore] Failed to mark as shipped:', error);
-          set((state) => ({
-            sellerOrders: state.sellerOrders.map((order) =>
-              order.id === actualOrderId ? previous : order,
-            ),
-          }));
-          throw error;
-        }
-
-        set((state) => ({
-          orders: state.orders.map((order) =>
-            order.transactionId === target.orderNumber || order.orderId === actualOrderId
-              ? { ...order, status: 'shipped', trackingNumber: nextTracking }
-              : order,
-          ),
-        }));
-      },
-
-      markOrderAsDelivered: async (orderId) => {
-        const target = get().sellerOrders.find((o) => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
-        if (!target) {
-          throw new Error('Order not found');
-        }
-
-        const previous = { ...target };
-        const actualOrderId = target.id;
-
-        set((state) => ({
-          sellerOrders: state.sellerOrders.map((order) =>
-            order.id === actualOrderId
-              ? {
-                ...order,
-                status: 'delivered',
-                shipmentStatusRaw: 'delivered',
-                deliveredAt: new Date().toISOString(),
-              }
-              : order,
-          ),
-        }));
-
-        const session = await authService.getSession();
-        const sellerId = session?.user?.id;
-
-        if (!sellerId) {
-          throw new Error('Not authenticated');
-        }
-
-        try {
-          await orderMutationService.markOrderDelivered({
-            orderId: actualOrderId,
-            sellerId,
-          });
-        } catch (error) {
-          console.error('[OrderStore] Failed to mark as delivered:', error);
-          set((state) => ({
-            sellerOrders: state.sellerOrders.map((order) =>
-              order.id === actualOrderId ? previous : order,
-            ),
-          }));
-          throw error;
-        }
-
-        set((state) => ({
-          orders: state.orders.map((order) =>
-            order.transactionId === target.orderNumber || order.orderId === actualOrderId
-              ? {
-                ...order,
-                status: 'delivered',
-                deliveryDate: new Date().toLocaleDateString('en-US', {
-                  month: '2-digit',
-                  day: '2-digit',
-                  year: 'numeric',
-                }),
-              }
-              : order,
-          ),
-        }));
       },
     }),
     {

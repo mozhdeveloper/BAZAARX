@@ -40,9 +40,9 @@ import {
 
 const AdminCategories: React.FC = () => {
   const { isAuthenticated } = useAdminAuth();
-  const {
-    categories,
-    selectedCategory,
+  const { 
+    categories, 
+    selectedCategory, 
     isLoading,
     loadCategories,
     addCategory,
@@ -93,10 +93,10 @@ const AdminCategories: React.FC = () => {
 
   const filteredCategories = categories.filter(category => {
     const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      category.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' ||
-      (statusFilter === 'active' && category.isActive) ||
-      (statusFilter === 'inactive' && !category.isActive);
+                         category.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || 
+                         (statusFilter === 'active' && category.isActive) ||
+                         (statusFilter === 'inactive' && !category.isActive);
     return matchesSearch && matchesStatus;
   });
 
@@ -132,7 +132,7 @@ const AdminCategories: React.FC = () => {
 
   const handleEditCategory = async () => {
     if (!selectedCategory) return;
-
+    
     try {
       await updateCategory(selectedCategory.id, formData);
       setShowEditDialog(false);
@@ -145,7 +145,7 @@ const AdminCategories: React.FC = () => {
 
   const handleDeleteCategory = async () => {
     if (!selectedCategory) return;
-
+    
     try {
       await deleteCategory(selectedCategory.id);
       setShowDeleteDialog(false);
@@ -190,7 +190,7 @@ const AdminCategories: React.FC = () => {
       />
 
       <main className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -270,8 +270,8 @@ const AdminCategories: React.FC = () => {
                       <div className="absolute top-3 right-3">
                         <Badge
                           variant={category.isActive ? 'default' : 'secondary'}
-                          className={category.isActive
-                            ? 'bg-green-500 text-white'
+                          className={category.isActive 
+                            ? 'bg-green-500 text-white' 
                             : 'bg-gray-500 text-white'
                           }
                         >
@@ -341,7 +341,7 @@ const AdminCategories: React.FC = () => {
               <FolderTree className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No categories found</h3>
               <p className="text-gray-600 mb-4">
-                {searchTerm || statusFilter !== 'all'
+                {searchTerm || statusFilter !== 'all' 
                   ? 'Try adjusting your search or filters'
                   : 'Get started by creating your first category'
                 }

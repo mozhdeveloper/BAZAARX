@@ -1,368 +1,524 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-  StyleSheet,
-  StatusBar,
-  RefreshControl
-} from 'react-native';
-import { ArrowLeft, Bell, Truck, CheckCircle2, XCircle, Package, Settings } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../App';
-import { notificationService, Notification } from '../src/services/notificationService';
-import { orderService } from '../src/services/orderService';
-import { useAuthStore } from '../src/stores/authStore';
-import { COLORS } from '../src/constants/theme';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, Switch, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
+import { ArrowLeft, Mail, MessageSquare, Bell, Package, ShoppingBag, Tag, ChevronDown } from 'lucide-react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../App';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notifications'>;
 
-// --- Helper Functions ---
-const formatTimeAgo = (dateStr: string) => {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
-};
-
-const getStyles = (type: string) => {
-  const t = type.toLowerCase();
-  if (t.includes('shipped') || t.includes('delivered') || t.includes('out_for_delivery')) {
-    return { Icon: Truck, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
-  }
-  if (t.includes('confirmed') || t.includes('placed')) {
-    return { Icon: CheckCircle2, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
-  }
-  if (t.includes('cancelled') || t.includes('returned') || t.includes('rejected')) {
-    return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
-  }
-  if (t.includes('processing')) {
-    return { Icon: Package, color: '#2563EB', bg: '#DBEAFE', border: '#BFDBFE' };
-  }
-  return { Icon: Bell, color: '#4B5563', bg: '#F3F4F6', border: '#E5E7EB' };
-};
-
 export default function NotificationsScreen({ navigation }: Props) {
+  const { isGuest } = useAuthStore();
+  const [showGuestModal, setShowGuestModal] = useState(false);
   const insets = useSafeAreaInsets();
-  const { user } = useAuthStore();
-
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [processingId, setProcessingId] = useState<string | null>(null);
-  const unreadCount = notifications.filter(n => !n.is_read).length;
-
-  const loadNotifications = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const data = await notificationService.getNotifications(user.id, 'buyer', 50);
-      setNotifications(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user?.id]);
 
   useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadNotifications();
-  };
-
-  const handleMarkAllRead = async () => {
-    if (!user?.id) return;
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-    await notificationService.markAllAsRead(user.id, 'buyer');
-  };
-
-  const handlePress = async (n: Notification) => {
-    if (!n.is_read) {
-      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
-      notificationService.markAsRead(n.id);
+    if (isGuest) {
+      setShowGuestModal(true);
     }
+  }, [isGuest]);
 
-    const orderId = n.action_data?.orderId || n.action_data?.orderNumber;
-    if (orderId) {
-      setProcessingId(n.id);
-      try {
-        const uiOrder = await orderService.getOrderById(orderId);
-        if (uiOrder) {
-          navigation.navigate('OrderDetail', { order: uiOrder });
-        } else {
-          navigation.navigate('Orders' as any);
-        }
-      } catch (e) {
-        navigation.navigate('Orders' as any);
-      } finally {
-        setProcessingId(null);
+  const [notifications, setNotifications] = useState({
+    email: {
+      orderUpdates: true,
+      promotions: true,
+      newsletter: false,
+    },
+    sms: {
+      delivery: true,
+      orderConfirmation: true,
+    },
+    push: {
+      orderStatus: true,
+      newDeals: true,
+      priceDrops: true,
+      messages: true,
+      flashSales: false,
+    },
+  });
+
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  const toggleNotification = (category: 'email' | 'sms' | 'push', key: string) => {
+    setNotifications(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [key]: !prev[category][key as keyof typeof prev[typeof category]],
+      },
+    }));
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
       }
-    } else {
-      navigation.navigate('Orders' as any);
-    }
+      return newSet;
+    });
   };
+
+  // Early return for Guest Mode - Renders ONLY the header and the modal, no content below.
+  if (isGuest) {
+      return (
+        <View style={styles.container}>
+            <StatusBar barStyle="light-content" />
+            <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+                <View style={styles.headerTop}>
+                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Notifications</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+            </View>
+            <GuestLoginModal
+                visible={true}
+                onClose={() => {
+                    navigation.navigate('MainTabs', { screen: 'Home' });
+                }}
+                message="Sign up to view your notifications."
+                hideCloseButton={true}
+                cancelText="Go back to Home"
+            />
+        </View>
+      );
+  }
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-
-      {/* --- HEADER --- */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
-      >
-        <View style={styles.headerTopRow}>
-          <View style={styles.headerLeft}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-              <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+      <StatusBar barStyle="light-content" />
+      {/* Header */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+        <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
             </Pressable>
-            <View style={styles.titleWithBadge}>
-              <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Notifications</Text>
-              {unreadCount > 0 && (
-                <View style={styles.newBadge}>
-                  <Text style={styles.newBadgeText}>{unreadCount} new</Text>
-                </View>
-              )}
-            </View>
+            <Text style={styles.headerTitle}>Notifications</Text>
+            <View style={{ width: 40 }} />
+        </View>
+      </View>
+
+      <GuestLoginModal
+        visible={showGuestModal}
+        onClose={() => {
+          navigation.navigate('MainTabs', { screen: 'Home' });
+        }}
+        message="Sign up to view your notifications."
+        hideCloseButton={true}
+        cancelText="Go back to Home"
+      />
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Email Notifications */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Mail size={18} color="#FF6A00" />
+            <Text style={styles.sectionTitle}>Email Notifications</Text>
           </View>
-          <Pressable onPress={() => navigation.navigate('NotificationSettings')} style={styles.settingsButton}>
-            <Settings size={22} color={COLORS.textHeadline} />
-          </Pressable>
-        </View>
-      </LinearGradient>
-
-      {/* Action Bar (Mark All Read) */}
-      {unreadCount > 0 && (
-        <View style={styles.actionsBar}>
-          <Pressable onPress={handleMarkAllRead} style={styles.markReadAction}>
-            <Text style={styles.markReadActionText}>Mark all as read</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {/* --- CONTENT --- */}
-      {loading ? (
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[COLORS.primary]}
-              tintColor={COLORS.primary}
-            />
-          }
-        >
-          {notifications.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconBg}>
-                <Bell size={40} color="#9CA3AF" />
+          
+          <View style={styles.settingCard}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('email-orderUpdates')}
+            >
+              <View style={styles.settingLeft}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Order Updates</Text>
+                  {expandedItems.has('email-orderUpdates') && (
+                    <Text style={styles.settingSubtitle}>Receive order status updates via email</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('email-orderUpdates') ? '180deg' : '0deg' }]
+                  }}
+                />
               </View>
-              <Text style={styles.emptyTitle}>No notifications yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Order updates and alerts will appear here
-              </Text>
-            </View>
-          ) : (
-            <View>
-              {notifications.map((item) => {
-                const { Icon, color, bg, border } = getStyles(item.type);
-                const isProcessing = processingId === item.id;
+              <Switch
+                value={notifications.email.orderUpdates}
+                onValueChange={() => toggleNotification('email', 'orderUpdates')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
 
-                return (
-                  <Pressable
-                    key={item.id}
-                    style={({ pressed }) => [
-                      styles.item,
-                      // LOGIC FLIPPED: White for Unread, Gray for Read
-                      item.is_read ? styles.readItem : styles.unreadItem,
-                      pressed && styles.itemPressed
-                    ]}
-                    onPress={() => handlePress(item)}
-                    disabled={isProcessing}
-                    accessibilityLabel={`${item.title}, ${item.message}`}
-                    accessibilityHint={!item.is_read ? "Unread notification" : "Read notification"}
-                  >
-                    {/* Icon Box */}
-                    <View style={[styles.iconBox, { backgroundColor: bg, borderColor: border }]}>
-                      <Icon size={18} color={color} />
-                    </View>
+            <View style={styles.divider} />
 
-                    {/* Content */}
-                    <View style={styles.itemContent}>
-                      <View style={styles.itemHeader}>
-                        <Text
-                          numberOfLines={1}
-                          style={[styles.itemTitle, !item.is_read && styles.boldText]}
-                        >
-                          {item.title}
-                        </Text>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('email-promotions')}
+            >
+              <View style={styles.settingLeft}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Promotions & Deals</Text>
+                  {expandedItems.has('email-promotions') && (
+                    <Text style={styles.settingSubtitle}>Get notified about special offers</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('email-promotions') ? '180deg' : '0deg' }]
+                  }}
+                />
+              </View>
+              <Switch
+                value={notifications.email.promotions}
+                onValueChange={() => toggleNotification('email', 'promotions')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
 
-                        {/* Unread Dot - Aligned Right via justify-between */}
-                        {!item.is_read && <View style={styles.unreadDot} />}
+            <View style={styles.divider} />
 
-                        {isProcessing && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginLeft: 8 }} />}
-                      </View>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('email-newsletter')}
+            >
+              <View style={styles.settingLeft}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Newsletter</Text>
+                  {expandedItems.has('email-newsletter') && (
+                    <Text style={styles.settingSubtitle}>Monthly newsletter with tips and trends</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('email-newsletter') ? '180deg' : '0deg' }]
+                  }}
+                />
+              </View>
+              <Switch
+                value={notifications.email.newsletter}
+                onValueChange={() => toggleNotification('email', 'newsletter')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
+          </View>
+        </View>
 
-                      <Text numberOfLines={2} style={styles.itemMessage}>
-                        {item.message}
-                      </Text>
+        {/* SMS Notifications */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <MessageSquare size={18} color="#FF6A00" />
+            <Text style={styles.sectionTitle}>SMS Notifications</Text>
+          </View>
+          
+          <View style={styles.settingCard}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('sms-delivery')}
+            >
+              <View style={styles.settingLeft}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Delivery Updates</Text>
+                  {expandedItems.has('sms-delivery') && (
+                    <Text style={styles.settingSubtitle}>Get SMS updates about your delivery</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('sms-delivery') ? '180deg' : '0deg' }]
+                  }}
+                />
+              </View>
+              <Switch
+                value={notifications.sms.delivery}
+                onValueChange={() => toggleNotification('sms', 'delivery')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
 
-                      <Text style={styles.itemTime}>
-                        {formatTimeAgo(item.created_at)}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-        </ScrollView>
-      )}
+            <View style={styles.divider} />
 
-      {/* Bottom Navigation */}
-      <BuyerBottomNav />
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('sms-orderConfirmation')}
+            >
+              <View style={styles.settingLeft}>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Order Confirmation</Text>
+                  {expandedItems.has('sms-orderConfirmation') && (
+                    <Text style={styles.settingSubtitle}>Receive SMS when order is placed</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('sms-orderConfirmation') ? '180deg' : '0deg' }]
+                  }}
+                />
+              </View>
+              <Switch
+                value={notifications.sms.orderConfirmation}
+                onValueChange={() => toggleNotification('sms', 'orderConfirmation')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Push Notifications */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Bell size={18} color="#FF6A00" />
+            <Text style={styles.sectionTitle}>Push Notifications</Text>
+          </View>
+          
+          <View style={styles.settingCard}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('push-orderStatus')}
+            >
+              <View style={styles.settingLeft}>
+                <Package size={18} color="#3B82F6" />
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Order Status</Text>
+                  {expandedItems.has('push-orderStatus') && (
+                    <Text style={styles.settingSubtitle}>Track your order in real-time</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('push-orderStatus') ? '180deg' : '0deg' }]
+                  }}
+                />
+              </View>
+              <Switch
+                value={notifications.push.orderStatus}
+                onValueChange={() => toggleNotification('push', 'orderStatus')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('push-newDeals')}
+            >
+              <View style={styles.settingLeft}>
+                <Tag size={18} color="#10B981" />
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>New Deals</Text>
+                  {expandedItems.has('push-newDeals') && (
+                    <Text style={styles.settingSubtitle}>Be first to know about new deals</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('push-newDeals') ? '180deg' : '0deg' }]
+                  }}
+                />
+              </View>
+              <Switch
+                value={notifications.push.newDeals}
+                onValueChange={() => toggleNotification('push', 'newDeals')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('push-priceDrops')}
+            >
+              <View style={styles.settingLeft}>
+                <ShoppingBag size={18} color="#F59E0B" />
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Price Drops</Text>
+                  {expandedItems.has('push-priceDrops') && (
+                    <Text style={styles.settingSubtitle}>Get alerted on wishlist price drops</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('push-priceDrops') ? '180deg' : '0deg' }]
+                  }}
+                />
+              </View>
+              <Switch
+                value={notifications.push.priceDrops}
+                onValueChange={() => toggleNotification('push', 'priceDrops')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('push-messages')}
+            >
+              <View style={styles.settingLeft}>
+                <MessageSquare size={18} color="#8B5CF6" />
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Messages</Text>
+                  {expandedItems.has('push-messages') && (
+                    <Text style={styles.settingSubtitle}>Seller messages and chat updates</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('push-messages') ? '180deg' : '0deg' }]
+                  }}
+                />
+              </View>
+              <Switch
+                value={notifications.push.messages}
+                onValueChange={() => toggleNotification('push', 'messages')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => toggleExpanded('push-flashSales')}
+            >
+              <View style={styles.settingLeft}>
+                <Bell size={18} color="#EF4444" />
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Flash Sales</Text>
+                  {expandedItems.has('push-flashSales') && (
+                    <Text style={styles.settingSubtitle}>Limited-time flash sale alerts</Text>
+                  )}
+                </View>
+                <ChevronDown 
+                  size={20} 
+                  color="#9CA3AF" 
+                  style={{
+                    transform: [{ rotate: expandedItems.has('push-flashSales') ? '180deg' : '0deg' }]
+                  }}
+                />
+              </View>
+              <Switch
+                value={notifications.push.flashSales}
+                onValueChange={() => toggleNotification('push', 'flashSales')}
+                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                thumbColor="#FFFFFF"
+              />
+            </Pressable>
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-
-  // Header
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
   headerContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    elevation: 2,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  headerTopRow: {
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingVertical: 20,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  settingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: 16,
+    gap: 12,
   },
-  backButton: { padding: 8, marginLeft: -8 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  titleWithBadge: { flexDirection: 'row', alignItems: 'center' },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
-  newBadge: {
-    backgroundColor: '#EA580C',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginLeft: 8
-  },
-  newBadgeText: { color: '#FFEDD5', fontSize: 12, fontWeight: '700' },
-  settingsButton: { padding: 4 },
-
-  // Actions Bar
-  actionsBar: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: '#F9FAFB',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  markReadAction: { paddingVertical: 4 },
-  markReadActionText: { color: '#EA580C', fontSize: 14, fontWeight: '600' },
-
-  // Content
-  scrollView: { flex: 1, backgroundColor: '#FFFFFF' },
-  centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  scrollContent: { paddingBottom: 100 }, // Extra padding for bottom nav
-
-  // Empty State
-  emptyState: { alignItems: 'center', marginTop: 80, paddingHorizontal: 40 },
-  emptyIconBg: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#374151', marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20 },
-
-  // List Item
-  item: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eba3', // Slightly darker divider
-    alignItems: 'flex-start',
-  },
-  unreadItem: {
-    backgroundColor: '#FFFFFF', // Bright White for Unread
-  },
-  readItem: {
-    backgroundColor: '#F9FAFB', // Dim Gray for Read
-  },
-  itemPressed: {
-    opacity: 0.7,
-  },
-
-  // Icon
-  iconBox: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 14, borderWidth: 1,
-  },
-
-  // Content Text
-  itemContent: { flex: 1 },
-  itemHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between', // Pushes Dot to the right
-    marginBottom: 4,
-  },
-  itemTitle: {
-    fontSize: 15,
-    color: '#374151',
-    fontWeight: '400',
+  settingLeft: {
     flex: 1,
-    marginRight: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  boldText: {
-    fontWeight: '700', // Extra bold for unread
+  settingTextContainer: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 15,
+    fontWeight: '600',
     color: '#111827',
+    marginBottom: 2,
   },
-
-  // Unread Dot
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.primary,
+  settingSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
   },
-
-  itemMessage: { fontSize: 13, color: '#6B7280', lineHeight: 18, marginBottom: 6 },
-  itemTime: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginLeft: 16,
+  },
 });

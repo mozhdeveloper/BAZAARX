@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   View,
@@ -10,336 +10,36 @@ import {
   Platform,
   ScrollView,
   Image,
-  ActivityIndicator,
-  Alert,
 } from 'react-native';
-import { Star, X, ChevronRight, ArrowLeft, ImagePlus, Trash2 } from 'lucide-react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { Star, X } from 'lucide-react-native';
 import type { Order } from '../types';
-import { reviewService } from '../services/reviewService';
-import { COLORS } from '../constants/theme';
-import { useAuthStore } from '../stores/authStore';
 
 interface ReviewModalProps {
   visible: boolean;
   order: Order | null;
   onClose: () => void;
-  onSubmit: (
-    productId: string,
-    orderItemId: string,
-    rating: number,
-    review: string,
-    images?: string[],
-  ) => Promise<void>;
-}
-
-interface ProductReviewStatus {
-  [productId: string]: {
-    reviewed: boolean;
-    rating?: number;
-    comment?: string;
-  };
+  onSubmit: (rating: number, review: string) => void;
 }
 
 export default function ReviewModal({ visible, order, onClose, onSubmit }: ReviewModalProps) {
-  const { user } = useAuthStore();
-  const MAX_REVIEW_IMAGES = 5;
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
-  const [reviewImages, setReviewImages] = useState<string[]>([]);
-  const [reviewStatus, setReviewStatus] = useState<ProductReviewStatus>({});
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (visible && order) {
-      loadReviewStatuses();
-    } else {
-      // Reset state when closed
-      setSelectedItemId(null);
-      setRating(5);
-      setReview('');
-      setReviewImages([]);
-      setReviewStatus({});
-    }
-  }, [visible, order]);
-
-  const loadReviewStatuses = async () => {
-    if (!order) return;
-    setLoading(true);
-    const statuses: ProductReviewStatus = {};
-    
-    try {
-      // Use the real order UUID (orderId) not order_number (id)
-      const realOrderId = (order as any).orderId || order.id;
-      
-      for (const item of order.items) {
-        // Use productId for review check (item.id is order_item id)
-        const productId = (item as any).productId || item.id;
-        let hasReview = false;
-
-        if (item.id) {
-          hasReview = await reviewService.hasReviewForOrderItem(item.id, user?.id);
-        }
-
-        if (!hasReview) {
-          hasReview = await reviewService.hasReviewForProduct(realOrderId, productId, user?.id);
-        }
-
-        statuses[item.id] = { reviewed: hasReview };
-      }
-      setReviewStatus(statuses);
-    } catch (error) {
-      console.error('Error loading review statuses:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSelectProduct = (itemId: string) => {
-    setSelectedItemId(itemId);
-    // If we had the review content, we could pre-fill it here
+  const handleSubmit = () => {
+    onSubmit(rating, review);
+    // Reset for next time
     setRating(5);
     setReview('');
-    setReviewImages([]);
   };
 
-  const handleBackToPicker = () => {
-    setSelectedItemId(null);
+  const handleSkip = () => {
+    onClose();
+    // Reset for next time
     setRating(5);
     setReview('');
-    setReviewImages([]);
-  };
-
-  const handleAddReviewImages = async () => {
-    if (reviewImages.length >= MAX_REVIEW_IMAGES) {
-      Alert.alert('Image Limit Reached', `You can upload up to ${MAX_REVIEW_IMAGES} images per review.`);
-      return;
-    }
-
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Please allow photo library access to upload review images.');
-      return;
-    }
-
-    try {
-      const remaining = MAX_REVIEW_IMAGES - reviewImages.length;
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'] as any,
-        allowsEditing: false,
-        allowsMultipleSelection: true,
-        selectionLimit: remaining,
-        quality: 0.7,
-      });
-
-      if (result.canceled) return;
-
-      const newUris = result.assets.map((asset) => asset.uri).filter(Boolean);
-      if (newUris.length === 0) return;
-
-      setReviewImages((prev) => [...prev, ...newUris].slice(0, MAX_REVIEW_IMAGES));
-    } catch (error) {
-      console.error('Error picking review images:', error);
-      Alert.alert('Error', 'Failed to select images. Please try again.');
-    }
-  };
-
-  const handleRemoveReviewImage = (indexToRemove: number) => {
-    setReviewImages((prev) => prev.filter((_, index) => index !== indexToRemove));
-  };
-
-  const handleSubmit = async () => {
-    if (!selectedItemId || !order) return;
-    
-    setSubmitting(true);
-    try {
-      // Find the item to get its productId
-      const item = order.items.find(i => i.id === selectedItemId);
-      if (!item) throw new Error('Product not found');
-      
-      // Pass the actual productId to onSubmit, not the order_item id
-      const productId = (item as any).productId || item.id;
-      await onSubmit(productId, item.id, rating, review, reviewImages);
-      
-      // Update local status (track by item.id for UI)
-      setReviewStatus(prev => ({
-        ...prev,
-        [selectedItemId]: { reviewed: true, rating, comment: review }
-      }));
-      
-      // Go back to picker
-      setSelectedItemId(null);
-    } catch (error) {
-      console.error('Error submitting review:', error);
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   if (!order) return null;
-
-  const renderProductPicker = () => (
-    <ScrollView showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Rate Products</Text>
-        <Text style={styles.subtitle}>Order #{order.transactionId}</Text>
-      </View>
-
-      <View style={styles.productsContainer}>
-        {loading ? (
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        ) : (
-          order.items.map((item) => {
-            const isReviewed = reviewStatus[item.id]?.reviewed;
-            
-            return (
-              <View key={item.id} style={styles.pickerItem}>
-                <View style={styles.productRow}>
-                  <Image
-                    source={{ uri: item.image || 'https://via.placeholder.com/60' }}
-                    style={styles.productImage}
-                  />
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={2}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.productQty}>Qty: {item.quantity}</Text>
-                  </View>
-                </View>
-                
-                <Pressable 
-                  style={[
-                    styles.actionButton, 
-                    isReviewed ? styles.editButton : styles.writeButton
-                  ]}
-                  onPress={() => handleSelectProduct(item.id)}
-                >
-                  <Text style={[
-                    styles.actionButtonText,
-                    isReviewed ? styles.editButtonText : styles.writeButtonText
-                  ]}>
-                    {isReviewed ? 'View / Edit Review' : 'Write Review'}
-                  </Text>
-                  {!isReviewed && <ChevronRight size={16} color="#FFFFFF" />}
-                </Pressable>
-              </View>
-            );
-          })
-        )}
-      </View>
-      
-      <Pressable onPress={onClose} style={styles.doneButton}>
-        <Text style={styles.doneButtonText}>Done</Text>
-      </Pressable>
-    </ScrollView>
-  );
-
-  const renderReviewForm = () => {
-    const item = order.items.find(i => i.id === selectedItemId);
-    if (!item) return null;
-
-    return (
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.formHeader}>
-          <Pressable onPress={handleBackToPicker} style={styles.backButton}>
-            <ArrowLeft size={24} color="#1F2937" />
-          </Pressable>
-          <Text style={styles.formTitle}>Write Review</Text>
-          <View style={{ width: 24 }} />
-        </View>
-
-        <View style={styles.selectedProduct}>
-          <Image
-            source={{ uri: item.image || 'https://via.placeholder.com/60' }}
-            style={styles.selectedProductImage}
-          />
-          <Text style={styles.selectedProductName} numberOfLines={1}>
-            {item.name}
-          </Text>
-        </View>
-
-        {/* Star Rating */}
-        <View style={styles.ratingSection}>
-          <Text style={styles.ratingLabel}>Your Rating</Text>
-          <View style={styles.starsContainer}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Pressable key={star} onPress={() => setRating(star)} style={styles.starButton}>
-                <Star
-                  size={44}
-                  color={star <= rating ? '#FF6A00' : '#D1D5DB'}
-                  fill={star <= rating ? '#FF6A00' : 'transparent'}
-                  strokeWidth={2}
-                />
-              </Pressable>
-            ))}
-          </View>
-          <Text style={styles.ratingText}>
-            {rating === 5 && 'Excellent!'}
-            {rating === 4 && 'Very Good'}
-            {rating === 3 && 'Good'}
-            {rating === 2 && 'Fair'}
-            {rating === 1 && 'Poor'}
-          </Text>
-        </View>
-
-        {/* Review Text */}
-        <View style={styles.reviewSection}>
-          <Text style={styles.reviewLabel}>Your Review (Optional)</Text>
-          <TextInput
-            style={styles.reviewInput}
-            placeholder="Share your thoughts about this product..."
-            value={review}
-            onChangeText={setReview}
-            multiline
-            numberOfLines={5}
-            placeholderTextColor="#9CA3AF"
-            textAlignVertical="top"
-          />
-        </View>
-
-        <View style={styles.reviewSection}>
-          <View style={styles.imageSectionHeader}>
-            <Text style={styles.reviewLabel}>Add Photos (Optional)</Text>
-            <Text style={styles.imageLimitText}>{reviewImages.length}/{MAX_REVIEW_IMAGES}</Text>
-          </View>
-
-          <Pressable style={styles.addImageButton} onPress={handleAddReviewImages}>
-            <ImagePlus size={18} color={COLORS.primary} />
-            <Text style={styles.addImageButtonText}>Choose Images</Text>
-          </Pressable>
-
-          {reviewImages.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewImagesScroll}>
-              {reviewImages.map((uri, index) => (
-                <View key={`${uri}-${index}`} style={styles.reviewImageWrapper}>
-                  <Image source={{ uri }} style={styles.reviewImagePreview} />
-                  <Pressable
-                    style={styles.removeImageButton}
-                    onPress={() => handleRemoveReviewImage(index)}
-                  >
-                    <Trash2 size={12} color="#FFFFFF" />
-                  </Pressable>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        {/* Buttons */}
-        <View style={styles.buttonsContainer}>
-          <Pressable onPress={handleSubmit} style={styles.submitButton} disabled={submitting}>
-            {submitting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.submitButtonText}>Submit Review</Text>
-            )}
-          </Pressable>
-        </View>
-      </ScrollView>
-    );
-  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -350,14 +50,85 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
         <Pressable style={styles.overlay} onPress={onClose} />
         
         <View style={styles.modal}>
-          {/* Close Handle / Button */}
-          {!selectedItemId && (
-            <Pressable onPress={onClose} style={styles.closeButton}>
-              <X size={24} color="#6B7280" />
-            </Pressable>
-          )}
+          {/* Close Button */}
+          <Pressable onPress={onClose} style={styles.closeButton}>
+            <X size={24} color="#6B7280" />
+          </Pressable>
 
-          {selectedItemId ? renderReviewForm() : renderProductPicker()}
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Rate Your Order</Text>
+              <Text style={styles.subtitle}>Order #{order.transactionId}</Text>
+            </View>
+
+            {/* Products */}
+            <View style={styles.productsContainer}>
+              {order.items.map((item) => (
+                <View key={item.id} style={styles.productRow}>
+                  <Image
+                    source={{ uri: item.image }}
+                    style={styles.productImage}
+                  />
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.productQty}>Qty: {item.quantity}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            {/* Star Rating */}
+            <View style={styles.ratingSection}>
+              <Text style={styles.ratingLabel}>Your Rating</Text>
+              <View style={styles.starsContainer}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Pressable key={star} onPress={() => setRating(star)} style={styles.starButton}>
+                    <Star
+                      size={44}
+                      color={star <= rating ? '#FF6A00' : '#D1D5DB'}
+                      fill={star <= rating ? '#FF6A00' : 'transparent'}
+                      strokeWidth={2}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.ratingText}>
+                {rating === 5 && 'Excellent!'}
+                {rating === 4 && 'Very Good'}
+                {rating === 3 && 'Good'}
+                {rating === 2 && 'Fair'}
+                {rating === 1 && 'Poor'}
+              </Text>
+            </View>
+
+            {/* Review Text */}
+            <View style={styles.reviewSection}>
+              <Text style={styles.reviewLabel}>Your Review (Optional)</Text>
+              <TextInput
+                style={styles.reviewInput}
+                placeholder="Share your thoughts about this order..."
+                value={review}
+                onChangeText={setReview}
+                multiline
+                numberOfLines={5}
+                placeholderTextColor="#9CA3AF"
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.buttonsContainer}>
+              <Pressable onPress={handleSkip} style={styles.skipButton}>
+                <Text style={styles.skipButtonText}>Skip for Now</Text>
+              </Pressable>
+              <Pressable onPress={handleSubmit} style={styles.submitButton}>
+                <Text style={styles.submitButtonText}>Submit Review</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -380,7 +151,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingHorizontal: 24,
     maxHeight: '90%',
-    minHeight: '60%',
   },
   closeButton: {
     alignSelf: 'flex-end',
@@ -406,19 +176,14 @@ const styles = StyleSheet.create({
   },
   productsContainer: {
     marginBottom: 24,
-    gap: 16,
-  },
-  pickerItem: {
-    padding: 16,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
+    gap: 12,
   },
   productRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
   },
   productImage: {
     width: 50,
@@ -439,78 +204,6 @@ const styles = StyleSheet.create({
   productQty: {
     fontSize: 13,
     color: '#6B7280',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-    gap: 8,
-  },
-  writeButton: {
-    backgroundColor: COLORS.primary,
-  },
-  editButton: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  writeButtonText: {
-    color: '#FFFFFF',
-  },
-  editButtonText: {
-    color: '#374151',
-  },
-  doneButton: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  doneButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  // Form Styles
-  formHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  backButton: {
-    padding: 8,
-    marginLeft: -8,
-  },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  selectedProduct: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-  },
-  selectedProductImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 6,
-    backgroundColor: '#E5E7EB',
-  },
-  selectedProductName: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
   },
   ratingSection: {
     alignItems: 'center',
@@ -558,56 +251,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  imageSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  skipButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 10,
-  },
-  imageLimitText: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '600',
-  },
-  addImageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
     borderWidth: 1,
-    borderColor: '#FED7AA',
-    backgroundColor: '#FFF7ED',
-    gap: 8,
+    borderColor: '#D1D5DB',
   },
-  addImageButtonText: {
-    fontSize: 14,
+  skipButtonText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: COLORS.primary,
-  },
-  reviewImagesScroll: {
-    marginTop: 12,
-  },
-  reviewImageWrapper: {
-    position: 'relative',
-    marginRight: 10,
-  },
-  reviewImagePreview: {
-    width: 84,
-    height: 84,
-    borderRadius: 10,
-    backgroundColor: '#E5E7EB',
-  },
-  removeImageButton: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    color: '#6B7280',
   },
   submitButton: {
     flex: 1,

@@ -164,12 +164,7 @@ export default function AdminDashboardScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <Pressable
-              style={styles.menuButton}
-              onPress={() => setDrawerVisible(true)}
-              accessibilityLabel="Open menu"
-              accessibilityRole="button"
-            >
+            <Pressable style={styles.menuButton} onPress={() => setDrawerVisible(true)}>
               <Menu size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
             <View style={styles.headerTitleContainer}>
@@ -177,11 +172,7 @@ export default function AdminDashboardScreen() {
               <Text style={styles.headerSubtitle}>Admin Overview</Text>
             </View>
           </View>
-          <Pressable
-            style={styles.notificationButton}
-            accessibilityLabel={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-            accessibilityRole="button"
-          >
+          <Pressable style={styles.notificationButton}>
             <Bell size={22} color="#FFFFFF" strokeWidth={2} />
             {(pendingSellers.length > 0 || pendingDigitalReview.length > 0 || inQualityReview.length > 0) && (
               <View style={styles.notificationBadge} />
@@ -246,11 +237,7 @@ export default function AdminDashboardScreen() {
                     <>{(pendingSellers.length === 0 && pendingDigitalReview.length === 0) ? 'You have ' : ''}{inQualityReview.length} product{inQualityReview.length > 1 ? 's' : ''} in physical QA queue</>
                   )}
                 </Text>
-                <Pressable
-                  style={styles.alertButton}
-                  accessibilityLabel="Review pending approvals now"
-                  accessibilityRole="button"
-                >
+                <Pressable style={styles.alertButton}>
                   <Text style={styles.alertButtonText}>Review Now</Text>
                 </Pressable>
               </View>
@@ -303,7 +290,9 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerContent: {
     flexDirection: 'row',

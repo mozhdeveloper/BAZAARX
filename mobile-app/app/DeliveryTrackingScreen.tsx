@@ -8,36 +8,65 @@ import {
   Dimensions,
   Animated,
   Image,
+  Alert,
   Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Warehouse, Home, Truck, CheckCircle, Package, Plane } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Warehouse, Home, Truck, CheckCircle, Package, Clock, Plane, MapPin } from 'lucide-react-native';
 import { useOrderStore } from '../src/stores/orderStore';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
-import { supabase, isSupabaseConfigured } from '../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DeliveryTracking'>;
 
-interface OrderStatusEntry {
-  id: string;
-  status: string;
-  description?: string;
-  created_at: string;
-  location?: string;
-}
-
 const { width } = Dimensions.get('window');
+
+// Enhanced delivery statuses matching the requirements
+const DELIVERY_STATUSES = [
+  { id: 1, title: 'Order Placed', time: 'Dec 14, 10:30 AM', icon: Package },
+  { id: 2, title: 'Departed China Sorting Center', time: 'Dec 14, 11:00 AM', icon: Plane },
+  { id: 3, title: 'Arrived at Manila Logistics Hub', time: 'Dec 15, 9:15 AM', icon: Warehouse },
+  { id: 4, title: 'Out for Delivery', time: '', icon: Truck },
+  { id: 5, title: 'Successfully Received', time: '', icon: Home },
+];
 
 export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const { order } = route.params;
   const insets = useSafeAreaInsets();
-  const [timeline, setTimeline] = useState<OrderStatusEntry[]>([]);
-  const [showRedirectPopup, setShowRedirectPopup] = useState(false);
+  const { updateOrderStatus } = useOrderStore();
+  const { isGuest } = useAuthStore();
+
+
   
+  // Phase state management
+  const [currentStatusIndex, setCurrentStatusIndex] = useState(0); // Start from Order Placed
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [isDelivered, setIsDelivered] = useState(false);
+  const [showRedirectPopup, setShowRedirectPopup] = useState(false);
+  const simulationInterval = useRef<NodeJS.Timeout | null>(null);
+  
+  const progressAnim = useRef(new Animated.Value(0)).current; // Start at 0%
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Calculate progress (0 to 1)
+  const getProgress = () => {
+    return currentStatusIndex / (DELIVERY_STATUSES.length - 1);
+  };
+
+  useEffect(() => {
+    // Animate progress bar
+    Animated.spring(progressAnim, {
+      toValue: getProgress(),
+      useNativeDriver: false,
+      friction: 8,
+    }).start();
+  }, [currentStatusIndex]);
 
   useEffect(() => {
     // Pulsing animation for current step
@@ -57,148 +86,75 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
     ).start();
   }, []);
 
-  useEffect(() => {
-    initializeTimeline();
-
-    if (isSupabaseConfigured()) {
-      fetchTimelineHistory();
-
-      const orderUuid = order.orderId || order.id;
-      const subscription = supabase
-        .channel(`order_status_${orderUuid}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'order_status_history',
-          filter: `order_id=eq.${orderUuid}`
-        }, (payload) => {
-          console.log('New status update:', payload);
-          // Append new status to timeline
-          setTimeline(prev => {
-            // Avoid duplicates
-            if (prev.some(item => item.id === payload.new.id)) return prev;
-            
-            const newEntry: OrderStatusEntry = {
-              id: payload.new.id,
-              status: payload.new.status,
-              description: payload.new.description,
-              created_at: payload.new.created_at,
-              location: payload.new.location
-            };
-            
-            // If delivered, show popup
-            if (payload.new.status.toLowerCase().includes('delivered')) {
-               setShowRedirectPopup(true);
-            }
-            
-            return [...prev, newEntry].sort((a, b) => 
-              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            );
-          });
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(subscription);
-      };
-    }
-  }, [order.id, order.orderId]);
-
-  const initializeTimeline = () => {
-    // Fail-safe initialization: Hardcode the first node as "Order Placed"
-    const initialNode: OrderStatusEntry = {
-      id: 'initial_placed',
-      status: 'Order Placed',
-      description: 'Your order has been successfully placed.',
-      created_at: order.createdAt || new Date().toISOString(),
-    };
-    setTimeline([initialNode]);
+  const startSimulation = () => {
+    if (isSimulating) return;
+    
+    setIsSimulating(true);
+    setCurrentStatusIndex(0); // Start from Order Placed
+    setIsDelivered(false);
+    setShowRedirectPopup(false);
+    
+    simulationInterval.current = setInterval(() => {
+      setCurrentStatusIndex((prev) => {
+        if (prev >= DELIVERY_STATUSES.length - 1) {
+          if (simulationInterval.current) {
+            clearInterval(simulationInterval.current);
+          }
+          setIsSimulating(false);
+          setIsDelivered(true);
+          // Update order status to 'shipped' so it appears in To Receive tab
+          updateOrderStatus(order.id, 'shipped');
+          // Show redirect popup instead of going to proof directly
+          setTimeout(() => setShowRedirectPopup(true), 500);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 2000); // Advance every 2 seconds
   };
 
-  const fetchTimelineHistory = async () => {
-    try {
-      const orderUuid = order.orderId || order.id;
-      const { data, error } = await supabase
-        .from('order_status_history')
-        .select('*')
-        .eq('order_id', orderUuid)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        // Merge with initial node, ensuring no duplicates and correct order
-        setTimeline(prev => {
-           const combined = [...prev, ...data];
-           // Remove duplicates by ID and sort
-           const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
-           return unique.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        });
-        
-        // Check if already delivered
-        if (data.some(item => item.status.toLowerCase().includes('delivered'))) {
-           // Maybe show delivered state immediately
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching timeline:', err);
+  const stopSimulation = () => {
+    if (simulationInterval.current) {
+      clearInterval(simulationInterval.current);
     }
+    setIsSimulating(false);
   };
 
   const handleGoToToReceive = () => {
     setShowRedirectPopup(false);
-    navigation.navigate('Orders', { 
-      initialTab: 'shipped'
+    navigation.navigate('MainTabs', { 
+      screen: 'Orders',
+      params: { initialTab: 'toReceive' }
     });
   };
 
-  const getStatusIcon = (status: string) => {
-    const s = status.toLowerCase();
-    if (s.includes('placed')) return Package;
-    if (s.includes('sorting') || s.includes('overseas')) return Plane;
-    if (s.includes('warehouse') || s.includes('hub')) return Warehouse;
-    if (s.includes('out') || s.includes('delivery')) return Truck;
-    if (s.includes('received') || s.includes('delivered') || s.includes('completed')) return Home;
-    return Package; // Default
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-    });
-  };
-
-  const isDelivered = timeline.some(t => t.status.toLowerCase().includes('delivered') || t.status.toLowerCase().includes('received'));
-  const currentStatusIndex = timeline.length - 1;
+  useEffect(() => {
+    return () => {
+      if (simulationInterval.current) {
+        clearInterval(simulationInterval.current);
+      }
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
-      {/* Edge-to-Edge Soft Amber Header */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + 16 }]}
-      >
+      {/* Edge-to-Edge Orange Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Track Order</Text>
-            <Text style={[styles.headerSubtitle, { color: COLORS.textPrimary }]}>#{order.transactionId}</Text>
+            <Text style={styles.headerTitle}>Track Order</Text>
+            <Text style={styles.headerSubtitle}>#{order.transactionId}</Text>
           </View>
           <View style={{ width: 40 }} />
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Delivery Estimate & Visual Journey Card */}
@@ -221,73 +177,171 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
               </View>
             </>
           ) : (
-             <View style={styles.estimateSection}>
+            // In-Transit State: Show Journey Progress
+            <>
+              {/* Estimate Section */}
+              <View style={styles.estimateSection}>
                 <Text style={styles.estimateLabel}>Estimated Delivery</Text>
-                <Text style={styles.estimateDate}>{order.scheduledDate || 'Calculating...'}</Text>
+                <Text style={styles.estimateDate}>{order.scheduledDate || 'Dec 16, 2024'}</Text>
               </View>
+
+              {/* Three-Stage Horizontal Progress */}
+              <View style={styles.journeyContainer}>
+            {/* Node Icons Row */}
+            <View style={styles.nodesRow}>
+              {/* Node 1: Overseas */}
+              <View style={styles.nodeWrapper}>
+                <View style={[styles.nodeCircle, currentStatusIndex >= 1 && styles.nodeCircleActive]}>
+                  <Plane size={20} color={currentStatusIndex >= 1 ? '#FFFFFF' : '#9CA3AF'} strokeWidth={2.5} />
+                </View>
+                <Text style={[styles.nodeLabel, currentStatusIndex >= 1 && styles.nodeLabelActive]}>
+                  Overseas{'\n'}Sorting Ctr
+                </Text>
+              </View>
+
+              {/* Node 2: Warehouse */}
+              <View style={styles.nodeWrapper}>
+                <View style={[styles.nodeCircle, currentStatusIndex >= 2 && styles.nodeCircleActive]}>
+                  <Warehouse size={20} color={currentStatusIndex >= 2 ? '#FFFFFF' : '#9CA3AF'} strokeWidth={2.5} />
+                </View>
+                <Text style={[styles.nodeLabel, currentStatusIndex >= 2 && styles.nodeLabelActive]}>
+                  Manila{'\n'}Warehouse
+                </Text>
+              </View>
+
+              {/* Node 3: Destination */}
+              <View style={styles.nodeWrapper}>
+                <View style={[styles.nodeCircle, currentStatusIndex >= 4 && styles.nodeCircleActive]}>
+                  <Home size={20} color={currentStatusIndex >= 4 ? '#FFFFFF' : '#9CA3AF'} strokeWidth={2.5} />
+                </View>
+                <Text style={[styles.nodeLabel, currentStatusIndex >= 4 && styles.nodeLabelActive]}>
+                  Ready for{'\n'}Delivery
+                </Text>
+              </View>
+            </View>
+
+            {/* Progress Bar Container */}
+            <View style={styles.progressBarContainer}>
+              <View style={styles.progressTrack}>
+                <Animated.View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: progressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%'],
+                      }),
+                    },
+                  ]}
+                />
+              </View>
+
+              {/* Truck Icon on Progress */}
+              <Animated.View
+                style={[
+                  styles.truckContainer,
+                  {
+                    left: progressAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%'],
+                    }),
+                  },
+                ]}
+              >
+                <View style={styles.truckIconCircle}>
+                  <Truck size={18} color="#FFFFFF" strokeWidth={2.5} />
+                </View>
+              </Animated.View>
+            </View>
+          </View>
+            </>
           )}
         </View>
 
-        {/* Dynamic Delivery Timeline Card */}
+        {/* Enhanced Delivery Timeline Card */}
         <View style={styles.timelineCard}>
           <Text style={styles.timelineTitle}>Delivery Timeline</Text>
           
-          {timeline.length === 0 ? (
-             <Text style={{color: '#6B7280', textAlign: 'center'}}>Loading tracking info...</Text>
-          ) : (
-            timeline.map((item, index) => {
-              const isLast = index === timeline.length - 1;
-              const StatusIcon = getStatusIcon(item.status);
+          {DELIVERY_STATUSES.map((status, index) => {
+            const isCompleted = index < currentStatusIndex;
+            const isCurrent = index === currentStatusIndex;
+            const isFuture = index > currentStatusIndex;
+            const isLast = index === DELIVERY_STATUSES.length - 1;
+            const StatusIcon = status.icon;
 
-              return (
-                <View key={item.id || index} style={styles.timelineItem}>
-                  {/* Left Column (Icon & Line) */}
-                  <View style={styles.timelineLeft}>
-                    {/* Icon Circle */}
-                    {isLast ? (
-                      <Animated.View
-                        style={[
-                          styles.currentStepRing,
-                          { transform: [{ scale: pulseAnim }] },
-                        ]}
-                      >
-                        <View style={styles.currentStepCenter}>
-                          <StatusIcon size={16} color={COLORS.primary} strokeWidth={2.5} />
-                        </View>
-                      </Animated.View>
-                    ) : (
-                      <View style={styles.completedStep}>
-                        <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} fill={COLORS.primary} />
-                      </View>
-                    )}
-                    
-                    {/* Connecting Line */}
-                    {index < timeline.length - 1 && (
-                      <View style={[styles.timelineLine, styles.timelineLineActive]} />
-                    )}
-                  </View>
-
-                  {/* Right Column (Content) */}
-                  <View style={styles.timelineRight}>
-                    <Text
+            return (
+              <View key={status.id} style={styles.timelineItem}>
+                {/* Left Column (Icon & Line) */}
+                <View style={styles.timelineLeft}>
+                  {/* Icon Circle */}
+                  {isCurrent ? (
+                    <Animated.View
                       style={[
-                        styles.timelineStepTitle,
-                        isLast ? styles.timelineStepTitleCurrent : styles.timelineStepTitleCompleted,
+                        styles.currentStepRing,
+                        { transform: [{ scale: pulseAnim }] },
                       ]}
                     >
-                      {item.status}
-                    </Text>
-                    <Text style={styles.timelineStepTime}>{formatDate(item.created_at)}</Text>
-                    {item.description && (
-                        <Text style={styles.timelineDescription}>{item.description}</Text>
-                    )}
-                  </View>
+                      <View style={styles.currentStepCenter}>
+                        <StatusIcon size={16} color={COLORS.primary} strokeWidth={2.5} />
+                      </View>
+                    </Animated.View>
+                  ) : isCompleted ? (
+                    <View style={styles.completedStep}>
+                      <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} fill={COLORS.primary} />
+                    </View>
+                  ) : (
+                    <View style={styles.futureStep}>
+                      <StatusIcon size={16} color="#D1D5DB" strokeWidth={2} />
+                    </View>
+                  )}
+                  
+                  {/* Connecting Line */}
+                  {!isLast && (
+                    <View
+                      style={[
+                        styles.timelineLine,
+                        (isCompleted || isCurrent) && styles.timelineLineActive,
+                        isFuture && styles.timelineLineFuture,
+                      ]}
+                    />
+                  )}
                 </View>
-              );
-            })
-          )}
+
+                {/* Right Column (Content) */}
+                <View style={styles.timelineRight}>
+                  <Text
+                    style={[
+                      styles.timelineStepTitle,
+                      isCurrent && styles.timelineStepTitleCurrent,
+                      isFuture && styles.timelineStepTitleFuture,
+                    ]}
+                  >
+                    {status.title}
+                  </Text>
+                  {status.time && (isCompleted || isCurrent) && (
+                    <Text style={styles.timelineStepTime}>{status.time}</Text>
+                  )}
+                </View>
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
+
+      {/* Fixed Footer Action Bar */}
+      <View style={[styles.footerBar, { paddingBottom: insets.bottom + 16 }]}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.primaryButton,
+            pressed && styles.primaryButtonPressed
+          ]}
+          onPress={isSimulating ? stopSimulation : startSimulation}
+        >
+          <Text style={styles.primaryButtonText}>
+            {isSimulating ? 'Stop Simulation' : 'Complete Delivery Simulation'}
+          </Text>
+        </Pressable>
+      </View>
 
       {/* Redirect Popup - Package Arrived */}
       <Modal
@@ -331,18 +385,13 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F5F5F7',
   },
   
   // ===== EDGE-TO-EDGE ORANGE HEADER =====
   header: {
-    paddingBottom: 25,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    backgroundColor: COLORS.primary,
+    paddingBottom: 20,
   },
   headerContent: {
     flexDirection: 'row',
@@ -393,7 +442,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   estimateSection: {
-    marginBottom: 0,
+    marginBottom: 28,
   },
   estimateLabel: {
     fontSize: 14,
@@ -439,6 +488,86 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontWeight: '500',
     textAlign: 'center',
+  },
+  
+  // ===== THREE-STAGE HORIZONTAL PROGRESS =====
+  journeyContainer: {
+    marginTop: 12,
+  },
+  nodesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  nodeWrapper: {
+    alignItems: 'center',
+    width: 80,
+  },
+  nodeCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  nodeCircleActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  nodeLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  nodeLabelActive: {
+    color: '#374151',
+  },
+  
+  // Progress Bar
+  progressBarContainer: {
+    position: 'relative',
+    height: 50,
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  progressTrack: {
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 4,
+  },
+  truckContainer: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    marginLeft: -24,
+  },
+  truckIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
   },
   
   // ===== ENHANCED VERTICAL TIMELINE CARD =====
@@ -503,6 +632,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   
+  // Future Step: Grey outline circle
+  futureStep: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
   // Timeline Connecting Lines
   timelineLine: {
     flex: 1,
@@ -512,6 +653,9 @@ const styles = StyleSheet.create({
   },
   timelineLineActive: {
     backgroundColor: COLORS.primary,
+  },
+  timelineLineFuture: {
+    backgroundColor: '#E5E7EB',
   },
   
   timelineRight: {
@@ -528,25 +672,64 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '700',
   },
-  timelineStepTitleCompleted: {
-    color: '#374151',
-    fontWeight: '600',
+  timelineStepTitleFuture: {
+    color: '#9CA3AF',
+    fontWeight: '500',
   },
   timelineStepTime: {
     fontSize: 13,
     color: '#9CA3AF',
     fontWeight: '500',
-    marginBottom: 2,
-  },
-  timelineDescription: {
-    fontSize: 13,
-    color: '#6B7280',
   },
   
-  // ===== POPUP MODAL =====
+  // ===== FIXED FOOTER ACTION BAR =====
+  footerBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  
+  // Primary Solid Orange Button
+  primaryButton: {
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    borderRadius: 25,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+    gap: 8,
+  },
+  primaryButtonPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+
+  // ===== REDIRECT POPUP =====
   popupOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -555,52 +738,53 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 32,
-    width: '100%',
     alignItems: 'center',
+    width: '90%',
+    maxWidth: 400,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
     shadowRadius: 24,
-    elevation: 10,
+    elevation: 15,
   },
   checkmarkCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#ECFDF5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   popupTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: '#111827',
     marginBottom: 12,
     textAlign: 'center',
   },
   popupBody: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
+    lineHeight: 24,
+    marginBottom: 28,
   },
   popupButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 25,
     width: '100%',
     alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
   },
   popupButtonPressed: {
-    opacity: 0.9,
+    opacity: 0.85,
     transform: [{ scale: 0.98 }],
   },
   popupButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
 });

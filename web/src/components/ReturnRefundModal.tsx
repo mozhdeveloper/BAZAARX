@@ -66,12 +66,12 @@ export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: 
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-24 md:pt-32">
+            <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-8 sm:pt-12 md:pt-16">
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm"
                     onClick={onClose}
                 />
 
@@ -79,7 +79,7 @@ export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: 
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="relative w-full max-w-5xl bg-gray-50 rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[85vh]"
+                    className="relative w-full max-w-4xl bg-gray-50 rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col md:flex-row"
                 >
                     {/* Header - Full width on mobile, hidden on desktop */}
                     <div className="md:hidden bg-[#FF6a00] px-4 py-3 sm:px-6 flex items-center justify-between shadow-md shrink-0">
@@ -91,87 +91,26 @@ export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: 
                         </div>
                     </div>
 
-                    {/* Left Column (Desktop) - Reason */}
-                    <div className="hidden md:flex md:w-4/12 flex-col bg-white border-r border-gray-100 overflow-y-auto custom-scrollbar">
-                        <div className="p-5 pb-0">
-                            <Button variant="ghost" size="sm" onClick={onClose} className="text-gray-500 hover:text-gray-900 hover:bg-gray-100 -ml-2 mb-4">
-                                <ChevronLeft className="w-4 h-4 mr-1" />
-                                Back
-                            </Button>
+                    {/* Scrollable Content Container */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar md:grid md:grid-cols-12">
+
+                        {/* Left Column (Desktop) - Reason */}
+                        <div className="p-4 sm:p-6 md:col-span-5 md:bg-white md:border-r border-gray-100 space-y-6">
+                            <div className="hidden md:flex flex-col items-start gap-4 mb-6">
+                                <Button variant="ghost" size="sm" onClick={onClose} className="text-gray-500 hover:text-gray-900 hover:bg-gray-100 -ml-2">
+                                    <ChevronLeft className="w-5 h-5 mr-1" />
+                                    Back
+                                </Button>
+                                <h2 className="text-2xl font-bold text-[#FF6a00] tracking-wide">Return / Refund</h2>
+                            </div>
+
                             <div>
-                                <h2 className="text-xl font-bold text-gray-900 tracking-tight">Return Request</h2>
-                                <p className="text-xs text-gray-500 mt-1">Select a reason and provide details.</p>
-                            </div>
-                        </div>
-
-                        <div className="p-5 pt-4">
-                            <h3 className="text-xs font-bold text-gray-900 mb-3 uppercase tracking-wider flex items-center gap-2">
-                                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-[#FF6a00] text-[10px]">1</span>
-                                Reason for Return
-                            </h3>
-                            <div className="space-y-2">
-                                {reasons.map((r) => (
-                                    <div key={r.id} className="group">
-                                        <label className={cn(
-                                            "flex items-start gap-3 cursor-pointer p-2 rounded-lg transition-all border shadow-sm",
-                                            reason === r.id ? "bg-orange-50 border-[#FF6a00] ring-1 ring-[#FF6a00]/20" : "bg-white border-gray-200 hover:border-orange-200 hover:shadow-md"
-                                        )}>
-                                            <div className="relative flex items-center mt-0.5">
-                                                <input
-                                                    type="radio"
-                                                    name="reason"
-                                                    value={r.id}
-                                                    checked={reason === r.id}
-                                                    onChange={(e) => setReason(e.target.value)}
-                                                    className="peer sr-only"
-                                                />
-                                                <div className="w-4 h-4 border-2 border-gray-300 rounded-full peer-checked:border-[#FF6a00] peer-checked:border-[3px] transition-all"></div>
-                                            </div>
-                                            <div className="flex-1">
-                                                <span className={cn("block text-sm font-semibold transition-colors leading-tight", reason === r.id ? "text-[#FF6a00]" : "text-gray-900")}>
-                                                    {r.label}
-                                                </span>
-                                                <span className="block text-[10px] text-gray-500 mt-0.5 leading-tight">{r.description}</span>
-                                            </div>
-                                        </label>
-                                        
-                                        {/* Show input if this is 'other' and it's selected */}
-                                        {r.id === 'other' && reason === 'other' && (
-                                            <motion.div 
-                                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                                                animate={{ opacity: 1, height: 'auto', marginTop: 8 }}
-                                                className="pl-8 pr-2 pb-2"
-                                            >
-                                                <div className="relative">
-                                                     <textarea 
-                                                        placeholder="Please describe the reason..."
-                                                        className="w-full text-xs p-3 rounded-xl border-orange-200 bg-white focus:border-[#FF6a00] focus:ring-1 focus:ring-[#FF6a00] transition-all min-h-[60px] resize-none shadow-sm text-gray-700"
-                                                    />
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Right Column (Desktop) - Details */}
-                    <div className="flex-1 flex flex-col overflow-hidden bg-gray-50/50">
-                        {/* Scrollable Form Content */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
-                            
-                            {/* Mobile Reason Section (visible only on mobile) */}
-                            <div className="md:hidden">
-                                <h3 className="text-xs font-bold text-gray-900 mb-2 uppercase tracking-wider flex items-center gap-2">
-                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-[#FF6a00] text-[10px]">1</span>
-                                    Reason for Return
-                                </h3>
-                                <div className="space-y-2">
+                                <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Reason for Return</h3>
+                                <div className="space-y-2 md:space-y-4">
                                     {reasons.map((r) => (
                                         <label key={r.id} className={cn(
-                                            "flex items-start gap-3 cursor-pointer group p-2 rounded-lg transition-all border shadow-sm",
-                                            reason === r.id ? "bg-orange-50 border-[#FF6a00] ring-1 ring-[#FF6a00]/20" : "bg-white border-gray-200 hover:border-orange-200 hover:shadow-md"
+                                            "flex items-start gap-3 cursor-pointer group p-3 rounded-xl transition-all border",
+                                            reason === r.id ? "bg-orange-50 border-[#FF6a00]/30" : "bg-white border-transparent hover:bg-gray-50"
                                         )}>
                                             <div className="relative flex items-center mt-0.5">
                                                 <input
@@ -182,35 +121,38 @@ export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: 
                                                     onChange={(e) => setReason(e.target.value)}
                                                     className="peer sr-only"
                                                 />
-                                                <div className="w-4 h-4 border-2 border-gray-300 rounded-full peer-checked:border-[#FF6a00] peer-checked:border-[3px] transition-all"></div>
+                                                <div className="w-5 h-5 border-2 border-gray-300 rounded-full peer-checked:border-[#FF6a00] peer-checked:border-4 transition-all"></div>
                                             </div>
                                             <div>
-                                                <span className={cn("block text-sm font-semibold transition-colors", reason === r.id ? "text-[#FF6a00]" : "text-gray-900")}>
+                                                <span className={cn("block text-sm font-medium transition-colors", reason === r.id ? "text-[#FF6a00]" : "text-gray-700")}>
                                                     {r.label}
                                                 </span>
-                                                <span className="block text-[10px] text-gray-500 mt-0.5 leading-tight">{r.description}</span>
+                                                <span className="block text-xs text-gray-500 mt-0.5">{r.description}</span>
                                             </div>
                                         </label>
                                     ))}
                                 </div>
                             </div>
-                        
-                            {/* Section 2: Solution */}
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                                <h3 className="text-xs font-bold text-gray-900 mb-3 uppercase tracking-wider flex items-center gap-2">
-                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-[#FF6a00] text-[10px]">2</span>
-                                    Preferred Solution
-                                </h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        </div>
+
+                        {/* Right Column (Desktop) - Details */}
+                        <div className="p-4 sm:p-6 md:col-span-7 space-y-6 bg-gray-50/50">
+                            {/* Preferred Solution Section */}
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Preferred Solution</h3>
+                                <div className="grid grid-cols-1 gap-3">
                                     {solutions.map((s) => (
                                         <label key={s.id} className={cn(
-                                            "flex flex-col p-3 rounded-lg border cursor-pointer transition-all bg-white relative overflow-hidden",
-                                            solution === s.id ? "border-[#FF6a00] bg-orange-50/30" : "border-gray-200 hover:border-gray-300"
+                                            "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all bg-white shadow-sm",
+                                            solution === s.id ? "ring-1 ring-[#FF6a00] border-[#FF6a00]" : "border-gray-100 hover:border-gray-200"
                                         )}>
-                                            <div className="flex justify-between items-start mb-1.5">
-                                                <div className={cn("w-4 h-4 border-2 border-gray-300 rounded-full transition-all flex items-center justify-center", solution === s.id && "border-[#FF6a00]")}>
-                                                     {solution === s.id && <div className="w-2 h-2 bg-[#FF6a00] rounded-full" />}
-                                                </div>
+                                            <div>
+                                                <span className={cn("block text-sm font-semibold", solution === s.id ? "text-[#FF6a00]" : "text-gray-800")}>
+                                                    {s.label}
+                                                </span>
+                                                <span className="block text-xs text-gray-500">{s.description}</span>
+                                            </div>
+                                            <div className="relative flex items-center ml-4">
                                                 <input
                                                     type="radio"
                                                     name="solution"
@@ -219,90 +161,73 @@ export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: 
                                                     onChange={(e) => setSolution(e.target.value)}
                                                     className="peer sr-only"
                                                 />
-                                            </div>
-                                            <div>
-                                                <span className={cn("block text-sm font-bold mb-0.5", solution === s.id ? "text-[#FF6a00]" : "text-gray-900")}>
-                                                    {s.label}
-                                                </span>
-                                                <span className="block text-[10px] text-gray-500 leading-tight">{s.description}</span>
+                                                <div className="w-5 h-5 border-2 border-gray-300 rounded-full peer-checked:border-[#FF6a00] peer-checked:border-[5px] transition-all"></div>
                                             </div>
                                         </label>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* Section 3: Evidence & Comments */}
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
-                                <div>
-                                    <h3 className="text-xs font-bold text-gray-900 mb-3 uppercase tracking-wider flex items-center gap-2">
-                                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-[#FF6a00] text-[10px]">3</span>
-                                        Additional Details
-                                    </h3>
-                                    
-                                    <label className="block text-[11px] font-semibold text-gray-700 mb-1.5">Description / Comments</label>
-                                    <textarea
-                                        value={comments}
-                                        onChange={(e) => setComments(e.target.value)}
-                                        placeholder="Describe the issue..."
-                                        className="w-full text-sm p-2.5 rounded-lg border-gray-200 bg-gray-50 focus:bg-white focus:border-[#FF6a00] focus:ring-[#FF6a00] min-h-[60px] resize-none transition-all"
-                                    />
-                                </div>
+                            {/* Additional Comments */}
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase tracking-wider">Additional Comments</h3>
+                                <textarea
+                                    value={comments}
+                                    onChange={(e) => setComments(e.target.value)}
+                                    placeholder="Please describe the defect or issue in detail..."
+                                    className="w-full text-sm p-2 rounded-xl border-gray-200 bg-white shadow-sm focus:border-[#FF6a00] focus:ring-[#FF6a00] resize-none h-12"
+                                />
+                            </div>
 
-                                <div>
-                                    <label className="block text-[11px] font-semibold text-gray-700 mb-1.5">Evidence (Photos/Videos)</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {files.map((file, index) => (
-                                            <div key={index} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 shadow-sm group">
-                                                <img
-                                                    src={URL.createObjectURL(file)}
-                                                    alt={`evidence-${index}`}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                                <button
-                                                    onClick={() => removeFile(index)}
-                                                    className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                                >
-                                                    <X className="w-3 h-3" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                        <label className="w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-[#FF6a00] hover:text-[#FF6a00] hover:bg-orange-50 transition-all bg-gray-50 cursor-pointer">
-                                            <Camera className="w-4 h-4 mb-0.5" />
-                                            <span className="text-[9px] font-medium">Add</span>
-                                            <input
-                                                type="file"
-                                                multiple
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={handleFileChange}
+                            {/* Evidence */}
+                            {/* Evidence */}
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-900 mb-3 -mt-2 uppercase tracking-wider">Evidence (Photos/Videos)</h3>
+                                <div className="flex flex-wrap gap-3">
+                                    {files.map((file, index) => (
+                                        <div key={index} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200">
+                                            <img
+                                                src={URL.createObjectURL(file)}
+                                                alt={`evidence-${index}`}
+                                                className="w-full h-full object-cover"
                                             />
-                                        </label>
-                                    </div>
+                                            <button
+                                                onClick={() => removeFile(index)}
+                                                className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 hover:bg-black/70"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <label className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-[#FF6a00] hover:text-[#FF6a00] hover:bg-orange-50 transition-all bg-white cursor-pointer">
+                                        <Upload className="w-6 h-6 mb-1" />
+                                        <span className="text-xs font-medium">Add Photo</span>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleFileChange}
+                                        />
+                                    </label>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Sticky Footer */}
-                        <div className="p-4 bg-white border-t border-gray-200 shrink-0">
-                            <div className="flex justify-between items-center mb-3">
-                                <div>
-                                    <span className="text-gray-600 text-[10px] font-medium uppercase tracking-wide">Refund Amount</span>
+                            {/* Footer for Desktop (inside scrollable area to ensure it's always accessible or sticky) */}
+                            <div className="pt-4 border-t border-gray-200 mt-auto">
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-gray-600 font-medium">Refund Amount:</span>
+                                    <span className="text-[#FF6a00] font-bold text-lg">
+                                        {solution === 'replacement' ? formatCurrency(0) : formatCurrency(order?.total || 0)}
+                                    </span>
                                 </div>
-                                <span className="text-[#FF6a00] font-bold text-xl">
-                                    {solution === 'replacement' ? formatCurrency(0) : formatCurrency(order?.total || 0)}
-                                </span>
-                            </div>
-                            <div className="flex gap-3">
-                                <Button variant="outline" onClick={onClose} className="flex-1 py-4 h-auto rounded-xl border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-sm">
-                                    Cancel
-                                </Button>
-                                <Button onClick={handleSubmit} className="flex-[2] bg-[#FF6a00] hover:bg-[#e65100] text-white py-4 h-auto rounded-xl font-bold text-base shadow-orange-200 shadow-lg transition-all hover:scale-[1.01]">
+                                <Button onClick={handleSubmit} className="w-full bg-[#FF6a00] hover:bg-[#e65100] text-white py-6 rounded-xl font-bold text-lg shadow-orange-200 shadow-lg">
                                     Submit Request
                                 </Button>
                             </div>
                         </div>
-                    </div>
 
+                    </div>
                 </motion.div>
             </div>
         </AnimatePresence>

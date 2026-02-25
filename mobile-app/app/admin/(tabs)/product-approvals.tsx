@@ -13,7 +13,6 @@ import {
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { safeImageUri } from '../../../src/utils/imageUtils';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Menu,
@@ -211,7 +210,7 @@ export default function AdminProductApprovalsScreen() {
 
       {/* Main Content Row - Image + Details */}
       <View style={styles.mainContentRow}>
-        <Image source={{ uri: safeImageUri(product.images?.[0]) }} style={styles.productImageLarge} />
+        <Image source={{ uri: product.images[0] }} style={styles.productImageLarge} />
         <View style={styles.productDetails}>
           <Text style={styles.productTitle} numberOfLines={2}>
             {product.name}
@@ -480,7 +479,9 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerContent: {
     flexDirection: 'row',

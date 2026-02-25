@@ -21,7 +21,7 @@ const FeatureStrip: React.FC<FeatureStripProps> = ({
   reverse = false
 }) => {
   return (
-    <section className="py-12 lg:py-16 bg-transparent">
+    <section className="py-12 lg:py-16 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className={`grid lg:grid-cols-2 gap-8 sm:gap-12 items-center ${reverse ? 'lg:grid-flow-col-dense' : ''}`}>
@@ -34,10 +34,10 @@ const FeatureStrip: React.FC<FeatureStripProps> = ({
             viewport={{ once: true }}
             className={reverse ? 'lg:col-start-2' : ''}
           >
-            <h2 className="text-4xl lg:text-5xl font-bold text-[var(--text-headline)] mb-4 tracking-tight">
+            <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-4">
               {title}
             </h2>
-            <p className="text-xl text-[var(--text-primary)] mb-8 leading-relaxed font-medium">
+            <p className="text-lg text-[var(--text-secondary)] mb-8">
               {description}
             </p>
 

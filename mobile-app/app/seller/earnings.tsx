@@ -24,10 +24,10 @@ export default function EarningsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 16 }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
         <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
             </Pressable>
             <Text style={styles.headerTitle}>Earnings Dashboard</Text>
             <View style={{ width: 40 }} />
@@ -77,7 +77,7 @@ export default function EarningsScreen() {
           <View style={styles.scheduleGrid}>
             <View style={styles.scheduleCard}><View style={styles.scheduleIcon}><Calendar size={20} color="#3B82F6" /></View><Text style={styles.scheduleLabel}>Payout Frequency</Text><Text style={styles.scheduleValue}>Weekly</Text><Text style={styles.scheduleSubtext}>Every Friday at 5:00 PM PHT</Text></View>
             <View style={styles.scheduleCard}><View style={styles.scheduleIcon}><Clock size={20} color="#8B5CF6" /></View><Text style={styles.scheduleLabel}>Processing Time</Text><Text style={styles.scheduleValue}>1-3 Business Days</Text><Text style={styles.scheduleSubtext}>Funds arrive in your account</Text></View>
-            <View style={styles.scheduleCard}><View style={styles.scheduleIcon}><DollarSign size={20} color="#D97706" /></View><Text style={styles.scheduleLabel}>Minimum Payout</Text><Text style={styles.scheduleValue}>₱500.00</Text><Text style={styles.scheduleSubtext}>Required minimum balance</Text></View>
+            <View style={styles.scheduleCard}><View style={styles.scheduleIcon}><DollarSign size={20} color="#FF5722" /></View><Text style={styles.scheduleLabel}>Minimum Payout</Text><Text style={styles.scheduleValue}>₱500.00</Text><Text style={styles.scheduleSubtext}>Required minimum balance</Text></View>
           </View>
         </View>
 
@@ -104,28 +104,23 @@ export default function EarningsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF4EC',
+    backgroundColor: '#F9FAFB',
   },
   headerContainer: {
-    backgroundColor: '#FFF4EC',
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     paddingBottom: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
     marginBottom: 10,
-    elevation: 3,
+    elevation: 4,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
     zIndex: 10,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerIconButton: { 
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    padding: 10,
-    borderRadius: 12,
-  },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   scrollView: {
     flex: 1,
   },
@@ -134,7 +129,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   totalCard: {
-    backgroundColor: '#D97706',
+    backgroundColor: '#FF5722',
     padding: 20,
     borderRadius: 12,
     elevation: 2,
@@ -286,7 +281,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   scheduleCard: {
-    backgroundColor: '#FFF4EC',
+    backgroundColor: '#F9FAFB',
     padding: 12,
     borderRadius: 8,
   },
@@ -327,7 +322,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   bankCard: {
-    backgroundColor: '#FFF4EC',
+    backgroundColor: '#F9FAFB',
     borderRadius: 8,
     padding: 12,
     gap: 10,

@@ -83,7 +83,7 @@ const thirdColumn = testimonials.slice(6, 9);
 
 export default function BazaarXTestimonials() {
   return (
-    <section className="bg-transparent py-16 sm:py-20 md:py-24 relative overflow-hidden">
+    <section className="bg-gradient-to-b from-white to-orange-50/30 py-16 sm:py-20 md:py-24 relative overflow-hidden">
       <div className="container z-10 mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Grid Layout to match reference layout */}
         <div className="grid lg:grid-cols-12 gap-8 sm:gap-12 items-center">
@@ -96,16 +96,16 @@ export default function BazaarXTestimonials() {
             viewport={{ once: true }}
             className="lg:col-span-5 flex flex-col items-center lg:items-start text-center lg:text-left mb-8 lg:mb-0"
           >
-            <span className="text-[var(--brand-primary)] font-bold tracking-[0.3em] text-xs sm:text-sm uppercase mb-4">
+            <span className="text-[#FF6A00] font-bold tracking-widest text-xs sm:text-sm uppercase mb-4">
               Testimonials
             </span>
 
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[var(--text-headline)] leading-tight">
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#1a2b3b] leading-tight">
               Trusted by <br />
-              <span className="text-[var(--brand-primary)]">Sellers</span>
+              <span className="text-[#FF6A00]">Sellers</span>
             </h2>
 
-            <p className="mt-4 sm:mt-6 text-[var(--text-primary)] text-base sm:text-lg max-w-md text-justify font-medium">
+            <p className="mt-4 sm:mt-6 text-gray-600 text-base sm:text-lg max-w-md">
               Join thousands of successful sellers who grew their business with BazaarX.
               Real reviews from Google and Facebook.
             </p>
@@ -128,7 +128,31 @@ export default function BazaarXTestimonials() {
           </div>
         </div>
 
-
+        {/* Stats Bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+          viewport={{ once: true }}
+          className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12 sm:mt-20 pt-10 border-t border-orange-100 max-w-5xl mx-auto"
+        >
+          <div className="text-center p-2 sm:p-4">
+            <div className="text-2xl sm:text-3xl font-bold text-orange-600">4.9/5</div>
+            <div className="text-xs sm:text-sm text-gray-600 mt-1 tracking-tighter">Google Rating</div>
+          </div>
+          <div className="text-center p-2 sm:p-4">
+            <div className="text-2xl sm:text-3xl font-bold text-orange-600">15K+</div>
+            <div className="text-xs sm:text-sm text-gray-600 mt-1 tracking-tighter">Happy Sellers</div>
+          </div>
+          <div className="text-center p-2 sm:p-4">
+            <div className="text-2xl sm:text-3xl font-bold text-orange-600">4.8/5</div>
+            <div className="text-xs sm:text-sm text-gray-600 mt-1 tracking-tighter">Facebook Reviews</div>
+          </div>
+          <div className="text-center p-2 sm:p-4">
+            <div className="text-2xl sm:text-3xl font-bold text-orange-600">₱2.5M</div>
+            <div className="text-xs sm:text-sm text-gray-600 mt-1  tracking-tighter">Daily Transactions</div>
+          </div>
+        </motion.div>
       </div>
     </section>
   );

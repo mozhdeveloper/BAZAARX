@@ -20,7 +20,6 @@ interface ProductRequestModalProps {
 export default function ProductRequestModal({ visible, onClose }: ProductRequestModalProps) {
   const [productName, setProductName] = useState('');
   const [category, setCategory] = useState('');
-  const [otherCategory, setOtherCategory] = useState('');
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState('');
 
@@ -48,16 +47,13 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
       // Reset form
       setProductName('');
       setCategory('');
-      setOtherCategory('');
       setDescription('');
       setQuantity('');
       onClose();
     }
   };
 
-  const isFormValid = productName.trim() && 
-    (category === 'Other' ? otherCategory.trim() : category) && 
-    description.trim();
+  const isFormValid = productName.trim() && category && description.trim();
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
@@ -107,7 +103,12 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
               <Text style={styles.label}>
                 Category <Text style={styles.required}>*</Text>
               </Text>
-              <View style={styles.categoryGrid}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.categoryScroll}
+                contentContainerStyle={styles.categoryContent}
+              >
                 {categories.map((cat) => (
                   <Pressable
                     key={cat}
@@ -128,19 +129,7 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
                     </Text>
                   </Pressable>
                 ))}
-              </View>
-              {category === 'Other' && (
-                <View style={[styles.inputContainer, { marginTop: 12 }]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Specify the category..."
-                    placeholderTextColor="#9CA3AF"
-                    value={otherCategory}
-                    onChangeText={setOtherCategory}
-                    autoFocus
-                  />
-                </View>
-              )}
+              </ScrollView>
             </View>
 
             {/* Description */}
@@ -230,7 +219,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
@@ -304,10 +293,13 @@ const styles = StyleSheet.create({
     color: '#111827',
     backgroundColor: '#F9FAFB',
   },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  categoryScroll: {
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+  },
+  categoryContent: {
     gap: 8,
+    paddingRight: 20,
   },
   categoryChip: {
     paddingHorizontal: 16,

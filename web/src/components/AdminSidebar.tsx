@@ -94,11 +94,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
       icon: <BarChart3 className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
     },
     {
-      label: 'Support Tickets',
-      href: '/admin/tickets',
-      icon: <MessageSquare className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
       label: 'Settings',
       href: '/admin/settings',
       icon: <Settings className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
@@ -130,9 +125,9 @@ const Logo = () => {
       to="/admin"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <img
-        src="/Logo.png"
-        alt="BazaarPH Logo"
+      <img 
+        src="/Logo.png" 
+        alt="BazaarPH Logo" 
         className="h-8 w-8 object-contain flex-shrink-0"
       />
       <motion.span
@@ -152,9 +147,9 @@ const LogoIcon = () => {
       to="/admin"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <img
-        src="/Logo.png"
-        alt="BazaarPH Logo"
+      <img 
+        src="/Logo.png" 
+        alt="BazaarPH Logo" 
         className="h-8 w-8 object-contain flex-shrink-0"
       />
     </Link>
@@ -172,7 +167,7 @@ const UserProfile = ({ open }: { open?: boolean }) => {
     logout();
     navigate('/admin/login');
   };
-
+  
   if (!user) return null;
 
   return (

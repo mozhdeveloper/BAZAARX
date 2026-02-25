@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Lock, CheckCircle, Shield, CreditCard } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
@@ -111,31 +110,16 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
 
   if (status === 'approved') {
     return (
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ flex: 1 }}
-      >
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <View style={styles.successContainer}>
-            <View style={styles.successIconContainer}>
-              <LinearGradient
-                colors={[COLORS.primary, '#D97706']}
-                style={styles.successIconGradient}
-              >
-                <CheckCircle size={80} color="#FFFFFF" strokeWidth={2.5} />
-              </LinearGradient>
-            </View>
-            <Text style={styles.successTitle}>Payment Approved!</Text>
-            <Text style={styles.successSubtitle}>Your order has been confirmed successfully</Text>
-            <View style={styles.redirectBadge}>
-              <ActivityIndicator size="small" color={COLORS.primary} style={{ marginRight: 8 }} />
-              <Text style={styles.successRedirect}>Redirecting to tracking...</Text>
-            </View>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.successContainer}>
+          <View style={styles.successIconContainer}>
+            <CheckCircle size={100} color="#10B981" strokeWidth={2} />
           </View>
-        </SafeAreaView>
-      </LinearGradient>
+          <Text style={styles.successTitle}>Payment Approved!</Text>
+          <Text style={styles.successSubtitle}>Your order has been confirmed</Text>
+          <Text style={styles.successRedirect}>Redirecting to tracking...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -145,28 +129,20 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <LinearGradient
-          colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
-        >
-          <View style={styles.headerTop}>
-            <Pressable
-              onPress={() => navigation.goBack()}
-              style={styles.headerIconButton}
-              disabled={status === 'processing'}
-              accessibilityLabel="Go back"
-              accessibilityRole="button"
-            >
-              <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
-            </Pressable>
-            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Secure Checkout</Text>
-            <View style={styles.securedBadge}>
-              <Lock size={16} color="#10B981" strokeWidth={2.5} />
-            </View>
+        {/* Minimalist White Header */}
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            disabled={status === 'processing'}
+          >
+            <ArrowLeft size={24} color="#374151" strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Secure Checkout</Text>
+          <View style={styles.securedBadge}>
+            <Lock size={16} color="#10B981" strokeWidth={2.5} />
           </View>
-        </LinearGradient>
+        </View>
 
         <ScrollView
           style={styles.scrollContent}
@@ -211,7 +187,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                       keyboardType="number-pad"
                       maxLength={16}
                       editable={status !== 'processing'}
-                      accessibilityLabel="Card Number Input"
                     />
                   </View>
                 </View>
@@ -229,7 +204,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                       keyboardType="number-pad"
                       maxLength={5}
                       editable={status !== 'processing'}
-                      accessibilityLabel="Expiry Date Input (MM/YY)"
                     />
                   </View>
 
@@ -247,7 +221,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                         maxLength={4}
                         secureTextEntry
                         editable={status !== 'processing'}
-                        accessibilityLabel="CVV Input"
                       />
                       <View style={styles.inputIconRight}>
                         <Lock size={16} color="#9CA3AF" />
@@ -267,7 +240,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     onChangeText={setCardName}
                     autoCapitalize="characters"
                     editable={status !== 'processing'}
-                    accessibilityLabel="Cardholder Name Input"
                   />
                 </View>
               </>
@@ -291,7 +263,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                       keyboardType="phone-pad"
                       maxLength={10}
                       editable={status !== 'processing'}
-                      accessibilityLabel="Mobile Number Input"
                     />
                   </View>
                 </View>
@@ -310,7 +281,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     keyboardType="number-pad"
                     maxLength={6}
                     editable={status !== 'processing'}
-                    accessibilityLabel={methodSlug === 'gcash' ? "MPIN Input" : "Password Input"}
                   />
                 </View>
               </>
@@ -344,8 +314,6 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
             ]}
             onPress={handlePayment}
             disabled={!isFormValid() || status === 'processing'}
-            accessibilityLabel={`Pay ${order.total.toLocaleString()} pesos`}
-            accessibilityRole="button"
           >
             <Text style={styles.payButtonText}>
               {status === 'processing' ? 'Processing...' : `Pay ₱${order.total.toLocaleString()}`}
@@ -366,35 +334,28 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FFFFFF',
   },
 
-  headerContainer: {
+  // Minimalist White Header
+  header: {
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-  },
-  headerTop: {
+    paddingBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerIconButton: {
+  backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
     flex: 1,
     textAlign: 'center',
   },
@@ -604,48 +565,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   successIconContainer: {
-    marginBottom: 32,
-  },
-  successIconGradient: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
+    marginBottom: 24,
   },
   successTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: COLORS.textHeadline,
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#10B981',
     marginBottom: 12,
     textAlign: 'center',
   },
   successSubtitle: {
-    fontSize: 17,
-    color: COLORS.textPrimary,
-    marginBottom: 40,
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 8,
     textAlign: 'center',
-    lineHeight: 24,
-  },
-  redirectBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(217, 119, 6, 0.08)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 119, 6, 0.2)',
   },
   successRedirect: {
     fontSize: 14,
-    color: '#D97706',
-    fontWeight: '700',
+    color: '#9CA3AF',
     textAlign: 'center',
   },
   inputIconRight: {

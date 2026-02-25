@@ -1,26 +1,23 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BadgeCheck, ShieldCheck, Flame } from 'lucide-react';
+import { BadgeCheck, ShieldCheck } from 'lucide-react';
 
 
 interface ProductCardProps {
   product: any;
   index?: number;
-  isFlash?: boolean;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash = false }) => {
+const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
   const navigate = useNavigate();
   const hasDiscount =
     product.originalPrice && product.originalPrice > product.price;
   const discountPercent = hasDiscount
-    ? (typeof product.discountBadgePercent === 'number'
-      ? product.discountBadgePercent
-      : Math.round(
+    ? Math.round(
         ((product.originalPrice! - product.price) / product.originalPrice!) *
-        100,
-      ))
+          100,
+      )
     : 0;
 
   return (
@@ -28,49 +25,46 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.1 }}
-      className="product-card-premium product-card-premium-interactive shadow-golden h-full"
+      className="group bg-white rounded-xl hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer border border-gray-100"
       onClick={() => navigate(`/product/${product.id}`)}
     >
-      <div className="relative aspect-square overflow-hidden bg-[#FFF6E5]">
+      <div className="relative aspect-square overflow-hidden">
         <img
           src={product.image}
           alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
-        {hasDiscount && !isFlash && (
-          <div
-            title={product.discountBadgeTooltip}
-            className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider"
-          >
+        {hasDiscount && (
+          <div className="absolute top-3 left-3 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
             -{discountPercent}%
           </div>
         )}
         {product.isFreeShipping && (
-          <div className="absolute top-3 right-3 bg-[var(--brand-accent)] text-white px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider">
+          <div className="absolute top-3 right-3 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
             Free Ship
           </div>
         )}
-        {product.isVerified && !isFlash && (
-          <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
-            <ShieldCheck className="w-3 h-3 text-[var(--brand-accent)]" />
-            <span className="text-[10px] font-bold text-[var(--brand-accent)] uppercase">Verified</span>
+        {product.isVerified && (
+          <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1">
+            <ShieldCheck className="w-3 h-3 text-blue-600" />
+            <span className="text-xs font-medium text-blue-600">Verified</span>
           </div>
         )}
       </div>
 
-      <div className="p-4">
-        <h3 className="product-title-premium text-sm mb-1 line-clamp-2">
+      <div className="p-3">
+        <h3 className="font-medium text-[var(--text-primary)] text-sm mb-2 line-clamp-2 group-hover:text-[var(--brand-primary)] transition-colors leading-snug">
           {product.name}
         </h3>
 
-        <div className="flex items-center mb-3">
-          <div className="flex text-[var(--brand-accent)] text-[10px] mr-1">
+        <div className="flex items-center mb-2">
+          <div className="flex text-yellow-400 text-xs mr-1">
             {[...Array(5)].map((_, i) => (
               <span
                 key={i}
                 className={
-                  i < Math.floor(product.rating || 5)
-                    ? "fill-current"
+                  i < Math.floor(product.rating)
+                    ? "text-yellow-400"
                     : "text-gray-300"
                 }
               >
@@ -78,13 +72,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
               </span>
             ))}
           </div>
-          <span className="text-[10px] text-[var(--text-muted)] font-medium">
-            ({product.rating || 5.0})
+          <span className="text-xs text-[var(--text-secondary)] ml-1">
+            ({product.rating})
           </span>
         </div>
 
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className={isFlash ? "text-xl font-bold text-[var(--price-flash)]" : "text-xl product-price-premium"}>
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className="text-xl font-bold text-[var(--brand-primary)]">
             ₱{product.price.toLocaleString()}
           </span>
           {hasDiscount && (
@@ -94,35 +88,37 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
           )}
         </div>
 
-        {isFlash ? (
-          <div className="mb-4">
-            <div className="w-full h-1.5 bg-red-100 rounded-full mb-1 border border-red-200 overflow-hidden">
-              <div
-                className="h-full bg-red-500 rounded-full"
-                style={{ width: '75%' }}
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <Flame className="w-3 h-3 text-red-600 fill-red-600" />
-              <span className="text-[10px] text-red-600 font-bold uppercase tracking-widest flex items-center gap-1">
-                {(product.sold || 0).toLocaleString()} sold
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest mb-4">
-            {(product.sold || 0).toLocaleString()} sold
-          </div>
-        )}
+        <div className="text-xs text-[var(--text-muted)] mb-3">
+          {product.sold.toLocaleString()} sold
+        </div>
 
-        <div className="pt-4 border-t border-[var(--brand-accent-light)]/50">
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
-              {product.seller || "BazaarX Store"}
+        <div className="pt-3 border-t border-[var(--border-subtle)]">
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
+              {product.seller}
             </p>
             {product.sellerVerified && (
               <BadgeCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
             )}
+          </div>
+          <div className="flex items-center gap-1 mt-1">
+            <div className="flex text-yellow-400" style={{ fontSize: "10px" }}>
+              {[...Array(5)].map((_, i) => (
+                <span
+                  key={i}
+                  className={
+                    i < Math.floor(product.sellerRating)
+                      ? "text-yellow-400"
+                      : "text-gray-300"
+                  }
+                >
+                  ★
+                </span>
+              ))}
+            </div>
+            <span className="text-xs text-[var(--text-secondary)]">
+              ({product.sellerRating})
+            </span>
           </div>
         </div>
       </div>

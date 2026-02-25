@@ -23,33 +23,24 @@ type TimeRange = '7d' | '30d' | '90d';
 export default function SellerAnalyticsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   
-  const { stats, revenueData = [], categorySales = [], products = [], seller } = useSellerStore();
+  const { stats, revenueData, categorySales, products } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedRange, setSelectedRange] = useState<TimeRange>('7d');
 
   const chartData = revenueData.map((item) => ({
-    value: (item.value ?? 0) / 1000,
-    label: (item.date ?? '').split(' ')[1] || '',
+    value: item.value / 1000,
+    label: item.date.split(' ')[1],
   }));
 
   const pieData = categorySales.map((item, index) => ({
-    value: item.value ?? 0,
-    color: item.color ?? '#D97706',
-    text: `${item.value ?? 0}%`,
+    value: item.value,
+    color: item.color,
+    text: `${item.value}%`,
   }));
 
   const topProducts = products
-    .sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0))
+    .sort((a, b) => b.sold - a.sold)
     .slice(0, 5);
-
-  // Null guard for seller
-  if (!seller) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Loading seller information...</Text>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -63,7 +54,7 @@ export default function SellerAnalyticsScreen() {
               onPress={() => navigation.goBack()}
             >
               {/* Replace ArrowLeft with Menu or SettingsIcon depending on the screen */}
-              <ArrowLeft size={24} color="#1F2937" strokeWidth={2} />
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2} />
             </TouchableOpacity>
             
             <View style={{ flex: 1 }}>
@@ -76,9 +67,8 @@ export default function SellerAnalyticsScreen() {
         {/* Notification Button: Positioned absolutely to match Settings.tsx */}
         <Pressable
           style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
-          onPress={() => navigation.getParent()?.navigate('Notifications')}
         >
-          <Bell size={22} color="#1F2937" strokeWidth={2.5} />
+          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
           <View style={styles.notificationBadge} />
         </Pressable>
       </View>
@@ -124,7 +114,7 @@ export default function SellerAnalyticsScreen() {
               data={chartData}
               height={180}
               width={width - 100}
-              color="#D97706"
+              color="#FF5722"
               thickness={3}
               startFillColor="rgba(255, 87, 34, 0.4)"
               endFillColor="rgba(255, 87, 34, 0.1)"
@@ -143,7 +133,7 @@ export default function SellerAnalyticsScreen() {
               areaChart
               focusEnabled
               hideDataPoints={false}
-              dataPointsColor="#D97706"
+              dataPointsColor="#FF5722"
               dataPointsRadius={6}
             />
           </View>
@@ -173,7 +163,7 @@ export default function SellerAnalyticsScreen() {
                     style={[styles.legendDot, { backgroundColor: item.color }]}
                   />
                   <Text style={styles.legendText}>
-                    {typeof item.category === 'object' ? (item.category as any)?.name || '' : String(item.category || '')} ({item.value}%)
+                    {item.category} ({item.value}%)
                   </Text>
                 </View>
               ))}
@@ -206,15 +196,15 @@ export default function SellerAnalyticsScreen() {
                     <Text style={styles.rankText}>{index + 1}</Text>
                   </View>
                   <Text style={styles.tableNameCell} numberOfLines={1}>
-                    {typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '')}
+                    {product.name}
                   </Text>
                 </View>
                 <Text style={[styles.tableCell, { flex: 1, textAlign: 'center' }]}>
-                  {product.sales ?? 0}
+                  {product.sold}
                 </Text>
                 <View style={{ flex: 1.5 }}>
                   <Text style={styles.tableCellRevenue} numberOfLines={1} ellipsizeMode="tail">
-                    ₱{(product.price * (product.sales ?? 0)).toLocaleString()}
+                    ₱{(product.price * product.sold).toLocaleString()}
                   </Text>
                 </View>
               </View>
@@ -231,15 +221,19 @@ export default function SellerAnalyticsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFBF0',
+    backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FFF4EC', // Theme Primary Peach
+    backgroundColor: '#FF5722', // Theme Primary Orange
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    elevation: 3,
-    borderBottomLeftRadius: 24, 
-    borderBottomRightRadius: 24, // Rounded bottom corners for the "Card" look
+    paddingBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20, // Rounded bottom corners for the "Card" look
   },
   headerContent: {
     flexDirection: 'row',
@@ -247,19 +241,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconContainer: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)', // Translucent white background
+    padding: 12,
     borderRadius: 12,
   },
   headerTitle: {
     fontSize: 22, // Large bold title
     fontWeight: '800',
-    color: '#1F2937',
+    color: '#FFFFFF',
     letterSpacing: 0.3,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#4B5563',
+    color: '#FFFFFF',
+    opacity: 0.9,
     fontWeight: '500',
   },
   notificationButton: {
@@ -279,7 +274,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#EF4444', // Red badge
     borderWidth: 1.5,
-    borderColor: '#D97706', // Border matches header background to prevent cutoff look
+    borderColor: '#FF5722', // Border matches header background to prevent cutoff look
   },
   exportButton: {
     width: 40,
@@ -308,8 +303,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pillButtonActive: {
-    backgroundColor: '#D97706',
-    borderColor: '#D97706',
+    backgroundColor: '#FF5722',
+    borderColor: '#FF5722',
   },
   pillButtonText: {
     fontSize: 13,
@@ -330,7 +325,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   viewAllText: {
-    color: '#D97706',
+    color: '#FF5722',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -344,7 +339,7 @@ const styles = StyleSheet.create({
   tableCellRevenue: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#D97706',
+    color: '#FF5722',
     textAlign: 'right',
   },
   // Update sectionTitle to remove bottom margin since it's now in sectionHeaderRow
@@ -425,7 +420,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFF4EC',
+    backgroundColor: '#FFF5F0',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -433,7 +428,7 @@ const styles = StyleSheet.create({
   rankText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#D97706',
+    color: '#FF5722',
   },
   tableCell: {
     fontSize: 13,
