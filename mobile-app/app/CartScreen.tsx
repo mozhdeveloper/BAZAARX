@@ -288,6 +288,7 @@ export default function CartScreen({ navigation }: any) {
                         onChange={(val) => updateQuantity(item.id, val)}
                         onRemove={() => handleRemoveSingle(item)}
                         onEdit={item.selectedVariant ? () => handleEditVariant(item) : undefined}
+                        onPress={() => navigation.navigate('ProductDetail', { product: item })}
                       />
                     </View>
                   </View>
