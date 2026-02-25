@@ -21,6 +21,7 @@ export interface SellerCoreData {
     id: string;
     store_name: string;
     store_description: string | null;
+    store_contact_number: string | null;
     avatar_url: string | null;
     owner_name: string | null;
     approval_status: 'pending' | 'verified' | 'approved' | 'rejected' | 'needs_resubmission';
@@ -73,6 +74,7 @@ export type SellerInsert = {
     id: string;
     store_name: string;
     store_description?: string | null;
+    store_contact_number?: string | null;
     avatar_url?: string | null;
     owner_name?: string | null;
     approval_status?: 'pending' | 'verified' | 'approved' | 'rejected' | 'needs_resubmission';
@@ -286,6 +288,7 @@ export class SellerService {
                     id: seller.id,
                     store_name: seller.store_name,
                     store_description: seller.store_description || null,
+                    store_contact_number: seller.store_contact_number || null,
                     avatar_url: seller.avatar_url || null,
                     owner_name: seller.owner_name || null,
                     approval_status: seller.approval_status || 'pending',

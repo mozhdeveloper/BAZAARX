@@ -261,6 +261,10 @@ function App() {
             }
           />
           <Route
+            path="/seller/verification-requirements"
+            element={<Navigate to="/seller/unverified" replace />}
+          />
+          <Route
             path="/seller/account-blocked"
             element={
               <ProtectedSellerRoute>

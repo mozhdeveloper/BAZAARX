@@ -722,6 +722,7 @@ export class AuthService {
           id: user.id,
           store_name: payload.store_name,
           store_description: payload.store_description || null,
+          store_contact_number: payload.phone?.trim() || null,
           owner_name: ownerName,
           approval_status: 'pending',
         },
@@ -734,7 +735,7 @@ export class AuthService {
     }
 
     const phoneToSave = payload.phone?.trim();
-    if (phoneToSave && (!existingProfile?.phone || existingProfile.phone.trim().length === 0)) {
+    if (phoneToSave && phoneToSave !== existingProfile?.phone) {
       const { error: profileUpdateError } = await supabase
         .from('profiles')
         .update({ phone: phoneToSave })

@@ -215,7 +215,13 @@ interface AuthStore {
     isAuthenticated: boolean;
     login: (email: string, password: string) => Promise<boolean>;
     register: (
-        sellerData: Partial<Seller> & { email: string; password: string },
+        sellerData: Partial<Seller> & {
+            email: string;
+            password: string;
+            firstName?: string;
+            lastName?: string;
+            storeContact?: string;
+        },
     ) => Promise<boolean>;
     logout: () => void;
     updateProfile: (updates: Partial<Seller>) => void;
@@ -412,7 +418,7 @@ const mapDbSellerToSeller = (s: any): Seller => {
         name: s.owner_name || s.store_name || "Seller",
         ownerName: s.owner_name || s.store_name || "Seller",
         email: profile.email || "",
-        phone: profile.phone || "",
+        phone: s.store_contact_number ||  "",
         businessName: s.owner_name || "",
         storeName: s.store_name || "",
         storeDescription: s.store_description || "",
@@ -538,15 +544,19 @@ export const useAuthStore = create<AuthStore>()(
                 if (!isSupabaseConfigured()) {
                     // Existing mock flow
                     const fullAddress = `${sellerData.businessAddress}, ${sellerData.city}, ${sellerData.province} ${sellerData.postalCode}`;
+                    const firstName = sellerData.firstName?.trim() || "";
+                    const lastName = sellerData.lastName?.trim() || "";
+                    const ownerName =
+                        `${firstName} ${lastName}`.trim() ||
+                        sellerData.ownerName ||
+                        sellerData.email?.split("@")[0] ||
+                        "New Seller";
                     const newSeller: Seller = {
                         id: `seller-${Date.now()}`,
-                        name:
-                            sellerData.ownerName ||
-                            sellerData.email?.split("@")[0] ||
-                            "New Seller",
-                        ownerName: sellerData.ownerName || "",
+                        name: ownerName,
+                        ownerName,
                         email: sellerData.email!,
-                        phone: sellerData.phone || "",
+                        phone: sellerData.storeContact || sellerData.phone || "",
                         businessName: sellerData.businessName || "",
                         storeName: sellerData.storeName || "My Store",
                         storeDescription: sellerData.storeDescription || "",
@@ -578,6 +588,25 @@ export const useAuthStore = create<AuthStore>()(
                     // This will succeed if the user already exists, fail if they don't
                     let user;
                     let isExistingUser = false;
+                    const firstName =
+                        sellerData.firstName?.trim() ||
+                        sellerData.ownerName?.trim()?.split(" ")[0] ||
+                        null;
+                    const lastName =
+                        sellerData.lastName?.trim() ||
+                        sellerData.ownerName?.trim()?.split(" ").slice(1).join(" ") ||
+                        null;
+                    const ownerName =
+                        `${firstName || ""} ${lastName || ""}`.trim() ||
+                        sellerData.ownerName ||
+                        sellerData.storeName ||
+                        sellerData.email?.split("@")[0] ||
+                        "Seller";
+                    const storeContact =
+                        sellerData.storeContact?.trim() || sellerData.phone || "";
+                    const normalizedRegisterEmail =
+                        sellerData.email?.trim().toLowerCase() || "";
+                    const normalizedRegisterPhone = storeContact;
 
                     try {
                         const signInResult = await authService.signIn(
@@ -589,11 +618,12 @@ export const useAuthStore = create<AuthStore>()(
                             user = signInResult.user;
                             isExistingUser = true;
 
-                            const isAlreadySeller = await authService.isUserSeller(
+                            const alreadySeller = await authService.hasRole(
                                 user.id,
+                                "seller",
                             );
 
-                            if (isAlreadySeller) {
+                            if (alreadySeller) {
                                 console.error(
                                     "User is already registered as a seller",
                                 );
@@ -612,11 +642,9 @@ export const useAuthStore = create<AuthStore>()(
                                 sellerData.email!,
                                 sellerData.password!,
                                 {
-                                    full_name:
-                                        sellerData.ownerName ||
-                                        sellerData.email?.split("@")[0] ||
-                                        "Seller",
-                                    phone: sellerData.phone,
+                                    first_name: firstName || undefined,
+                                    last_name: lastName || undefined,
+                                    phone: storeContact || undefined,
                                     user_type: "seller",
                                     email: sellerData.email!,
                                     password: sellerData.password!,
@@ -652,10 +680,13 @@ export const useAuthStore = create<AuthStore>()(
                                     user = signInResult.user;
                                     isExistingUser = true;
 
-                                    const isAlreadySeller =
-                                        await authService.isUserSeller(user.id);
+                                    const alreadySeller =
+                                        await authService.hasRole(
+                                            user.id,
+                                            "seller",
+                                        );
 
-                                    if (isAlreadySeller) {
+                                    if (alreadySeller) {
                                         console.error(
                                             "User is already registered as a seller",
                                         );
@@ -682,44 +713,24 @@ export const useAuthStore = create<AuthStore>()(
                         await authService.upgradeUserType(user.id, "seller");
                     }
 
-                    let resolvedOwnerName = sellerData.ownerName?.trim() || "";
-                    if (!resolvedOwnerName) {
-                        try {
-                            const existingProfile =
-                                await authService.getUserProfile(user.id);
-                            resolvedOwnerName = [
-                                existingProfile?.first_name,
-                                existingProfile?.last_name,
-                            ]
-                                .filter(Boolean)
-                                .join(" ")
-                                .trim();
-                        } catch (ownerProfileError) {
-                            console.warn(
-                                "Failed to resolve owner name from profile:",
-                                ownerProfileError,
-                            );
-                        }
-                    }
+                    const { error: profileUpsertError } = await supabase
+                        .from("profiles")
+                        .upsert(
+                            {
+                                id: user.id,
+                                email: sellerData.email!,
+                                first_name: firstName,
+                                last_name: lastName,
+                                phone: storeContact || null,
+                            },
+                            {
+                                onConflict: "id",
+                                ignoreDuplicates: false,
+                            },
+                        );
 
-                    // Keep profile contact aligned with seller registration inputs.
-                    const normalizedRegisterEmail = sellerData.email?.trim();
-                    const normalizedRegisterPhone =
-                        sellerData.phone?.trim() || null;
-                    if (normalizedRegisterEmail || normalizedRegisterPhone) {
-                        try {
-                            await authService.updateProfile(user.id, {
-                                ...(normalizedRegisterEmail
-                                    ? { email: normalizedRegisterEmail }
-                                    : {}),
-                                phone: normalizedRegisterPhone,
-                            });
-                        } catch (profileSyncError) {
-                            console.warn(
-                                "Failed to sync seller contact to profile:",
-                                profileSyncError,
-                            );
-                        }
+                    if (profileUpsertError) {
+                        throw profileUpsertError;
                     }
 
                     // 2) Create or update seller record (use upsert to handle conflicts)
@@ -734,7 +745,7 @@ export const useAuthStore = create<AuthStore>()(
                             "My Store",
                         store_name: sellerData.storeName || "My Store",
                         store_description: sellerData.storeDescription || "",
-                        owner_name: resolvedOwnerName || null,
+                        store_contact_number: storeContact || null,
                         store_category: sellerData.storeCategory || ["General"],
                         business_type:
                             sellerData.businessType || "sole_proprietor",
@@ -751,6 +762,7 @@ export const useAuthStore = create<AuthStore>()(
                         bank_name: sellerData.bankName || "",
                         account_name: sellerData.accountName || "",
                         account_number: sellerData.accountNumber || "",
+                        owner_name: ownerName,
                         business_permit_url: null,
                         valid_id_url: null,
                         proof_of_address_url: null,
