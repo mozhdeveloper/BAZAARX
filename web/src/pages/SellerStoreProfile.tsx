@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuthStore, useProductStore, useOrderStore } from "@/stores/sellerStore";
@@ -45,7 +45,8 @@ import type { BusinessType } from "@/types/database.types";
 
 export function SellerStoreProfile() {
   const SHOW_BANKING_INFO = false;
-  const { seller, updateSellerDetails } = useAuthStore();
+  const { seller, updateSellerDetails, hydrateSellerFromSession } =
+    useAuthStore();
   const { products } = useProductStore();
   const [editSection, setEditSection] = useState<
     "basic" | "business" | "banking" | "categories" | null
@@ -62,12 +63,20 @@ export function SellerStoreProfile() {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const getSellerId = () =>
+    seller?.id || useAuthStore.getState().seller?.id || null;
+
+  useEffect(() => {
+    if (seller?.id) return;
+    void hydrateSellerFromSession();
+  }, [seller?.id, hydrateSellerFromSession]);
 
 
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !seller?.id) {
+    const sellerId = getSellerId();
+    if (!file || !sellerId) {
       setAvatarError("No file selected or seller ID missing");
       return;
     }
@@ -96,13 +105,13 @@ export function SellerStoreProfile() {
         filename: file.name,
         filesize: file.size,
         fileType: file.type,
-        sellerId: seller.id,
+        sellerId,
       });
 
       // Create a unique filename
       const timestamp = Date.now();
       const ext = file.name.split(".").pop();
-      const filename = `${seller.id}-${timestamp}.${ext}`;
+      const filename = `${sellerId}-${timestamp}.${ext}`;
 
       // Upload to Supabase Storage
       const { data, error: uploadError } = await supabase.storage
@@ -139,7 +148,7 @@ export function SellerStoreProfile() {
       const { error: updateError, data: updateData } = await supabase
         .from("profiles")
         .update({ avatar_url: avatarUrl })
-        .eq("id", seller.id);
+        .eq("id", sellerId);
 
       if (updateError) {
         const dbErrorDetails = {
@@ -149,7 +158,7 @@ export function SellerStoreProfile() {
         };
         console.error("Database update error:", dbErrorDetails);
         throw new Error(
-          `Database update failed: ${updateError.message} | Profile ID: ${seller.id}`,
+          `Database update failed: ${updateError.message} | Profile ID: ${sellerId}`,
         );
       }
 
@@ -235,6 +244,36 @@ export function SellerStoreProfile() {
     return null;
   };
 
+  useEffect(() => {
+    if (!seller) return;
+
+    setFormData({
+      storeName: seller.storeName || "",
+      storeDescription: seller.storeDescription || "",
+      phone: seller.phone || "",
+      ownerName: seller.ownerName || "",
+      email: seller.email || "",
+    });
+    setBusinessForm({
+      businessName: seller.businessName || "",
+      businessType: seller.businessType || "",
+      businessRegistrationNumber: seller.businessRegistrationNumber || "",
+      taxIdNumber: seller.taxIdNumber || "",
+      businessAddress: seller.businessAddress || "",
+      city: seller.city || "",
+      province: seller.province || "",
+      postalCode: seller.postalCode || "",
+    });
+    setBankingForm({
+      bankName: seller.bankName || "",
+      accountName: seller.accountName || "",
+      accountNumber: seller.accountNumber || "",
+    });
+    setCategoriesForm(seller.storeCategory || []);
+    setIsVerified(Boolean(seller.isVerified));
+    setApprovalStatus(seller.approvalStatus || "pending");
+  }, [seller]);
+
   // Helper: determine if a string field is effectively empty
   const isEmptyField = (value?: string | null) => {
     if (value === null || value === undefined) return true;
@@ -289,7 +328,8 @@ export function SellerStoreProfile() {
 
   // Handler: reapply for verification (set approval_status back to pending)
   const handleReapply = async () => {
-    if (!seller?.id) {
+    const sellerId = getSellerId();
+    if (!sellerId) {
       alert("Unable to reapply: seller ID missing.");
       return;
     }
@@ -309,7 +349,7 @@ export function SellerStoreProfile() {
       const { error } = await supabaseClient
         .from("sellers")
         .update({ approval_status: "pending" })
-        .eq("id", seller.id);
+        .eq("id", sellerId);
 
       if (error) throw error;
 
@@ -327,14 +367,15 @@ export function SellerStoreProfile() {
   // Fetch documents and verification status from Supabase on mount
   React.useEffect(() => {
     const fetchSellerData = async () => {
-      if (!seller?.id) return;
+      const sellerId = getSellerId();
+      if (!sellerId) return;
 
       try {
         // Fetch seller approval status
         const { data: sellerData, error: sellerError } = await supabase
           .from("sellers")
           .select("approval_status")
-          .eq("id", seller.id)
+          .eq("id", sellerId)
           .single();
 
         if (sellerError) {
@@ -356,8 +397,10 @@ export function SellerStoreProfile() {
         // Fetch verification documents from separate table
         const { data: docData, error: docError } = await supabase
           .from("seller_verification_documents")
-          .select("business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, updated_at")
-          .eq("seller_id", seller.id)
+          .select(
+            "business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, updated_at",
+          )
+          .eq("seller_id", sellerId)
           .maybeSingle();
 
         if (docError && docError.code !== 'PGRST116') { // PGRST116 = no rows
@@ -419,7 +462,8 @@ export function SellerStoreProfile() {
     docKey: string,
     columnName: string,
   ) => {
-    if (!seller?.id) return;
+    const sellerId = getSellerId();
+    if (!sellerId) return;
 
     // Validate file type and size
     const validation = validateDocumentFile(file);
@@ -432,7 +476,7 @@ export function SellerStoreProfile() {
 
     try {
       // Upload to Supabase Storage
-      const documentUrl = await uploadSellerDocument(file, seller.id, docKey);
+      const documentUrl = await uploadSellerDocument(file, sellerId, docKey);
 
       if (!documentUrl) {
         throw new Error("Upload failed");
@@ -443,7 +487,7 @@ export function SellerStoreProfile() {
       const { data: existingDoc } = await supabase
         .from("seller_verification_documents")
         .select("seller_id")
-        .eq("seller_id", seller.id)
+        .eq("seller_id", sellerId)
         .single();
 
       const uploadTimestamp = new Date().toISOString();
@@ -459,14 +503,14 @@ export function SellerStoreProfile() {
         const result = await supabase
           .from("seller_verification_documents")
           .update(updateData)
-          .eq("seller_id", seller.id);
+          .eq("seller_id", sellerId);
         error = result.error;
       } else {
         // Insert new record
         const result = await supabase
           .from("seller_verification_documents")
           .insert({
-            seller_id: seller.id,
+            seller_id: sellerId,
             ...updateData,
           });
         error = result.error;
@@ -552,27 +596,51 @@ export function SellerStoreProfile() {
   };
 
   const handleSaveBasic = async () => {
-    if (!seller?.id) {
+    const sellerId = getSellerId();
+    if (!sellerId) {
       alert("Unable to save: seller ID missing.");
       return;
     }
+
+    const normalizedEmail = formData.email.trim();
+    const normalizedPhone = formData.phone.trim();
+    const normalizedOwnerName = formData.ownerName.trim();
+
+    if (!normalizedEmail) {
+      alert("Email is required.");
+      return;
+    }
+
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseClient: any = supabase;
-      const { error } = await supabaseClient
+      const { error: sellerError } = await supabaseClient
         .from("sellers")
         .update({
           store_name: formData.storeName,
           store_description: formData.storeDescription,
+          owner_name: normalizedOwnerName || null,
         })
-        .eq("id", seller.id);
-      if (error) throw error;
+        .eq("id", sellerId);
+
+      if (sellerError) throw sellerError;
+
+      const { error: profileError } = await supabaseClient
+        .from("profiles")
+        .update({
+          email: normalizedEmail,
+          phone: normalizedPhone || null,
+        })
+        .eq("id", sellerId);
+
+      if (profileError) throw profileError;
+
       updateSellerDetails({
         storeName: formData.storeName,
         storeDescription: formData.storeDescription,
-        phone: formData.phone,
-        ownerName: formData.ownerName,
-        email: formData.email,
+        phone: normalizedPhone,
+        ownerName: normalizedOwnerName,
+        email: normalizedEmail,
       });
       setEditSection(null);
       alert("Saved changes");
@@ -583,7 +651,8 @@ export function SellerStoreProfile() {
   };
 
   const handleSaveBusiness = async () => {
-    if (!seller?.id) {
+    const sellerId = getSellerId();
+    if (!sellerId) {
       alert("Unable to save: seller ID missing.");
       return;
     }
@@ -599,20 +668,23 @@ export function SellerStoreProfile() {
       const supabaseClient: any = supabase;
       const { error } = await supabaseClient
         .from("seller_business_profiles")
-        .upsert({
-          seller_id: seller.id,
-          business_type: normalizedBusinessType,
-          business_registration_number: businessForm.businessRegistrationNumber,
-          tax_id_number: businessForm.taxIdNumber,
-          address_line_1: businessForm.businessAddress,
-          address_line_2: null,
-          city: businessForm.city,
-          province: businessForm.province,
-          postal_code: businessForm.postalCode,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: "seller_id",
-        });
+        .upsert(
+          {
+            seller_id: seller.id,
+            business_type: normalizedBusinessType,
+            business_registration_number: businessForm.businessRegistrationNumber,
+            tax_id_number: businessForm.taxIdNumber,
+            address_line_1: businessForm.businessAddress,
+            address_line_2: null,
+            city: businessForm.city,
+            province: businessForm.province,
+            postal_code: businessForm.postalCode,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "seller_id",
+          },
+        );
       if (error) throw error;
       updateSellerDetails({
         businessName: businessForm.businessName,
@@ -633,7 +705,8 @@ export function SellerStoreProfile() {
   };
 
   const handleSaveBanking = async () => {
-    if (!seller?.id) {
+    const sellerId = getSellerId();
+    if (!sellerId) {
       alert("Unable to save: seller ID missing.");
       return;
     }
@@ -642,15 +715,18 @@ export function SellerStoreProfile() {
       const supabaseClient: any = supabase;
       const { error } = await supabaseClient
         .from("seller_payout_accounts")
-        .upsert({
-          seller_id: seller.id,
-          bank_name: bankingForm.bankName,
-          account_name: bankingForm.accountName,
-          account_number: bankingForm.accountNumber,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: "seller_id",
-        });
+        .upsert(
+          {
+            seller_id: seller.id,
+            bank_name: bankingForm.bankName,
+            account_name: bankingForm.accountName,
+            account_number: bankingForm.accountNumber,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "seller_id",
+          },
+        );
       if (error) throw error;
       updateSellerDetails({
         bankName: bankingForm.bankName,
@@ -666,7 +742,8 @@ export function SellerStoreProfile() {
   };
 
   const handleSaveCategories = async () => {
-    if (!seller?.id) {
+    const sellerId = getSellerId();
+    if (!sellerId) {
       alert("Unable to save: seller ID missing.");
       return;
     }
@@ -676,7 +753,7 @@ export function SellerStoreProfile() {
       const { error } = await supabaseClient
         .from("sellers")
         .update({ store_category: categoriesForm })
-        .eq("id", seller.id);
+        .eq("id", sellerId);
       if (error) throw error;
       updateSellerDetails({ storeCategory: categoriesForm });
       setEditSection(null);

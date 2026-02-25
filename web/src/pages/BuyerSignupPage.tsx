@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Eye,
@@ -16,9 +16,15 @@ import { useBuyerStore } from "../stores/buyerStore";
 import { Checkbox } from "../components/ui/checkbox";
 import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
+import {
+  clearRoleSwitchContext,
+  readRoleSwitchContext,
+  type RoleSwitchContext,
+} from "@/services/roleSwitchContext";
 
 export default function BuyerSignupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { setProfile } = useBuyerStore();
 
   const [formData, setFormData] = useState({
@@ -34,6 +40,29 @@ export default function BuyerSignupPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [switchContext, setSwitchContext] = useState<RoleSwitchContext | null>(null);
+  const isSwitchMode = switchContext?.targetMode === "buyer";
+
+  useEffect(() => {
+    const state = location.state as { roleSwitchContext?: RoleSwitchContext } | null;
+    const stateContext = state?.roleSwitchContext;
+    const storedContext = readRoleSwitchContext("buyer");
+
+    const context =
+      stateContext && stateContext.targetMode === "buyer"
+        ? stateContext
+        : storedContext;
+
+    if (!context || context.targetMode !== "buyer") return;
+
+    setSwitchContext(context);
+    setFormData((prev) => ({
+      ...prev,
+      email: context.email || prev.email,
+      phone: context.phone || prev.phone,
+      terms: true,
+    }));
+  }, [location.state]);
 
   const validateEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -90,6 +119,47 @@ export default function BuyerSignupPage() {
 
     try {
       const fullName = `${formData.firstName} ${formData.lastName}`;
+
+      if (isSwitchMode) {
+        try {
+          const { data: authData, error: authError } =
+            await supabase.auth.signInWithPassword({
+              email: formData.email,
+              password: formData.password,
+            });
+          if (authError || !authData.user?.id) {
+            setError("Incorrect password. Please enter your current account password.");
+            setIsLoading(false);
+            return;
+          }
+
+          if (switchContext?.userId && authData.user.id !== switchContext.userId) {
+            setError("Account mismatch. Please use the same account to continue.");
+            setIsLoading(false);
+            return;
+          }
+        } catch {
+          setError("Incorrect password. Please enter your current account password.");
+          setIsLoading(false);
+          return;
+        }
+
+        const result = await authService.upgradeCurrentUserToBuyer({
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          phone: formData.phone,
+          email: formData.email,
+        });
+
+        await useBuyerStore
+          .getState()
+          .initializeBuyerProfile(result.userId, {});
+
+        clearRoleSwitchContext();
+        setIsLoading(false);
+        navigate("/profile");
+        return;
+      }
 
       const result = await authService.signUp(
         formData.email,
@@ -148,6 +218,7 @@ export default function BuyerSignupPage() {
       setProfile(buyerProfile);
       // Initialize cart from database
       await useBuyerStore.getState().initializeCart();
+      clearRoleSwitchContext();
       setIsLoading(false);
 
       // Redirect to onboarding
@@ -233,8 +304,14 @@ export default function BuyerSignupPage() {
             <div className="w-10 h-10 bg-white shadow-sm rounded-[var(--radius-md)] flex items-center justify-center mb-4 overflow-hidden border border-[var(--border)]">
               <img src="/BazaarX.png" alt="BazaarX" className="w-8 h-8 object-contain" />
             </div>
-            <h2 className="text-2xl font-bold text-[var(--text-primary)] font-heading">Create Account</h2>
-            <p className="text-[var(--text-secondary)] text-sm font-sans">Join thousand of Filipino shoppers.</p>
+            <h2 className="text-2xl font-bold text-[var(--text-primary)] font-heading">
+              {isSwitchMode ? "Complete Buyer Profile" : "Create Account"}
+            </h2>
+            <p className="text-[var(--text-secondary)] text-sm font-sans">
+              {isSwitchMode
+                ? "Add your name to finish switching to buyer mode."
+                : "Join thousand of Filipino shoppers."}
+            </p>
           </div>
 
           {error && (
@@ -314,6 +391,7 @@ export default function BuyerSignupPage() {
                   placeholder="you@example.com"
                   value={formData.email}
                   onChange={handleChange}
+                  readOnly={isSwitchMode}
                   className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                   disabled={isLoading}
                 />
@@ -336,6 +414,7 @@ export default function BuyerSignupPage() {
                   placeholder="+63 912 345 6789"
                   value={formData.phone}
                   onChange={handleChange}
+                  readOnly={isSwitchMode}
                   className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                   disabled={isLoading}
                 />
@@ -440,10 +519,12 @@ export default function BuyerSignupPage() {
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-[var(--brand-primary)]/30 border-t-[var(--brand-primary)] rounded-full animate-spin" />
               ) : (
-                <>Sign Up <ArrowRight size={18} /></>
+                <>{isSwitchMode ? "Complete Buyer Setup" : "Sign Up"} <ArrowRight size={18} /></>
               )}
             </button>
 
+            {!isSwitchMode && (
+            <>
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-[var(--border)]"></div>
@@ -482,11 +563,15 @@ export default function BuyerSignupPage() {
                 <span>Facebook</span>
               </button>
             </div>
+            </>
+            )}
           </form>
 
+          {!isSwitchMode && (
           <div className="mt-8 text-center text-[var(--text-secondary)] text-sm">
             Already have an account? <Link to="/login" className="text-[var(--brand-primary)] font-bold hover:underline ml-1">Sign in here!</Link>
           </div>
+          )}
         </motion.div>
       </div>
     </div>

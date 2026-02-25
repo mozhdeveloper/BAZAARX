@@ -14,6 +14,8 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { ChevronLeft, Store } from "lucide-react";
 import { useProfileManager } from "@/hooks/profile/useProfileManager";
+import { roleSwitchService } from "@/services/roleSwitchService";
+import { getCurrentUser } from "@/lib/supabase";
 import {
     ProfileInfoSection,
     ProfileSummarySection,
@@ -29,12 +31,41 @@ export default function BuyerProfilePage() {
     const location = useLocation();
     const { profile, followedShops, updateProfile } = useBuyerStore();
 
-    const userId = profile?.id || "";
-    const { checkSellerStatus, uploadAvatar } = useProfileManager(userId);
+    const [resolvedUserId, setResolvedUserId] = useState(profile?.id || "");
+    const userId = resolvedUserId || profile?.id || "";
+    const {
+        checkSellerStatus,
+        uploadAvatar,
+        loading: profileLoading,
+        error: profileError,
+    } = useProfileManager(userId);
 
     const [activeTab, setActiveTab] = useState("personal");
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isSeller, setIsSeller] = useState(false);
+
+    useEffect(() => {
+        if (profile?.id && profile.id !== resolvedUserId) {
+            setResolvedUserId(profile.id);
+        }
+    }, [profile?.id, resolvedUserId]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const resolveSessionUser = async () => {
+            if (profile?.id || resolvedUserId) return;
+            const user = await getCurrentUser();
+            if (isMounted && user?.id) {
+                setResolvedUserId(user.id);
+            }
+        };
+
+        resolveSessionUser();
+        return () => {
+            isMounted = false;
+        };
+    }, [profile?.id, resolvedUserId]);
 
     // Read tab from query param
     useEffect(() => {
@@ -59,7 +90,37 @@ export default function BuyerProfilePage() {
         }
     }, [userId]);
 
-    if (!profile) return <div>Loading...</div>;
+    if (!profile && (!userId || profileLoading)) return <div>Loading...</div>;
+
+    if (!profile) {
+        return (
+            <div className="min-h-screen bg-[var(--brand-wash)]">
+                <Header />
+                <div className="max-w-3xl mx-auto px-4 py-12">
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-orange-100">
+                        <h2 className="text-lg font-bold text-[var(--text-headline)] mb-2">
+                            Unable to load buyer profile
+                        </h2>
+                        <p className="text-sm text-[var(--text-secondary)] mb-4">
+                            {profileError ||
+                                "Please sign in again or refresh this page."}
+                        </p>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => window.location.reload()}
+                            >
+                                Retry
+                            </Button>
+                            <Button onClick={() => navigate("/login")}>
+                                Go to Login
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[var(--brand-wash)]">
@@ -173,11 +234,21 @@ export default function BuyerProfilePage() {
                         <div className="flex items-center gap-3">
                             <Button
                                 onClick={async () => {
-                                    const sellerStatus = await checkIfSeller();
-                                    if (sellerStatus) {
-                                        navigate("/seller");
-                                    } else {
+                                    if (!userId) {
                                         navigate("/seller/auth");
+                                        return;
+                                    }
+
+                                    const result =
+                                        await roleSwitchService.switchToSellerMode(
+                                            userId,
+                                        );
+                                    if (result.navigationState) {
+                                        navigate(result.route, {
+                                            state: result.navigationState,
+                                        });
+                                    } else {
+                                        navigate(result.route);
                                     }
                                 }}
                                 className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold h-10 px-6 rounded-xl shadow-lg shadow-orange-600/20 flex items-center gap-2"

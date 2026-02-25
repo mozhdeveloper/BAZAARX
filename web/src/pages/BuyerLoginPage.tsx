@@ -10,7 +10,7 @@ import {
   CheckCircle,
   ArrowRight,
 } from "lucide-react";
-import { useBuyerStore } from "../stores/buyerStore";
+import { deriveBuyerName, useBuyerStore } from "../stores/buyerStore";
 import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
 
@@ -77,17 +77,25 @@ export default function BuyerLoginPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      const fullName = (profileData as any)?.full_name || "User";
+      const profileAny = profileData as any;
+      const { firstName, lastName, displayFullName } = deriveBuyerName({
+        first_name: profileAny?.first_name,
+        last_name: profileAny?.last_name,
+        full_name: profileAny?.full_name,
+        email: profileAny?.email || user.email || email,
+      });
       const bazcoins = (buyerData as any)?.bazcoins ?? 0;
       const buyerProfile = {
         id: user.id,
         email: user.email || email,
-        firstName: fullName.split(" ")[0] || "User",
-        lastName: fullName.split(" ").slice(1).join(" ") || "",
-        phone: (profileData as any)?.phone || "",
+        firstName,
+        lastName,
+        phone: profileAny?.phone || "",
         avatar:
-          (profileData as any)?.avatar_url ||
-          `https://ui-avatars.com/api/?name=${fullName}&background=FF6B35&color=fff`,
+          profileAny?.avatar_url ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            displayFullName
+          )}&background=FF6B35&color=fff`,
         preferences: {
           language: "en",
           currency: "PHP",

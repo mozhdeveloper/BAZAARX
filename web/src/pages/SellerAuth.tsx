@@ -1,10 +1,18 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Eye, EyeOff, Mail, Lock, Store, ArrowRight, AlertCircle, Check, Quote, CheckCircle2, Phone, MapPin, Briefcase } from 'lucide-react';
 import { useAuthStore } from '@/stores/sellerStore';
 import { Button } from '@/components/ui/button';
+import { authService } from '@/services/authService';
+import {
+  clearRoleSwitchContext,
+  readRoleSwitchContext,
+  type RoleSwitchContext,
+} from '@/services/roleSwitchContext';
+import { supabase } from '@/lib/supabase';
+
 
 export function SellerLogin() {
   const [email, setEmail] = useState("");
@@ -14,6 +22,14 @@ export function SellerLogin() {
   const [error, setError] = useState("");
   const { login } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const state = location.state as { prefillEmail?: string } | null;
+    if (state?.prefillEmail) {
+      setEmail(state.prefillEmail);
+    }
+  }, [location.state]);
 
   const verifiedBrands = [
     { name: 'Nike', logo: '/nike.png', size: 'w-14 h-14', radius: 90, angle: 60 },
@@ -238,9 +254,32 @@ export function SellerRegister() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
+  const [switchContext, setSwitchContext] = useState<RoleSwitchContext | null>(null);
 
-  const { register } = useAuthStore();
+  const { register, hydrateSellerFromSession } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isSwitchMode = switchContext?.targetMode === "seller";
+
+  useEffect(() => {
+    const state = location.state as { roleSwitchContext?: RoleSwitchContext } | null;
+    const stateContext = state?.roleSwitchContext;
+    const storedContext = readRoleSwitchContext("seller");
+
+    const context =
+      stateContext && stateContext.targetMode === "seller"
+        ? stateContext
+        : storedContext;
+
+    if (!context || context.targetMode !== "seller") return;
+
+    setSwitchContext(context);
+    setFormData((prev) => ({
+      ...prev,
+      email: context.email || prev.email,
+      phone: context.phone || prev.phone,
+    }));
+  }, [location.state]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -271,12 +310,73 @@ export function SellerRegister() {
       setError("Store name is required");
       return;
     }
+    if (isSwitchMode && !formData.phone.trim()) {
+      setError("Phone number is required");
+      return;
+    }
+
     setIsLoading(true);
     setError("");
+
+    if (isSwitchMode) {
+      if (!formData.password || !formData.confirmPassword) {
+        setError("Please set and confirm your password");
+        setIsLoading(false);
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setError("Passwords do not match");
+        setIsLoading(false);
+        return;
+      }
+      if (formData.password.length < 6) {
+        setError("Password must be at least 6 characters");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // In switch mode, the password is for identity verification only — NOT a password change.
+        // We re-authenticate the user with their current credentials before upgrading their role.
+        const { error: verifyError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+        if (verifyError) {
+          setError("Incorrect password. Please try again.");
+          setIsLoading(false);
+          return;
+        }
+
+        const ownerName = [switchContext?.firstName, switchContext?.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+
+        await authService.upgradeCurrentUserToSeller({
+          store_name: formData.storeName.trim(),
+          store_description: formData.storeDescription.trim(),
+          phone: formData.phone.trim() || undefined,
+          owner_name: ownerName || undefined,
+        });
+
+        await hydrateSellerFromSession();
+        clearRoleSwitchContext();
+        setIsLoading(false);
+        navigate("/seller");
+      } catch (err) {
+        console.error("Switch-to-seller upgrade failed:", err);
+        setError("Unable to complete seller profile. Please try again.");
+        setIsLoading(false);
+      }
+      return;
+    }
+
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       const success = await register(formData);
       if (success) {
+        clearRoleSwitchContext();
         setIsLoading(false);
         navigate("/seller");
       } else {
@@ -330,8 +430,14 @@ export function SellerRegister() {
               <div className='w-16 h-16 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-orange-500/20 mx-auto'>
                 <img src='/BazaarX.png' className='h-9 w-9 object-contain brightness-0 invert'></img>
               </div>
-              <h1 className='text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight mb-2'>Join BazaarX</h1>
-              <p className='text-base text-[var(--text-secondary)] font-medium'>Create your seller account to get started.</p>
+              <h1 className='text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight mb-2'>
+                {isSwitchMode ? "Complete Seller Profile" : "Join BazaarX"}
+              </h1>
+              <p className='text-base text-[var(--text-secondary)] font-medium'>
+                {isSwitchMode
+                  ? "Finish your seller details to switch modes."
+                  : "Create your seller account to get started."}
+              </p>
             </div>
 
             {/* Stepper */}
@@ -368,7 +474,19 @@ export function SellerRegister() {
                       <label className="text-sm font-bold text-[var(--text-headline)] ml-1">Email Address</label>
                       <div className="relative group">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[var(--brand-primary)] transition-colors" />
-                        <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="name@example.com" className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-xl focus:ring-0 focus:border-[var(--brand-primary)] outline-none transition-all text-sm font-medium" required />
+                        <input
+                          type="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          readOnly={isSwitchMode}
+                          placeholder="name@example.com"
+                          className={`w-full pl-12 pr-4 py-4 border rounded-xl outline-none transition-all text-sm font-medium ${isSwitchMode
+                            ? "bg-gray-50 border-gray-200 text-gray-600"
+                            : "bg-white border-gray-200 focus:ring-0 focus:border-[var(--brand-primary)]"
+                            }`}
+                          required
+                        />
                       </div>
                     </div>
 
@@ -402,6 +520,22 @@ export function SellerRegister() {
                     transition={{ duration: 0.3 }}
                     className="space-y-5"
                   >
+                    {isSwitchMode && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-[var(--text-headline)] ml-1">Email Address</label>
+                        <div className="relative group">
+                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                          <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            readOnly
+                            className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl outline-none transition-all text-sm font-medium text-gray-600"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-2">
                       <label className="text-sm font-bold text-[var(--text-headline)] ml-1">Store Name</label>
                       <div className="relative group">
