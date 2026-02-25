@@ -42,6 +42,7 @@ import { SellerLogin, SellerRegister } from "./pages/SellerAuth";
 import { SellerAuthChoice } from "./pages/SellerAuthChoice";
 import { SellerOnboarding } from "./pages/SellerOnboarding";
 import { UnverifiedSellerPortal } from "./pages/UnverifiedSellerPortal";
+import { SellerVerificationRequirements } from "./pages/SellerVerificationRequirements";
 import { SellerDashboard } from "./pages/SellerDashboard";
 import { SellerStoreProfile } from "./pages/SellerStoreProfile";
 import { SellerEarnings } from "./pages/SellerEarnings";
@@ -257,6 +258,14 @@ function App() {
             element={
               <ProtectedSellerRoute>
                 <UnverifiedSellerPortal />
+              </ProtectedSellerRoute>
+            }
+          />
+          <Route
+            path="/seller/verification-requirements"
+            element={
+              <ProtectedSellerRoute>
+                <SellerVerificationRequirements />
               </ProtectedSellerRoute>
             }
           />
