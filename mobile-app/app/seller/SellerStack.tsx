@@ -5,7 +5,7 @@ import SellerAnalyticsScreen from './(tabs)/analytics';
 import SellerStoreProfileScreen from './store-profile';
 import SellerEarningsScreen from './earnings';
 import SellerPOSScreen from './pos';
-import SellerFlashSalesScreen from './flash-sales';
+import SellerDiscountsScreen from './discounts';
 import SellerMessagesScreen from './messages';
 import SellerReviewsScreen from './reviews';
 import SellerNotificationsScreen from './notifications';
@@ -22,7 +22,7 @@ export type SellerStackParamList = {
   StoreProfile: undefined;
   Earnings: undefined;
   POS: undefined;
-  FlashSales: undefined;
+  Discounts: undefined;
   Messages: undefined;
   Reviews: undefined;
   Notifications: undefined;
@@ -50,7 +50,7 @@ export default function SellerStack() {
       <Stack.Screen name="StoreProfile" component={SellerStoreProfileScreen} />
       <Stack.Screen name="Earnings" component={SellerEarningsScreen} />
       <Stack.Screen name="POS" component={SellerPOSScreen} />
-      <Stack.Screen name="FlashSales" component={SellerFlashSalesScreen} />
+      <Stack.Screen name="Discounts" component={SellerDiscountsScreen} />
       <Stack.Screen name="Messages" component={SellerMessagesScreen} />
       <Stack.Screen name="Reviews" component={SellerReviewsScreen} />
       <Stack.Screen name="Notifications" component={SellerNotificationsScreen} />

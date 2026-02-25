@@ -563,7 +563,10 @@ export default function StoreProfileScreen() {
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
             <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
-          <Text style={styles.headerTitle}>Store Profile</Text>
+          <View style={styles.headerTitleRow}>
+            <Text style={styles.headerTitle}>Store Profile</Text>
+            <Text style={styles.headerSubtitle}>Manage your business details</Text>
+          </View>
           <View style={{ width: 40 }} />
         </View>
 
@@ -1190,12 +1193,25 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerIconButton: { 
+  headerIconButton: {
     backgroundColor: 'rgba(0,0,0,0.05)',
     padding: 10,
     borderRadius: 12,
   },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937' },
+  headerTitleRow: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1F2937',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
   headerBadge: {
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 10,

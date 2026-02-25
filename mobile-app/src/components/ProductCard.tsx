@@ -3,6 +3,7 @@ import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import { BadgeCheck, ShieldCheck, Star, Flame } from 'lucide-react-native';
 import { Product } from '../types';
 import { COLORS } from '../constants/theme';
+import { safeImageUri } from '../utils/imageUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -29,7 +30,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
     >
       {/* Product Image */}
       <View style={styles.imageContainer}>
-        <Image source={{ uri: product.image }} style={styles.image} resizeMode="cover" />
+        <Image source={{ uri: safeImageUri(product.image) }} style={styles.image} resizeMode="cover" />
 
         {/* Discount Badge */}
         {hasDiscount && !isFlash && (

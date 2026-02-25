@@ -431,6 +431,14 @@ export default function SellerDiscounts() {
     });
   };
 
+  const isFormValid =
+    formData.name.trim() !== "" &&
+    formData.discountValue !== "" &&
+    formData.startsAt !== "" &&
+    formData.endsAt !== "" &&
+    !isNaN(parseFloat(formData.discountValue)) &&
+    parseDateTimeLocal(formData.startsAt).getTime() < parseDateTimeLocal(formData.endsAt).getTime();
+
   return (
     <SellerWorkspaceLayout>
       <div className="flex-1 flex flex-col overflow-hidden relative">

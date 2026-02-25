@@ -513,6 +513,8 @@ const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): any => {
   if (updates.price !== undefined) dbUpdates.price = updates.price;
   if (updates.isActive !== undefined) dbUpdates.disabled_at = updates.isActive ? null : new Date().toISOString();
   if (updates.approval_status !== undefined) dbUpdates.approval_status = updates.approval_status;
+  // Note: images are handled separately via replaceProductImages in updateProduct
+  // Note: stock is computed from variants, not stored directly on products table
 
   return dbUpdates;
 };
@@ -1094,9 +1096,10 @@ export const useProductStore = create<ProductStore>()(
             newProduct = mapDbProductToSellerProduct(created);
 
             // Save product images to product_images table
+            // Only save valid HTTP URLs (DB has CHECK constraint: ^https?://)
             if (product.images && product.images.length > 0) {
               const validImages = product.images.filter(
-                (url: string) => url && url.trim().length > 0
+                (url: string) => url && /^https?:\/\//i.test(url.trim())
               );
               if (validImages.length > 0) {
                 try {
@@ -1105,7 +1108,7 @@ export const useProductStore = create<ProductStore>()(
                     validImages.map((url: string, idx: number) => ({
                       product_id: newProduct.id,
                       alt_text: '',
-                      image_url: url,
+                      image_url: url.trim(),
                       sort_order: idx,
                       is_primary: idx === 0,
                     }))
@@ -1120,20 +1123,25 @@ export const useProductStore = create<ProductStore>()(
             // Create product variants if provided
             const variants = (product as any).variants;
             if (variants && Array.isArray(variants) && variants.length > 0) {
-              const variantInserts = variants.map((v: any, index: number) => ({
-                product_id: newProduct.id, // Added by productService but required by type
-                variant_name: [v.size || v.option2, v.color || v.option1].filter((x: any) => x && x !== '-').join(' - ') || 'Default',
-                size: (v.size || v.option2 || '') === '-' ? null : (v.size || v.option2 || null),
-                color: (v.color || v.option1 || '') === '-' ? null : (v.color || v.option1 || null),
-                stock: parseInt(v.stock) || 0,
-                price: parseFloat(v.price) || product.price,
-                sku: v.sku || `${newProduct.id.substring(0, 8)}-${index}`,
-                thumbnail_url: v.image || null,
-                barcode: null,
-                option_1_value: (v.color || v.option1 || '') === '-' ? null : (v.color || v.option1 || null),
-                option_2_value: (v.size || v.option2 || '') === '-' ? null : (v.size || v.option2 || null),
-                embedding: null,
-              }));
+              const idPrefix = newProduct.id.substring(0, 8);
+              const variantInserts = variants.map((v: any, index: number) => {
+                // Always prefix SKU with product ID to guarantee uniqueness across products
+                const baseSku = v.sku ? v.sku.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 20) : `V${index}`;
+                return {
+                  product_id: newProduct.id,
+                  variant_name: [v.size || v.option2, v.color || v.option1].filter((x: any) => x && x !== '-').join(' - ') || 'Default',
+                  size: (v.size || v.option2 || '') === '-' ? null : (v.size || v.option2 || null),
+                  color: (v.color || v.option1 || '') === '-' ? null : (v.color || v.option1 || null),
+                  stock: parseInt(v.stock) || 0,
+                  price: parseFloat(v.price) || product.price,
+                  sku: `${idPrefix}-${baseSku}`,
+                  thumbnail_url: v.image || null,
+                  barcode: null,
+                  option_1_value: (v.color || v.option1 || '') === '-' ? null : (v.color || v.option1 || null),
+                  option_2_value: (v.size || v.option2 || '') === '-' ? null : (v.size || v.option2 || null),
+                  embedding: null,
+                };
+              });
 
               try {
                 await productService.addProductVariants(newProduct.id, variantInserts);
@@ -1383,7 +1391,33 @@ export const useProductStore = create<ProductStore>()(
             if (!updated) {
               throw new Error('Failed to update product in database');
             }
-            updatedProduct = mapDbProductToSellerProduct(updated);
+
+            // Update product images if provided
+            if (updates.images && Array.isArray(updates.images)) {
+              try {
+                const validImages = updates.images.filter(
+                  (url: string) => url && /^https?:\/\//i.test(url.trim())
+                );
+                if (validImages.length > 0) {
+                  await productService.replaceProductImages(id, validImages);
+                  console.log(`✅ Updated ${validImages.length} images for product ${id}`);
+                }
+              } catch (imageError) {
+                console.error('Failed to update product images:', imageError);
+              }
+            }
+
+            // Re-fetch the product with full joins to get updated images/variants
+            try {
+              const fullProduct = await productService.getProductById(id);
+              if (fullProduct) {
+                updatedProduct = mapDbProductToSellerProduct(fullProduct);
+              } else {
+                updatedProduct = mapDbProductToSellerProduct(updated);
+              }
+            } catch {
+              updatedProduct = mapDbProductToSellerProduct(updated);
+            }
           } else {
             // Fallback to local state
             updatedProduct = { ...product, ...updates, updatedAt: new Date().toISOString() };

@@ -573,6 +573,49 @@ export class ProductService {
   }
 
   /**
+   * Replace all images for a product (delete old, insert new)
+   */
+  async replaceProductImages(productId: string, imageUrls: string[]): Promise<ProductImage[]> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    try {
+      // Filter to only valid http URLs (DB has CHECK constraint: ^https?://)
+      const validUrls = imageUrls.filter(url => url && /^https?:\/\//i.test(url.trim()));
+      if (validUrls.length === 0) return [];
+
+      // Delete existing images for this product
+      const { error: deleteError } = await supabase
+        .from('product_images')
+        .delete()
+        .eq('product_id', productId);
+
+      if (deleteError) {
+        console.error('Error deleting old product images:', deleteError);
+      }
+
+      // Insert new images
+      const { data, error } = await supabase
+        .from('product_images')
+        .insert(validUrls.map((url, idx) => ({
+          product_id: productId,
+          image_url: url.trim(),
+          alt_text: '',
+          sort_order: idx,
+          is_primary: idx === 0,
+        })))
+        .select();
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error replacing product images:', error);
+      throw new Error('Failed to replace product images.');
+    }
+  }
+
+  /**
    * Add variants to a product
    */
   async addProductVariants(productId: string, variants: Omit<ProductVariant, 'id' | 'created_at' | 'updated_at'>[]): Promise<ProductVariant[]> {

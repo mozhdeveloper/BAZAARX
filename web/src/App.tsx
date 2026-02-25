@@ -52,7 +52,6 @@ import { SellerReturns } from "./pages/SellerReturns";
 import { SellerReviews } from "./pages/SellerReviews";
 import { SellerAnalytics } from "./pages/SellerAnalytics";
 import { SellerSettings } from "./pages/SellerSettings";
-import SellerFlashSales from "./pages/SellerFlashSales";
 import SellerDiscounts from "./pages/SellerDiscounts";
 import SellerMessages from "./pages/SellerMessages";
 import SellerProductStatus from "./pages/SellerProductStatus";
@@ -370,11 +369,7 @@ function App() {
           />
           <Route
             path="/seller/flash-sales"
-            element={
-              <ProtectedSellerRoute>
-                <SellerFlashSales />
-              </ProtectedSellerRoute>
-            }
+            element={<Navigate to="/seller/discounts" replace />}
           />
           <Route
             path="/seller/discounts"

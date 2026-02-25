@@ -28,6 +28,7 @@ import * as Sharing from 'expo-sharing';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Import Navigation
 import VariantManager, { Variant } from '../../../src/components/VariantManager';
+import { safeImageUri } from '../../../src/utils/imageUtils';
 
 // Generate a proper UUID for product IDs
 const generateUUID = (): string => {
@@ -391,7 +392,7 @@ export default function SellerProductsScreen() {
       originalPrice: product.originalPrice?.toString() || '',
       stock: product.stock.toString(),
       category: categoryName,
-      images: product.images,
+      images: product.images && product.images.length > 0 ? product.images : [''],
       colors: product.colors && product.colors.length > 0 ? product.colors : [''],
       sizes: product.sizes && product.sizes.length > 0 ? product.sizes : [''],
     });
@@ -656,7 +657,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
 
   const renderProductCard = ({ item }: { item: SellerProduct }) => (
     <View style={styles.productCard}>
-      <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
+      <Image source={{ uri: safeImageUri(item.images?.[0]) }} style={styles.productImage} />
 
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
@@ -710,7 +711,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
 
   const renderPreviewCard = (item: SellerProduct) => (
     <View style={styles.productCard}>
-      <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
+      <Image source={{ uri: safeImageUri(item.images?.[0]) }} style={styles.productImage} />
 
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
