@@ -226,7 +226,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
   });
 
   describe('2. POS Lite - Offline Order Creation', () => {
-    it('should create offline order successfully', () => {
+    it('should create offline order successfully', async () => {
       let orderStore = useOrderStore.getState();
       let productStore = useProductStore.getState();
       const initialOrderCount = orderStore.orders.length;
@@ -253,7 +253,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
 
       const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-      const orderId = orderStore.addOfflineOrder(cartItems, total, 'Test POS sale');
+      const orderId = await orderStore.addOfflineOrder(cartItems, total, 'Test POS sale');
 
       // Get fresh state after order creation
       orderStore = useOrderStore.getState();
@@ -273,7 +273,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
       console.log(`✅ Items: ${cartItems.length}`);
     });
 
-    it('should deduct stock for all items in offline order', () => {
+    it('should deduct stock for all items in offline order', async () => {
       let orderStore = useOrderStore.getState();
       let productStore = useProductStore.getState();
 
@@ -293,7 +293,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
 
       const total = product.price * quantityToSell;
 
-      orderStore.addOfflineOrder(cartItems, total, 'Stock deduction test');
+      await orderStore.addOfflineOrder(cartItems, total, 'Stock deduction test');
 
       // Get fresh state after order creation
       productStore = useProductStore.getState();
@@ -303,7 +303,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
       console.log(`✅ Stock deducted: ${initialStock} → ${updatedProduct.stock}`);
     });
 
-    it('should create ledger entries for offline order items', () => {
+    it('should create ledger entries for offline order items', async () => {
       let orderStore = useOrderStore.getState();
       let productStore = useProductStore.getState();
 
@@ -320,7 +320,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
         }
       ];
 
-      const orderId = orderStore.addOfflineOrder(cartItems, product.price * 2);
+      const orderId = await orderStore.addOfflineOrder(cartItems, product.price * 2);
 
       // Get fresh state after order creation
       productStore = useProductStore.getState();
@@ -339,7 +339,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
       console.log(`✅ Reference ID matches order ID`);
     });
 
-    it('should prevent order creation with insufficient stock', () => {
+    it('should prevent order creation with insufficient stock', async () => {
       const orderStore = useOrderStore.getState();
       const productStore = useProductStore.getState();
 
@@ -355,14 +355,14 @@ describe('POS Lite & Order Flow Integration Tests', () => {
         }
       ];
 
-      expect(() => {
-        orderStore.addOfflineOrder(cartItems, product.price * (product.stock + 100));
-      }).toThrow(/Insufficient stock/);
+      await expect(
+        orderStore.addOfflineOrder(cartItems, product.price * (product.stock + 100)),
+      ).rejects.toThrow(/Insufficient stock/);
 
       console.log(`✅ Order creation blocked for insufficient stock`);
     });
 
-    it('should handle multi-item orders correctly', () => {
+    it('should handle multi-item orders correctly', async () => {
       let orderStore = useOrderStore.getState();
       let productStore = useProductStore.getState();
 
@@ -379,7 +379,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
       const stockBefore = products.map(p => ({ id: p.id, stock: p.stock }));
       const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-      const orderId = orderStore.addOfflineOrder(cartItems, total, 'Multi-item test');
+      const orderId = await orderStore.addOfflineOrder(cartItems, total, 'Multi-item test');
 
       // Get fresh state after order creation
       productStore = useProductStore.getState();
@@ -417,7 +417,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
       expect(orderStore.orders.length).toBeGreaterThanOrEqual(0);
     });
 
-    it('should update order status', () => {
+    it('should update order status', async () => {
       let orderStore = useOrderStore.getState();
 
       // Create a test order first
@@ -432,7 +432,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
         image: product.images[0]
       }];
 
-      const orderId = orderStore.addOfflineOrder(cartItems, product.price);
+      const orderId = await orderStore.addOfflineOrder(cartItems, product.price);
       
       // Get fresh state after order creation
       orderStore = useOrderStore.getState();
@@ -549,7 +549,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
   });
 
   describe('5. End-to-End POS Flow', () => {
-    it('should complete full POS transaction flow', () => {
+    it('should complete full POS transaction flow', async () => {
       let orderStore = useOrderStore.getState();
       let productStore = useProductStore.getState();
 
@@ -579,7 +579,7 @@ describe('POS Lite & Order Flow Integration Tests', () => {
       const initialOrderCount = orderStore.orders.length;
       const initialLedgerCount = productStore.inventoryLedger.length;
 
-      const orderId = orderStore.addOfflineOrder(cartItems, total, 'E2E Test Sale');
+      const orderId = await orderStore.addOfflineOrder(cartItems, total, 'E2E Test Sale');
 
       // Get fresh state after order creation
       orderStore = useOrderStore.getState();

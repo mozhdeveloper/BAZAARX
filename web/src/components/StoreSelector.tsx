@@ -12,6 +12,22 @@ interface SellerOption {
     ownerName: string;
 }
 
+interface SellerWithProfile {
+    id: string;
+    store_name: string | null;
+    owner_name?: string | null;
+    profile?:
+        | {
+              first_name: string | null;
+              last_name: string | null;
+          }
+        | {
+              first_name: string | null;
+              last_name: string | null;
+          }[]
+        | null;
+}
+
 interface StoreSelectorProps {
     buyerId: string;
     selectedSellerId?: string;
@@ -37,7 +53,7 @@ export function StoreSelector({ buyerId, selectedSellerId, onSelectStore }: Stor
             // Fetch ALL sellers from the database (buyers can report about any store)
             const { data: allSellers, error: sellersError } = await supabase
                 .from('sellers')
-                .select('id, store_name, owner_name, approval_status')
+                .select('id, store_name, approval_status, profile:profiles(first_name, last_name)')
                 .order('store_name', { ascending: true });
 
             if (sellersError) {
@@ -47,11 +63,24 @@ export function StoreSelector({ buyerId, selectedSellerId, onSelectStore }: Stor
             }
 
             // Map to seller options
-            const sellerOptions = (allSellers || []).map(seller => ({
-                id: seller.id,
-                storeName: seller.store_name || seller.owner_name || 'Unknown Store',
-                ownerName: seller.owner_name || 'Unknown Owner'
-            }));
+            const sellerRows = (allSellers ?? []) as unknown[];
+
+            const sellerOptions = sellerRows.map((row) => {
+                const seller = row as SellerWithProfile;
+                const profileRow = Array.isArray(seller.profile)
+                    ? seller.profile[0]
+                    : seller.profile;
+                const profileName = [profileRow?.first_name || '', profileRow?.last_name || '']
+                    .join(' ')
+                    .trim();
+                const ownerName = profileName || seller.owner_name || 'Unknown Owner';
+
+                return {
+                    id: seller.id,
+                    storeName: seller.store_name || ownerName || 'Unknown Store',
+                    ownerName,
+                };
+            });
 
             setSellers(sellerOptions);
             setLoading(false);

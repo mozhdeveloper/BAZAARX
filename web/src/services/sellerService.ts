@@ -4,7 +4,7 @@
  * Updated for new normalized database schema (February 2026)
  * 
  * Actual sellers table columns:
- * - id, store_name, store_description, avatar_url, owner_name
+ * - id, store_name, store_description, avatar_url
  * - approval_status ('pending' | 'verified' | 'rejected'), verified_at
  * - created_at, updated_at
  * 
@@ -23,7 +23,7 @@ export interface SellerCoreData {
     store_description: string | null;
     store_contact_number: string | null;
     avatar_url: string | null;
-    owner_name: string | null;
+    owner_name?: string | null;
     approval_status: 'pending' | 'verified' | 'approved' | 'rejected' | 'needs_resubmission';
     verified_at: string | null;
     created_at: string;
@@ -33,6 +33,10 @@ export interface SellerCoreData {
 // Extended seller data with joins
 export interface SellerData extends SellerCoreData {
     // Computed/joined fields (not in sellers table)
+    profile?: {
+        first_name: string | null;
+        last_name: string | null;
+    };
     business_profile?: {
         business_type: string | null;
         business_registration_number: string | null;
@@ -76,7 +80,6 @@ export type SellerInsert = {
     store_description?: string | null;
     store_contact_number?: string | null;
     avatar_url?: string | null;
-    owner_name?: string | null;
     approval_status?: 'pending' | 'verified' | 'approved' | 'rejected' | 'needs_resubmission';
 };
 
@@ -104,6 +107,11 @@ export class SellerService {
     private transformSeller(seller: any): SellerData {
         const bp = seller.business_profile;
         const pa = seller.payout_account;
+        const profile = seller.profile;
+        const profileFullName = [profile?.first_name, profile?.last_name]
+            .filter((part: string | null | undefined) => Boolean(part?.trim()))
+            .join(' ')
+            .trim();
         const normalizedRating = Number(seller.rating || 0);
         const normalizedTotalReviews = Number(
             seller.total_reviews || seller.review_count || 0,
@@ -132,6 +140,8 @@ export class SellerService {
             bank_name: pa?.bank_name || null,
             account_name: pa?.account_name || null,
             account_number: pa?.account_number || null,
+            // Keep legacy field populated from profile names.
+            owner_name: profileFullName || seller.owner_name || null,
         };
     }
 
@@ -258,6 +268,7 @@ export class SellerService {
                 .from('sellers')
                 .select(`
                     *,
+                    profile:profiles(first_name, last_name),
                     business_profile:seller_business_profiles(*),
                     payout_account:seller_payout_accounts(*),
                     verification_documents:seller_verification_documents(*)
@@ -290,7 +301,6 @@ export class SellerService {
                     store_description: seller.store_description || null,
                     store_contact_number: seller.store_contact_number || null,
                     avatar_url: seller.avatar_url || null,
-                    owner_name: seller.owner_name || null,
                     approval_status: seller.approval_status || 'pending',
                 }, {
                     onConflict: 'id',
@@ -349,6 +359,7 @@ export class SellerService {
                 .from('sellers')
                 .select(`
                     *,
+                    profile:profiles(first_name, last_name),
                     business_profile:seller_business_profiles(*)
                 `)
                 .order('created_at', { ascending: false });
@@ -465,6 +476,7 @@ export class SellerService {
                 .from('sellers')
                 .select(`
                     *,
+                    profile:profiles(first_name, last_name),
                     business_profile:seller_business_profiles(
                         city,
                         province,
