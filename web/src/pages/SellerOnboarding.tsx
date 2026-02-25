@@ -267,7 +267,7 @@ export function SellerOnboarding() {
       setTimeout(() => {
         setIsVerifying(false);
         setVerificationComplete(true);
-        setTimeout(() => navigate("/seller/pending-approval"), 2000);
+        setTimeout(() => navigate("/seller/unverified"), 2000);
       }, 3000);
 
     } catch (error: any) {

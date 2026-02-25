@@ -26,7 +26,8 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { SellerSidebar } from "@/components/seller/SellerSidebar";
+import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
+import { isSellerApproved } from "@/utils/sellerAccess";
 
 // Stores & Services
 import {
@@ -42,15 +43,15 @@ import { OrderDateFilter } from "../components/orders/OrderDateFilter";
 export function SellerDashboard() {
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
-      <SellerSidebar />
+    <SellerWorkspaceLayout>
       <DashboardContent />
-    </div>
+    </SellerWorkspaceLayout>
   );
 }
 
 const DashboardContent = () => {
   const { seller } = useAuthStore();
+  const isApprovedSeller = isSellerApproved(seller);
   const { orders, fetchOrders, loading: ordersLoading } = useOrderStore();
   const { products, fetchProducts } = useProductStore();
 
@@ -378,9 +379,15 @@ const DashboardContent = () => {
                 <h3 className="text-xl font-bold text-[var(--text-headline)] font-heading">Recent Transactions</h3>
                 <p className="text-sm text-[var(--text-muted)] font-medium">Latest orders from your shop</p>
               </div>
-              <Link to="/seller/orders" className="text-sm font-bold text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] flex items-center gap-1 transition-all">
-                View All
-              </Link>
+              {isApprovedSeller ? (
+                <Link to="/seller/orders" className="text-sm font-bold text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] flex items-center gap-1 transition-all">
+                  View All
+                </Link>
+              ) : (
+                <Link to="/seller/unverified" className="text-sm font-bold text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] flex items-center gap-1 transition-all">
+                  Verification Status
+                </Link>
+              )}
             </div>
 
             <div className="overflow-x-auto">
@@ -434,5 +441,4 @@ const DashboardContent = () => {
     </div>
   );
 };
-
 

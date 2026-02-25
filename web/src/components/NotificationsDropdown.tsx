@@ -31,37 +31,27 @@ function getNotificationStyles(type: string) {
 
   if (t.includes("delivered") || t.includes("shipped") || t === "shipped") {
     return {
-      icon: <Truck className="w-5 h-5 text-orange-600" />,
-      bg: "bg-orange-100",
-      borderColor: "border-orange-200"
+      icon: <Truck className="w-5 h-5 text-orange-500" />,
     };
   }
   if (t.includes("placed") || t.includes("confirmed") || t === "seller_confirmed") {
     return {
-      icon: <CheckCircle className="w-5 h-5 text-green-600" />,
-      bg: "bg-green-100",
-      borderColor: "border-green-200"
+      icon: <CheckCircle className="w-5 h-5 text-green-500" />,
     };
   }
   if (t.includes("cancelled")) {
     return {
       icon: <XCircle className="w-5 h-5 text-red-600" />,
-      bg: "bg-red-100",
-      borderColor: "border-red-200"
     };
   }
   if (t.includes("processing")) {
     return {
-      icon: <Package className="w-5 h-5 text-blue-600" />,
-      bg: "bg-blue-100",
-      borderColor: "border-blue-200"
+      icon: <Package className="w-5 h-5 text-blue-500" />,
     };
   }
 
   return {
     icon: <Bell className="w-5 h-5 text-gray-600" />,
-    bg: "bg-gray-100",
-    borderColor: "border-gray-200"
   };
 }
 
@@ -194,7 +184,7 @@ export function NotificationsDropdown() {
         <PopoverArrow className="fill-white w-4 h-2 drop-shadow-sm" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[var(--btn-border)] sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <h4 className="font-semibold text-gray-900">Notifications</h4>
             {unreadCount > 0 && (
@@ -206,7 +196,7 @@ export function NotificationsDropdown() {
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="text-xs font-medium text-orange-600 hover:text-orange-700 hover:underline transition-colors"
+              className="text-xs font-medium text-[var(--primary)] hover:text-[var(--text-accent)] hover:underline transition-colors"
             >
               Mark all as read
             </button>
@@ -214,7 +204,7 @@ export function NotificationsDropdown() {
         </div>
 
         {/* Scrollable Content Area */}
-        <div className="max-h-[65vh] overflow-y-auto bg-gray-50/50">
+        <div className="max-h-[65vh] overflow-y-auto bg-gray-50/50 scrollbar-hide">
           {dbLoading && dbNotifications.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center text-gray-400">
               <div className="animate-pulse bg-gray-200 h-8 w-8 rounded-full mb-3" />
@@ -240,17 +230,15 @@ export function NotificationsDropdown() {
                     key={n.id}
                     onClick={() => handleNotificationClickDb(n)}
                     className={cn(
-                      "group flex gap-4 p-4 border-b border-gray-100 cursor-pointer transition-all",
+                      "group flex gap-4 p-4 border-b border-[var(--muted)] cursor-pointer transition-all",
                       // Apply specific hover color requested: #FFD4A3
-                      "hover:bg-[#E8E9EB]",
+                      "hover:bg-[#eeeeee]",
                       !n.is_read ? "bg-white" : "bg-gray-50"
                     )}
                   >
                     {/* Icon Box */}
                     <div className={cn(
-                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center border",
-                      style.bg,
-                      style.borderColor
+                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
                     )}>
                       {style.icon}
                     </div>
@@ -259,12 +247,13 @@ export function NotificationsDropdown() {
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex justify-between items-start gap-2">
                         <p className={cn(
-                          "text-sm leading-none truncate pr-2",
-                          !n.is_read ? "font-semibold text-gray-900" : "font-medium text-gray-700"
+                          "text-sm leading-none truncate pr-2 transition-colors",
+                          !n.is_read
+                            ? "font-semibold text-[var(--brand-primary-dark)] group-hover:text-[var(--brand-primary)]"
+                            : "font-medium text-gray-700 group-hover:text-[var(--brand-accent)]"
                         )}>
                           {n.title}
                         </p>
-                        {!n.is_read && <span className="w-2.5 h-2.5 rounded-full bg-orange-500 flex-shrink-0 mt-1" />}
                       </div>
                       <p className={cn(
                         "text-xs line-clamp-2",
@@ -295,21 +284,20 @@ export function NotificationsDropdown() {
                     )}
                   >
                     <div className={cn(
-                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center border",
-                      style.bg,
-                      style.borderColor
+                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
                     )}>
                       {style.icon}
                     </div>
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex justify-between items-start">
                         <p className={cn(
-                          "text-sm leading-none font-medium",
-                          !n.read ? "text-gray-900 font-semibold" : "text-gray-700"
+                          "text-sm leading-none font-medium transition-colors",
+                          !n.read
+                            ? "text-[var(--brand-primary)] font-semibold group-hover:text-[var(--brand-primary-dark)]"
+                            : "text-gray-700 group-hover:text-[var(--brand-primary-dark)]"
                         )}>
                           Order Update
                         </p>
-                        {!n.read && <span className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-1" />}
                       </div>
                       <p className="text-xs text-gray-600 line-clamp-2">{n.message}</p>
                       <p className="text-[10px] text-gray-400 pt-1">

@@ -47,8 +47,17 @@ export function SellerLogin() {
     try {
       await new Promise(resolve => setTimeout(resolve, 800)); // Simulate loading for effect
       const success = await login(email, password);
-      if (success) navigate('/seller');
-      else setError('Invalid email or password');
+      if (success) {
+        const currentSeller = useAuthStore.getState().seller;
+        const hasSellerAccess =
+          Boolean(currentSeller?.isVerified) ||
+          currentSeller?.approvalStatus === 'verified' ||
+          currentSeller?.approvalStatus === 'approved';
+
+        navigate(hasSellerAccess ? '/seller' : '/seller/unverified');
+      } else {
+        setError('Invalid email or password');
+      }
     } catch (err) {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -99,7 +108,7 @@ export function SellerLogin() {
                 </button>
               </div>
               <div className="space-y-2 text-xs text-[var(--text-secondary)] opacity-80 mt-3 border-t border-orange-200/50 pt-3">
-                <p className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-[var(--brand-primary)]"></div><span>Password: <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-orange-100">Test@123456</span></span></p>
+                <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[var(--brand-primary)] inline-block"></span><span>Password: <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-orange-100">Test@123456</span></span></span>
               </div>
             </div>
 

@@ -54,7 +54,12 @@ interface Seller {
 
     // Status
     isVerified: boolean;
-    approvalStatus: "pending" | "approved" | "rejected";
+    approvalStatus:
+        | "pending"
+        | "approved"
+        | "verified"
+        | "rejected"
+        | "needs_resubmission";
     rating: number;
     totalSales: number;
     joinDate: string;
@@ -396,6 +401,11 @@ const mapDbSellerToSeller = (s: any): Seller => {
     const bp = s.business_profile || s.seller_business_profiles || {};
     const pa = s.payout_account || s.seller_payout_accounts || {};
     const profile = s.profile || {};
+    const normalizedApprovalStatus =
+        (s.approval_status as Seller["approvalStatus"]) || "pending";
+    const isApprovedStatus =
+        normalizedApprovalStatus === "verified" ||
+        normalizedApprovalStatus === "approved";
 
     return {
         id: s.id,
@@ -418,9 +428,8 @@ const mapDbSellerToSeller = (s: any): Seller => {
         bankName: pa.bank_name || "",
         accountName: pa.account_name || "",
         accountNumber: pa.account_number || "",
-        isVerified: s.approval_status === "verified",
-        approvalStatus:
-            (s.approval_status as Seller["approvalStatus"]) || "pending",
+        isVerified: Boolean(s.is_verified) || isApprovedStatus,
+        approvalStatus: normalizedApprovalStatus,
         rating: 0, // Computed from reviews
         totalSales: 0, // Computed from orders
         joinDate:
@@ -1206,10 +1215,12 @@ export const useProductStore = create<ProductStore>()(
                             id: newProduct.id,
                             name: newProduct.name,
                             vendor:
-                                authStoreState.seller?.name || "Unknown Vendor",
+                                authStoreState.seller?.storeName || authStoreState.seller?.name || "Unknown Vendor",
                             sellerId: resolvedSellerId, // Pass seller ID for proper filtering
                             price: newProduct.price,
-                            category: newProduct.category,
+                            // Use original submitted category (name string) since newProduct
+                            // is mapped from DB which stores category_id, not the name
+                            category: product.category || newProduct.category,
                             image:
                                 newProduct.images[0] ||
                                 "https://placehold.co/100?text=Product",
@@ -1345,7 +1356,7 @@ export const useProductStore = create<ProductStore>()(
                                 name: p.name,
                                 description: p.description,
                                 vendor:
-                                    authStore.seller?.name || "Unknown Vendor",
+                                    authStore.seller?.storeName || authStore.seller?.name || "Unknown Vendor",
                                 sellerId: resolvedSellerId, // Pass seller ID for proper filtering
                                 price: p.price,
                                 originalPrice: p.originalPrice,

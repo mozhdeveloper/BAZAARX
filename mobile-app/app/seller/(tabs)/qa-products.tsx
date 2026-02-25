@@ -114,7 +114,7 @@ export default function SellerProductQAScreen() {
       WAITING_FOR_SAMPLE: '#3B82F6',
       IN_QUALITY_REVIEW: '#8B5CF6',
       ACTIVE_VERIFIED: '#10B981',
-      FOR_REVISION: '#F97316',
+      FOR_REVISION: '#D97706',
       REJECTED: '#EF4444',
     };
     return colors[status] || '#6B7280';
@@ -125,7 +125,7 @@ export default function SellerProductQAScreen() {
       onPress={onPress}
       style={[styles.statCard, isActive && styles.statCardActive]}
     >
-      <Icon size={20} color={isActive ? '#FF5722' : '#9CA3AF'} strokeWidth={2} />
+      <Icon size={20} color={isActive ? '#D97706' : '#9CA3AF'} strokeWidth={2} />
       <Text style={styles.statCount}>{count}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </TouchableOpacity>
@@ -229,13 +229,13 @@ export default function SellerProductQAScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#FFF4EC' },
   header: {
-    backgroundColor: '#FFE5CC',
+    backgroundColor: '#FFF4EC',
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingBottom: 10,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 20,
     elevation: 3
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 110
   },
-  statCardActive: { backgroundColor: '#FFF7ED', borderColor: '#FF5722', borderWidth: 2 },
+  statCardActive: { backgroundColor: '#FFF4EC', borderColor: '#D97706', borderWidth: 2 },
   statCount: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginTop: 8 },
   statLabel: { fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 4 },
   listContainer: { paddingHorizontal: 16, paddingBottom: 100 },
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   productPrice: { fontSize: 14, color: '#6B7280', marginTop: 4 },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginTop: 8 },
   statusBadgeText: { fontSize: 11, fontWeight: '600' },
-  submitBtn: { backgroundColor: '#FF5722', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginTop: 12, alignItems: 'center' },
+  submitBtn: { backgroundColor: '#D97706', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginTop: 12, alignItems: 'center' },
   submitBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
   emptyContainer: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 40, alignItems: 'center', marginTop: 20 },
   emptyText: { fontSize: 16, fontWeight: '600', color: '#6B7280', marginTop: 16 },
@@ -295,11 +295,11 @@ const styles = StyleSheet.create({
   modalContent: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 20 },
   logisticsOption: { borderWidth: 2, borderColor: '#E5E7EB', borderRadius: 10, padding: 14, marginBottom: 12 },
-  logisticsOptionActive: { borderColor: '#FF5722', backgroundColor: '#FFF7ED' },
+  logisticsOptionActive: { borderColor: '#D97706', backgroundColor: '#FFF4EC' },
   optionText: { fontSize: 14, fontWeight: '600', color: '#111827' },
   modalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
   modalCancel: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  modalSubmit: { flex: 1, backgroundColor: '#FF5722', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  modalSubmit: { flex: 1, backgroundColor: '#D97706', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   modalSubmitDisabled: { backgroundColor: '#D1D5DB' },
   modalSubmitText: { color: '#FFFFFF', fontWeight: '600' }
 });

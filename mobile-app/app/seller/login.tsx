@@ -176,7 +176,7 @@ export default function SellerLoginScreen() {
             <Text style={styles.demoLabel}>Tap to select a seller account</Text>
           </View>
           <View style={styles.demoButton}>
-            <ChevronDown size={20} color="#FF6A00" />
+            <ChevronDown size={20} color="#D97706" />
           </View>
         </Pressable>
 
@@ -185,7 +185,7 @@ export default function SellerLoginScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email Address</Text>
             <View style={[styles.inputWrapper, emailFocused && styles.inputFocused]}>
-              <Mail size={20} color={emailFocused ? '#FF6A00' : '#9CA3AF'} />
+              <Mail size={20} color={emailFocused ? '#D97706' : '#9CA3AF'} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email"
@@ -203,7 +203,7 @@ export default function SellerLoginScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
             <View style={[styles.inputWrapper, passwordFocused && styles.inputFocused]}>
-              <Lock size={20} color={passwordFocused ? '#FF6A00' : '#9CA3AF'} />
+              <Lock size={20} color={passwordFocused ? '#D97706' : '#9CA3AF'} />
               <TextInput
                 style={styles.input}
                 placeholder="••••••••••••"
@@ -235,7 +235,7 @@ export default function SellerLoginScreen() {
             disabled={loading}
           >
             <LinearGradient
-              colors={['#FF6A00', '#FF8C42']}
+              colors={['#D97706', '#B45309']}
               style={styles.loginGradient}
             >
               {loading ? (
@@ -292,7 +292,7 @@ export default function SellerLoginScreen() {
                     <Text style={styles.accountEmail}>{account.email}</Text>
                     <Text style={styles.accountDetails}>Password: {account.password}</Text>
                   </View>
-                  <ArrowRight size={20} color="#FF6A00" />
+                  <ArrowRight size={20} color="#D97706" />
                 </Pressable>
               ))}
             </ScrollView>
@@ -323,11 +323,11 @@ const styles = StyleSheet.create({
   logoWrapper: {
     width: 80,
     height: 80,
-    backgroundColor: '#FF6A00',
+    backgroundColor: '#D97706',
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FF6A00',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 15,
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   },
   demoCard: {
     marginHorizontal: 25,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     borderRadius: 20,
     padding: 16,
     flexDirection: 'row',
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   demoTagText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#FF6A00',
+    color: '#D97706',
     letterSpacing: 1,
   },
   demoLabel: {
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
   demoButtonText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FF6A00',
+    color: '#D97706',
   },
   form: {
     paddingHorizontal: 25,
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 16,
     paddingHorizontal: 16,
     height: 60,
@@ -427,9 +427,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   inputFocused: {
-    borderColor: '#FF6A00',
+    borderColor: '#D97706',
     backgroundColor: '#FFFFFF',
-    shadowColor: '#FF6A00',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -466,14 +466,14 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 14,
-    color: '#FF6A00',
+    color: '#D97706',
     fontWeight: '700',
   },
   loginButton: {
     borderRadius: 16,
     overflow: 'hidden',
     elevation: 5,
-    shadowColor: '#FF6A00',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 15,
@@ -505,7 +505,7 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     fontSize: 15,
-    color: '#FF6A00',
+    color: '#D97706',
     fontWeight: '700',
   },
   backToHome: {
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FFF4EC',
     borderRadius: 12,
     marginVertical: 6,
     borderWidth: 1,

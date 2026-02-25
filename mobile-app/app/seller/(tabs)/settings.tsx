@@ -163,7 +163,7 @@ export default function SellerSettingsScreen() {
                   style={styles.editButton}
                   onPress={() => setIsEditingProfile(!isEditingProfile)}
                 >
-                  <Edit3 size={18} color={isEditingProfile ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                  <Edit3 size={18} color={isEditingProfile ? '#D97706' : '#6B7280'} strokeWidth={2.5} />
                 </Pressable>
               </View>
 
@@ -219,7 +219,7 @@ export default function SellerSettingsScreen() {
                   style={styles.editButton}
                   onPress={() => setIsEditingStore(!isEditingStore)}
                 >
-                  <Edit3 size={18} color={isEditingStore ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                  <Edit3 size={18} color={isEditingStore ? '#D97706' : '#6B7280'} strokeWidth={2.5} />
                 </Pressable>
               </View>
 
@@ -372,7 +372,7 @@ export default function SellerSettingsScreen() {
               {seller.verification_documents?.business_permit_url && (
                 <View style={styles.documentItem}>
                   <View style={styles.documentIcon}>
-                    <FileText size={24} color="#FF5722" strokeWidth={2} />
+                    <FileText size={24} color="#D97706" strokeWidth={2} />
                   </View>
                   <View style={styles.documentInfo}>
                     <Text style={styles.documentName}>BUSINESS PERMIT</Text>
@@ -386,7 +386,7 @@ export default function SellerSettingsScreen() {
               {seller.verification_documents?.valid_id_url && (
                 <View style={styles.documentItem}>
                   <View style={styles.documentIcon}>
-                    <FileText size={24} color="#FF5722" strokeWidth={2} />
+                    <FileText size={24} color="#D97706" strokeWidth={2} />
                   </View>
                   <View style={styles.documentInfo}>
                     <Text style={styles.documentName}>VALID ID</Text>
@@ -419,7 +419,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, newOrders: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -437,7 +437,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, orderUpdates: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -455,7 +455,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, promotions: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -473,7 +473,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, reviews: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -491,7 +491,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, messages: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -509,7 +509,7 @@ export default function SellerSettingsScreen() {
                   onValueChange={(value) =>
                     setNotifications({ ...notifications, lowStock: value })
                   }
-                  trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D97706' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E5E7EB"
                 />
@@ -578,7 +578,7 @@ export default function SellerSettingsScreen() {
                   style={styles.editButton}
                   onPress={() => setIsEditingPayments(!isEditingPayments)}
                 >
-                  <Edit3 size={18} color={isEditingPayments ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                  <Edit3 size={18} color={isEditingPayments ? '#D97706' : '#6B7280'} strokeWidth={2.5} />
                 </Pressable>
               </View>
 
@@ -709,7 +709,7 @@ export default function SellerSettingsScreen() {
 
             {/* Preview Button */}
             <Pressable style={styles.previewButton}>
-              <Eye size={20} color="#FF5722" strokeWidth={2.5} />
+              <Eye size={20} color="#D97706" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -836,7 +836,7 @@ export default function SellerSettingsScreen() {
         <Pressable style={styles.switchAccountButton} onPress={handleSwitchToBuyer}>
           <View style={styles.switchAccountContent}>
             <View style={styles.switchAccountIcon}>
-              <User size={20} color="#FF5722" strokeWidth={2.5} />
+              <User size={20} color="#D97706" strokeWidth={2.5} />
             </View>
             <View style={styles.switchAccountInfo}>
               <Text style={styles.switchAccountTitle}>Switch to Buyer Mode</Text>
@@ -862,14 +862,14 @@ export default function SellerSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#FFFBF0',
   },
   header: {
-    backgroundColor: '#FFE5CC', // Peach Background
+    backgroundColor: '#FFF4EC', // Peach Background
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 24, // Consistent rounding
-    borderBottomRightRadius: 24,
+    paddingBottom: 10,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 20,
     elevation: 3,
   },
   headerContent: {
@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   notificationButton: { position: 'relative' },
-  notificationBadge: { position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#FFE5CC' },
+  notificationBadge: { position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#FFF4EC' },
   scrollView: {
     flex: 1,
   },
@@ -935,7 +935,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -949,7 +949,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -978,7 +978,7 @@ const styles = StyleSheet.create({
   previewText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FF5722',
+    color: '#D97706',
   },
   // Pill Tabs
   pillTabs: {
@@ -995,8 +995,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   pillTabActive: {
-    backgroundColor: '#FF5722',
-    borderColor: '#FF5722',
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
   },
   pillTabText: {
     fontSize: 14,
@@ -1035,7 +1035,7 @@ const styles = StyleSheet.create({
   editButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   sectionDescription: {
     fontSize: 13,
@@ -1052,7 +1052,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -1078,7 +1078,7 @@ const styles = StyleSheet.create({
   documentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -1087,7 +1087,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1138,31 +1138,31 @@ const styles = StyleSheet.create({
   },
   // Enable Button (for 2FA)
   enableButton: {
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#FF5722',
+    borderColor: '#D97706',
     alignItems: 'center',
   },
   enableButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FF5722',
+    color: '#D97706',
   },
   // Save Button
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     marginHorizontal: 20,
     marginTop: 20,
     paddingVertical: 16,
     borderRadius: 16,
     gap: 8,
-    shadowColor: '#FF5722',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
@@ -1186,7 +1186,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#FFF5F0',
+    borderColor: '#FFF4EC',
   },
   switchAccountContent: {
     flexDirection: 'row',
@@ -1196,7 +1196,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -1219,7 +1219,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
     marginHorizontal: 20,
     marginTop: 12,
     paddingVertical: 16,

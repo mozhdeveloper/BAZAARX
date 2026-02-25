@@ -69,8 +69,21 @@ export default function EnhancedCartPage() {
 
   // Delete Confirmation State
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk'; id?: string; variantId?: string } | null>(null);
   const getImageSrc = (src?: string | null) =>
     src && src.trim().length > 0 ? src : undefined;
+
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+
+    if (deleteTarget.type === 'bulk') {
+      removeSelectedItems();
+    } else if (deleteTarget.type === 'single' && deleteTarget.id) {
+      removeFromCart(deleteTarget.id, deleteTarget.variantId);
+    }
+    setDeleteTarget(null);
+  };
 
   // Clear quick order when user navigates to cart
   useEffect(() => {
@@ -212,7 +225,7 @@ export default function EnhancedCartPage() {
   return (
     <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
-      <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="max-w-7xl mx-auto px-4 py-4 -mt-6">
         <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <button
@@ -404,11 +417,11 @@ export default function EnhancedCartPage() {
                                 {/* Quantity Controls */}
                                 <div className="flex items-center gap-4 mt-2">
                                   <span className="text-sm font-bold text-[var(--brand-primary)]">
-                                    ₱{(item.price * item.quantity).toLocaleString()}
+                                    ₱{item.price.toLocaleString()}
                                   </span>
                                   {item.originalPrice && (
                                     <span className="text-xs text-gray-400 line-through">
-                                      ₱{(item.originalPrice * item.quantity).toLocaleString()}
+                                      ₱{item.originalPrice.toLocaleString()}
                                     </span>
                                   )}
 
@@ -416,38 +429,38 @@ export default function EnhancedCartPage() {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() =>
-                                        updateCartQuantity(
-                                          item.id,
-                                          item.quantity - 1,
-                                          item.selectedVariant?.id
-                                        )
-                                      }
+                                      onClick={() => {
+                                        // If quantity is 1, prompt for deletion instead of updating to 0
+                                        if (item.quantity === 1) {
+                                          setDeleteTarget({ type: 'single', id: item.id, variantId: item.selectedVariant?.id });
+                                        } else {
+                                          updateCartQuantity(item.id, item.quantity - 1, item.selectedVariant?.id);
+                                        }
+                                      }}
                                       className="h-6 w-6 p-0 hover:bg-base hover:text-red-500"
-                                      disabled={item.quantity <= 1}
                                     >
                                       <Minus className="h-3 w-3" />
                                     </Button>
+
                                     <span className="w-8 text-center font-medium text-xs">
                                       {item.quantity}
                                     </span>
+
                                     <Button
                                       variant="ghost"
                                       size="sm"
                                       onClick={() =>
-                                        updateCartQuantity(
-                                          item.id,
-                                          item.quantity + 1,
-                                          item.selectedVariant?.id
-                                        )
+                                        updateCartQuantity(item.id, item.quantity + 1, item.selectedVariant?.id)
                                       }
                                       className="h-6 w-6 p-0 hover:bg-base hover:text-green-500"
+                                      // Disable the button if the current quantity has reached stock limit
+                                      disabled={item.quantity >= (item.selectedVariant?.stock ?? item.stock ?? 0)}
                                     >
                                       <Plus className="h-3 w-3" />
                                     </Button>
                                   </div>
                                   <button
-                                    onClick={() => removeFromCart(item.id, item.selectedVariant?.id)}
+                                    onClick={() => setDeleteTarget({ type: 'single', id: item.id, variantId: item.selectedVariant?.id })}
                                     className="text-gray-400 hover:text-red-500 transition-colors"
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -590,26 +603,21 @@ export default function EnhancedCartPage() {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Delete Selected Items?</DialogTitle>
+            <DialogTitle>
+              {deleteTarget?.type === 'bulk' ? 'Delete Selected Items?' : 'Remove Item?'}
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove {selectedCount} items from your cart?
+              {deleteTarget?.type === 'bulk'
+                ? `Are you sure you want to remove ${selectedCount} items from your cart?`
+                : "Are you sure you want to remove this item from your cart?"}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteConfirm(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteSelected}
-              className="bg-red-600 hover:bg-red-700"
-            >
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700">
               Delete
             </Button>
           </DialogFooter>

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuthStore, useProductStore, useOrderStore } from "@/stores/sellerStore";
-import { SellerSidebar } from "@/components/seller/SellerSidebar";
+import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
 import {
   Camera,
   Globe,
@@ -38,11 +38,13 @@ import { Badge } from "@/components/ui/badge";
 import { uploadSellerDocument, validateDocumentFile } from "@/utils/storage";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import type { BusinessType } from "@/types/database.types";
 
 // Logo components defined outside of render
 
 
 export function SellerStoreProfile() {
+  const SHOW_BANKING_INFO = false;
   const { seller, updateSellerDetails, hydrateSellerFromSession } =
     useAuthStore();
   const { products } = useProductStore();
@@ -209,9 +211,38 @@ export function SellerStoreProfile() {
 
   const [isVerified, setIsVerified] = useState(seller?.isVerified || false);
   const [approvalStatus, setApprovalStatus] = useState<
-    "pending" | "approved" | "rejected"
+    "pending" | "approved" | "verified" | "rejected" | "needs_resubmission"
   >(seller?.approvalStatus || "pending");
   const [reapplyLoading, setReapplyLoading] = useState(false);
+  const [latestRejection, setLatestRejection] = useState<{
+    rejectionType: "full" | "partial";
+    description?: string;
+    createdAt: string;
+    items: { documentField: string; reason?: string; createdAt?: string }[];
+  } | null>(null);
+  const [documentsUpdatedAt, setDocumentsUpdatedAt] = useState<string | null>(null);
+
+  const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string }[] = [
+    { value: "sole_proprietor", label: "Sole Proprietorship" },
+    { value: "partnership", label: "Partnership" },
+    { value: "corporation", label: "Corporation" },
+  ];
+
+  const normalizeBusinessType = (value: string): BusinessType | null => {
+    const normalized = value.trim().toLowerCase().replace(/\s+/g, "_");
+
+    if (normalized === "sole_proprietor" || normalized === "sole_proprietorship") {
+      return "sole_proprietor";
+    }
+    if (normalized === "partnership") {
+      return "partnership";
+    }
+    if (normalized === "corporation") {
+      return "corporation";
+    }
+
+    return null;
+  };
 
   useEffect(() => {
     if (!seller) return;
@@ -278,10 +309,12 @@ export function SellerStoreProfile() {
       missing.push("Business Address (address, city, province, postal code)");
     }
 
-    // Banking info
-    if (isEmptyField(seller?.bankName)) missing.push("Bank Name");
-    if (isEmptyField(seller?.accountName)) missing.push("Account Name");
-    if (isEmptyField(seller?.accountNumber)) missing.push("Account Number");
+    // Banking info is temporarily hidden from seller profile UI
+    if (SHOW_BANKING_INFO) {
+      if (isEmptyField(seller?.bankName)) missing.push("Bank Name");
+      if (isEmptyField(seller?.accountName)) missing.push("Account Name");
+      if (isEmptyField(seller?.accountNumber)) missing.push("Account Number");
+    }
 
     // Documents
     if (!documents.businessPermitUrl) missing.push("Business Permit");
@@ -321,6 +354,7 @@ export function SellerStoreProfile() {
       if (error) throw error;
 
       setApprovalStatus("pending");
+      setLatestRejection(null);
       alert("Reapplication submitted. Your profile is now pending review.");
     } catch (err) {
       console.error("Failed to set approval_status to pending:", err);
@@ -347,20 +381,32 @@ export function SellerStoreProfile() {
         if (sellerError) {
           console.error("Error fetching seller status:", sellerError);
         } else if (sellerData) {
-          setApprovalStatus(sellerData.approval_status || "pending");
-          setIsVerified(sellerData.approval_status === "verified");
+          const normalizedStatus = (sellerData.approval_status || "pending") as
+            | "pending"
+            | "approved"
+            | "verified"
+            | "rejected"
+            | "needs_resubmission";
+
+          setApprovalStatus(normalizedStatus);
+          setIsVerified(
+            normalizedStatus === "verified" || normalizedStatus === "approved",
+          );
         }
 
         // Fetch verification documents from separate table
         const { data: docData, error: docError } = await supabase
           .from("seller_verification_documents")
-          .select("business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url")
+          .select(
+            "business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, updated_at",
+          )
           .eq("seller_id", sellerId)
           .maybeSingle();
 
         if (docError && docError.code !== 'PGRST116') { // PGRST116 = no rows
           console.error("Error fetching seller documents:", docError);
         } else if (docData) {
+          setDocumentsUpdatedAt(docData.updated_at || null);
           setDocuments({
             businessPermitUrl: docData.business_permit_url || undefined,
             validIdUrl: docData.valid_id_url || undefined,
@@ -368,6 +414,39 @@ export function SellerStoreProfile() {
             dtiRegistrationUrl: docData.dti_registration_url || undefined,
             taxIdUrl: docData.tax_id_url || undefined,
           });
+        }
+
+        const { data: rejectionData, error: rejectionError } = await supabase
+          .from("seller_rejections")
+          .select(
+            "description, rejection_type, created_at, items:seller_rejection_items(document_field, reason, created_at)",
+          )
+          .eq("seller_id", seller.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (rejectionError && rejectionError.code !== "PGRST116") {
+          console.warn("Unable to load rejection details:", rejectionError.message);
+        } else if (rejectionData) {
+          setLatestRejection({
+            rejectionType: (rejectionData.rejection_type || "full") as
+              | "full"
+              | "partial",
+            description: rejectionData.description || undefined,
+            createdAt: rejectionData.created_at,
+            items: (rejectionData.items || []).map((item: {
+              document_field: string;
+              reason: string | null;
+              created_at: string | null;
+            }) => ({
+              documentField: item.document_field,
+              reason: item.reason || undefined,
+              createdAt: item.created_at || undefined,
+            })),
+          });
+        } else {
+          setLatestRejection(null);
         }
       } catch (error) {
         console.error("Error fetching seller data:", error);
@@ -411,8 +490,11 @@ export function SellerStoreProfile() {
         .eq("seller_id", sellerId)
         .single();
 
+      const uploadTimestamp = new Date().toISOString();
+
       const updateData: Record<string, string> = {
         [columnName]: documentUrl,
+        updated_at: uploadTimestamp,
       };
 
       let error;
@@ -443,8 +525,24 @@ export function SellerStoreProfile() {
         ...prev,
         [docKey]: documentUrl,
       }));
+      setDocumentsUpdatedAt(uploadTimestamp);
 
-      alert("Document uploaded successfully!");
+      setLatestRejection((prev) => {
+        if (!prev || prev.rejectionType !== "partial") {
+          return prev;
+        }
+
+        const nextItems = prev.items.filter(
+          (item) => item.documentField !== columnName,
+        );
+
+        return {
+          ...prev,
+          items: nextItems,
+        };
+      });
+
+      alert("Document uploaded. This file has been marked as resubmitted.");
     } catch (error) {
       console.error("Error uploading document:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to upload document. Please try again.";
@@ -458,6 +556,43 @@ export function SellerStoreProfile() {
   const isImageFile = (url?: string) => {
     if (!url) return false;
     return /\.(jpg|jpeg|png|webp)$/i.test(url);
+  };
+
+  const getDocumentRejectionReason = (columnName: string) => {
+    if (latestRejection?.rejectionType !== "partial") return undefined;
+
+    const item = latestRejection.items.find(
+      (entry) => entry.documentField === columnName,
+    );
+
+    if (!item) return undefined;
+
+    if (documentsUpdatedAt && item.createdAt) {
+      const docUpdatedAtValue = new Date(documentsUpdatedAt).getTime();
+      const itemCreatedAtValue = new Date(item.createdAt).getTime();
+
+      if (
+        Number.isFinite(docUpdatedAtValue) &&
+        Number.isFinite(itemCreatedAtValue) &&
+        docUpdatedAtValue > itemCreatedAtValue
+      ) {
+        return undefined;
+      }
+    }
+
+    return item.reason || latestRejection.description;
+  };
+
+  const requiresResubmission =
+    approvalStatus === "needs_resubmission" ||
+    (approvalStatus === "rejected" && latestRejection?.rejectionType === "partial");
+
+  const documentFieldLabels: Record<string, string> = {
+    business_permit_url: "Business Permit",
+    valid_id_url: "Government-Issued ID",
+    proof_of_address_url: "Proof of Address",
+    dti_registration_url: "DTI/SEC Registration",
+    tax_id_url: "BIR Tax ID (TIN)",
   };
 
   const handleSaveBasic = async () => {
@@ -521,26 +656,39 @@ export function SellerStoreProfile() {
       alert("Unable to save: seller ID missing.");
       return;
     }
+
+    const normalizedBusinessType = normalizeBusinessType(businessForm.businessType);
+    if (!normalizedBusinessType) {
+      alert("Please select a valid business type: Sole Proprietorship, Partnership, or Corporation.");
+      return;
+    }
+
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseClient: any = supabase;
       const { error } = await supabaseClient
-        .from("sellers")
-        .update({
-          business_name: businessForm.businessName,
-          business_type: businessForm.businessType,
-          business_registration_number: businessForm.businessRegistrationNumber,
-          tax_id_number: businessForm.taxIdNumber,
-          business_address: businessForm.businessAddress,
-          city: businessForm.city,
-          province: businessForm.province,
-          postal_code: businessForm.postalCode,
-        })
-        .eq("id", sellerId);
+        .from("seller_business_profiles")
+        .upsert(
+          {
+            seller_id: seller.id,
+            business_type: normalizedBusinessType,
+            business_registration_number: businessForm.businessRegistrationNumber,
+            tax_id_number: businessForm.taxIdNumber,
+            address_line_1: businessForm.businessAddress,
+            address_line_2: null,
+            city: businessForm.city,
+            province: businessForm.province,
+            postal_code: businessForm.postalCode,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "seller_id",
+          },
+        );
       if (error) throw error;
       updateSellerDetails({
         businessName: businessForm.businessName,
-        businessType: businessForm.businessType,
+        businessType: normalizedBusinessType,
         businessRegistrationNumber: businessForm.businessRegistrationNumber,
         taxIdNumber: businessForm.taxIdNumber,
         businessAddress: businessForm.businessAddress,
@@ -566,13 +714,19 @@ export function SellerStoreProfile() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseClient: any = supabase;
       const { error } = await supabaseClient
-        .from("sellers")
-        .update({
-          bank_name: bankingForm.bankName,
-          account_name: bankingForm.accountName,
-          account_number: bankingForm.accountNumber,
-        })
-        .eq("id", sellerId);
+        .from("seller_payout_accounts")
+        .upsert(
+          {
+            seller_id: seller.id,
+            bank_name: bankingForm.bankName,
+            account_name: bankingForm.accountName,
+            account_number: bankingForm.accountNumber,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "seller_id",
+          },
+        );
       if (error) throw error;
       updateSellerDetails({
         bankName: bankingForm.bankName,
@@ -642,9 +796,7 @@ export function SellerStoreProfile() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
-      <SellerSidebar />
-
+    <SellerWorkspaceLayout>
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
           <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
@@ -740,7 +892,23 @@ export function SellerStoreProfile() {
                             Pending Approval
                           </Badge>
                         )}
-                        {approvalStatus === "rejected" && (
+                        {requiresResubmission && (
+                          <div className="flex flex-col items-center gap-2">
+                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Needs Resubmission
+                            </Badge>
+                            <Button
+                              size="sm"
+                              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-xs"
+                              onClick={handleReapply}
+                              disabled={reapplyLoading}
+                            >
+                              {reapplyLoading ? "Submitting..." : "Resubmit Documents"}
+                            </Button>
+                          </div>
+                        )}
+                        {approvalStatus === "rejected" && !requiresResubmission && (
                           <div className="flex flex-col items-center gap-2">
                             <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
                               <AlertCircle className="h-3 w-3 mr-1" />
@@ -756,10 +924,12 @@ export function SellerStoreProfile() {
                             </Button>
                           </div>
                         )}
-                        {approvalStatus === "approved" && !isVerified && (
-                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                        {(approvalStatus === "approved" ||
+                          approvalStatus === "verified" ||
+                          isVerified) && (
+                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Approved
+                            Verified
                           </Badge>
                         )}
                       </div>
@@ -1069,15 +1239,23 @@ export function SellerStoreProfile() {
                         </div>
                         <div>
                           <Label>Business Type</Label>
-                          <Input
-                            value={businessForm.businessType}
+                          <select
+                            value={normalizeBusinessType(businessForm.businessType) ?? ""}
                             onChange={(e) =>
                               setBusinessForm({
                                 ...businessForm,
                                 businessType: e.target.value,
                               })
                             }
-                          />
+                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          >
+                            <option value="">Select business type</option>
+                            {BUSINESS_TYPE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -1266,7 +1444,8 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Banking Information (Locked if Verified) */}
-                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
+                {SHOW_BANKING_INFO && (
+                  <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
                   <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-3">
                       <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
@@ -1407,7 +1586,8 @@ export function SellerStoreProfile() {
                       </p>
                     </div>
                   )}
-                </Card>
+                  </Card>
+                )}
 
                 {/* Verification Documents */}
                 <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
@@ -1430,6 +1610,29 @@ export function SellerStoreProfile() {
                       </Badge>
                     )}
                   </div>
+
+                  {requiresResubmission && (
+                    <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                      <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        Some documents need to be updated before approval.
+                      </p>
+                      {latestRejection?.description && (
+                        <p className="text-sm text-amber-800">{latestRejection.description}</p>
+                      )}
+
+                      {latestRejection?.items?.length ? (
+                        <div className="space-y-1">
+                          {latestRejection.items.map((item) => (
+                            <p key={item.documentField} className="text-xs text-amber-900">
+                              - {documentFieldLabels[item.documentField] || item.documentField}
+                              {item.reason ? `: ${item.reason}` : ""}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     {/* Document Helper Function */}
@@ -1475,15 +1678,22 @@ export function SellerStoreProfile() {
                     ].map((doc) => {
                       const hasDocument =
                         documents[doc.key as keyof typeof documents];
+                      const rejectionReason = getDocumentRejectionReason(
+                        doc.column,
+                      );
+                      const needsUpdate =
+                        requiresResubmission && Boolean(rejectionReason);
                       const Icon = doc.icon;
                       const isUploading = uploadingDoc === doc.key;
 
                       return (
                         <div
                           key={doc.key}
-                          className={`p-4 border rounded-lg transition-colors ${hasDocument
-                            ? "border-green-200 bg-green-50/50 hover:border-green-300"
-                            : "border-gray-200 hover:border-orange-300"
+                          className={`p-4 border rounded-lg transition-colors ${needsUpdate
+                            ? "border-red-300 bg-red-50/60"
+                            : hasDocument
+                              ? "border-green-200 bg-green-50/50 hover:border-green-300"
+                              : "border-gray-200 hover:border-orange-300"
                             }`}
                         >
                           <div className="flex items-center justify-between mb-3">
@@ -1492,7 +1702,11 @@ export function SellerStoreProfile() {
                                 className="h-10 w-10 rounded-lg flex items-center justify-center"
                               >
                                 <Icon
-                                  className={`h-5 w-5 ${hasDocument ? "text-green-600" : "text-gray-500"
+                                  className={`h-5 w-5 ${needsUpdate
+                                    ? "text-red-600"
+                                    : hasDocument
+                                      ? "text-green-600"
+                                      : "text-gray-500"
                                     }`}
                                 />
                               </div>
@@ -1661,7 +1875,19 @@ export function SellerStoreProfile() {
                             )}
                           </div>
 
-                          {hasDocument && isVerified && (
+                          {hasDocument && needsUpdate && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 px-3 py-2 rounded">
+                                <AlertCircle className="h-4 w-4" />
+                                Needs resubmission
+                              </div>
+                              {rejectionReason && (
+                                <p className="text-xs text-red-700 px-1">{rejectionReason}</p>
+                              )}
+                            </div>
+                          )}
+
+                          {hasDocument && isVerified && !needsUpdate && (
                             <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
                               <CheckCircle2 className="h-4 w-4" />
                               Verified on{" "}
@@ -1671,7 +1897,7 @@ export function SellerStoreProfile() {
                             </div>
                           )}
 
-                          {hasDocument && !isVerified && (
+                          {hasDocument && !isVerified && !needsUpdate && (
                             <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded">
                               <Clock className="h-4 w-4" />
                               Pending verification
@@ -1689,13 +1915,23 @@ export function SellerStoreProfile() {
                     })}
                   </div>
 
-                  {!isVerified && (
+                  {!isVerified && !requiresResubmission && (
                     <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-sm text-amber-700 flex items-center gap-2">
                         <AlertCircle className="h-4 w-4" />
                         Your documents are currently being reviewed by our team.
                         This usually takes 1-2 business days. You'll be notified
                         once verification is complete.
+                      </p>
+                    </div>
+                  )}
+
+                  {requiresResubmission && (
+                    <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-700 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        Replace the flagged files above, then click "Resubmit Documents"
+                        in your profile header.
                       </p>
                     </div>
                   )}
@@ -1799,7 +2035,6 @@ export function SellerStoreProfile() {
           </div>
         </div>
       </div>
-    </div>
+    </SellerWorkspaceLayout>
   );
 }
-

@@ -558,10 +558,10 @@ export default function StoreProfileScreen() {
   return (
     <View style={styles.container}>
       {/* Header - Edge to Edge Orange - Match orders/dashboard style */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Store Profile</Text>
           <View style={{ width: 40 }} />
@@ -636,7 +636,7 @@ export default function StoreProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <User size={20} color="#FF6A00" strokeWidth={2} />
+              <User size={20} color="#D97706" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Owner & Contact Information</Text>
             </View>
             {editSection !== 'basic' && (
@@ -755,7 +755,7 @@ export default function StoreProfileScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.sectionTitleRow}>
-              <Building2 size={20} color="#FF6A00" strokeWidth={2} />
+              <Building2 size={20} color="#D97706" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Business Information</Text>
               {(() => {
                 const status = getSectionStatus(seller, ['business_name', 'business_type', 'business_registration_number', 'tax_id_number', 'business_address', 'city', 'province']);
@@ -915,7 +915,7 @@ export default function StoreProfileScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.sectionTitleRow}>
-              <CreditCard size={20} color="#FF6A00" strokeWidth={2} />
+              <CreditCard size={20} color="#D97706" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Banking Information</Text>
               <View style={styles.sectionStatus}>
                 {(() => {
@@ -1028,7 +1028,7 @@ export default function StoreProfileScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.sectionTitleRow}>
-              <FileText size={20} color="#FF6A00" strokeWidth={2} />
+              <FileText size={20} color="#D97706" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Verification Documents</Text>
               <View style={styles.sectionStatus}>
                 {(() => {
@@ -1107,7 +1107,7 @@ export default function StoreProfileScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.sectionTitleRow}>
-              <Package size={20} color="#FF6A00" strokeWidth={2} />
+              <Package size={20} color="#D97706" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Store Categories</Text>
             </View>
             {expandedSections.categories ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
@@ -1174,23 +1174,28 @@ export default function StoreProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
   },
   headerContainer: {
+    backgroundColor: '#FFF4EC',
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     paddingBottom: 20,
     marginBottom: 10,
-    elevation: 4,
+    elevation: 3,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
     zIndex: 10,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerIconButton: { 
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    padding: 10,
+    borderRadius: 12,
+  },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937' },
   headerBadge: {
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 10,
@@ -1229,7 +1234,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 12,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -1246,7 +1251,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#FF6A00',
+    backgroundColor: '#D97706',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
@@ -1279,7 +1284,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFF4EC',
     borderRadius: 8,
     padding: 8,
     alignItems: 'center',
@@ -1399,7 +1404,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
-    backgroundColor: '#FF6A00',
+    backgroundColor: '#D97706',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -1620,7 +1625,7 @@ const styles = StyleSheet.create({
   rejectionAlert: {
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: '#FEF2F2',
     borderRadius: 12,
     margin: 16,
     padding: 16,
@@ -1659,7 +1664,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   addCategoryButton: {
-    backgroundColor: '#FF6A00',
+    backgroundColor: '#D97706',
     paddingHorizontal: 16,
     justifyContent: 'center',
     borderRadius: 8,

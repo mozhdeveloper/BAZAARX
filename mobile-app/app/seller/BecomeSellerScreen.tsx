@@ -151,7 +151,7 @@ export default function BecomeSellerScreen() {
                             <ArrowLeft size={24} color="#374151" />
                         </Pressable>
                         <View style={styles.logoWrapper}>
-                            <Store size={32} color="#FF6A00" />
+                            <Store size={32} color="#D97706" />
                         </View>
                         <Text style={styles.title}>Setup Your Store</Text>
                         <Text style={styles.subtitle}>Enter your business details to start selling.</Text>
@@ -179,7 +179,7 @@ export default function BecomeSellerScreen() {
                                         if (error) setError("");
                                     }}
                                 />
-                                {storeStatus === 'checking' && <ActivityIndicator size="small" color="#FF6A00" />}
+                                {storeStatus === 'checking' && <ActivityIndicator size="small" color="#D97706" />}
                                 {storeStatus === 'available' && <CheckCircle2 size={18} color="#10B981" />}
                                 {storeStatus === 'taken' && <XCircle size={18} color="#EF4444" />}
                             </View>
@@ -231,7 +231,7 @@ export default function BecomeSellerScreen() {
                             disabled={loading}
                         >
                             <LinearGradient
-                                colors={['#FF6A00', '#FF8C42']}
+                                colors={['#D97706', '#B45309']}
                                 style={styles.buttonGradient}
                             >
                                 {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Activate Seller Account</Text>}
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     logoWrapper: {
         width: 64,
         height: 64,
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#FFF4EC',
         borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
         gap: 10,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: '#FEE2E2',
+        borderColor: '#FEF2F2',
     },
     errorText: { fontSize: 13, color: '#EF4444', fontWeight: '600', flex: 1 },
 
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
+        backgroundColor: '#FFF4EC',
         borderRadius: 16,
         paddingHorizontal: 16,
         height: 56,

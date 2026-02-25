@@ -506,6 +506,95 @@ export class NotificationService {
       priority: 'high'
     });
   }
+
+  /**
+   * Notify seller when seller verification is approved
+   */
+  async notifySellerVerificationApproved(params: {
+    sellerId: string;
+    storeName?: string;
+    note?: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    const storeLabel = params.storeName ? ` for ${params.storeName}` : '';
+    const noteSuffix = params.note?.trim() ? `\n\nNote: ${params.note.trim()}` : '';
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_verification_approved',
+      title: 'Seller Account Approved',
+      message: `Your seller verification${storeLabel} has been approved. You can now access seller tools and start selling.${noteSuffix}`,
+      icon: 'BadgeCheck',
+      iconBg: 'bg-green-500',
+      actionUrl: '/seller',
+      actionData: {
+        status: 'approved',
+      },
+      priority: 'high',
+    });
+  }
+
+  /**
+   * Notify seller when seller verification is fully rejected
+   */
+  async notifySellerVerificationRejected(params: {
+    sellerId: string;
+    reason?: string;
+    note?: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    const rejectionReason = params.reason?.trim() || params.note?.trim() || 'Please review your requirements and submit again.';
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_verification_rejected',
+      title: 'Seller Verification Rejected',
+      message: `Your seller verification request was rejected. ${rejectionReason}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: '/seller/store-profile',
+      actionData: {
+        status: 'rejected',
+        reason: rejectionReason,
+      },
+      priority: 'high',
+    });
+  }
+
+  /**
+   * Notify seller when seller verification has document-level partial rejection
+   */
+  async notifySellerVerificationPartiallyRejected(params: {
+    sellerId: string;
+    rejectedDocuments: string[];
+    note?: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    const docs = params.rejectedDocuments.filter(Boolean);
+    const docsLabel = docs.length > 0 ? docs.join(', ') : 'one or more documents';
+    const noteSuffix = params.note?.trim() ? `\n\nNote: ${params.note.trim()}` : '';
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_verification_partial_rejection',
+      title: 'Document Updates Required',
+      message: `Your seller verification needs updates for: ${docsLabel}. Please upload corrected files and resubmit.${noteSuffix}`,
+      icon: 'AlertCircle',
+      iconBg: 'bg-yellow-500',
+      actionUrl: '/seller/store-profile',
+      actionData: {
+        status: 'needs_resubmission',
+        rejectedDocuments: docs,
+      },
+      priority: 'high',
+    });
+  }
 }
 
 export const notificationService = NotificationService.getInstance();

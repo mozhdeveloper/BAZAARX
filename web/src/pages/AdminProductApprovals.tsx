@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { handleImageError } from '@/utils/imageUtils';
 import { Navigate } from 'react-router-dom';
 import { 
   ClipboardCheck, 
@@ -83,7 +84,7 @@ const AdminProductApprovals = () => {
 
   // Load all QA products on mount (admin sees all)
   useEffect(() => {
-    loadProducts(); // No seller ID = load all
+    loadProducts(null); // Explicit null = load ALL products (admin mode), ignoring any cached seller filter
   }, [loadProducts]);
 
   // Predefined rejection/revision templates
@@ -452,7 +453,7 @@ const AdminProductApprovals = () => {
                         onClick={() => handleViewDetails(product)}
                       >
                         {product.image ? (
-                          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                          <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <Package className="w-6 h-6 text-gray-400" />
@@ -801,6 +802,7 @@ const AdminProductApprovals = () => {
                     src={selectedProduct.images?.[currentImageIndex] || selectedProduct.image} 
                     alt={selectedProduct.name}
                     className="w-full h-full object-contain"
+                    onError={handleImageError}
                   />
                   {selectedProduct.images && selectedProduct.images.length > 1 && (
                     <>
@@ -837,7 +839,7 @@ const AdminProductApprovals = () => {
                         onClick={() => setCurrentImageIndex(idx)}
                         className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${idx === currentImageIndex ? 'border-[#FF5722]' : 'border-transparent hover:border-gray-300'}`}
                       >
-                        <img src={img} alt={`${selectedProduct.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                        <img src={img} alt={`${selectedProduct.name} ${idx + 1}`} className="w-full h-full object-cover" onError={handleImageError} />
                       </button>
                     ))}
                   </div>
@@ -964,6 +966,7 @@ const AdminProductApprovals = () => {
                             src={variant.thumbnail_url} 
                             alt={variant.variant_name}
                             className="w-10 h-10 rounded object-cover"
+                            onError={handleImageError}
                           />
                         )}
                         <div className="flex-1 min-w-0">

@@ -149,7 +149,7 @@ export default function SellerDashboardScreen() {
   const categoryData = React.useMemo(() => {
     const counts: any = {};
     allProducts.forEach((p: any) => counts[p.category] = (counts[p.category] || 0) + 1);
-    const colors = ['#FF5722', '#FBBF24', '#10B981', '#3B82F6'];
+    const colors = ['#D97706', '#FBBF24', '#10B981', '#3B82F6'];
     return Object.entries(counts).map(([name, count]: any, i) => ({
       value: count,
       color: colors[i % colors.length],
@@ -166,7 +166,7 @@ export default function SellerDashboardScreen() {
 
   if (!currentSeller) return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator color="#FF5722" />
+      <ActivityIndicator color="#D97706" />
     </View>
   );
 
@@ -197,7 +197,7 @@ export default function SellerDashboardScreen() {
         {/* Toolbar */}
         <View style={styles.actionToolbar}>
           <Pressable style={styles.filterChip} onPress={() => setShowFilterModal(true)}>
-            <Filter size={16} color="#FF5722" />
+            <Filter size={16} color="#D97706" />
             <Text style={styles.filterChipText}>
               {filters.dateLabel === 'Custom Range'
                 ? `${filters.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${filters.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
@@ -216,13 +216,13 @@ export default function SellerDashboardScreen() {
             <StatCard
               label="Revenue"
               value={`₱${stats.totalRevenue.toLocaleString()}`}
-              icon={<DollarSign size={18} color="#FF5722" />}
+              icon={<DollarSign size={18} color="#D97706" />}
               subValue="Delivered"
             />
             <StatCard
               label="Orders"
               value={stats.totalOrders}
-              icon={<Package size={18} color="#FF5722" />}
+              icon={<Package size={18} color="#D97706" />}
               subValue={`${stats.pendingCount} Pending`}
               subColor="#FBBF24"
             />
@@ -231,13 +231,13 @@ export default function SellerDashboardScreen() {
             <StatCard
               label="Avg. Value"
               value={`₱${Math.round(stats.avgOrderValue).toLocaleString()}`}
-              icon={<Receipt size={18} color="#FF5722" />}
+              icon={<Receipt size={18} color="#D97706" />}
               subValue="Per Order"
             />
             <StatCard
               label="Active Products"
               value={stats.activeProductsCount}
-              icon={<Store size={18} color="#FF5722" />}
+              icon={<Store size={18} color="#D97706" />}
               subValue={`${stats.lowStockCount} Low Stock`}
               subColor={stats.lowStockCount > 0 ? "#EF4444" : "#10B981"}
             />
@@ -255,7 +255,7 @@ export default function SellerDashboardScreen() {
                 width={width - 80}
                 areaChart
                 curved
-                color="#FF5722"
+                color="#D97706"
                 startFillColor="rgba(255, 87, 34, 0.3)"
                 endFillColor="rgba(255, 87, 34, 0.01)"
                 yAxisTextStyle={styles.chartAxisText}
@@ -332,8 +332,8 @@ export default function SellerDashboardScreen() {
               </View>
               <View style={styles.slimOrderRight}>
                 <Text style={styles.orderPriceText}>₱{order.total.toLocaleString()}</Text>
-                <View style={[styles.miniStatus, { backgroundColor: order.status === 'completed' ? '#D1FAE5' : '#FFF5F0' }]}>
-                  <Text style={[styles.miniStatusText, { color: order.status === 'completed' ? '#10B981' : '#FF5722' }]}>
+                <View style={[styles.miniStatus, { backgroundColor: order.status === 'completed' ? '#D1FAE5' : '#FFF4EC' }]}>
+                  <Text style={[styles.miniStatusText, { color: order.status === 'completed' ? '#10B981' : '#D97706' }]}>
                     {order.status.toUpperCase()}
                   </Text>
                 </View>
@@ -450,15 +450,15 @@ export default function SellerDashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#FFFBF0',
   },
   // --- Header Styles ---
   header: {
-    backgroundColor: '#FFE5CC', // Peach background
+    backgroundColor: '#FFF4EC', // Peach background
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingBottom: 10,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 20,
     elevation: 3,
   },
   headerContent: {
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#EF4444',
     borderWidth: 2,
-    borderColor: '#FFE5CC',
+    borderColor: '#FFF4EC',
   },
 
   // --- Layout Sections ---
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
   exportButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FF5722', // Primary Brand Orange
+    backgroundColor: '#D97706', // Primary Brand Orange
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF4EC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -5,
     left: -5,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     width: 18,
     height: 18,
     borderRadius: 9,
@@ -727,7 +727,7 @@ const styles = StyleSheet.create({
   viewAllText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FF5722',
+    color: '#D97706',
   },
   slimOrderCard: {
     flexDirection: 'row',
@@ -757,7 +757,7 @@ const styles = StyleSheet.create({
   orderPriceText: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#FF5722',
+    color: '#D97706',
   },
   miniStatus: {
     paddingHorizontal: 6,
@@ -778,7 +778,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FF5722',
+    backgroundColor: '#D97706',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
@@ -853,7 +853,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   activeOption: {
-    color: '#FF5722',
+    color: '#D97706',
     fontWeight: '700',
   },
   closeModalButton: {

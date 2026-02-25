@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { qaService, type ProductQAStatus } from '@/services/qaService';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useProductStore } from './sellerStore';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 
 export type { ProductQAStatus };
 
@@ -50,7 +51,7 @@ interface ProductQAStore {
   _lastSellerId?: string; // Track the last seller ID used for reload after actions
   
   // Actions
-  loadProducts: (sellerId?: string) => Promise<void>;
+  loadProducts: (sellerId?: string | null) => Promise<void>;
   approveForSampleSubmission: (productId: string) => Promise<void>;
   submitSample: (productId: string, logisticsMethod: string) => Promise<void>;
   passQualityCheck: (productId: string) => Promise<void>;
@@ -122,23 +123,58 @@ export const useProductQAStore = create<ProductQAStore>()(
       _lastSellerId: undefined,
 
       // Load products from database (for admin) or by seller (for seller)
-      loadProducts: async (sellerId?: string) => {
+      loadProducts: async (sellerId?: string | null) => {
         if (!isSupabaseConfigured()) {
           console.log('Using mock QA data (Supabase not configured)');
           return;
         }
 
-        // Remember sellerId for reload after actions
-        if (sellerId !== undefined) {
+        // null = explicit "load all" (admin mode), clears any cached seller filter
+        // undefined = auto-reload using the last known seller ID
+        // string = load for a specific seller
+        if (sellerId === null) {
+          set({ _lastSellerId: undefined });
+        } else if (sellerId !== undefined) {
           set({ _lastSellerId: sellerId });
         }
-        const effectiveSellerId = sellerId ?? get()._lastSellerId;
+        const effectiveSellerId = sellerId === null ? undefined : (sellerId ?? get()._lastSellerId);
 
         set({ isLoading: true });
         try {
-          const qaEntries = effectiveSellerId 
+          let qaEntries = effectiveSellerId 
             ? await qaService.getQAEntriesBySeller(effectiveSellerId)
             : await qaService.getAllQAEntries();
+
+          console.log(`[QA Store] loadProducts(${sellerId}) → ${qaEntries.length} entries from DB`);
+
+          // Admin mode: auto-create assessments for orphan products
+          // (products that exist but have no assessment — e.g. when createQAEntry failed earlier)
+          if (!effectiveSellerId) {
+            try {
+              const orphans = await qaService.getOrphanProducts();
+              if (orphans.length > 0) {
+                console.log(`[QA Store] Reconciling ${orphans.length} orphan product(s)...`);
+                await Promise.allSettled(
+                  orphans.map(async (orphan: any) => {
+                    try {
+                      await qaService.createQAEntry(
+                        orphan.id,
+                        orphan.seller?.store_name || 'Unknown',
+                        orphan.seller_id || ''
+                      );
+                    } catch (e) {
+                      console.warn(`[QA Store] Orphan reconcile failed for ${orphan.id}:`, e);
+                    }
+                  })
+                );
+                // Re-fetch with newly created assessments
+                qaEntries = await qaService.getAllQAEntries();
+                console.log(`[QA Store] Post-reconciliation: ${qaEntries.length} entries`);
+              }
+            } catch (orphanError) {
+              console.warn('[QA Store] Orphan reconciliation error:', orphanError);
+            }
+          }
 
           const qaProducts: QAProduct[] = qaEntries.map((entry: any) => {
             // Extract category name from nested object or use string directly
@@ -147,11 +183,14 @@ export const useProductQAStore = create<ProductQAStore>()(
               ? categoryValue.name 
               : (typeof categoryValue === 'string' ? categoryValue : 'Uncategorized');
             
-            // Extract image URL from nested image objects
+            // Extract image URL from nested image objects; sanitize social-media CDN URLs
             const imageList = entry.product?.images || [];
             const primaryImage = imageList.find((img: any) => img.is_primary) || imageList[0];
-            const imageUrl = primaryImage?.image_url || primaryImage || 'https://placehold.co/100?text=Product';
-            const imageUrls = imageList.map((img: any) => img.image_url || img).filter(Boolean);
+            const rawImageUrl = primaryImage?.image_url || primaryImage || 'https://placehold.co/100?text=Product';
+            const imageUrl = getSafeImageUrl(rawImageUrl);
+            const imageUrls = imageList
+              .map((img: any) => getSafeImageUrl(img.image_url || img))
+              .filter(Boolean);
 
             // Extract variants
             const variants = (entry.product?.variants || []).map((v: any) => ({
@@ -427,8 +466,10 @@ export const useProductQAStore = create<ProductQAStore>()(
           if (!productData.price || productData.price <= 0) {
             throw new Error('Product price must be greater than 0');
           }
+          // Category is optional — default to 'Uncategorized' so assessment always gets created
           if (!productData.category || productData.category.trim() === '') {
-            throw new Error('Product category is required');
+            console.warn('Product category missing, defaulting to Uncategorized');
+            productData = { ...productData, category: 'Uncategorized' };
           }
           
           // Check for duplicate
@@ -445,8 +486,8 @@ export const useProductQAStore = create<ProductQAStore>()(
               productData.vendor,
               productData.sellerId
             );
-            // Reload products to get fresh data
-            await get().loadProducts();
+            // Reload using this seller's ID specifically so seller sees their own updated list
+            await get().loadProducts(productData.sellerId);
           } else {
             // Fallback to local state
             const newQAProduct: QAProduct = {
@@ -489,7 +530,7 @@ export const useProductQAStore = create<ProductQAStore>()(
   )
 );
 
-// Helper function to sync with seller store
+// Helper function to sync with seller store (best-effort — admin may not have the product loaded locally)
 function syncToSellerStore(
   productId: string, 
   approvalStatus: 'pending' | 'approved' | 'rejected',
@@ -497,12 +538,19 @@ function syncToSellerStore(
 ) {
   try {
     const sellerStore = useProductStore.getState();
+    // Only sync if the product exists in the local seller store
+    const exists = sellerStore.products.find((p: any) => p.id === productId);
+    if (!exists) {
+      // Product not loaded locally (e.g. admin acting on another seller's product) — skip silently
+      return;
+    }
     const updates: any = { approvalStatus };
     if (rejectionReason) {
       updates.rejectionReason = rejectionReason;
     }
     sellerStore.updateProduct(productId, updates);
   } catch (error) {
-    console.error('Error syncing to seller store:', error);
+    // Non-critical — the DB is already updated, this is just local state sync
+    console.warn('syncToSellerStore skipped (product not in local state):', productId);
   }
 }

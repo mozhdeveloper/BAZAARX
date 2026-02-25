@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { handleImageError } from '@/utils/imageUtils';
 import { motion } from 'framer-motion';
 import {
   Package,
@@ -254,7 +255,7 @@ const SellerProductStatus = () => {
                           {/* Product Image */}
                           <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
                             {product.images[0] ? (
-                              <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                              <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
                                 <Package className="w-6 h-6 text-gray-400" />
@@ -307,7 +308,7 @@ const SellerProductStatus = () => {
                             {/* Product Image */}
                             <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
                               {product.image ? (
-                                <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                                <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
                                   <Package className="w-6 h-6 text-gray-400" />

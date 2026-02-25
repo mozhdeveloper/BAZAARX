@@ -1,27 +1,40 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/sellerStore';
-import { useAdminSellers } from '@/stores/adminStore';
+import { getSellerAccessTier, isPathAllowedForTier } from '@/utils/sellerAccess';
 
 export function ProtectedSellerRoute({ children }: { children: React.ReactNode }) {
   const { seller } = useAuthStore();
-  const { sellers } = useAdminSellers();
-  
+  const location = useLocation();
+
   if (!seller) {
     return <Navigate to="/seller/auth" replace />;
   }
 
-  // Check seller's approval status from admin store
-  const sellerStatus = sellers.find(s => s.id === seller.id);
-  
-  // If seller is pending or rejected, redirect to pending approval page
-  if (sellerStatus && (sellerStatus.status === 'pending' || sellerStatus.status === 'rejected' || sellerStatus.status === 'suspended')) {
-    return <Navigate to="/seller/pending-approval" replace />;
-  }
-
-  // If seller is not verified yet (hasn't completed onboarding)
-  if (!seller.isVerified && !seller.storeName) {
+  if (!seller.storeName) {
     return <Navigate to="/seller/onboarding" replace />;
   }
-  
-  return <>{children}</>;
+
+  const accessTier = getSellerAccessTier(seller);
+
+  if (accessTier === 'blocked') {
+    if (location.pathname === '/seller/account-blocked') {
+      return <>{children}</>;
+    }
+
+    return <Navigate to="/seller/account-blocked" replace />;
+  }
+
+  if (accessTier === 'approved') {
+    if (location.pathname === '/seller/unverified' || location.pathname === '/seller/account-blocked') {
+      return <Navigate to="/seller" replace />;
+    }
+
+    return <>{children}</>;
+  }
+
+  if (isPathAllowedForTier(location.pathname, accessTier)) {
+    return <>{children}</>;
+  }
+
+  return <Navigate to="/seller/unverified" replace />;
 }

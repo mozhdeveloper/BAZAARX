@@ -8,7 +8,12 @@
 // ============================================================================
 
 export type UserRole = 'buyer' | 'seller' | 'admin';
-export type ApprovalStatus = 'pending' | 'verified' | 'rejected';
+export type ApprovalStatus =
+  | 'pending'
+  | 'verified'
+  | 'approved'
+  | 'rejected'
+  | 'needs_resubmission';
 export type ProductApprovalStatus = 'pending' | 'approved' | 'rejected' | 'reclassified';
 export type OrderType = 'ONLINE' | 'OFFLINE';
 
@@ -132,6 +137,7 @@ export interface SellerVerificationDocuments {
   dti_registration_url: string | null;
   tax_id_url: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Admin {
@@ -835,7 +841,9 @@ export interface AdminAuditLog {
 
 export interface SellerRejection {
   id: string;
-  description: string;
+  seller_id: string;
+  description: string | null;
+  rejection_type: 'full' | 'partial';
   created_by: string | null;
   created_at: string;
 }

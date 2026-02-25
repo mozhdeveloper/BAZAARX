@@ -1093,6 +1093,30 @@ export const useProductStore = create<ProductStore>()(
             }
             newProduct = mapDbProductToSellerProduct(created);
 
+            // Save product images to product_images table
+            if (product.images && product.images.length > 0) {
+              const validImages = product.images.filter(
+                (url: string) => url && url.trim().length > 0
+              );
+              if (validImages.length > 0) {
+                try {
+                  await productService.addProductImages(
+                    newProduct.id,
+                    validImages.map((url: string, idx: number) => ({
+                      product_id: newProduct.id,
+                      alt_text: '',
+                      image_url: url,
+                      sort_order: idx,
+                      is_primary: idx === 0,
+                    }))
+                  );
+                  console.log(`✅ Created ${validImages.length} images for product ${newProduct.id}`);
+                } catch (imageError) {
+                  console.error('Failed to create product images:', imageError);
+                }
+              }
+            }
+
             // Create product variants if provided
             const variants = (product as any).variants;
             if (variants && Array.isArray(variants) && variants.length > 0) {

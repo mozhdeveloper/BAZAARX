@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Plus, Upload, AlertTriangle } from "lucide-react";
+import { useState, useEffect } from "react";
 import { VariantConfig } from "@/types";
 
 interface VariantFormProps {
@@ -45,6 +46,31 @@ export function VariantForm({
     setErrors,
     addVariant,
 }: VariantFormProps) {
+    // Local string state so the user can clear the field without it snapping back to 0
+    const defaultPrice = String(parseInt(formData.price) || 0);
+    const [stockInput, setStockInput] = useState(() =>
+        newVariant.stock !== undefined ? String(newVariant.stock) : "0",
+    );
+    const [priceInput, setPriceInput] = useState(() =>
+        newVariant.price !== undefined ? String(newVariant.price) : defaultPrice,
+    );
+
+    // Sync when the parent resets newVariant (e.g. after Save or Cancel)
+    useEffect(() => {
+        setStockInput(
+            newVariant.stock !== undefined ? String(newVariant.stock) : "0",
+        );
+    }, [newVariant.stock]);
+
+    useEffect(() => {
+        setPriceInput(
+            newVariant.price !== undefined
+                ? String(newVariant.price)
+                : defaultPrice,
+        );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [newVariant.price]);
+
     return (
         <div className="space-y-4">
             {/* Add New Variant Form */}
@@ -129,13 +155,22 @@ export function VariantForm({
                             <input
                                 type="number"
                                 min="0"
-                                value={newVariant.stock || 0}
-                                onChange={(e) =>
+                                value={stockInput}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
+                                    setStockInput(raw);
+                                    const parsed = parseInt(raw, 10);
                                     setNewVariant((prev) => ({
                                         ...prev,
-                                        stock: parseInt(e.target.value) || 0,
-                                    }))
-                                }
+                                        stock: isNaN(parsed) ? 0 : Math.max(0, parsed),
+                                    }));
+                                }}
+                                onBlur={() => {
+                                    // Show 0 if field is left empty
+                                    if (stockInput === '' || stockInput === '-') {
+                                        setStockInput('0');
+                                    }
+                                }}
                                 className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 placeholder="0"
                             />
@@ -147,18 +182,22 @@ export function VariantForm({
                             <input
                                 type="number"
                                 min="0"
-                                value={
-                                    newVariant.price !== undefined &&
-                                    newVariant.price > 0
-                                        ? newVariant.price
-                                        : parseInt(formData.price) || 0
-                                }
-                                onChange={(e) =>
+                                value={priceInput}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
+                                    setPriceInput(raw);
+                                    const parsed = parseFloat(raw);
                                     setNewVariant((prev) => ({
                                         ...prev,
-                                        price: parseInt(e.target.value) || 0,
-                                    }))
-                                }
+                                        price: isNaN(parsed) ? 0 : Math.max(0, parsed),
+                                    }));
+                                }}
+                                onBlur={() => {
+                                    // Show 0 if field is left empty
+                                    if (priceInput === '' || priceInput === '-') {
+                                        setPriceInput('0');
+                                    }
+                                }}
                                 className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 placeholder={formData.price || "0"}
                             />

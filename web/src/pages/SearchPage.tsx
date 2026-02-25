@@ -361,7 +361,7 @@ const SearchPage: React.FC = () => {
                 <div className="space-y-4">
                   <button
                     onClick={() => setSelectedCategory('All')}
-                    className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === 'All' ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
+                    className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === 'All' ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                   >
                     <span className={`text-sm ${selectedCategory === 'All' ? 'font-bold' : 'font-medium'}`}>All Product</span>
                     <span className="text-xs font-semibold">{sellerProducts.length}</span>
@@ -370,7 +370,7 @@ const SearchPage: React.FC = () => {
                     <button
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
-                      className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === cat ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
+                      className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === cat ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                     >
                       <span className="text-sm font-medium">{cat}</span>
                       <span className={`text-xs ${selectedCategory === cat ? 'font-semibold text-[var(--brand-primary)]' : 'font-normal text-[var(--text-muted)] group-hover:text-[var(--text-primary)]'}`}>
@@ -396,7 +396,7 @@ const SearchPage: React.FC = () => {
                           step={100}
                           value={priceRange}
                           onValueChange={setPriceRange}
-                          className="text-[var(--brand-primary)]"
+                          className="text-[var(--brand-accent)]"
                         />
                       </div>
                     </div>
@@ -736,7 +736,6 @@ const SearchPage: React.FC = () => {
           setShowVisualSearchModal(false);
           setShowRequestModal(true);
         }}
-        products={sellerProducts}
       />
 
       <ProductRequestModal

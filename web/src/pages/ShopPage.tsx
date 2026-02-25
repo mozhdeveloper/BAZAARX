@@ -87,7 +87,7 @@ const popularTags = [
 
 export default function ShopPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
@@ -282,7 +282,7 @@ export default function ShopPage() {
         const discountB = b.originalPrice ? (b.originalPrice - b.price) / b.originalPrice : 0;
         return discountB - discountA;
       })
-      .slice(0, 4)
+      .slice(0, 6)
       .map((p) => ({
         ...p,
         endTime: new Date(Date.now() + 3600000 * 5).toISOString(), // 5 hours from now
@@ -293,7 +293,7 @@ export default function ShopPage() {
 
     if (autoFlash.length === 0 && pricedProducts.length > 0) {
       // Fallback: use first 4 real products from the database, assigning them a dummy original price
-      return pricedProducts.slice(0, 4).map(p => ({
+      return pricedProducts.slice(0, 6).map(p => ({
         ...p,
         originalPrice: p.price * 1.5,
         endTime: new Date(Date.now() + 3600000 * 5).toISOString(),
@@ -427,7 +427,7 @@ export default function ShopPage() {
 
           <div className="pt-2 pb-0">
             {/* Flash Sale Section */}
-            <div className="mb-2 bg-gradient-to-br from-white via-white to-[var(--brand-wash)]/30 rounded-2xl py-6 px-8 shadow-[0_4px_25px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_35px_rgba(255,106,0,0.12)] transition-all duration-500 border border-white/50">
+            <div className="mb-2 bg-gradient-to-br from-white via-white to-[var(--brand-wash)]/30 rounded-2xl py-6 px-4 sm:px-6 lg:px-8 shadow-[0_4px_25px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_35px_rgba(255,106,0,0.12)] transition-all duration-500 border border-white/50">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                 <div className="flex items-center gap-5">
                   <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading">
@@ -435,10 +435,10 @@ export default function ShopPage() {
                       FLASH SALE
                     </span>
                   </h2>
-                  
+
                   {/* Ends in + Timer */}
-                  <div className="bg-[#FFF8F0] rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm border border-[#FDE68A] shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-timer"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-timer"><line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" /></svg>
                     <div className="flex items-center gap-1.5 font-bold font-mono text-base">
                       <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
                         {String(timeLeft.hours).padStart(2, "0")}
@@ -456,17 +456,24 @@ export default function ShopPage() {
                 </div>
 
                 <div className="flex items-center gap-3 self-end sm:self-auto">
-                  <Link 
+                  <Link
                     to="/flash-sales"
-                    className="shrink-0 flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-[var(--brand-primary)]/10 to-transparent hover:from-[var(--brand-primary)]/20 text-[var(--brand-primary)] text-xs font-black uppercase tracking-widest rounded-full transition-all border border-[var(--brand-primary)]/20"
+                    className="group flex items-center gap-2 text-[var(--brand-accent)] font-medium text-sm hover:text-[var(--brand-primary-dark)] transition-colors"
                   >
-                    See More
-                    <span className="text-lg">→</span>
+                    <span>View All</span>
+                    <svg
+                      width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      className="group-hover:translate-x-1 transition-transform"
+                    >
+                      <line x1="7" y1="17" x2="17" y2="7"></line>
+                      <polyline points="7 7 17 7 17 17"></polyline>
+                    </svg>
                   </Link>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 shrink-0 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {flashSales.map((product: any, index: number) => (
                   <ProductCard
                     key={product.id}
@@ -480,7 +487,7 @@ export default function ShopPage() {
           </div>
 
           {/* Main Content */}
-          <div className="w-full">
+          <div className="w-full" id="shop-content">
             {/* Toolbar */}
 
 
@@ -512,9 +519,18 @@ export default function ShopPage() {
                           key={category}
                           onClick={() => {
                             setSelectedCategory(category);
+                            setSearchParams((prev) => {
+                              const next = new URLSearchParams(prev);
+                              if (category === "All Categories") {
+                                next.delete("category");
+                              } else {
+                                next.set("category", category);
+                              }
+                              return next;
+                            });
                             setShowFilters(false);
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${selectedCategory === category
+                          className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-200 focus:outline-none ${selectedCategory === category
                             ? "bg-[var(--brand-primary)] text-white font-bold shadow-md scale-105"
                             : "bg-[var(--brand-wash)] text-[var(--text-primary)] hover:bg-[var(--brand-wash-gold)] font-medium"
                             }`}
@@ -539,8 +555,15 @@ export default function ShopPage() {
                     <h2 className="text-lg font-bold text-gray-900 mb-6 font-primary">Categories</h2>
                     <div className="space-y-4">
                       <button
-                        onClick={() => setSelectedCategory("All Categories")}
-                        className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === "All Categories" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]"}`}
+                        onClick={() => {
+                          setSelectedCategory("All Categories");
+                          setSearchParams((prev) => {
+                            const next = new URLSearchParams(prev);
+                            next.delete("category");
+                            return next;
+                          });
+                        }}
+                        className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === "All Categories" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]"}`}
                         aria-pressed={selectedCategory === "All Categories"}
                       >
                         <span className={`text-sm ${selectedCategory === "All Categories" ? "font-bold" : "font-medium"}`}>All Product</span>
@@ -551,8 +574,15 @@ export default function ShopPage() {
                       {categories.map((cat) => (
                         <button
                           key={cat.id}
-                          onClick={() => setSelectedCategory(cat.name)}
-                          className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === cat.name ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]"}`}
+                          onClick={() => {
+                            setSelectedCategory(cat.name);
+                            setSearchParams((prev) => {
+                              const next = new URLSearchParams(prev);
+                              next.set("category", cat.name);
+                              return next;
+                            });
+                          }}
+                          className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === cat.name ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]"}`}
                           aria-pressed={selectedCategory === cat.name}
                         >
                           <span className={`text-sm ${selectedCategory === cat.name ? "font-bold" : "font-medium"}`}>{cat.name}</span>
@@ -579,7 +609,7 @@ export default function ShopPage() {
                               step={100}
                               value={priceRange}
                               onValueChange={setPriceRange}
-                              className="text-[var(--brand-primary)]"
+                              className="text-[var(--brand-accent)]"
                             />
                           </div>
                         </div>
@@ -960,7 +990,6 @@ export default function ShopPage() {
             setShowVisualSearchModal(false);
             setShowRequestModal(true);
           }}
-          products={allProducts as any}
         />
 
         <ProductRequestModal

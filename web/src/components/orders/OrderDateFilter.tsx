@@ -86,7 +86,7 @@ export function OrderDateFilter({ onRangeChange }: { onRangeChange: (range: Date
                 </Button>
                 <Button
                   size="sm"
-                  className="flex-1 bg-[#FF5722] hover:bg-orange-600 text-white"
+                  className="flex-1 bg-[var(--brand-accent)] hover:bg-[var(--brand-primary-dark)] text-white"
                   disabled={!selectedRange.from || !selectedRange.to}
                   onClick={handleCustomSubmit}
                 >
