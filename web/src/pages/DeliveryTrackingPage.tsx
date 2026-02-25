@@ -35,7 +35,7 @@ import { Order } from "../stores/cartStore";
 
 function DeliveryTrackingPage() {
   const navigate = useNavigate();
-  const { orderNumber } = useParams<{ orderNumber: string }>();
+  const { orderId } = useParams<{ orderId: string }>();
   const [dbOrder, setDbOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -46,76 +46,47 @@ function DeliveryTrackingPage() {
   // Fetch the order from Supabase
   useEffect(() => {
     const fetchOrder = async () => {
-      if (!orderNumber) return;
+      if (!orderId) return;
 
       setIsLoading(true);
       try {
         // Try fetching by ID first, then by order_number
         const isUuid =
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            orderNumber,
+            orderId,
           );
 
         let query = supabase.from("orders").select(`
             *,
-            order_items (
-              *,
-              variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
-            ),
-            recipient:order_recipients (
-              first_name,
-              last_name,
-              phone,
-              email
-            ),
-            address:shipping_addresses (
-              label,
-              address_line_1,
-              address_line_2,
-              city,
-              province,
-              region,
-              postal_code
-            )
+            order_items (*)
           `);
 
         if (isUuid) {
-          query = query.eq("id", orderNumber);
+          query = query.eq("id", orderId);
         } else {
-          query = query.eq("order_number", orderNumber);
+          query = query.eq("order_number", orderId);
         }
 
-        const { data: orderData, error } = await query.maybeSingle();
+        const { data: orderData, error } = await query.single();
 
         if (error) throw error;
 
         if (orderData) {
-          // Map shipment_status from database to frontend status
-          const shipmentStatusMap: Record<string, Order["status"]> = {
-            pending: "pending",
+          const statusMap = {
+            pending_payment: "pending",
+            paid: "confirmed",
             processing: "confirmed",
             shipped: "shipped",
             delivered: "delivered",
             cancelled: "cancelled",
-            returned: "cancelled",
           };
-
-          // Use shipment_status as the primary status indicator
-          const dbShipmentStatus = orderData.shipment_status || 'pending';
-          const mappedStatus = shipmentStatusMap[dbShipmentStatus] || "pending";
-
-          // Compute total from order items
-          const items = orderData.order_items || [];
-          const computedTotal = items.reduce((sum: number, item: any) => {
-            const itemPrice = (item.variant?.price || item.price || 0);
-            return sum + (item.quantity * itemPrice);
-          }, 0);
 
           const mappedOrder: Order = {
             id: orderData.id,
             orderNumber: orderData.order_number,
-            total: computedTotal || orderData.total_amount || 0,
-            status: mappedStatus,
+            total: orderData.total_amount,
+            status: (statusMap[orderData.status as keyof typeof statusMap] ||
+              "pending") as Order["status"],
             isPaid: orderData.payment_status === "paid",
             createdAt: new Date(orderData.created_at),
             date: new Date(orderData.created_at).toLocaleDateString("en-PH", {
@@ -125,28 +96,30 @@ function DeliveryTrackingPage() {
             }),
             estimatedDelivery: new Date(
               orderData.estimated_delivery_date ||
-              Date.now() + 3 * 24 * 60 * 60 * 1000,
+                Date.now() + 3 * 24 * 60 * 60 * 1000,
             ),
-            items: items.map((item: any) => ({
+            items: (orderData.order_items || []).map((item: any) => ({
               id: item.id,
               name: item.product_name,
-              price: item.variant?.price || item.price || 0,
-              quantity: item.quantity || 1,
+              price: item.price,
+              quantity: item.quantity,
               image:
-                item.variant?.thumbnail_url ||
                 item.product_images?.[0] ||
                 "https://placehold.co/100?text=Product",
               seller: item.seller_name || "Bazaar Merchant",
             })),
             shippingAddress: {
-              fullName: orderData.recipient
-                ? `${orderData.recipient.first_name} ${orderData.recipient.last_name}`
-                : orderData.buyer_name || "Guest",
-              street: orderData.address?.address_line_1 || "",
-              city: orderData.address?.city || "",
-              province: orderData.address?.province || "",
-              postalCode: orderData.address?.postal_code || "",
-              phone: orderData.recipient?.phone || orderData.buyer_phone || "",
+              fullName:
+                (orderData.shipping_address as any)?.fullName ||
+                orderData.buyer_name,
+              street: (orderData.shipping_address as any)?.street || "",
+              city: (orderData.shipping_address as any)?.city || "",
+              province: (orderData.shipping_address as any)?.province || "",
+              postalCode: (orderData.shipping_address as any)?.postalCode || "",
+              phone:
+                (orderData.shipping_address as any)?.phone ||
+                orderData.buyer_phone ||
+                "",
             },
             paymentMethod: {
               type: (orderData.payment_method as any)?.type || "cod",
@@ -158,7 +131,7 @@ function DeliveryTrackingPage() {
           setDbOrder(mappedOrder);
 
           // Map status to currentStep
-          const stepMap: Record<string, number> = {
+          const stepMap = {
             pending: 1,
             confirmed: 2,
             shipped: 3,
@@ -175,7 +148,7 @@ function DeliveryTrackingPage() {
     };
 
     fetchOrder();
-  }, [orderNumber]);
+  }, [orderId]);
 
   // Update animated progress based on current step
   useEffect(() => {
@@ -188,9 +161,9 @@ function DeliveryTrackingPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--brand-wash)]">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-gray-600 font-medium tracking-wide">
             Tracking your package...
           </p>
@@ -212,7 +185,7 @@ function DeliveryTrackingPage() {
           </p>
           <Button
             onClick={() => navigate("/")}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
+            className="bg-orange-500 hover:bg-orange-600"
           >
             Go Home
           </Button>
@@ -292,7 +265,7 @@ function DeliveryTrackingPage() {
     const now = new Date();
     const estimatedTime = new Date(
       now.getTime() +
-      (2 - (currentStep / deliverySteps.length) * 2) * 60 * 60 * 1000,
+        (2 - (currentStep / deliverySteps.length) * 2) * 60 * 60 * 1000,
     );
     return estimatedTime.toLocaleTimeString("en-PH", {
       hour: "2-digit",
@@ -302,7 +275,7 @@ function DeliveryTrackingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -348,7 +321,7 @@ function DeliveryTrackingPage() {
                 url: window.location.href,
               })
             }
-            className="border-[var(--brand-primary)]/30 text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
+            className="border-orange-200 text-orange-600 hover:bg-orange-50"
           >
             <Share2 className="w-4 h-4 mr-2" />
             Share Tracking
@@ -357,7 +330,7 @@ function DeliveryTrackingPage() {
             variant="outline"
             size="sm"
             onClick={() => setShowReceipt(true)}
-            className="border-[var(--brand-primary)]/30 text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
+            className="border-orange-200 text-orange-600 hover:bg-orange-50"
           >
             <Receipt className="w-4 h-4 mr-2" />
             View Receipt
@@ -374,7 +347,7 @@ function DeliveryTrackingPage() {
             <Button
               size="sm"
               onClick={() => setShowReviewModal(true)}
-              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
+              className="bg-orange-500 hover:bg-orange-600 text-white"
             >
               <MessageCircle className="w-4 h-4 mr-2" />
               Rate & Review
@@ -388,8 +361,8 @@ function DeliveryTrackingPage() {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
-                  <div className="p-2 bg-[var(--brand-wash)] rounded-lg">
-                    <Navigation className="w-5 h-5 text-[var(--brand-primary)]" />
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <Navigation className="w-5 h-5 text-orange-600" />
                   </div>
                   Live Tracking
                 </CardTitle>
@@ -469,20 +442,22 @@ function DeliveryTrackingPage() {
                       transition={{ delay: index * 0.3 }}
                     >
                       <div
-                        className={`relative ${step.status === "completed"
-                          ? "animate-pulse"
-                          : step.status === "current"
-                            ? "animate-bounce"
-                            : ""
-                          }`}
+                        className={`relative ${
+                          step.status === "completed"
+                            ? "animate-pulse"
+                            : step.status === "current"
+                              ? "animate-bounce"
+                              : ""
+                        }`}
                       >
                         <div
-                          className={`w-6 h-6 rounded-full border-3 ${step.status === "completed"
-                            ? "bg-green-500 border-green-600 shadow-lg shadow-green-500/50"
-                            : step.status === "current"
-                              ? "bg-[var(--brand-primary)] border-[var(--brand-primary-dark)] shadow-lg shadow-[var(--brand-primary)]/50 animate-ping"
-                              : "bg-gray-300 border-gray-400"
-                            }`}
+                          className={`w-6 h-6 rounded-full border-3 ${
+                            step.status === "completed"
+                              ? "bg-green-500 border-green-600 shadow-lg shadow-green-500/50"
+                              : step.status === "current"
+                                ? "bg-orange-500 border-orange-600 shadow-lg shadow-orange-500/50 animate-ping"
+                                : "bg-gray-300 border-gray-400"
+                          }`}
                         />
 
                         {/* Location Tooltip */}
@@ -502,13 +477,13 @@ function DeliveryTrackingPage() {
                 <motion.div
                   className="absolute z-30"
                   animate={{
-                    x: [60, 200, 360, 480][currentStep - 1] - 20,
-                    y: [320, 240, 120, 60][currentStep - 1] - 20,
+                    x: [60, 200, 360, 480][currentStep] - 20,
+                    y: [320, 240, 120, 60][currentStep] - 20,
                   }}
                   transition={{ duration: 1.5, ease: "easeInOut" }}
                 >
                   <div className="relative">
-                    <div className="w-10 h-10 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-xl flex items-center justify-center text-white shadow-lg">
+                    <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center text-white shadow-lg">
                       <Truck className="w-5 h-5" />
                     </div>
                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />
@@ -535,21 +510,21 @@ function DeliveryTrackingPage() {
               </div>
 
               {/* Progress Bar */}
-              <div className="p-6 bg-[var(--brand-wash)]">
+              <div className="p-6 bg-gradient-to-r from-orange-50 to-red-50">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <Clock className="w-5 h-5 text-[var(--brand-primary)]" />
+                    <Clock className="w-5 h-5 text-orange-600" />
                     <div>
-                      <p className="font-semibold text-[var(--text-headline)]">
+                      <p className="font-semibold text-orange-900">
                         Estimated Arrival
                       </p>
-                      <p className="text-sm text-[var(--text-primary)]">
+                      <p className="text-sm text-orange-700">
                         Today, {getEstimatedDeliveryTime()}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold text-[var(--brand-primary)]">
+                    <p className="text-lg font-bold text-orange-600">
                       {Math.max(
                         0,
                         Math.round(
@@ -558,11 +533,11 @@ function DeliveryTrackingPage() {
                       )}{" "}
                       mins
                     </p>
-                    <p className="text-xs text-[var(--brand-primary)]">remaining</p>
+                    <p className="text-xs text-orange-600">remaining</p>
                   </div>
                 </div>
                 <Progress value={animatedProgress} className="h-3" />
-                <p className="text-sm text-[var(--brand-primary)] mt-2 font-medium">
+                <p className="text-sm text-orange-600 mt-2 font-medium">
                   {Math.round(animatedProgress)}% Complete
                 </p>
               </div>
@@ -614,12 +589,13 @@ function DeliveryTrackingPage() {
                       transition={{ delay: index * 0.1 }}
                     >
                       <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center border-2 mt-1 ${isCompleted
-                          ? "bg-green-500 border-green-600 text-white"
-                          : isCurrent
-                            ? "bg-blue-500 border-blue-600 text-white animate-pulse"
-                            : "bg-gray-100 border-gray-300 text-gray-400"
-                          }`}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center border-2 mt-1 ${
+                          isCompleted
+                            ? "bg-green-500 border-green-600 text-white"
+                            : isCurrent
+                              ? "bg-blue-500 border-blue-600 text-white animate-pulse"
+                              : "bg-gray-100 border-gray-300 text-gray-400"
+                        }`}
                       >
                         {isCompleted ? (
                           <CheckCircle className="w-4 h-4" />
@@ -632,27 +608,30 @@ function DeliveryTrackingPage() {
                         <div className="flex justify-between items-start">
                           <div>
                             <h4
-                              className={`font-medium ${isCompleted || isCurrent
-                                ? "text-gray-900"
-                                : "text-gray-500"
-                                }`}
+                              className={`font-medium ${
+                                isCompleted || isCurrent
+                                  ? "text-gray-900"
+                                  : "text-gray-500"
+                              }`}
                             >
                               {step.location.name}
                             </h4>
                             <p
-                              className={`text-sm ${isCompleted || isCurrent
-                                ? "text-gray-600"
-                                : "text-gray-400"
-                                }`}
+                              className={`text-sm ${
+                                isCompleted || isCurrent
+                                  ? "text-gray-600"
+                                  : "text-gray-400"
+                              }`}
                             >
                               {step.description}
                             </p>
                           </div>
                           <span
-                            className={`text-xs font-medium ${isCompleted || isCurrent
-                              ? "text-gray-500"
-                              : "text-gray-400"
-                              }`}
+                            className={`text-xs font-medium ${
+                              isCompleted || isCurrent
+                                ? "text-gray-500"
+                                : "text-gray-400"
+                            }`}
                           >
                             {step.time}
                           </span>
@@ -665,21 +644,21 @@ function DeliveryTrackingPage() {
             </div>
 
             {/* Enhanced Order Information Card */}
-            <Card className="border-2 border-[var(--brand-wash-gold)]/50">
+            <Card className="border-2 border-orange-100">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
-                  <div className="p-2 bg-[var(--brand-wash)] rounded-lg">
-                    <Package className="w-5 h-5 text-[var(--brand-primary)]" />
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <Package className="w-5 h-5 text-orange-600" />
                   </div>
                   Delivery Information
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Order Summary */}
-                <div className="p-4 bg-[var(--brand-wash)] rounded-xl border border-[var(--brand-wash-gold)]/50">
+                <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-[var(--text-headline)]">
-                      Order #{order.orderNumber || order.id}
+                    <h4 className="font-semibold text-orange-900">
+                      Order #{order.id}
                     </h4>
                     <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
                       {order.status.toUpperCase()}
@@ -687,15 +666,15 @@ function DeliveryTrackingPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p className="text-[var(--brand-primary)] font-medium">Order Date</p>
-                      <p className="text-[var(--text-primary)]">{order.date}</p>
+                      <p className="text-orange-600 font-medium">Order Date</p>
+                      <p className="text-orange-800">{order.date}</p>
                     </div>
                     <div>
-                      <p className="text-[var(--brand-primary)] font-medium">
+                      <p className="text-orange-600 font-medium">
                         Total Amount
                       </p>
-                      <p className="text-[var(--text-headline)] font-bold text-lg">
-                        ₱{(order.total || 0).toLocaleString()}
+                      <p className="text-orange-800 font-bold text-lg">
+                        ₱{order.total.toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -776,11 +755,11 @@ function DeliveryTrackingPage() {
                           </p>
                           <p className="text-sm text-gray-600">
                             Qty: {item.quantity} • ₱
-                            {(item.price || 0).toLocaleString()} each
+                            {item.price.toLocaleString()} each
                           </p>
                         </div>
                         <p className="font-medium text-gray-900">
-                          ₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                          ₱{(item.price * item.quantity).toLocaleString()}
                         </p>
                       </div>
                     ))}
@@ -791,7 +770,7 @@ function DeliveryTrackingPage() {
                 <div className="pt-4 border-t border-gray-200 space-y-3">
                   <Button
                     onClick={() => setShowReceipt(true)}
-                    className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
+                    className="w-full bg-orange-500 hover:bg-orange-600"
                   >
                     <Receipt className="w-4 h-4 mr-2" />
                     View Full Receipt
@@ -799,7 +778,7 @@ function DeliveryTrackingPage() {
 
                   <Button
                     variant="outline"
-                    className="w-full border-[var(--brand-primary)]/30 text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
+                    className="w-full border-orange-200 text-orange-600 hover:bg-orange-50"
                     onClick={() => alert("Opening support chat...")}
                   >
                     <MessageCircle className="w-4 h-4 mr-2" />
@@ -830,7 +809,7 @@ function DeliveryTrackingPage() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modern Receipt Header */}
-              <div className="relative p-6 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white text-center">
+              <div className="relative p-6 bg-gradient-to-br from-orange-500 via-red-500 to-pink-500 text-white text-center">
                 <button
                   onClick={() => setShowReceipt(false)}
                   className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
@@ -855,10 +834,10 @@ function DeliveryTrackingPage() {
                   </div>
                 </div>
                 <h2 className="text-2xl font-bold mb-1">BazaarPH</h2>
-                <p className="text-white/80">Your Premium Marketplace</p>
+                <p className="text-orange-100">Your Premium Marketplace</p>
                 <div className="mt-4 p-3 bg-white/20 rounded-lg backdrop-blur-sm">
                   <p className="font-medium">Official Receipt</p>
-                  <p className="text-sm text-white/80">Order #{order.orderNumber || order.id}</p>
+                  <p className="text-sm text-orange-100">Order #{order.id}</p>
                 </div>
               </div>
 
@@ -886,7 +865,7 @@ function DeliveryTrackingPage() {
                 {/* Items with Enhanced Design */}
                 <div className="space-y-4">
                   <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <Package className="w-5 h-5 text-[var(--brand-primary)]" />
+                    <Package className="w-5 h-5 text-orange-500" />
                     Items Purchased
                   </h4>
                   <div className="space-y-3 max-h-60 overflow-y-auto">
@@ -896,8 +875,8 @@ function DeliveryTrackingPage() {
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[var(--brand-primary)]/10 rounded-lg flex items-center justify-center">
-                            <Package className="w-5 h-5 text-[var(--brand-primary)]" />
+                          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <Package className="w-5 h-5 text-orange-500" />
                           </div>
                           <div>
                             <p className="font-medium text-gray-900 text-sm">
@@ -905,12 +884,12 @@ function DeliveryTrackingPage() {
                             </p>
                             <p className="text-xs text-gray-500">
                               Qty: {item.quantity} × ₱
-                              {(item.price || 0).toLocaleString()}
+                              {item.price.toLocaleString()}
                             </p>
                           </div>
                         </div>
                         <p className="font-semibold text-gray-900">
-                          ₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                          ₱{(item.price * item.quantity).toLocaleString()}
                         </p>
                       </div>
                     ))}
@@ -943,7 +922,7 @@ function DeliveryTrackingPage() {
                 </div>
 
                 {/* Payment Summary */}
-                <div className="space-y-3 p-4 bg-[var(--brand-wash)] border border-[var(--brand-primary)]/10 rounded-lg">
+                <div className="space-y-3 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg">
                   <h4 className="font-semibold text-gray-900">
                     Payment Summary
                   </h4>
@@ -951,20 +930,20 @@ function DeliveryTrackingPage() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Subtotal</span>
                       <span className="font-medium">
-                        ₱{Math.max(0, (order.total || 0) - 50).toLocaleString()}
+                        ₱{(order.total - 50).toLocaleString()}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Delivery Fee</span>
                       <span className="font-medium">₱50</span>
                     </div>
-                    <div className="border-t border-[var(--brand-primary)]/20 pt-2">
+                    <div className="border-t border-orange-200 pt-2">
                       <div className="flex justify-between text-base">
                         <span className="font-bold text-gray-900">
                           Total Amount
                         </span>
-                        <span className="font-bold text-[var(--brand-primary)] text-lg">
-                          ₱{(order.total || 0).toLocaleString()}
+                        <span className="font-bold text-orange-600 text-lg">
+                          ₱{order.total.toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -997,7 +976,7 @@ function DeliveryTrackingPage() {
                           text: `Receipt for order #${order.id}`,
                         })
                       }
-                      className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
+                      className="bg-orange-500 hover:bg-orange-600"
                     >
                       <Share2 className="w-4 h-4 mr-2" />
                       Share
@@ -1015,7 +994,6 @@ function DeliveryTrackingPage() {
         isOpen={showReviewModal}
         onClose={() => setShowReviewModal(false)}
         orderId={order.id}
-        displayOrderId={order.orderNumber}
         sellerId="seller-1"
         sellerName={order.items[0]?.seller || "BazaarPH Store"}
         items={order.items.map((item) => ({

@@ -103,7 +103,15 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
   },
 
   getReturnRequestsBySeller: (sellerId) => {
-    return get().returnRequests.filter((req) => req.sellerId === sellerId);
+    const allRequests = get().returnRequests;
+    console.log('🔍 Seller filtering returns for:', sellerId);
+    console.log('🔍 Total return requests in store:', allRequests.length);
+    console.log('🔍 Return request sellerIds:', allRequests.map(r => ({ id: r.id, sellerId: r.sellerId })));
+    
+    const filtered = allRequests.filter((req) => req.sellerId === sellerId);
+    console.log('🔍 Filtered return requests:', filtered.length);
+    
+    return filtered;
   },
   
   getReturnRequestById: (id) => {

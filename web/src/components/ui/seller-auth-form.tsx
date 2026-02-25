@@ -638,15 +638,9 @@ const Header: React.FC<{ mode: 'login' | 'register' }> = ({ mode }) => (
 
 const DemoCredentials: React.FC = () => (
   <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
-    <h3 className="font-medium text-orange-800 mb-2 text-sm">🧪 Test Seller Accounts:</h3>
-    <div className="space-y-1.5 text-xs text-orange-700">
-      <p className="font-semibold">Password: <span className="font-mono bg-orange-100 px-2 py-0.5 rounded">Seller123!</span></p>
-      <div className="grid gap-1 mt-2">
-        <p className="font-semibold">• seller1@bazaarph.com - TechHub Manila ⭐ 5 Products</p>
-        <p>• seller2@bazaarph.com - Fashion Forward PH 👗 6 Products</p>
-        <p>• seller3@bazaarph.com - Home & Living Co. 🏠 5 Products</p>
-      </div>
-    </div>
+    <h3 className="font-medium text-orange-800 mb-2 text-sm">Demo Credentials:</h3>
+    <p className="text-sm text-orange-700">Email: seller@bazaarph.com</p>
+    <p className="text-sm text-orange-700">Password: password123</p>
   </div>
 )
 

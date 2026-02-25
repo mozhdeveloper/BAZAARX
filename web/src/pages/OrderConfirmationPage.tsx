@@ -91,7 +91,7 @@ export default function OrderConfirmationPage() {
   const orderSteps = getOrderSteps(order.status);
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-white">
       <Header />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -128,10 +128,10 @@ export default function OrderConfirmationPage() {
               {orderSteps.map((step) => (
                 <div key={step.id} className="relative flex items-center">
                   <div className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center ${step.completed
-                    ? 'bg-green-100 text-green-600'
-                    : step.current
-                      ? 'bg-[var(--brand-primary)] text-white'
-                      : 'bg-gray-100 text-gray-400'
+                      ? 'bg-green-100 text-green-600'
+                      : step.current
+                        ? 'bg-[var(--brand-primary)] text-white'
+                        : 'bg-gray-100 text-gray-400'
                     }`}>
                     <step.icon className="w-6 h-6" />
                   </div>
@@ -270,7 +270,7 @@ export default function OrderConfirmationPage() {
         >
           <Button
             onClick={() => navigate('/orders')}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
           >
             <Package className="w-4 h-4 mr-2" />
             View My Orders

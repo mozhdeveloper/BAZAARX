@@ -13,14 +13,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, CheckCircle2, Upload, X, ChevronRight, AlertCircle } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useReturnStore } from '../src/stores/returnStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { ReturnReason, ReturnType } from '../src/types';
-import { safeImageUri } from '../src/utils/imageUtils';
 import * as ImagePicker from 'expo-image-picker';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ReturnRequest'>;
@@ -117,7 +115,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
 
     const amount = itemsToReturn.reduce((total, item) => {
       const orderItem = order.items.find((i) => i.id === item.itemId);
-      return total + (orderItem ? (orderItem.price ?? 0) * item.quantity : 0);
+      return total + (orderItem ? orderItem.price * item.quantity : 0);
     }, 0);
 
     try {
@@ -161,20 +159,16 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
-      >
+      {/* BRANDED HEADER */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Return / Refund</Text>
-          <View style={{ width: 40 }} />
+          <Text style={styles.headerTitle}>Return / Refund</Text>
+          <View style={{ width: 40 }} /> 
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
@@ -199,10 +193,10 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
                   <View style={styles.unchecked} />
                 )}
               </View>
-              <Image source={{ uri: safeImageUri(item.image) }} style={styles.itemImage} />
+              <Image source={{ uri: item.image }} style={styles.itemImage} />
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
-                <Text style={styles.itemPrice}>₱{(item.price ?? 0).toLocaleString()}</Text>
+                <Text style={styles.itemPrice}>₱{item.price.toLocaleString()}</Text>
                 
                 {selectedItems[item.id] && (
                   <View style={styles.quantityContainer}>
@@ -308,7 +302,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
                 .filter(id => selectedItems[id])
                 .reduce((total, id) => {
                     const item = order.items.find(i => i.id === id);
-                    return total + (item ? (item.price ?? 0) * quantities[id] : 0);
+                    return total + (item ? item.price * quantities[id] : 0);
                 }, 0).toLocaleString()}
              </Text>
         </View>
@@ -329,30 +323,24 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
   
   // Header Style
   headerContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    elevation: 2,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     zIndex: 10,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: { fontSize: 20, fontWeight: '800' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
 
   scrollContent: { padding: 20, paddingBottom: 40 },
 

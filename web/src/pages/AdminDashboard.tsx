@@ -178,7 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       />
 
       <main className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="p-8">
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center justify-between">
@@ -266,8 +266,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-80" style={{ minHeight: 320 }}>
-                    <ResponsiveContainer width="100%" height={300} minWidth={0}>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={revenueChart}>
                         <defs>
                           <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
@@ -276,13 +276,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis
-                          dataKey="date"
+                        <XAxis 
+                          dataKey="date" 
                           stroke="#6b7280"
                           fontSize={12}
                           tickFormatter={(date) => new Date(date).getDate().toString()}
                         />
-                        <YAxis
+                        <YAxis 
                           stroke="#6b7280"
                           fontSize={12}
                           tickFormatter={(value) => `₱${(value / 1000).toFixed(0)}k`}
@@ -324,8 +324,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 mb-4" style={{ minHeight: 256 }}>
-                    <ResponsiveContainer width="100%" height={240} minWidth={0}>
+                  <div className="h-64 mb-4">
+                    <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={pieData}
@@ -404,12 +404,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </div>
                       <Badge
                         variant="secondary"
-                        className={`text-xs ${activity.status === 'success'
-                          ? 'bg-green-100 text-green-700'
-                          : activity.status === 'warning'
+                        className={`text-xs ${
+                          activity.status === 'success'
+                            ? 'bg-green-100 text-green-700'
+                            : activity.status === 'warning'
                             ? 'bg-orange-100 text-orange-700'
                             : 'bg-red-100 text-red-700'
-                          }`}
+                        }`}
                       >
                         {activity.status}
                       </Badge>

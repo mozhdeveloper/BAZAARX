@@ -145,9 +145,9 @@ const AdminFlashSales: React.FC = () => {
   };
 
   const handleToggleStatus = (saleId: string) => {
-    setFlashSales(prev =>
-      prev.map(s =>
-        s.id === saleId
+    setFlashSales(prev => 
+      prev.map(s => 
+        s.id === saleId 
           ? { ...s, status: (s.status === 'active' ? 'scheduled' : 'active') as 'active' | 'scheduled' | 'ended' }
           : s
       )
@@ -173,9 +173,9 @@ const AdminFlashSales: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar open={open} setOpen={setOpen} />
-
+      
       <div className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="p-8">
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
             <div>
@@ -256,7 +256,7 @@ const AdminFlashSales: React.FC = () => {
                     className="pl-10"
                   />
                 </div>
-
+                
                 <div className="flex gap-2">
                   <Button
                     variant={filterStatus === 'all' ? 'default' : 'outline'}
@@ -308,7 +308,7 @@ const AdminFlashSales: React.FC = () => {
                               {sale.status.toUpperCase()}
                             </Badge>
                           </div>
-
+                          
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                             <div>
                               <p className="text-sm text-gray-600">Products</p>
@@ -351,8 +351,8 @@ const AdminFlashSales: React.FC = () => {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {sale.products.map((product) => (
                               <div key={product.id} className="flex gap-3 bg-gray-50 rounded-lg p-3">
-                                <img
-                                  src={product.image}
+                                <img 
+                                  src={product.image} 
                                   alt={product.productName}
                                   className="w-16 h-16 rounded-lg object-cover"
                                 />
@@ -461,28 +461,28 @@ const AdminFlashSales: React.FC = () => {
           >
             <div className="p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Create Flash Sale</h2>
-
+              
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="saleName">Flash Sale Name</Label>
-                  <Input
-                    id="saleName"
-                    placeholder="e.g., Weekend Mega Deal"
+                  <Input 
+                    id="saleName" 
+                    placeholder="e.g., Weekend Mega Deal" 
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="startDate">Start Date</Label>
-                    <Input
-                      id="startDate"
+                    <Input 
+                      id="startDate" 
                       type="datetime-local"
                     />
                   </div>
                   <div>
                     <Label htmlFor="endDate">End Date</Label>
-                    <Input
-                      id="endDate"
+                    <Input 
+                      id="endDate" 
                       type="datetime-local"
                     />
                   </div>

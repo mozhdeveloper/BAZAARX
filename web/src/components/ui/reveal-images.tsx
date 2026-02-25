@@ -7,12 +7,11 @@ interface ShowImageListItemProps {
   text: string;
   images: [ImageSource, ImageSource];
   isActive?: boolean;
-  isDimmed?: boolean;
   className?: string;
   style?: MotionStyle;
 }
 
-export function RevealImageListItem({ text, images, isActive = false, isDimmed = false, className, style }: ShowImageListItemProps) {
+export function RevealImageListItem({ text, images, isActive = false, className, style }: ShowImageListItemProps) {
   if (!images || images.length < 2) {
     return (
       <div className="group relative h-fit w-fit overflow-visible py-6">
@@ -21,35 +20,20 @@ export function RevealImageListItem({ text, images, isActive = false, isDimmed =
     );
   }
 
-  // Smaller default (mobile) sizes
-  // Increased spacing between images and unified left tilt (-rotate-6)
-  const isGathering = text.toLowerCase() === 'gathering';
-
-  const containerBack = cn(
-    "absolute right-full z-30 h-20 w-16 -rotate-6 sm:h-40 sm:w-32 md:h-64 md:w-48",
-    isGathering
-      ? "mr-0 -top-16 sm:mr-4 sm:-top-24 md:mr-8 md:-top-32" // Shifted Right & Up for Gathering
-      : "mr-8 -top-3 sm:mr-16 sm:-top-6 md:mr-24 md:-top-12" // Standard
-  );
-
-  const containerFront = cn(
-    "absolute right-full z-40 h-20 w-16 rotate-6 sm:h-40 sm:w-32 md:h-64 md:w-48",
-    isGathering
-      ? "-mr-12 -top-16 sm:-mr-20 sm:-top-24 md:-mr-32 md:-top-32" // Shifted Right & Up for Gathering
-      : "-mr-4 -top-3 sm:-mr-8 sm:-top-6 md:-mr-16 md:-top-12" // Standard
-  );
+  const containerBack = "absolute right-12 -top-12 z-30 h-40 w-32 md:right-24 md:-top-16 md:h-64 md:w-48";
+  const containerFront = "absolute right-2 top-2 z-40 h-40 w-32 md:right-8 md:top-4 md:h-64 md:w-48";
 
   const activeEffect = isActive ? "scale-100 opacity-100 w-full h-full shadow-xl" : "scale-0 opacity-0 w-20 h-20 md:w-28 md:h-28 shadow-none";
 
-  const effectBase = "relative duration-500 delay-100 overflow-hidden transition-all rounded-md";
+  const effectBase = "relative duration-500 delay-100 overflow-hidden transition-all rounded-md"; // removed defaults that change
 
   return (
-    <div className="group relative h-fit w-fit overflow-visible py-2 sm:py-6">
+    <div className="group relative h-fit w-fit overflow-visible py-6">
       <motion.h1
         style={style}
         className={cn(
-          "relative z-50 text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-bold text-accent transition-all duration-500 leading-tight font-fondamento",
-          isActive ? "opacity-100 drop-shadow-[0_0_20px_rgba(255,255,255,0.9)]" : isDimmed ? "opacity-20 blur-[1px]" : "opacity-100",
+          "text-7xl sm:text-8xl md:text-9xl font-bold text-accent transition-all duration-500 leading-tight font-fondamento",
+          isActive ? "opacity-40" : "group-hover:opacity-40",
           className
         )}>
         {text}
@@ -73,7 +57,11 @@ export function RevealImageListItem({ text, images, isActive = false, isDimmed =
 
       {/* Front preview */}
       <div
-        className={containerFront}
+        className={cn(
+          containerFront,
+          "translate-x-0 translate-y-0 rotate-0 transition-all delay-150 duration-500",
+          isActive ? "translate-x-10 translate-y-10 rotate-12" : "group-hover:translate-x-10 group-hover:translate-y-10 group-hover:rotate-12"
+        )}
       >
         <div className={cn(effectBase, activeEffect, "duration-200")}>
           <img

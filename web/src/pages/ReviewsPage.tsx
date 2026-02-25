@@ -49,7 +49,7 @@ export default function ReviewsPage() {
       verified: true
     },
     {
-      id: '2',
+      id: '2', 
       productId: 'prod-2',
       productName: 'MacBook Pro M3',
       productImage: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=100&h=100&fit=crop',
@@ -64,7 +64,7 @@ export default function ReviewsPage() {
     },
     {
       id: '3',
-      productId: 'prod-3',
+      productId: 'prod-3', 
       productName: 'AirPods Pro 2',
       productImage: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=100&h=100&fit=crop',
       rating: 5,
@@ -138,7 +138,7 @@ export default function ReviewsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-
+      
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Page Header */}
         <motion.div
@@ -150,7 +150,7 @@ export default function ReviewsPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">My Reviews</h1>
             <p className="text-gray-600">Share your experience with other shoppers</p>
           </div>
-
+          
           <Dialog>
             <DialogTrigger asChild>
               <Button className="bg-orange-500 hover:bg-orange-600">
@@ -167,7 +167,7 @@ export default function ReviewsPage() {
                   <Label>Product</Label>
                   <select
                     value={newReview.productId}
-                    onChange={(e) => setNewReview({ ...newReview, productId: e.target.value })}
+                    onChange={(e) => setNewReview({...newReview, productId: e.target.value})}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2"
                   >
                     <option value="">Select a product</option>
@@ -176,39 +176,39 @@ export default function ReviewsPage() {
                     <option value="prod-3">AirPods Pro 2</option>
                   </select>
                 </div>
-
+                
                 <div>
                   <Label>Rating</Label>
                   <div className="flex items-center gap-2 mt-1">
-                    <StarRating
+                    <StarRating 
                       rating={newReview.rating}
-                      onRatingChange={(rating: number) => setNewReview({ ...newReview, rating })}
+                      onRatingChange={(rating: number) => setNewReview({...newReview, rating})}
                     />
                     <span className="text-sm text-gray-500">
                       {newReview.rating > 0 ? `${newReview.rating} star${newReview.rating > 1 ? 's' : ''}` : 'Select rating'}
                     </span>
                   </div>
                 </div>
-
+                
                 <div>
                   <Label>Title</Label>
                   <Input
                     placeholder="Summarize your review"
                     value={newReview.title}
-                    onChange={(e) => setNewReview({ ...newReview, title: e.target.value })}
+                    onChange={(e) => setNewReview({...newReview, title: e.target.value})}
                   />
                 </div>
-
+                
                 <div>
                   <Label>Review</Label>
                   <Textarea
                     placeholder="Tell others about your experience..."
                     rows={4}
                     value={newReview.content}
-                    onChange={(e) => setNewReview({ ...newReview, content: e.target.value })}
+                    onChange={(e) => setNewReview({...newReview, content: e.target.value})}
                   />
                 </div>
-
+                
                 <div>
                   <Label>Photos (Optional)</Label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
@@ -216,8 +216,8 @@ export default function ReviewsPage() {
                     <p className="text-sm text-gray-500">Click to upload photos</p>
                   </div>
                 </div>
-
-                <Button
+                
+                <Button 
                   onClick={handleSubmitReview}
                   className="w-full bg-orange-500 hover:bg-orange-600"
                   disabled={!newReview.productId || !newReview.rating || !newReview.content}
@@ -253,13 +253,13 @@ export default function ReviewsPage() {
                     className={filter === filterOption ? 'bg-orange-500 hover:bg-orange-600' : ''}
                   >
                     {filterOption === 'all' ? 'All' :
-                      filterOption === 'with-photos' ? 'With Photos' :
-                        filterOption === 'verified' ? 'Verified' :
-                          `${filterOption} Star${filterOption !== '1' ? 's' : ''}`}
+                     filterOption === 'with-photos' ? 'With Photos' :
+                     filterOption === 'verified' ? 'Verified' :
+                     `${filterOption} Star${filterOption !== '1' ? 's' : ''}`}
                   </Button>
                 ))}\n              </div>
             </div>
-
+            
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -297,7 +297,7 @@ export default function ReviewsPage() {
                       alt={review.productName}
                       className="w-20 h-20 rounded-lg object-cover border border-gray-200"
                     />
-
+                    
                     {/* Review Content */}
                     <div className="flex-1">
                       <div className="flex items-start justify-between mb-3">
@@ -317,10 +317,10 @@ export default function ReviewsPage() {
                           <StarRating rating={review.rating} readonly />
                         </div>
                       </div>
-
+                      
                       <h4 className="font-semibold text-lg text-gray-900 mb-2">{review.title}</h4>
                       <p className="text-gray-700 mb-4">{review.content}</p>
-
+                      
                       {/* Review Images */}
                       {review.images.length > 0 && (
                         <div className="flex gap-2 mb-4">
@@ -334,7 +334,7 @@ export default function ReviewsPage() {
                           ))}
                         </div>
                       )}
-
+                      
                       {/* Review Actions */}
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <button className="flex items-center gap-1 hover:text-orange-600 transition-colors">

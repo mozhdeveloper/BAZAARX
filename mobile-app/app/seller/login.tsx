@@ -10,23 +10,15 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2, ChevronDown, X } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
-import { useAuthStore } from '../../src/stores/sellerStore';
+import { useSellerStore } from '../../src/stores/sellerStore';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
-
-// Test seller accounts - All have password: Test@123456
-const TEST_SELLER_ACCOUNTS = [
-  { email: 'seller1@bazaarph.com', password: 'Test@123456', name: "Maria's Fashion Boutique 👗" },
-  { email: 'seller2@bazaarph.com', password: 'Test@123456', name: 'TechHub Electronics 📱' },
-  { email: 'seller3@bazaarph.com', password: 'Test@123456', name: 'Beauty Essentials PH 💄' },
-];
 
 export default function SellerLoginScreen() {
   const navigation = useNavigation<any>();
@@ -34,16 +26,9 @@ export default function SellerLoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showTestAccounts, setShowTestAccounts] = useState(false);
 
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-
-  const selectTestAccount = (account: typeof TEST_SELLER_ACCOUNTS[0]) => {
-    setEmail(account.email);
-    setPassword(account.password);
-    setShowTestAccounts(false);
-  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -62,23 +47,9 @@ export default function SellerLoginScreen() {
       if (authError) throw authError;
 
       if (authData.user) {
-        // Verify seller exists in sellers table
-        const { data: sellerData, error: sellerError } = await supabase
-          .from('sellers')
-          .select('*')
-          .eq('id', authData.user.id)
-          .single();
-
-        if (sellerError || !sellerData) {
-          await supabase.auth.signOut();
-          Alert.alert('Access Denied', 'This account is not registered as a seller.');
-          return;
-        }
-
-        // Get profile data
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('user_type')
           .eq('id', authData.user.id)
           .single();
 
@@ -88,46 +59,32 @@ export default function SellerLoginScreen() {
           return;
         }
 
-        // Sync with AuthStore (using new schema: first_name + last_name)
-        const firstName = (profile as any)?.first_name || '';
-        const lastName = (profile as any)?.last_name || '';
-        const fullName = `${firstName} ${lastName}`.trim() || sellerData.store_name || 'BazaarX Seller';
+        if (profile.user_type !== 'seller') {
+          await supabase.auth.signOut();
+          Alert.alert('Access Denied', 'This account is not a registered seller.');
+          return;
+        }
 
-        // FIXED: Use useAuthStore.getState() - the actual Zustand store for seller auth
-        useAuthStore.getState().setUser({
-          id: authData.user.id,
-          name: fullName,
-          email: authData.user.email || '',
-          phone: (profile as any)?.phone || '',
-          avatar: (profile as any)?.avatar_url || ''
-        });
+        const { data: sellerData, error: sellerError } = await supabase
+          .from('sellers')
+          .select('store_name, approval_status, business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url')
+          .eq('id', authData.user.id)
+          .single();
 
-        // Sync with AuthStore (seller info)
-        useAuthStore.getState().updateSellerInfo({
-          id: authData.user.id,
-          store_name: sellerData.store_name,
-          email: authData.user.email,
-          approval_status: sellerData.approval_status,
-          verification_documents: {
-            business_permit_url: sellerData.business_permit_url || '',
-            valid_id_url: sellerData.valid_id_url || '',
-            proof_of_address_url: sellerData.proof_of_address_url || '',
-            dti_registration_url: sellerData.dti_registration_url || '',
-            tax_id_url: sellerData.tax_id_url || '',
-          },
-        });
-
-        // Set roles and switch to seller role
-        useAuthStore.getState().addRole('seller');
-        useAuthStore.getState().switchRole('seller');
-
-        // Fetch seller orders from database (not buyer orders)
-        const { useOrderStore } = await import('../../src/stores/orderStore');
-        useOrderStore.getState().fetchSellerOrders(authData.user.id);
-
-        // Fetch seller products from database
-        const { useProductStore } = await import('../../src/stores/sellerStore');
-        useProductStore.getState().fetchProducts({ sellerId: authData.user.id });
+        if (sellerError || !sellerData) {
+          Alert.alert('Error', 'Seller record not found.');
+        } else {
+          useSellerStore.getState().updateSellerInfo({
+            storeName: sellerData.store_name,
+            email: authData.user.email,
+            approval_status: sellerData.approval_status,
+            business_permit_url: sellerData.business_permit_url,
+            valid_id_url: sellerData.valid_id_url,
+            proof_of_address_url: sellerData.proof_of_address_url,
+            dti_registration_url: sellerData.dti_registration_url,
+            tax_id_url: sellerData.tax_id_url,
+          });
+        }
 
         navigation.replace('SellerStack');
       }
@@ -139,9 +96,8 @@ export default function SellerLoginScreen() {
   };
 
   const fillDemoCredentials = () => {
-    // Use first test seller account credentials
-    setEmail('seller1@bazaarph.com');
-    setPassword('Test@123456');
+    setEmail('seller@bazaarph.com');
+    setPassword('password');
   };
 
   return (
@@ -165,18 +121,15 @@ export default function SellerLoginScreen() {
         </View>
 
         {/* Demo Access Card */}
-        <Pressable
-          style={styles.demoCard}
-          onPress={() => setShowTestAccounts(true)}
-        >
+        <Pressable style={styles.demoCard} onPress={fillDemoCredentials}>
           <View style={styles.demoInfo}>
             <View style={styles.demoTag}>
-              <Text style={styles.demoTagText}>🧪 TEST ACCOUNTS</Text>
+              <Text style={styles.demoTagText}>QUICK ACCESS</Text>
             </View>
-            <Text style={styles.demoLabel}>Tap to select a seller account</Text>
+            <Text style={styles.demoLabel}>Demo Seller Account</Text>
           </View>
           <View style={styles.demoButton}>
-            <ChevronDown size={20} color="#D97706" />
+            <Text style={styles.demoButtonText}>Auto-Fill</Text>
           </View>
         </Pressable>
 
@@ -185,7 +138,7 @@ export default function SellerLoginScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email Address</Text>
             <View style={[styles.inputWrapper, emailFocused && styles.inputFocused]}>
-              <Mail size={20} color={emailFocused ? '#D97706' : '#9CA3AF'} />
+              <Mail size={20} color={emailFocused ? '#FF6A00' : '#9CA3AF'} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email"
@@ -203,7 +156,7 @@ export default function SellerLoginScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
             <View style={[styles.inputWrapper, passwordFocused && styles.inputFocused]}>
-              <Lock size={20} color={passwordFocused ? '#D97706' : '#9CA3AF'} />
+              <Lock size={20} color={passwordFocused ? '#FF6A00' : '#9CA3AF'} />
               <TextInput
                 style={styles.input}
                 placeholder="••••••••••••"
@@ -235,7 +188,7 @@ export default function SellerLoginScreen() {
             disabled={loading}
           >
             <LinearGradient
-              colors={['#D97706', '#B45309']}
+              colors={['#FF6A00', '#FF8C42']}
               style={styles.loginGradient}
             >
               {loading ? (
@@ -263,42 +216,6 @@ export default function SellerLoginScreen() {
           </Pressable>
         </View>
       </ScrollView>
-
-      {/* Test Accounts Modal */}
-      <Modal
-        visible={showTestAccounts}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowTestAccounts(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Test Seller</Text>
-              <Pressable onPress={() => setShowTestAccounts(false)}>
-                <X size={24} color="#6B7280" />
-              </Pressable>
-            </View>
-
-            <ScrollView style={styles.accountsList}>
-              {TEST_SELLER_ACCOUNTS.map((account, index) => (
-                <Pressable
-                  key={index}
-                  style={styles.accountItem}
-                  onPress={() => selectTestAccount(account)}
-                >
-                  <View style={styles.accountInfo}>
-                    <Text style={styles.accountName}>{account.name}</Text>
-                    <Text style={styles.accountEmail}>{account.email}</Text>
-                    <Text style={styles.accountDetails}>Password: {account.password}</Text>
-                  </View>
-                  <ArrowRight size={20} color="#D97706" />
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -323,11 +240,11 @@ const styles = StyleSheet.create({
   logoWrapper: {
     width: 80,
     height: 80,
-    backgroundColor: '#D97706',
+    backgroundColor: '#FF6A00',
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#D97706',
+    shadowColor: '#FF6A00',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 15,
@@ -352,7 +269,7 @@ const styles = StyleSheet.create({
   },
   demoCard: {
     marginHorizontal: 25,
-    backgroundColor: '#FFF4EC',
+    backgroundColor: '#FFF5F0',
     borderRadius: 20,
     padding: 16,
     flexDirection: 'row',
@@ -376,7 +293,7 @@ const styles = StyleSheet.create({
   demoTagText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#FF6A00',
     letterSpacing: 1,
   },
   demoLabel: {
@@ -400,7 +317,7 @@ const styles = StyleSheet.create({
   demoButtonText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#D97706',
+    color: '#FF6A00',
   },
   form: {
     paddingHorizontal: 25,
@@ -418,7 +335,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF4EC',
+    backgroundColor: '#F9FAFB',
     borderRadius: 16,
     paddingHorizontal: 16,
     height: 60,
@@ -427,9 +344,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   inputFocused: {
-    borderColor: '#D97706',
+    borderColor: '#FF6A00',
     backgroundColor: '#FFFFFF',
-    shadowColor: '#D97706',
+    shadowColor: '#FF6A00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -466,14 +383,14 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 14,
-    color: '#D97706',
+    color: '#FF6A00',
     fontWeight: '700',
   },
   loginButton: {
     borderRadius: 16,
     overflow: 'hidden',
     elevation: 5,
-    shadowColor: '#D97706',
+    shadowColor: '#FF6A00',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 15,
@@ -505,7 +422,7 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     fontSize: 15,
-    color: '#D97706',
+    color: '#FF6A00',
     fontWeight: '700',
   },
   backToHome: {
@@ -516,66 +433,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     fontWeight: '700',
-  },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 20,
-    maxHeight: '70%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  accountsList: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  accountItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFF4EC',
-    borderRadius: 12,
-    marginVertical: 6,
-    borderWidth: 1,
-    borderColor: '#FFEDD5',
-  },
-  accountInfo: {
-    flex: 1,
-  },
-  accountName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  accountEmail: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  accountDetails: {
-    fontSize: 12,
-    color: '#9CA3AF',
   },
 });

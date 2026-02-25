@@ -14,10 +14,6 @@ import {
 } from 'react-native';
 import { ArrowLeft, Send, Bot, MoreVertical, Scale } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../constants/theme';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
 
 const { width } = Dimensions.get('window');
 
@@ -40,7 +36,6 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   comparison?: ProductComparison;
-
 }
 
 interface AIChatModalProps {
@@ -57,7 +52,6 @@ const suggestedQuestions = [
 
 export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -124,10 +118,10 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
     return (
       <View style={styles.comparisonCard}>
         <View style={styles.comparisonHeader}>
-          <Scale size={18} color={COLORS.primary} strokeWidth={2.5} />
+          <Scale size={18} color="#FF5722" strokeWidth={2.5} />
           <Text style={styles.comparisonTitle}>{comparison.title}</Text>
         </View>
-
+        
         <View style={styles.comparisonGrid}>
           {comparison.products.map((product) => (
             <Pressable
@@ -143,7 +137,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
                 {product.name}
               </Text>
               <Text style={styles.productPrice}>${product.price}</Text>
-
+              
               <View style={styles.specsContainer}>
                 {product.specs.map((spec, index) => (
                   <View key={index} style={styles.specRow}>
@@ -161,10 +155,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
 
   const getDummyResponse = (input: string): Message | null => {
     const lowerInput = input.toLowerCase();
-
-    // Smart Redirect Logic
-
-
+    
     if (lowerInput.includes('compare') && (lowerInput.includes('earbud') || lowerInput.includes('headphone'))) {
       return {
         id: (Date.now() + 1).toString(),
@@ -276,9 +267,9 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
         keyboardVerticalOffset={0}
       >
         {/* Universal Header - Edge to Edge Orange */}
-        <View style={[styles.header, { paddingTop: 16 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           <Pressable onPress={onClose} style={styles.backButton}>
-            <ArrowLeft size={24} color={COLORS.primary} strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>AI Assistant</Text>
           <Pressable onPress={handleClearChat} style={styles.menuButton}>
@@ -319,7 +310,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
                 >
                   {!message.isUser && (
                     <View style={styles.aiAvatar}>
-                      <Bot size={18} color={COLORS.primary} strokeWidth={2.5} />
+                      <Bot size={18} color="#FF5722" strokeWidth={2.5} />
                     </View>
                   )}
                   <View
@@ -336,12 +327,10 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
                     >
                       {message.text}
                     </Text>
-
-
                   </View>
                 </View>
               )}
-
+              
               {/* Product Comparison Widget */}
               {message.comparison && (
                 <View style={styles.comparisonWrapper}>
@@ -354,7 +343,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
           {isTyping && (
             <View style={[styles.messageBubble, styles.aiBubble]}>
               <View style={styles.aiAvatar}>
-                <Bot size={18} color={COLORS.primary} strokeWidth={2.5} />
+                <Bot size={18} color="#FF5722" strokeWidth={2.5} />
               </View>
               <View style={styles.typingIndicator}>
                 <View style={styles.typingDot} />
@@ -385,7 +374,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
               ]}
               disabled={!inputText.trim()}
             >
-              <Send size={20} color={COLORS.primary} strokeWidth={2.5} />
+              <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -406,9 +395,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: '#FFE5CC',
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    backgroundColor: '#FF5722',
   },
   backButton: {
     width: 40,
@@ -420,7 +407,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 20,
     fontWeight: '800',
-    color: '#1F2937',
+    color: '#FFFFFF',
     textAlign: 'center',
     letterSpacing: -0.5,
     marginHorizontal: 16,
@@ -432,7 +419,7 @@ const styles = StyleSheet.create({
   clearText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#FFFFFF',
     letterSpacing: -0.2,
   },
   // Messages Area
@@ -459,7 +446,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderRadius: 999,
-    marginBottom: 8,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -501,7 +488,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userMessageContent: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#FF5722',
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderRadius: 20,
@@ -510,7 +497,7 @@ const styles = StyleSheet.create({
   aiMessageContent: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 14,
-    paddingHorizontal: 14,
+    paddingHorizontal: 18,
     borderRadius: 20,
     borderBottomLeftRadius: 6,
     shadowColor: '#000',
@@ -597,7 +584,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   productColumnSelected: {
-    borderColor: COLORS.primary,
+    borderColor: '#FF5722',
     backgroundColor: '#FFF5F0',
   },
   productImage: {
@@ -618,7 +605,7 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 17,
     fontWeight: '800',
-    color: COLORS.primary,
+    color: '#FF5722',
     marginBottom: 12,
     letterSpacing: -0.3,
   },
@@ -672,19 +659,18 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFE5CC',
+    backgroundColor: '#FF5722',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FFE5CC',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
   sendButtonDisabled: {
-    backgroundColor: '#FFE5CC',
+    backgroundColor: '#D1D5DB',
     shadowColor: '#000',
     shadowOpacity: 0.1,
   },
-
 });

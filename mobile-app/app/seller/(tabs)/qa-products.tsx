@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,8 @@ import {
   Modal,
   Image,
   Alert,
-  StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { safeImageUri } from '../../../src/utils/imageUtils';
 import {
   FileCheck,
   Clock,
@@ -39,28 +35,20 @@ export default function SellerProductQAScreen() {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [logisticsMethod, setLogisticsMethod] = useState('');
   const [selectedLogistics, setSelectedLogistics] = useState<string>('');
-  const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
 
-  const { products: qaProducts, submitSample, loadProducts, isLoading } = useProductQAStore();
-  const { seller, products: sellerProducts = [] } = useSellerStore();
+  const { products: qaProducts, submitSample } = useProductQAStore();
+  const { seller, products: sellerProducts } = useSellerStore();
 
-  useFocusEffect(
-    useCallback(() => {
-      if (seller?.id) {
-        loadProducts(seller.id);
-      }
-    }, [seller?.id])
+  // Filter QA products for this seller
+  const sellerQAProducts = qaProducts.filter(
+    (p) => p.vendor === (seller?.storeName || 'Tech Shop PH')
   );
 
-  const sellerQAProducts = qaProducts.filter((p) => {
-    if (seller?.id && p.sellerId) return p.sellerId === seller.id;
-    if (seller?.store_name && p.vendor) {
-      return p.vendor.toLowerCase() === seller.store_name.toLowerCase();
-    }
-    return false;
-  });
+  // Get all seller products (including those not in QA yet)
+  const activeSellerProducts = sellerProducts.filter((p) => p.isActive);
 
+  // Calculate stats
   const pendingCount = sellerQAProducts.filter((p) => p.status === 'PENDING_DIGITAL_REVIEW').length;
   const waitingCount = sellerQAProducts.filter((p) => p.status === 'WAITING_FOR_SAMPLE').length;
   const reviewCount = sellerQAProducts.filter((p) => p.status === 'IN_QUALITY_REVIEW').length;
@@ -68,139 +56,333 @@ export default function SellerProductQAScreen() {
   const revisionCount = sellerQAProducts.filter((p) => p.status === 'FOR_REVISION').length;
   const rejectedCount = sellerQAProducts.filter((p) => p.status === 'REJECTED').length;
 
+  // Apply search and filter
   const getFilteredProducts = () => {
     let filteredQA = sellerQAProducts;
+    let filteredSeller = activeSellerProducts;
+
+    // Apply status filter
     if (filterStatus !== 'all') {
-      const statusMap: Record<string, ProductQAStatus> = {
-        pending: 'PENDING_DIGITAL_REVIEW',
-        waiting: 'WAITING_FOR_SAMPLE',
-        qa: 'IN_QUALITY_REVIEW',
-        revision: 'FOR_REVISION',
-        verified: 'ACTIVE_VERIFIED',
-        rejected: 'REJECTED',
-      };
-      filteredQA = filteredQA.filter(p => p.status === statusMap[filterStatus]);
+      switch (filterStatus) {
+        case 'pending':
+          filteredQA = filteredQA.filter(p => p.status === 'PENDING_DIGITAL_REVIEW');
+          filteredSeller = [];
+          break;
+        case 'waiting':
+          filteredQA = filteredQA.filter(p => p.status === 'WAITING_FOR_SAMPLE');
+          filteredSeller = [];
+          break;
+        case 'qa':
+          filteredQA = filteredQA.filter(p => p.status === 'IN_QUALITY_REVIEW');
+          filteredSeller = [];
+          break;
+        case 'revision':
+          filteredQA = filteredQA.filter(p => p.status === 'FOR_REVISION');
+          filteredSeller = [];
+          break;
+        case 'verified':
+          filteredQA = filteredQA.filter(p => p.status === 'ACTIVE_VERIFIED');
+          filteredSeller = [];
+          break;
+        case 'rejected':
+          filteredQA = filteredQA.filter(p => p.status === 'REJECTED');
+          filteredSeller = [];
+          break;
+      }
     }
+
+    // Apply search filter
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
       filteredQA = filteredQA.filter(p =>
-        String(p.name || '').toLowerCase().includes(q) ||
-        String(p.category || '').toLowerCase().includes(q)
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.category.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      filteredSeller = filteredSeller.filter(p =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.category.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-    return filteredQA;
+
+    return { filteredQA, filteredSeller };
   };
 
-  const filteredQAProducts = getFilteredProducts();
+  const { filteredQA: filteredQAProducts } = getFilteredProducts();
 
-  const handleSubmitSample = async () => {
+  const handleSubmitSample = () => {
     if (!selectedProduct || !selectedLogistics) {
       Alert.alert('Error', 'Please select a logistics method');
       return;
     }
+
     try {
-      await submitSample(selectedProduct, selectedLogistics);
-      Alert.alert('Success', 'Sample submitted for review.');
+      submitSample(selectedProduct, selectedLogistics);
+      Alert.alert('Success', 'Your product sample has been submitted for physical QA review.');
       setSubmitModalOpen(false);
-      if (seller?.id) await loadProducts(seller.id);
+      setSelectedProduct(null);
+      setSelectedLogistics('');
+      setLogisticsMethod('');
     } catch (error) {
-      Alert.alert('Error', 'Failed to submit sample');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to submit sample');
     }
   };
 
   const getStatusColor = (status: ProductQAStatus) => {
-    const colors = {
-      PENDING_DIGITAL_REVIEW: '#F59E0B',
-      WAITING_FOR_SAMPLE: '#3B82F6',
-      IN_QUALITY_REVIEW: '#8B5CF6',
-      ACTIVE_VERIFIED: '#10B981',
-      FOR_REVISION: '#D97706',
-      REJECTED: '#EF4444',
-    };
-    return colors[status] || '#6B7280';
+    switch (status) {
+      case 'PENDING_DIGITAL_REVIEW':
+        return '#F59E0B';
+      case 'WAITING_FOR_SAMPLE':
+        return '#3B82F6';
+      case 'IN_QUALITY_REVIEW':
+        return '#8B5CF6';
+      case 'ACTIVE_VERIFIED':
+        return '#10B981';
+      case 'FOR_REVISION':
+        return '#F97316';
+      case 'REJECTED':
+        return '#EF4444';
+      default:
+        return '#6B7280';
+    }
   };
 
-  const StatCard = ({ count, label, icon: Icon, isActive, onPress }: any) => (
+  const getStatusLabel = (status: ProductQAStatus) => {
+    switch (status) {
+      case 'PENDING_DIGITAL_REVIEW':
+        return 'Pending Review';
+      case 'WAITING_FOR_SAMPLE':
+        return 'Submit Sample';
+      case 'IN_QUALITY_REVIEW':
+        return 'In QA';
+      case 'ACTIVE_VERIFIED':
+        return 'Verified';
+      case 'FOR_REVISION':
+        return 'For Revision';
+      case 'REJECTED':
+        return 'Rejected';
+      default:
+        return status;
+    }
+  };
+
+  const StatCard = ({ 
+    count, 
+    label, 
+    icon: Icon, 
+    isActive, 
+    onPress 
+  }: { 
+    count: number; 
+    label: string; 
+    icon: any; 
+    isActive: boolean; 
+    onPress: () => void;
+  }) => (
     <TouchableOpacity
       onPress={onPress}
-      style={[styles.statCard, isActive && styles.statCardActive]}
+      style={{
+        backgroundColor: isActive ? '#FFF7ED' : '#FFFFFF',
+        borderWidth: isActive ? 2 : 1,
+        borderColor: isActive ? '#FF5722' : '#E5E7EB',
+        borderRadius: 12,
+        padding: 16,
+        flex: 1,
+        minWidth: 110,
+      }}
     >
-      <Icon size={20} color={isActive ? '#D97706' : '#9CA3AF'} strokeWidth={2} />
-      <Text style={styles.statCount}>{count}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Icon size={20} color={isActive ? '#FF5722' : '#9CA3AF'} strokeWidth={2} />
+      <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111827', marginTop: 8 }}>
+        {count}
+      </Text>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 4 }}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 
-  if (!seller) return null;
-
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+      {/* Seller Drawer */}
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
-
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.menuButton} onPress={() => setDrawerVisible(true)}>
-            <Menu size={24} color="#1F2937" strokeWidth={2} />
+      
+      {/* Header */}
+      <View style={{ backgroundColor: '#FF5722', paddingTop: insets.top + 16, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20,}}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 12 }} onPress={() => setDrawerVisible(true)}>
+            <Menu size={24} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle} numberOfLines={1}>Product QA Status</Text>
-            <Text style={styles.headerSubtitle} numberOfLines={1}>Track quality assurance status</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#FFFFFF' }}>
+              Product QA Status
+            </Text>
+            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 2 }}>
+              Track quality assurance status
+            </Text>
           </View>
         </View>
-      </View>
 
-      <View style={styles.searchSection}>
-        <View style={styles.searchBar}>
-          <Search size={20} color="#9CA3AF" />
+        {/* Search Bar */}
+        <View style={{ marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, height: 48 }}>
+          <Search size={20} color="#9CA3AF" strokeWidth={2} />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="Search products..."
             placeholderTextColor="#9CA3AF"
-            style={styles.searchInput}
+            style={{ flex: 1, marginLeft: 8, fontSize: 15, color: '#111827' }}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}><X size={20} color="#9CA3AF" /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X size={20} color="#9CA3AF" />
+            </TouchableOpacity>
           )}
         </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        <ScrollView
-          horizontal
+        {/* Status Filter Cards */}
+        <ScrollView 
+          horizontal 
           showsHorizontalScrollIndicator={false}
-          style={styles.statsScroll}
-          contentContainerStyle={styles.statsScrollContent}
+          style={{ paddingVertical: 16 }}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
         >
-          <StatCard count={pendingCount} label="Pending" icon={Clock} isActive={filterStatus === 'pending'} onPress={() => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending')} />
-          <StatCard count={waitingCount} label="Awaiting" icon={Package} isActive={filterStatus === 'waiting'} onPress={() => setFilterStatus(filterStatus === 'waiting' ? 'all' : 'waiting')} />
-          <StatCard count={reviewCount} label="QA Queue" icon={FileCheck} isActive={filterStatus === 'qa'} onPress={() => setFilterStatus(filterStatus === 'qa' ? 'all' : 'qa')} />
-          <StatCard count={revisionCount} label="Revision" icon={RefreshCw} isActive={filterStatus === 'revision'} onPress={() => setFilterStatus(filterStatus === 'revision' ? 'all' : 'revision')} />
-          <StatCard count={verifiedCount} label="Verified" icon={BadgeCheck} isActive={filterStatus === 'verified'} onPress={() => setFilterStatus(filterStatus === 'verified' ? 'all' : 'verified')} />
-          <StatCard count={rejectedCount} label="Rejected" icon={XCircle} isActive={filterStatus === 'rejected'} onPress={() => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected')} />
+          <StatCard
+            count={pendingCount}
+            label="Pending"
+            icon={Clock}
+            isActive={filterStatus === 'pending'}
+            onPress={() => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending')}
+          />
+          <StatCard
+            count={waitingCount}
+            label="Awaiting"
+            icon={Package}
+            isActive={filterStatus === 'waiting'}
+            onPress={() => setFilterStatus(filterStatus === 'waiting' ? 'all' : 'waiting')}
+          />
+          <StatCard
+            count={reviewCount}
+            label="QA Queue"
+            icon={FileCheck}
+            isActive={filterStatus === 'qa'}
+            onPress={() => setFilterStatus(filterStatus === 'qa' ? 'all' : 'qa')}
+          />
+          <StatCard
+            count={revisionCount}
+            label="Revision"
+            icon={RefreshCw}
+            isActive={filterStatus === 'revision'}
+            onPress={() => setFilterStatus(filterStatus === 'revision' ? 'all' : 'revision')}
+          />
+          <StatCard
+            count={verifiedCount}
+            label="Verified"
+            icon={BadgeCheck}
+            isActive={filterStatus === 'verified'}
+            onPress={() => setFilterStatus(filterStatus === 'verified' ? 'all' : 'verified')}
+          />
+          <StatCard
+            count={rejectedCount}
+            label="Rejected"
+            icon={XCircle}
+            isActive={filterStatus === 'rejected'}
+            onPress={() => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected')}
+          />
         </ScrollView>
 
-        <View style={styles.listContainer}>
+        {/* Products List */}
+        <View style={{ paddingHorizontal: 16, paddingBottom: 100 }}>
           {filteredQAProducts.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Package size={48} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No products found</Text>
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, padding: 40, alignItems: 'center', marginTop: 20 }}>
+              <Package size={48} color="#D1D5DB" strokeWidth={1.5} />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#6B7280', marginTop: 16 }}>
+                No products found
+              </Text>
+              <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 8, textAlign: 'center' }}>
+                {filterStatus !== 'all' ? 'Try changing your filter' : 'Start by adding products'}
+              </Text>
             </View>
           ) : (
             filteredQAProducts.map((product) => (
-              <View key={product.id} style={styles.productCard}>
-                <Image source={{ uri: safeImageUri(product.image) }} style={styles.productImage} />
-                <View style={styles.productInfo}>
-                  <Text style={styles.productName} numberOfLines={1}>{String(product.name || '')}</Text>
-                  <Text style={styles.productPrice}>₱{product.price.toLocaleString()}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(product.status)}15` }]}>
-                    <Text style={[styles.statusBadgeText, { color: getStatusColor(product.status) }]}>{product.status.replace(/_/g, ' ')}</Text>
+              <View
+                key={product.id}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 12,
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                }}
+              >
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <Image
+                    source={{ uri: product.image }}
+                    style={{ width: 80, height: 80, borderRadius: 8, backgroundColor: '#F3F4F6' }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>
+                      {product.name}
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#6B7280', marginTop: 4 }}>
+                      ₱{product.price.toLocaleString()}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#9CA3AF', marginTop: 2 }}>
+                      {product.category}
+                    </Text>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 }}>
+                      <View
+                        style={{
+                          backgroundColor: `${getStatusColor(product.status)}15`,
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 6,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: getStatusColor(product.status) }}>
+                          {getStatusLabel(product.status)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Submit Sample Button */}
+                    {product.status === 'WAITING_FOR_SAMPLE' && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedProduct(product.id);
+                          setSubmitModalOpen(true);
+                        }}
+                        style={{
+                          backgroundColor: '#FF5722',
+                          borderRadius: 8,
+                          paddingVertical: 8,
+                          paddingHorizontal: 12,
+                          marginTop: 12,
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#FFFFFF' }}>
+                          Submit Sample
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Rejection/Revision Reason */}
+                    {(product.status === 'REJECTED' || product.status === 'FOR_REVISION') && product.rejectionReason && (
+                      <View style={{ marginTop: 12, backgroundColor: '#FEF2F2', borderRadius: 8, padding: 12 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#DC2626', marginBottom: 4 }}>
+                          {product.status === 'REJECTED' ? 'Rejection Reason:' : 'Revision Required:'}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#991B1B' }}>
+                          {product.rejectionReason}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#B91C1C', marginTop: 4 }}>
+                          Stage: {product.rejectionStage === 'digital' ? 'Digital Review' : 'Physical QA'}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                  {product.status === 'WAITING_FOR_SAMPLE' && (
-                    <TouchableOpacity style={styles.submitBtn} onPress={() => { setSelectedProduct(product.productId); setSubmitModalOpen(true); }}>
-                      <Text style={styles.submitBtnText}>Submit Sample</Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
               </View>
             ))
@@ -208,18 +390,117 @@ export default function SellerProductQAScreen() {
         </View>
       </ScrollView>
 
-      <Modal visible={submitModalOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Submit Product Sample</Text>
+      {/* Submit Sample Modal */}
+      <Modal
+        visible={submitModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSubmitModalOpen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>
+                Submit Product Sample
+              </Text>
+              <TouchableOpacity onPress={() => setSubmitModalOpen(false)}>
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 20 }}>
+              How will you send the product sample to BazaarPH for physical quality assessment?
+            </Text>
+
+            {/* Logistics Options */}
             {['Pick-up at My Location', 'Drop-off by Courier', 'Schedule Onsite Visit'].map((option) => (
-              <TouchableOpacity key={option} onPress={() => setSelectedLogistics(option)} style={[styles.logisticsOption, selectedLogistics === option && styles.logisticsOptionActive]}>
-                <Text style={styles.optionText}>{option}</Text>
+              <TouchableOpacity
+                key={option}
+                onPress={() => setSelectedLogistics(option)}
+                style={{
+                  borderWidth: 2,
+                  borderColor: selectedLogistics === option ? '#FF5722' : '#E5E7EB',
+                  backgroundColor: selectedLogistics === option ? '#FFF7ED' : '#FFFFFF',
+                  borderRadius: 10,
+                  padding: 14,
+                  marginBottom: 12,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>
+                    {option}
+                  </Text>
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: selectedLogistics === option ? '#FF5722' : '#D1D5DB',
+                      backgroundColor: selectedLogistics === option ? '#FF5722' : '#FFFFFF',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {selectedLogistics === option && (
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#FFFFFF' }} />
+                    )}
+                  </View>
+                </View>
               </TouchableOpacity>
             ))}
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setSubmitModalOpen(false)}><Text>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.modalSubmit, !selectedLogistics && styles.modalSubmitDisabled]} onPress={handleSubmitSample} disabled={!selectedLogistics}><Text style={styles.modalSubmitText}>Submit</Text></TouchableOpacity>
+
+            {/* Optional Note */}
+            <TextInput
+              value={logisticsMethod}
+              onChangeText={setLogisticsMethod}
+              placeholder="Additional notes (optional)"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={3}
+              style={{
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 14,
+                color: '#111827',
+                marginTop: 8,
+                textAlignVertical: 'top',
+              }}
+            />
+
+            {/* Buttons */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
+              <TouchableOpacity
+                onPress={() => setSubmitModalOpen(false)}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#F3F4F6',
+                  borderRadius: 10,
+                  paddingVertical: 14,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSubmitSample}
+                disabled={!selectedLogistics}
+                style={{
+                  flex: 1,
+                  backgroundColor: selectedLogistics ? '#FF5722' : '#D1D5DB',
+                  borderRadius: 10,
+                  paddingVertical: 14,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#FFFFFF' }}>
+                  Submit
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -227,79 +508,3 @@ export default function SellerProductQAScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF4EC' },
-  header: {
-    backgroundColor: '#FFF4EC',
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 20,
-    elevation: 3
-  },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  menuButton: { backgroundColor: 'rgba(0,0,0,0.05)', padding: 10, borderRadius: 12 },
-  headerTextContainer: { flex: 1 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937' },
-  headerSubtitle: { fontSize: 13, color: '#4B5563', fontWeight: '500', marginTop: 2 },
-  searchSection: { paddingHorizontal: 20, marginTop: 15 },
-  searchBar: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 8
-  },
-  searchInput: { flex: 1, fontSize: 15, color: '#111827' },
-  statsScroll: { paddingVertical: 16 },
-  statsScrollContent: { paddingHorizontal: 16, gap: 12 },
-  statCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    padding: 16,
-    flex: 1,
-    minWidth: 110
-  },
-  statCardActive: { backgroundColor: '#FFF4EC', borderColor: '#D97706', borderWidth: 2 },
-  statCount: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginTop: 8 },
-  statLabel: { fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 4 },
-  listContainer: { paddingHorizontal: 16, paddingBottom: 100 },
-  productCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    flexDirection: 'row',
-    gap: 12
-  },
-  productImage: { width: 80, height: 80, borderRadius: 8, backgroundColor: '#F3F4F6' },
-  productInfo: { flex: 1 },
-  productName: { fontSize: 16, fontWeight: '600', color: '#111827' },
-  productPrice: { fontSize: 14, color: '#6B7280', marginTop: 4 },
-  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginTop: 8 },
-  statusBadgeText: { fontSize: 11, fontWeight: '600' },
-  submitBtn: { backgroundColor: '#D97706', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginTop: 12, alignItems: 'center' },
-  submitBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
-  emptyContainer: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 40, alignItems: 'center', marginTop: 20 },
-  emptyText: { fontSize: 16, fontWeight: '600', color: '#6B7280', marginTop: 16 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 20 },
-  logisticsOption: { borderWidth: 2, borderColor: '#E5E7EB', borderRadius: 10, padding: 14, marginBottom: 12 },
-  logisticsOptionActive: { borderColor: '#D97706', backgroundColor: '#FFF4EC' },
-  optionText: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  modalCancel: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  modalSubmit: { flex: 1, backgroundColor: '#D97706', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  modalSubmitDisabled: { backgroundColor: '#D1D5DB' },
-  modalSubmitText: { color: '#FFFFFF', fontWeight: '600' }
-});

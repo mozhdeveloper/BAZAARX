@@ -2,11 +2,11 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
 import AdminSidebar from '../components/AdminSidebar';
-import {
-  User,
-  Mail,
-  Shield,
-  Clock,
+import { 
+  User, 
+  Mail, 
+  Shield, 
+  Clock, 
   Key,
   LogOut
 } from 'lucide-react';
@@ -25,9 +25,9 @@ const AdminProfile: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar />
-
+      
       <div className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="p-8 max-w-4xl mx-auto">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
             <p className="text-gray-500 mt-1">Manage your account settings and view permissions</p>
@@ -46,7 +46,7 @@ const AdminProfile: React.FC = () => {
                 <Badge variant={user.role === 'super_admin' ? 'default' : 'secondary'} className="mb-6">
                   {user.role.replace('_', ' ').toUpperCase()}
                 </Badge>
-
+                
                 <Button variant="destructive" className="w-full" onClick={logout}>
                   <LogOut className="w-4 h-4 mr-2" /> Sign Out
                 </Button>
@@ -68,7 +68,7 @@ const AdminProfile: React.FC = () => {
                       <p className="font-medium text-gray-900">{user.name}</p>
                     </div>
                   </div>
-
+                  
                   <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                     <Mail className="w-5 h-5 text-gray-400 mr-3" />
                     <div>

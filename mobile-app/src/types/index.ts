@@ -1,151 +1,42 @@
-/**
- * Enums 
- */
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'reclassified';
-
-/**
- * Interfaces
- */
 export interface Product {
-  id: string; // UUID
-  seller_id?: string;
-  // Product Info
-  name?: string;
-  description?: string | null;
-  category?: string;
-  category_id?: string | null;
-  brand?: string | null;
-  sku?: string | null;
-  // Pricing
-  price?: number;
-  original_price?: number | null;
-  // Inventory
-  stock?: number;
-  low_stock_threshold?: number;
-  // Media
-  images?: string[];
-  primary_image?: string | null;
-  // Variants & Options
-  sizes?: string[];
-  colors?: string[];
-  variants?: ProductVariant[];
-  specifications?: Record<string, unknown>;
-  // Dynamic variant labels (from database schema)
-  variant_label_1?: string | null;  // e.g., "Color", "Size", "Material"
-  variant_label_2?: string | null;  // e.g., "Size", "Style"
-  option1Values?: string[];  // Unique values for variant_label_1
-  option2Values?: string[];  // Unique values for variant_label_2
-  // Status
-  is_active?: boolean;
-  approval_status?: ApprovalStatus;
-  rejection_reason?: string | null;
-  vendor_submitted_category?: string | null;
-  admin_reclassified_category?: string | null;
-  // Metrics
-  rating?: number;
-  review_count?: number;
-  sales_count?: number;
-  view_count?: number;
-  // Shipping
-  weight?: number | null;
-  dimensions?: {
-    length: number;
-    width: number;
-    height: number;
-  } | null;
-  is_free_shipping?: boolean;
-  // Tags
-  tags?: string[];
-  // Timestamps
-  created_at?: string;
-  updated_at?: string;
-  // Legacy / UI Fields
-  originalPrice?: number;
-  image?: string;
-  isFreeShipping?: boolean;
-  isVerified?: boolean;
-  seller?: string;
-  seller_avatar?: string | null;
-  sellerAvatar?: string;
-  sellerId?: string; // Alias for seller_id
-  sellerRating?: number;
-  sellerVerified?: boolean;
-  sold?: number;
-  location?: string;
-  // Selected variant for cart/checkout
-  selectedVariant?: {
-    color?: string;
-    size?: string;
-    variantId?: string;
-    // Dynamic variant labels and values
-    option1Label?: string;
-    option1Value?: string;
-    option2Label?: string;
-    option2Value?: string;
-  } | null;
-  quantity?: number;
-}
-
-export interface ProductVariant {
   id: string;
-  product_id?: string;
-  sku?: string;
-  barcode?: string | null;
-  variant_name: string;
-  size?: string | null;
-  color?: string | null;
-  option_1_value?: string | null;
-  option_2_value?: string | null;
+  name: string;
   price: number;
-  stock: number;
-  thumbnail_url?: string | null;
-  // Legacy alias
-  name?: string;
-  image?: string;
+  originalPrice?: number;
+  image: string;
+  images?: string[];
+  rating: number;
+  sold: number;
+  seller: string;
+  sellerId?: string;
+  sellerRating: number;
+  sellerVerified: boolean;
+  isFreeShipping: boolean;
+  isVerified: boolean;
+  location: string;
+  description?: string;
+  category: string;
+  stock?: number;
+  reviews?: any[];
 }
 
 export interface CartItem extends Product {
-  cartItemId: string;
   quantity: number;
-  selectedVariant?: {
-    color?: string;
-    size?: string;
-    variantId?: string;
-    // Dynamic variant labels and values
-    option1Label?: string;
-    option1Value?: string;
-    option2Label?: string;
-    option2Value?: string;
-  } | null;
 }
 
 export interface Order {
   id: string;
-  orderId?: string;
   transactionId: string;
   items: CartItem[];
   total: number;
   shippingFee: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'canceled';
   isPaid: boolean;
   scheduledDate: string;
   deliveryDate?: string;
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   createdAt: string;
-  buyerUiStatus?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed';
-  isReviewed?: boolean;
-  isGift?: boolean;
-  isAnonymous?: boolean;
-  recipientId?: string;
-  sellerInfo?: {
-    id?: string;
-    store_name?: string;
-    business_name?: string;
-    rating?: number;
-    is_verified?: boolean;
-    business_address?: string;
-  };
 }
 
 export interface ShippingAddress {
@@ -164,21 +55,21 @@ export interface Category {
   icon: string;
 }
 
-export type ReturnStatus =
-  | 'pending_review'
-  | 'seller_response_required'
-  | 'approved'
-  | 'rejected'
-  | 'item_returned'
-  | 'refund_processing'
-  | 'refunded'
+export type ReturnStatus = 
+  | 'pending_review' 
+  | 'seller_response_required' 
+  | 'approved' 
+  | 'rejected' 
+  | 'item_returned' 
+  | 'refund_processing' 
+  | 'refunded' 
   | 'escalated';
 
-export type ReturnReason =
-  | 'defective'
-  | 'damaged'
-  | 'incorrect'
-  | 'not_as_described'
+export type ReturnReason = 
+  | 'defective' 
+  | 'damaged' 
+  | 'incorrect' 
+  | 'not_as_described' 
   | 'other';
 
 export type ReturnType = 'refund_only' | 'return_refund' | 'replacement';

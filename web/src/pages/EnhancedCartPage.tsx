@@ -17,20 +17,10 @@ import {
   Star,
   Shield,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { VariantSelectionModal } from "../components/ui/variant-selection-modal";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 export default function EnhancedCartPage() {
   const navigate = useNavigate();
@@ -40,7 +30,7 @@ export default function EnhancedCartPage() {
     groupedCart,
     updateCartQuantity,
     removeFromCart,
-    validateVoucherDetailed,
+    validateVoucher,
     applyVoucher,
     getCartTotal,
     getCartItemCount,
@@ -52,38 +42,13 @@ export default function EnhancedCartPage() {
     toggleItemSelection,
     toggleSellerSelection,
     selectAllItems,
-    selectItemsExclusively,
     getSelectedTotal,
     getSelectedCount,
-    removeSelectedItems,
-    updateItemVariant,
   } = useBuyerStore();
 
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherError, setVoucherError] = useState("");
   const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
-
-  // Edit Variant State
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [showVariantModal, setShowVariantModal] = useState(false);
-
-  // Delete Confirmation State
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk'; id?: string; variantId?: string } | null>(null);
-  const getImageSrc = (src?: string | null) =>
-    src && src.trim().length > 0 ? src : undefined;
-
-
-  const handleConfirmDelete = () => {
-    if (!deleteTarget) return;
-
-    if (deleteTarget.type === 'bulk') {
-      removeSelectedItems();
-    } else if (deleteTarget.type === 'single' && deleteTarget.id) {
-      removeFromCart(deleteTarget.id, deleteTarget.variantId);
-    }
-    setDeleteTarget(null);
-  };
 
   // Clear quick order when user navigates to cart
   useEffect(() => {
@@ -108,19 +73,27 @@ export default function EnhancedCartPage() {
         return;
       }
 
-      // Check if all requested items are now present in the cart
-      const allItemsPresent = state.selectedItems.every(id =>
-        cartItems.some(item => item.id === id)
-      );
+      // Small timeout to ensure store state is settled
+      const timer = setTimeout(() => {
+        // Then select the requested items
+        state.selectedItems.forEach(id => {
+          // Find all matching items (handling variants)
+          const items = cartItems.filter(i => i.id === id);
+          items.forEach(item => {
+            // Select if not already selected
+            if (!item.selected) {
+              toggleItemSelection(item.id, item.selectedVariant?.id);
+            }
+          });
+        });
+      }, 500);
 
-      if (allItemsPresent) {
-        // Select exclusively the requested items
-        selectItemsExclusively(state.selectedItems);
-        // Mark as processed so user can still manually toggle afterwards
-        processedKeyRef.current = location.key;
-      }
+      // Mark this navigation as processed
+      processedKeyRef.current = location.key;
+
+      return () => clearTimeout(timer);
     }
-  }, [location.state, cartItems, location.key, selectItemsExclusively]);
+  }, [location.state, cartItems, location.key]); // Depend on cartItems to ensure fresh state
 
   const totalItems = getCartItemCount();
   const selectedCount = getSelectedCount();
@@ -141,23 +114,14 @@ export default function EnhancedCartPage() {
     setVoucherError("");
 
     try {
-      const { voucher, errorCode } = await validateVoucherDetailed(voucherCode, sellerId);
+      const voucher = await validateVoucher(voucherCode, sellerId);
 
       if (voucher) {
         applyVoucher(voucher, sellerId);
         setVoucherCode("");
         setVoucherError("");
       } else {
-        const errorMessages: Record<string, string> = {
-          NOT_FOUND: "Voucher code not found.",
-          INACTIVE: "This voucher is currently inactive.",
-          NOT_STARTED: "This voucher is not active yet.",
-          EXPIRED: "This voucher has expired.",
-          MIN_ORDER_NOT_MET: "Minimum order amount not met.",
-          SELLER_MISMATCH: "This voucher is only valid for specific seller items.",
-          ALREADY_USED: "You have already used this voucher. It can only be used once per customer.",
-        };
-        setVoucherError(errorMessages[errorCode || ""] || "Invalid voucher code or minimum order not met");
+        setVoucherError("Invalid voucher code or minimum order not met");
       }
     } catch (error) {
       setVoucherError("Failed to validate voucher");
@@ -166,27 +130,9 @@ export default function EnhancedCartPage() {
     }
   };
 
-  const handleEditOptions = (item: any) => {
-    setEditingItem(item);
-    setShowVariantModal(true);
-  };
-
-  const handleUpdateVariant = (newVariant: any, newQuantity: number) => {
-    if (editingItem) {
-      updateItemVariant(editingItem.id, editingItem.selectedVariant?.id, newVariant, newQuantity);
-    }
-    setShowVariantModal(false);
-    setEditingItem(null);
-  };
-
-  const handleDeleteSelected = () => {
-    removeSelectedItems();
-    setShowDeleteConfirm(false);
-  };
-
   if (totalItems === 0) {
     return (
-      <div className="min-h-screen bg-[var(--brand-wash)]">
+      <div className="min-h-screen bg-gray-50">
         <Header />
         <div className="max-w-4xl mx-auto px-4 py-16">
           <motion.div
@@ -200,9 +146,9 @@ export default function EnhancedCartPage() {
                 alt="Empty cart"
                 className="w-full h-full object-cover rounded-2xl"
               />
-              <div className="absolute inset-0 bg-[var(--brand-primary)]/10 rounded-2xl" />
+              <div className="absolute inset-0 bg-orange-500/10 rounded-2xl" />
             </div>
-            <h2 className="text-3xl font-bold text-[var(--text-headline)] mb-4">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
               Your cart is empty
             </h2>
             <p className="text-gray-600 mb-8 text-lg">
@@ -211,7 +157,7 @@ export default function EnhancedCartPage() {
             <Button
               onClick={() => navigate("/shop")}
               size="lg"
-              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white px-8 py-3 text-lg"
+              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 text-lg"
             >
               <ShoppingBag className="mr-2 h-5 w-5" />
               Start Shopping
@@ -223,24 +169,28 @@ export default function EnhancedCartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="min-h-screen bg-gray-50">
       <Header />
-      <div className="max-w-7xl mx-auto px-4 py-4 -mt-6">
+      <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/shop')}
+              className="mb-0 -mt-6 -ml-2"
             >
-              <div className="p-1.5">
-                <ChevronLeft className="w-4 h-4 mt-2" />
-              </div>
-              <span className="font-medium text-sm mt-2">Back</span>
-            </button>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Continue Shopping
+            </Button>
             <div className="flex flex-wrap items-baseline gap-3">
-              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-1">
+              <h1 className="text-3xl font-bold text-gray-900 mb-1">
                 Shopping Cart
               </h1>
+              <p className="text-gray-500 text-xs italic">
+                {totalItems} {totalItems === 1 ? "item" : "items"} from{" "}
+                {Object.keys(groupedCart).length} seller
+                {Object.keys(groupedCart).length === 1 ? "" : "s"}
+              </p>
             </div>
           </div>
 
@@ -249,244 +199,215 @@ export default function EnhancedCartPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-2">
           {/* Cart Items - Grouped by Seller */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-2">
             {/* Sticky Select All Bar */}
-            <div className="sticky top-4 z-10 bg-[var(--brand-wash)]/95 backdrop-blur-sm py-2 flex items-center justify-end gap-2 -mb-4">
+            <div className="sticky top-4 z-10 bg-gray-50/95 backdrop-blur-sm py-2 flex items-center justify-end gap-2">
               <Checkbox
                 checked={allSelected || (someSelected ? "indeterminate" : false)}
                 onCheckedChange={(checked) => selectAllItems(checked === true)}
               />
-              <span className="text-xs font-small text-[var(--text-muted)] mr-auto">Select All Items ({totalItems})</span>
-
-              {selectedCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="text-red-500 hover:text-red-700 hover:bg-base text-xs h-6 px-2"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" />
-                  Delete ({selectedCount})
-                </Button>
-              )}
+              <span className="text-xs font-small text-gray-600">Select All Items ({totalItems})</span>
             </div>
 
             <AnimatePresence>
-              {Object.entries(groupedCart)
-                .sort(([, groupA], [, groupB]) => {
-                  const latestA = Math.max(...groupA.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
-                  const latestB = Math.max(...groupB.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
-                  return latestB - latestA;
-                })
-                .map(
-                  ([sellerId, group], sellerIndex) => (
-                    <motion.div
-                      key={sellerId}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ delay: sellerIndex * 0.1 }}
-                      className="bg-white rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow shadow-sm"
-                    >
-                      {/* Seller Header */}
-                      <div className="border-b border-[var(--brand-wash-gold)]/20 pb-2 mb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center justify-between gap-4 w-full">
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={group.items.every(item => item.selected)}
-                              onCheckedChange={(checked) => toggleSellerSelection(sellerId, checked === true)}
-                            />
-                            <div
-                              className="flex items-center gap-2 cursor-pointer group/seller"
-                              onClick={() => navigate(`/seller/${sellerId}`)}
-                            >
-                              {group.seller.avatar ? (
-                                <img
-                                  src={group.seller.avatar}
-                                  alt=""
-                                  className="w-8 h-8 rounded-full object-cover group-hover/seller:opacity-80 transition-opacity"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-[var(--brand-wash)] flex items-center justify-center group-hover/seller:opacity-80 transition-opacity">
-                                  <Store className="w-4 h-4 text-[var(--brand-primary)]" />
-                                </div>
+              {Object.entries(groupedCart).map(
+                ([sellerId, group], sellerIndex) => (
+                  <motion.div
+                    key={sellerId}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ delay: sellerIndex * 0.1 }}
+                    className="bg-white rounded-xl border border-gray-200 shadow-sm"
+                  >
+                    {/* Seller Header */}
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={group.items.every(item => item.selected)}
+                            onCheckedChange={(checked) => toggleSellerSelection(sellerId, checked === true)}
+                          />
+                          <img
+                            src={group.seller.avatar}
+                            alt=""
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-gray-900">
+                                {group.seller.name}
+                              </span>
+                              {group.seller.isVerified && (
+                                <Badge variant="outline" className="text-xs">
+                                  <Shield className="h-3 w-3 mr-1" />
+                                  Verified
+                                </Badge>
                               )}
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-[var(--text-headline)] group-hover/seller:text-[var(--brand-primary)] transition-colors">
-                                    {group.seller.name}
-                                  </span>
-                                  {group.seller.isVerified && (
-                                    <Badge variant="outline" className="text-[10px] h-4 px-1">
-                                      Verified
-                                    </Badge>
-                                  )}
-                                  <span className="text-[var(--text-muted)] group-hover/seller:text-[var(--brand-primary)] transition-colors">
-                                    <ChevronRight className="h-4 w-4" />
-                                  </span>
-                                </div>
-                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-gray-500">
+                              <span className="flex items-center gap-1">
+                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                {group.seller.rating}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Store className="h-3 w-3" />
+                                {group.seller.location}
+                              </span>
                             </div>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Product Items */}
-                      <div className="space-y-0">
-                        {group.items.map((item, itemIndex) => (
-                          <motion.div
-                            key={`${item.id}-${item.selectedVariant?.id || 'base'}`}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{
-                              delay: sellerIndex * 0.1 + itemIndex * 0.05,
-                            }}
-                            className="flex items-center justify-between gap-3 w-full pb-4 pt-4 last:border-0 last:pb-0"
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/seller/${sellerId}`)}
+                            className="text-orange-600 border-orange-200 hover:bg-orange-50"
                           >
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <Checkbox
-                                checked={item.selected || false}
-                                onCheckedChange={() => toggleItemSelection(item.id, item.selectedVariant?.id)}
-                              />
-
-                              {/* Product Image */}
-                              {item.image ? (
-                                <img
-                                  src={item.image}
-                                  alt=""
-                                  className="w-16 h-16 object-cover rounded-md border border-[var(--brand-wash-gold)]/30 cursor-pointer hover:opacity-80 transition-opacity"
-                                  onClick={() => navigate(`/product/${item.id}`)}
-                                />
-                              ) : (
-                                <div
-                                  className="w-16 h-16 rounded-md border border-gray-100 bg-gray-50 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
-                                  onClick={() => navigate(`/product/${item.id}`)}
-                                >
-                                  <ShoppingBag className="w-6 h-6 text-[var(--text-muted)]" />
-                                </div>
+                            <Store className="h-4 w-4 mr-1" />
+                            Visit Shop
+                          </Button>
+                          <Button
+                            variant={
+                              isFollowing(sellerId) ? "outline" : "default"
+                            }
+                            size="sm"
+                            onClick={() =>
+                              isFollowing(sellerId)
+                                ? unfollowShop(sellerId)
+                                : followShop(sellerId)
+                            }
+                            className={
+                              isFollowing(sellerId)
+                                ? "text-red-600 border-red-200 hover:bg-red-50"
+                                : "bg-orange-500 hover:bg-orange-600"
+                            }
+                          >
+                            <Heart
+                              className={cn(
+                                "h-4 w-4 mr-1",
+                                isFollowing(sellerId) && "fill-current"
                               )}
-
-                              {/* Product Details */}
-                              <div className="flex-1 min-w-0">
-                                <h4
-                                  className="font-medium text-[var(--text-headline)] text-sm mb-1 truncate cursor-pointer hover:text-[var(--brand-primary)] transition-colors"
-                                  onClick={() => navigate(`/product/${item.id}`)}
-                                >
-                                  {item.name}
-                                </h4>
-                                {item.variants && item.variants.length > 0 && (
-                                  <button
-                                    onClick={() => handleEditOptions(item)}
-                                    className="flex flex-wrap gap-1 mt-1 hover:opacity-80 transition-opacity group text-left"
-                                    title="Click to change variety"
-                                  >
-                                    {item.selectedVariant ? (
-                                      (() => {
-                                        const variantMeta = item.selectedVariant as any;
-                                        const labels: string[] = [];
-                                        if (variantMeta?.size) labels.push(`Size: ${variantMeta.size}`);
-                                        if (variantMeta?.color) labels.push(`Color: ${variantMeta.color}`);
-                                        if (labels.length === 0 && variantMeta?.name) labels.push(variantMeta.name);
-
-                                        return (
-                                          <>
-                                            {labels.map((label) => (
-                                              <Badge
-                                                key={label}
-                                                variant="secondary"
-                                                className="text-[10px] h-4 px-1.5 bg-[var(--brand-wash)] text-[var(--text-primary)] border border-[var(--brand-wash-gold)]/30 group-hover:border-[var(--brand-primary)] group-hover:text-[var(--brand-primary)] transition-colors pointer-events-none"
-                                              >
-                                                {label}
-                                              </Badge>
-                                            ))}
-                                            <span className="text-[9px] text-[var(--brand-primary)] opacity-0 group-hover:opacity-100 transition-opacity ml-1 font-medium bg-[var(--brand-wash)] px-1 rounded border border-[var(--brand-primary)]/20">Change</span>
-                                          </>
-                                        );
-                                      })()
-                                    ) : (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] h-5 px-2 text-[var(--brand-primary)] border-[var(--brand-primary)]/30 bg-[var(--brand-wash)]"
-                                      >
-                                        Select Options
-                                      </Badge>
-                                    )}
-                                  </button>
-                                )}
-
-                                {/* Quantity Controls */}
-                                <div className="flex items-center gap-4 mt-2">
-                                  <span className="text-sm font-bold text-[var(--brand-primary)]">
-                                    ₱{item.price.toLocaleString()}
-                                  </span>
-                                  {item.originalPrice && (
-                                    <span className="text-xs text-gray-400 line-through">
-                                      ₱{item.originalPrice.toLocaleString()}
-                                    </span>
-                                  )}
-
-                                  <div className="flex items-center gap-2 border border-gray-200 rounded-md bg-white">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        // If quantity is 1, prompt for deletion instead of updating to 0
-                                        if (item.quantity === 1) {
-                                          setDeleteTarget({ type: 'single', id: item.id, variantId: item.selectedVariant?.id });
-                                        } else {
-                                          updateCartQuantity(item.id, item.quantity - 1, item.selectedVariant?.id);
-                                        }
-                                      }}
-                                      className="h-6 w-6 p-0 hover:bg-base hover:text-red-500"
-                                    >
-                                      <Minus className="h-3 w-3" />
-                                    </Button>
-
-                                    <span className="w-8 text-center font-medium text-xs">
-                                      {item.quantity}
-                                    </span>
-
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() =>
-                                        updateCartQuantity(item.id, item.quantity + 1, item.selectedVariant?.id)
-                                      }
-                                      className="h-6 w-6 p-0 hover:bg-base hover:text-green-500"
-                                      // Disable the button if the current quantity has reached stock limit
-                                      disabled={item.quantity >= (item.selectedVariant?.stock ?? item.stock ?? 0)}
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                  <button
-                                    onClick={() => setDeleteTarget({ type: 'single', id: item.id, variantId: item.selectedVariant?.id })}
-                                    className="text-gray-400 hover:text-red-500 transition-colors"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        ))}
+                            />
+                            {isFollowing(sellerId) ? "Following" : "Follow"}
+                          </Button>
+                        </div>
                       </div>
+                    </div>
 
-                      {/* Seller Total */}
-                      <div className="flex justify-end items-center pt-2 border-t border-gray-50 mt-2">
-                        <span className="text-sm text-gray-500 mr-2">
-                          Seller Total:
+                    {/* Product Items */}
+                    <div className="p-6 space-y-4">
+                      {group.items.map((item, itemIndex) => (
+                        <motion.div
+                          key={item.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{
+                            delay: sellerIndex * 0.1 + itemIndex * 0.05,
+                          }}
+                          className="flex gap-4 p-4 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
+                        >
+                          <div className="flex items-center h-full pt-8 mr-2">
+                            <Checkbox
+                              checked={item.selected || false}
+                              onCheckedChange={() => toggleItemSelection(item.id, item.selectedVariant?.id)}
+                            />
+                          </div>
+
+                          {/* Product Image */}
+                          <img
+                            src={item.image}
+                            alt=""
+                            className="w-20 h-20 object-cover rounded-lg"
+                          />
+
+                          {/* Product Details */}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-gray-900 mb-2">
+                              {item.name}
+                            </h4>
+
+                            {/* Price Section */}
+                            <div className="flex items-center gap-3 mb-3">
+                              <span className="text-lg font-semibold text-orange-600">
+                                ₱{(item.price * item.quantity).toLocaleString()}
+                              </span>
+                              {item.originalPrice && (
+                                <span className="text-sm text-gray-500 line-through">
+                                  ₱
+                                  {(
+                                    item.originalPrice * item.quantity
+                                  ).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Quantity Controls */}
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2 border border-gray-200 rounded-lg">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    updateCartQuantity(
+                                      item.id,
+                                      item.quantity - 1
+                                    )
+                                  }
+                                  className="h-8 w-8 p-0 hover:bg-gray-100"
+                                  disabled={item.quantity <= 1}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <span className="w-10 text-center font-medium text-sm">
+                                  {item.quantity}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    updateCartQuantity(
+                                      item.id,
+                                      item.quantity + 1
+                                    )
+                                  }
+                                  className="h-8 w-8 p-0 hover:bg-gray-100"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeFromCart(item.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Remove
+                              </Button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {/* Seller Total */}
+                    <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-900">
+                          Seller Total
                         </span>
-                        <span className="text-lg font-bold text-[var(--brand-primary)]">
+                        <span className="text-lg font-bold text-orange-600">
                           ₱
                           {(
                             group.subtotal + group.shippingFee
                           ).toLocaleString()}
                         </span>
                       </div>
-                    </motion.div>
-                  )
-                )}
+                    </div>
+                  </motion.div>
+                )
+              )}
             </AnimatePresence>
           </div>
 
@@ -496,17 +417,17 @@ export default function EnhancedCartPage() {
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-1"
           >
-            <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
-              <h3 className="text-xl font-semibold text-[var(--text-headline)] mb-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24">
+              <h3 className="text-xl font-semibold text-gray-900 mb-6">
                 Order Summary
               </h3>
 
               {/* Voucher Section */}
               <div className="mb-6">
-                <div className="bg-[var(--brand-wash)] border border-[var(--brand-wash-gold)] rounded-lg p-4">
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Tag className="h-4 w-4 text-[var(--brand-primary)]" />
-                    <span className="font-medium text-[var(--text-headline)]">
+                    <Tag className="h-4 w-4 text-orange-600" />
+                    <span className="font-medium text-orange-900">
                       Apply Voucher
                     </span>
                   </div>
@@ -522,7 +443,7 @@ export default function EnhancedCartPage() {
                     <Button
                       onClick={() => handleApplyVoucher()}
                       disabled={isApplyingVoucher || !voucherCode.trim()}
-                      className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
+                      className="bg-orange-500 hover:bg-orange-600"
                     >
                       Apply
                     </Button>
@@ -562,7 +483,7 @@ export default function EnhancedCartPage() {
                 </div>
                 <div className="border-t pt-3 flex justify-between font-semibold text-lg">
                   <span>Total</span>
-                  <span className="text-[var(--brand-primary)]">
+                  <span className="text-orange-600">
                     ₱{totalAmount.toLocaleString()}
                   </span>
                 </div>
@@ -572,7 +493,7 @@ export default function EnhancedCartPage() {
                 onClick={() => navigate("/checkout")}
                 size="lg"
                 disabled={selectedCount === 0}
-                className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 Proceed to Checkout ({selectedCount})
               </Button>
@@ -580,49 +501,6 @@ export default function EnhancedCartPage() {
           </motion.div>
         </div>
       </div>
-
-      {/* Variant Selection Modal */}
-      {editingItem && (
-        <VariantSelectionModal
-          isOpen={showVariantModal}
-          onClose={() => setShowVariantModal(false)}
-          product={{
-            id: editingItem.id,
-            name: editingItem.name,
-            price: editingItem.price,
-            image: editingItem.image,
-            variants: editingItem.variants || [],
-            variantLabel1Values: editingItem.variantLabel1Values || [],
-            variantLabel2Values: editingItem.variantLabel2Values || [],
-          }}
-          initialSelectedVariant={editingItem.selectedVariant}
-          initialQuantity={editingItem.quantity}
-          buttonText="Confirm Changes"
-          onConfirm={handleUpdateVariant}
-        />
-      )}
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>
-              {deleteTarget?.type === 'bulk' ? 'Delete Selected Items?' : 'Remove Item?'}
-            </DialogTitle>
-            <DialogDescription>
-              {deleteTarget?.type === 'bulk'
-                ? `Are you sure you want to remove ${selectedCount} items from your cart?`
-                : "Are you sure you want to remove this item from your cart?"}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

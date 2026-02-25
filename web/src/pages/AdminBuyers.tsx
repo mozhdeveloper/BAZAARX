@@ -46,7 +46,7 @@ import {
 
 const AdminBuyers: React.FC = () => {
   const { isAuthenticated } = useAdminAuth();
-  const {
+  const { 
     buyers,
     selectedBuyer,
     isLoading,
@@ -76,10 +76,10 @@ const AdminBuyers: React.FC = () => {
   }
 
   const getFilteredBuyers = (status?: string) => {
-    const buyersToFilter = status && status !== 'all'
-      ? buyers.filter(buyer => buyer.status === status)
+    const buyersToFilter = status && status !== 'all' 
+      ? buyers.filter(buyer => buyer.status === status) 
       : buyers;
-
+    
     return buyersToFilter.filter(buyer =>
       buyer.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       buyer.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -233,7 +233,7 @@ const AdminBuyers: React.FC = () => {
               <Eye className="w-4 h-4 mr-1" />
               View Details
             </Button>
-
+            
             {showActions && buyer.status === 'active' && (
               <Button
                 variant="outline"
@@ -248,7 +248,7 @@ const AdminBuyers: React.FC = () => {
                 Suspend
               </Button>
             )}
-
+            
             {showActions && buyer.status === 'suspended' && (
               <Button
                 size="sm"
@@ -293,7 +293,7 @@ const AdminBuyers: React.FC = () => {
       />
 
       <main className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -425,7 +425,7 @@ const AdminBuyers: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Buyer Details</DialogTitle>
           </DialogHeader>
-
+          
           {selectedBuyer && (
             <div className="space-y-6">
               {/* Basic Info */}
@@ -448,7 +448,7 @@ const AdminBuyers: React.FC = () => {
                     {getStatusBadge(selectedBuyer.status)}
                   </div>
                 </div>
-
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
@@ -538,9 +538,9 @@ const AdminBuyers: React.FC = () => {
                   <div className="bg-yellow-50 p-4 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-sm text-yellow-600 mb-1">Bazcoins</div>
-                        <p className="text-2xl font-bold text-yellow-900">{selectedBuyer.metrics.bazcoins}</p>
-                      </div>
+                  <div className="text-sm text-yellow-600 mb-1">Bazcoins</div>
+                  <p className="text-2xl font-bold text-yellow-900">{selectedBuyer.metrics.bazcoins}</p>
+                </div>
                       <Award className="w-8 h-8 text-yellow-500" />
                     </div>
                   </div>
@@ -559,7 +559,7 @@ const AdminBuyers: React.FC = () => {
               </div>
             </div>
           )}
-
+          
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
               Close
@@ -615,7 +615,7 @@ const AdminBuyers: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Activate Buyer</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to reactivate "{selectedBuyer?.firstName} {selectedBuyer?.lastName}"?
+              Are you sure you want to reactivate "{selectedBuyer?.firstName} {selectedBuyer?.lastName}"? 
               This will restore their full access to the platform.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -15,7 +15,7 @@ export function OrderNotificationModal() {
   // Check for unread notifications
   useEffect(() => {
     const unreadNotifs = notifications.filter(n => !n.read);
-
+    
     // Show modal for seller confirmed notifications
     const confirmedNotif = unreadNotifs.find(n => n.type === 'seller_confirmed');
     if (confirmedNotif && !showModal) {
@@ -28,8 +28,7 @@ export function OrderNotificationModal() {
     if (currentNotification) {
       markNotificationRead(currentNotification.id);
       setShowModal(false);
-      const targetId = currentNotification.orderNumber || currentNotification.orderId;
-      navigate(`/delivery-tracking/${targetId}`);
+      navigate(`/delivery-tracking/${currentNotification.orderId}`);
     }
   };
 
@@ -43,7 +42,7 @@ export function OrderNotificationModal() {
 
   const getIcon = () => {
     if (!currentNotification) return null;
-
+    
     switch (currentNotification.type) {
       case 'seller_confirmed':
         return <CheckCircle className="w-16 h-16 text-green-500" />;

@@ -134,21 +134,21 @@ const AdminProductRequests: React.FC = () => {
   }
 
   const filteredRequests = requests.filter(request => {
-    const matchesSearch =
+    const matchesSearch = 
       request.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       request.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       request.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
       request.requestedBy.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesFilter =
+    const matchesFilter = 
       filterStatus === 'all' ? true : request.status === filterStatus;
 
     return matchesSearch && matchesFilter;
   });
 
   const handleUpdateStatus = (requestId: string, newStatus: 'approved' | 'rejected' | 'in_progress') => {
-    setRequests(prev =>
-      prev.map(r =>
+    setRequests(prev => 
+      prev.map(r => 
         r.id === requestId ? { ...r, status: newStatus, adminNotes } : r
       )
     );
@@ -186,9 +186,9 @@ const AdminProductRequests: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar open={open} setOpen={setOpen} />
-
+      
       <div className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="p-8">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Product Requests Dashboard</h1>
@@ -272,7 +272,7 @@ const AdminProductRequests: React.FC = () => {
                     className="pl-10"
                   />
                 </div>
-
+                
                 <div className="flex gap-2 flex-wrap">
                   <Button
                     variant={filterStatus === 'all' ? 'default' : 'outline'}
@@ -326,7 +326,7 @@ const AdminProductRequests: React.FC = () => {
                         <div className="flex-1">
                           <h3 className="text-xl font-semibold text-gray-900 mb-2">{request.productName}</h3>
                           <p className="text-gray-600 mb-3">{request.description}</p>
-
+                          
                           <div className="flex flex-wrap gap-2 mb-3">
                             <Badge variant="outline">{request.category}</Badge>
                             <Badge className={getPriorityColor(request.priority)}>
@@ -361,10 +361,10 @@ const AdminProductRequests: React.FC = () => {
                             <span className="font-medium text-gray-900 ml-2">{request.requestedBy}</span>
                           </div>
                           <div className="text-gray-600">
-                            {new Date(request.requestDate).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
+                            {new Date(request.requestDate).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric' 
                             })}
                           </div>
                         </div>
@@ -458,7 +458,7 @@ const AdminProductRequests: React.FC = () => {
           >
             <div className="p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Review Product Request</h2>
-
+              
               <div className="space-y-4 mb-6">
                 <div>
                   <h3 className="font-semibold text-lg text-gray-900">{selectedRequest.productName}</h3>

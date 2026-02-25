@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, CreditCard, Plus, Trash2, Check, Building2 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
-import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentMethods'>;
 
@@ -94,22 +92,17 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       {/* Header */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
-      >
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
         <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
             </Pressable>
-            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Payment Methods</Text>
+            <Text style={styles.headerTitle}>Payment Methods</Text>
             <View style={{ width: 40 }} />
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Add Payment Method Button */}
@@ -264,9 +257,6 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
           </Pressable>
         </Pressable>
       </Modal>
-
-      {/* Bottom Navigation */}
-      <BuyerBottomNav />
     </View>
   );
 }
@@ -274,21 +264,23 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F9FAFB',
   },
   headerContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    elevation: 2,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   scrollView: {
     flex: 1,
   },
@@ -300,12 +292,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#FF6A00',
     marginHorizontal: 20,
     marginBottom: 20,
     paddingVertical: 14,
     borderRadius: 12,
-    shadowColor: COLORS.primary,
+    shadowColor: '#FF6A00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -349,8 +341,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
     position: 'relative',
-    borderWidth: 1,
-    borderColor: '#FFF6E5', // Very Light Gold
   },
   defaultBadge: {
     position: 'absolute',
@@ -359,17 +349,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF6E5', // Light Gold
+    backgroundColor: '#10B981',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FFE0A3',
   },
   defaultText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#EA580C', // Golden Amber
+    color: '#FFFFFF',
   },
   cardHeader: {
     flexDirection: 'row',

@@ -467,7 +467,6 @@ export const useAdminSellers = create<SellersState>()(
 // Product QA Store - Matching Web Flow
 export interface ProductQA {
   id: string;
-  productId?: string; // actual products.id (separate from assessment id)
   name: string;
   description: string;
   price: number;
@@ -554,16 +553,15 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       loadProducts: async () => {
         set({ isLoading: true });
+        await new Promise(resolve => setTimeout(resolve, 800));
 
-        // Load products from shared productQAStore (which now uses database)
+        // Get products from shared productQAStore
         const productQAStore = useProductQAStore.getState();
-        await productQAStore.loadProducts(); // Load all products for admin
         const qaProducts = productQAStore.products;
 
         // Convert QA products to admin ProductQA format
         const adminProducts: ProductQA[] = qaProducts.map(qp => ({
           id: qp.id,
-          productId: qp.productId, // real products.id — used for DB QA operations
           name: qp.name,
           description: qp.description || '',
           price: qp.price,
@@ -574,7 +572,7 @@ export const useAdminProductQA = create<AdminProductQAState>()(
           subcategory: undefined,
           brand: undefined,
           images: qp.images || [qp.image],
-          sellerId: qp.sellerId || qp.vendor,
+          sellerId: qp.vendor,
           sellerName: qp.vendor,
           sellerStoreName: qp.vendor,
           status: qp.status as any,
@@ -605,20 +603,14 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       approveForSampleSubmission: async (id, note) => {
         set({ isLoading: true });
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Sync with seller productQAStore (now using database)
+        // Sync with seller productQAStore
         try {
           const productQAStore = useProductQAStore.getState();
-          // Find the product and use productId (real products.id) for DB operations
-          const product = get().products.find(p => p.id === id);
-          if (product) {
-            const realProductId = product.productId || product.id;
-            await productQAStore.approveForSampleSubmission(realProductId);
-          }
+          productQAStore.approveForSampleSubmission(id);
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
-          set({ isLoading: false });
-          throw error;
         }
 
         // Reload products from shared store
@@ -627,19 +619,14 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       rejectDigitalReview: async (id, reason) => {
         set({ isLoading: true });
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Sync with seller productQAStore (now using database)
+        // Sync with seller productQAStore
         try {
           const productQAStore = useProductQAStore.getState();
-          const product = get().products.find(p => p.id === id);
-          if (product) {
-            const realProductId = product.productId || product.id;
-            await productQAStore.rejectProduct(realProductId, reason, 'digital');
-          }
+          productQAStore.rejectProduct(id, reason, 'digital');
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
-          set({ isLoading: false });
-          throw error;
         }
 
         // Reload products from shared store
@@ -648,40 +635,41 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       submitSample: async (id, logisticsMethod, address, note) => {
         set({ isLoading: true });
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Use productQAStore for database sync
-        try {
-          const productQAStore = useProductQAStore.getState();
-          const product = get().products.find(p => p.id === id);
-          if (product) {
-            const realProductId = product.productId || product.id;
-            await productQAStore.submitSample(realProductId, logisticsMethod);
-          }
-        } catch (error) {
-          console.error('Error syncing to productQAStore:', error);
-          set({ isLoading: false });
-          throw error;
-        }
+        set(state => {
+          const updatedProducts = state.products.map(product =>
+            product.id === id && product.status === 'WAITING_FOR_SAMPLE'
+              ? {
+                  ...product,
+                  status: 'IN_QUALITY_REVIEW' as const,
+                  sampleSubmittedAt: new Date(),
+                  logisticsMethod,
+                  logisticsAddress: address,
+                  logisticsNotes: note,
+                }
+              : product
+          );
 
-        // Reload products from shared store
-        await get().loadProducts();
+          return {
+            products: updatedProducts,
+            waitingForSample: updatedProducts.filter(p => p.status === 'WAITING_FOR_SAMPLE'),
+            inQualityReview: updatedProducts.filter(p => p.status === 'IN_QUALITY_REVIEW'),
+            isLoading: false,
+          };
+        });
       },
 
       passQualityCheck: async (id, note) => {
         set({ isLoading: true });
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Sync with seller productQAStore (now using database)
+        // Sync with seller productQAStore
         try {
           const productQAStore = useProductQAStore.getState();
-          const product = get().products.find(p => p.id === id);
-          if (product) {
-            const realProductId = product.productId || product.id;
-            await productQAStore.passQualityCheck(realProductId);
-          }
+          productQAStore.passQualityCheck(id);
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
-          set({ isLoading: false });
-          throw error;
         }
 
         // Reload products from shared store
@@ -690,19 +678,14 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       failQualityCheck: async (id, reason) => {
         set({ isLoading: true });
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Sync with seller productQAStore (now using database)
+        // Sync with seller productQAStore
         try {
           const productQAStore = useProductQAStore.getState();
-          const product = get().products.find(p => p.id === id);
-          if (product) {
-            const realProductId = product.productId || product.id;
-            await productQAStore.rejectProduct(realProductId, reason, 'physical');
-          }
+          productQAStore.rejectProduct(id, reason, 'physical');
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
-          set({ isLoading: false });
-          throw error;
         }
 
         // Reload products from shared store

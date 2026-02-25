@@ -9,8 +9,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Package, ChevronRight } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -41,7 +39,6 @@ const getStatusLabel = (status: string) => {
 
 export default function ReturnOrdersScreen({ navigation }: Props) {
   const { user } = useAuthStore();
-  const insets = useSafeAreaInsets();
   const getReturnRequestsByUser = useReturnStore((state) => state.getReturnRequestsByUser);
   const returnRequests = getReturnRequestsByUser(user?.id || '2'); // Default to '2' (guest/demo) if no user, but should be logged in
 
@@ -79,20 +76,13 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
-      >
-        <View style={styles.headerTop}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>My Returns</Text>
-          <View style={{ width: 40 }} />
-        </View>
-      </LinearGradient>
+      <View style={styles.header}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+          <ArrowLeft size={24} color="#1F2937" />
+        </Pressable>
+        <Text style={styles.headerTitle}>My Returns & Refunds</Text>
+        <View style={{ width: 24 }} />
+      </View>
 
       {returnRequests.length === 0 ? (
         <View style={styles.emptyState}>
@@ -118,32 +108,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  headerContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-  },
-  headerTop: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    backgroundColor: '#FFF',
   },
-  headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  backButton: {
+    padding: 8,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
+    color: '#1F2937',
   },
   listContent: {
     padding: 16,
