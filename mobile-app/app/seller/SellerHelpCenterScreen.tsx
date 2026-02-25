@@ -242,10 +242,10 @@ export default function SellerHelpCenterScreen() {
       <StatusBar barStyle="light-content" />
       
       {/* Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FFF4EC' }]}>
         <View style={styles.headerTop}>
-          <Pressable onPress={() => setDrawerVisible(true)} style={styles.headerIconButton}>
-            <Menu size={24} color="#FFF" strokeWidth={2.5} />
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Help Center</Text>
           <View style={{ width: 40 }} />
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#FFF',
+    color: '#1F2937',
   },
   tabContainer: {
     flexDirection: 'row',
