@@ -28,6 +28,15 @@ export interface CheckoutPayload {
     voucherId?: string | null;
     discountAmount?: number;
     email: string;
+    // Campaign discount info
+    campaignDiscountTotal?: number;
+    campaignDiscounts?: {
+        campaignId?: string;
+        campaignName: string;
+        discountAmount: number;
+        productId: string;
+        quantity: number;
+    }[];
 }
 
 export interface CheckoutResult {
@@ -70,7 +79,9 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         discount,
         voucherId,
         discountAmount,
-        email
+        email,
+        campaignDiscountTotal,
+        campaignDiscounts
     } = payload;
 
     try {
@@ -371,13 +382,17 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     }
                 }
                 
+                // Calculate price discount (campaign discount) per item
+                const itemOriginalPrice = item.originalPrice ?? item.price ?? 0;
+                const itemPriceDiscount = itemOriginalPrice - (item.price ?? 0);
+                
                 return {
                     order_id: orderData.id,
                     product_id: item.id,
                     product_name: item.name,
                     primary_image_url: item.image, // Use primary image URL field
-                    price: item.price || 0,
-                    price_discount: 0, // No discount initially
+                    price: item.price || 0, // This is the discounted price
+                    price_discount: itemPriceDiscount, // Store the discount amount
                     shipping_price: 0, // No shipping price initially
                     shipping_discount: 0, // No shipping discount initially
                     quantity: item.quantity,
@@ -473,6 +488,50 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     console.error('[Checkout] Failed to record voucher usage:', voucherError);
                 } else {
                     console.log('[Checkout] ✅ Voucher usage recorded:', voucherId, 'discount:', discountAmount);
+                }
+            }
+
+            // Record campaign discount usage if campaign discounts were applied
+            if (campaignDiscounts && campaignDiscounts.length > 0) {
+                // Filter discounts for this seller's items
+                const sellerDiscounts = campaignDiscounts.filter(cd => 
+                    sellerItems.some(si => si.id === cd.productId)
+                );
+                
+                for (const campaignDisc of sellerDiscounts) {
+                    if (campaignDisc.campaignId && campaignDisc.discountAmount > 0) {
+                        try {
+                            // First get the product_discount record for this campaign and product
+                            const { data: productDiscount } = await supabase
+                                .from('product_discounts')
+                                .select('id')
+                                .eq('campaign_id', campaignDisc.campaignId)
+                                .eq('product_id', campaignDisc.productId)
+                                .maybeSingle();
+
+                            const { error: discError } = await supabase
+                                .from('discount_usage')
+                                .insert({
+                                    campaign_id: campaignDisc.campaignId,
+                                    product_discount_id: productDiscount?.id || null,
+                                    buyer_id: userId,
+                                    order_id: orderData.id,
+                                    product_id: campaignDisc.productId,
+                                    discount_amount: campaignDisc.discountAmount,
+                                    discounted_price: (items.find(i => i.id === campaignDisc.productId)?.price || 0),
+                                    quantity: campaignDisc.quantity || 1,
+                                    created_at: new Date().toISOString()
+                                });
+
+                            if (discError) {
+                                console.error('[Checkout] Failed to record campaign discount usage:', discError);
+                            } else {
+                                console.log('[Checkout] ✅ Campaign discount usage recorded:', campaignDisc.campaignName, 'discount:', campaignDisc.discountAmount);
+                            }
+                        } catch (discErr) {
+                            console.warn('[Checkout] Failed to record campaign discount:', discErr);
+                        }
+                    }
                 }
             }
 

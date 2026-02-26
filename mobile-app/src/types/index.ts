@@ -121,6 +121,14 @@ export interface CartItem extends Product {
     option2Label?: string;
     option2Value?: string;
   } | null;
+  // Campaign discount info from active discount campaigns
+  campaignDiscount?: {
+    campaignId?: string;
+    campaignName?: string;
+    discountType?: string;
+    discountValue?: number;
+    maxDiscountAmount?: number;
+  } | null;
 }
 
 export interface Order {
@@ -137,6 +145,12 @@ export interface Order {
     type: 'percentage' | 'fixed' | 'shipping';
     discountAmount: number;
   } | null;
+  // Campaign discounts applied to items
+  campaignDiscounts?: {
+    campaignId: string;
+    campaignName: string;
+    discountAmount: number;
+  }[];
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   isPaid: boolean;
   scheduledDate: string;
