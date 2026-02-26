@@ -53,10 +53,10 @@ export const AddedToCartModal = ({
                 }),
             ]).start();
 
-            // Auto-close after 2 seconds
+            // Auto-close after 0.8 seconds
             const timer = setTimeout(() => {
                 handleClose();
-            }, 1500);
+            }, 800);
 
             return () => clearTimeout(timer);
         } else {

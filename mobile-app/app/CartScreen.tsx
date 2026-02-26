@@ -10,7 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, CheckCircle, Circle, Store, Flame } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle, Circle, Flame, ChevronRight } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
@@ -41,7 +41,7 @@ export default function CartScreen({ navigation }: any) {
 
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  
+
   // Edit Variant State
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
@@ -63,23 +63,22 @@ export default function CartScreen({ navigation }: any) {
 
     // Build personalized options
     const newOptions: any = {
-       ...editingItem.selectedVariant, // Keep existing (like fallback)
-       option1Value: variantData.option1Value,
-       option2Value: variantData.option2Value,
-       variantId: variantData.variantId,
+      ...editingItem.selectedVariant, // Keep existing (like fallback)
+      option1Value: variantData.option1Value,
+      option2Value: variantData.option2Value,
+      variantId: variantData.variantId,
     };
     // Also update legacy fields if applicable (though store might handle mapping)
     if (variantData.option1Value) newOptions.color = variantData.option1Value;
     if (variantData.option2Value) newOptions.size = variantData.option2Value;
 
     await updateItemVariant(editingItem.cartItemId, variantData.variantId, newOptions);
-    
+
     // Also update quantity if changed
     if (newQuantity !== editingItem.quantity) {
       updateQuantity(editingItem.id, newQuantity);
     }
-    
-    setShowVariantModal(false);
+
     setEditingItem(null);
   };
 
@@ -90,9 +89,9 @@ export default function CartScreen({ navigation }: any) {
       'Are you sure you want to remove this item from your cart?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
-          style: 'destructive', 
+        {
+          text: 'Remove',
+          style: 'destructive',
           onPress: () => removeItem(item.cartItemId) // Using cartItemId as per store update
         }
       ]
@@ -100,7 +99,7 @@ export default function CartScreen({ navigation }: any) {
   };
 
   const handleClearAll = () => {
-     Alert.alert(
+    Alert.alert(
       'Clear Cart',
       'Are you sure you want to remove all items?',
       [
@@ -114,11 +113,11 @@ export default function CartScreen({ navigation }: any) {
     Alert.alert(
       'Delete Selected',
       `Remove ${selectedIds.length} item(s) from your cart?`,
-       [
+      [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive', 
+        {
+          text: 'Delete',
+          style: 'destructive',
           onPress: () => {
             removeItems(selectedIds);
             setSelectedIds([]); // Clear selection after delete
@@ -129,8 +128,7 @@ export default function CartScreen({ navigation }: any) {
   };
 
   const groupedItems = useMemo(() => {
-    const sortedItems = [...items].reverse();
-    return sortedItems.reduce((groups, item) => {
+    return items.reduce((groups, item) => {
       const seller = item.seller || 'Verified Seller';
       if (!groups[seller]) groups[seller] = [];
       groups[seller].push(item);
@@ -219,17 +217,6 @@ export default function CartScreen({ navigation }: any) {
       >
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>My Cart</Text>
-          <View style={styles.clearTextWrapper}>
-            {selectedIds.length > 0 ? (
-               <Pressable onPress={handleDeleteSelected}>
-                <Text style={[styles.clearText, { color: '#EF4444' }]}>Delete ({selectedIds.length})</Text>
-              </Pressable>
-            ) : (
-              <Pressable onPress={handleClearAll}>
-                <Text style={styles.clearText}>Clear All</Text>
-              </Pressable>
-            )}
-          </View>
         </View>
       </LinearGradient>
 
@@ -239,6 +226,11 @@ export default function CartScreen({ navigation }: any) {
           {isAllSelected ? <CheckCircle size={22} color={BRAND_PRIMARY} fill={BRAND_PRIMARY + '15'} /> : <Circle size={22} color="#D1D5DB" />}
           <Text style={styles.selectAllText}>Select All Items</Text>
         </Pressable>
+        {selectedIds.length > 0 && (
+          <Pressable onPress={handleDeleteSelected}>
+            <Text style={[styles.clearText, { color: '#EF4444' }]}>Delete ({selectedIds.length})</Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView
@@ -261,10 +253,18 @@ export default function CartScreen({ navigation }: any) {
                     <Circle size={20} color="#D1D5DB" />
                   )}
                 </Pressable>
-                <View style={styles.storeInfo}>
-                  <Store size={16} color={COLORS.textPrimary} />
+                <Pressable
+                  style={styles.storeInfo}
+                  onPress={() => {
+                    const sellerId = sellerProducts[0]?.sellerId || sellerProducts[0]?.seller_id;
+                    if (sellerId) {
+                      navigation.navigate('StoreDetail', { store: { id: sellerId, name: sellerName } });
+                    }
+                  }}
+                >
                   <Text style={styles.sellerName}>{sellerName}</Text>
-                </View>
+                  <ChevronRight size={16} color="#9CA3AF" />
+                </Pressable>
               </View>
 
               <View style={styles.cardDivider} />
@@ -283,9 +283,9 @@ export default function CartScreen({ navigation }: any) {
                     <View style={{ flex: 1 }}>
                       <CartItemRow
                         item={item}
-                        onIncrement={() => updateQuantity(item.id, item.quantity + 1)}
-                        onDecrement={() => item.quantity > 1 && updateQuantity(item.id, item.quantity - 1)}
-                        onChange={(val) => updateQuantity(item.id, val)}
+                        onIncrement={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                        onDecrement={() => item.quantity > 1 && updateQuantity(item.cartItemId, item.quantity - 1)}
+                        onChange={(val) => updateQuantity(item.cartItemId, val)}
                         onRemove={() => handleRemoveSingle(item)}
                         onEdit={item.selectedVariant ? () => handleEditVariant(item) : undefined}
                         onPress={() => navigation.navigate('ProductDetail', { product: item })}
@@ -385,44 +385,43 @@ const styles = StyleSheet.create({
   clearText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 13 },
 
   selectAllBar: {
-    backgroundColor: 'transparent', // Removed box
+    backgroundColor: 'transparent',
     marginHorizontal: 16,
     marginTop: 12,
     borderRadius: 0,
     paddingHorizontal: 0,
-    paddingVertical: 10,
+    paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    marginBottom: 8,
+    marginBottom: 2,
   },
   checkboxWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  selectAllText: { fontSize: 15, fontWeight: '700', color: COLORS.textHeadline },
+  selectAllText: { fontSize: 14, fontWeight: '600', color: '#9CA3AF' },
 
   scrollContainer: { flex: 1, paddingTop: 8 },
 
   // REFACTORED STYLE FOR SELLER GROUP (No boxes)
   sellerCard: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 20,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB', // Professional neutral gray
+    marginHorizontal: 12,
+    marginBottom: 10,
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 0.5,
+    borderColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 0,
   },
   sellerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 0,
-    marginBottom: 12,
+    paddingVertical: 4,
+    marginBottom: 8,
   },
   headerCheckbox: { marginRight: 12 },
   storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -432,11 +431,17 @@ const styles = StyleSheet.create({
 
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 12,
     backgroundColor: 'transparent',
   },
-  itemCheckbox: { paddingHorizontal: 12, paddingVertical: 8 },
+  itemCheckbox: {
+    width: 44,
+    height: 90,
+    paddingTop: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   itemSeparator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 12, opacity: 0.6 },
 
   savingsBanner: {
