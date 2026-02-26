@@ -13,9 +13,14 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, variant = 'default' }) => {
   const isFlash = variant === 'flash';
-  const hasDiscount = !!(product.originalPrice && typeof product.price === 'number' && product.originalPrice > product.price);
+  const regularPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price || 0));
+  const pbPrice = product.originalPrice ?? product.original_price;
+  const originalPrice = typeof pbPrice === 'number' ? pbPrice : parseFloat(String(pbPrice || 0));
+  
+  // Calculate discount only if both prices are valid and discount exists
+  const hasDiscount = !!(originalPrice > 0 && regularPrice > 0 && originalPrice > regularPrice);
   const discountPercent = hasDiscount
-    ? Math.round(((product.originalPrice! - product.price!) / product.originalPrice!) * 100)
+    ? Math.round(((originalPrice - regularPrice) / originalPrice) * 100)
     : 0;
 
   return (
@@ -33,9 +38,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
         <Image source={{ uri: safeImageUri(product.image) }} style={styles.image} resizeMode="cover" />
 
         {/* Discount Badge */}
-        {hasDiscount && !isFlash && (
+        {hasDiscount && (
           <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>-{discountPercent}%</Text>
+            <Text style={styles.discountText}>{discountPercent}% OFF</Text>
+          </View>
+        )}
+
+        {/* Campaign Badge (Flash or Other) */}
+        {product.campaignBadge && (
+          <View style={[
+            styles.flashBadge, 
+            { backgroundColor: `${product.campaignBadgeColor || '#DC2626'}CC` }
+          ]}>
+            <Text style={styles.flashBadgeText}>{product.campaignBadge}</Text>
           </View>
         )}
 
@@ -64,31 +79,38 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
 
         {/* Price & Sold */}
         <View style={styles.priceSoldRow}>
-        <View style={styles.priceContainer}>
+          <View style={styles.priceContainer}>
             <Text style={[
               styles.price, 
-              hasDiscount && { color: isFlash ? '#DC2626' : '#EA580C' }, // Vibrant Orange for Standard
-              isFlash && { fontSize: 18 } // Slightly larger for Flash
+              hasDiscount && { color: '#DC2626' }, 
+              hasDiscount && { fontSize: 20 }
             ]}>
-              ₱{(product.price || 0).toLocaleString()}
+              ₱{regularPrice.toLocaleString()}
             </Text>
-            {hasDiscount && product.originalPrice && (
-              <Text style={styles.originalPrice}>₱{product.originalPrice.toLocaleString()}</Text>
+            {hasDiscount && originalPrice > 0 && (
+              <Text style={styles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
             )}
           </View>
-          {!isFlash && (
+          {!hasDiscount && (
             <Text style={styles.soldText}>{(product.sold || 0).toLocaleString()} sold</Text>
           )}
         </View>
 
-        {isFlash && (
+        {hasDiscount && (
           <View style={styles.flashProgressContainer}>
             <View style={styles.flashProgressBar}>
-              <View style={[styles.flashProgressFill, { width: '75%' }]} />
+              <View 
+                style={[
+                  styles.flashProgressFill, 
+                  { 
+                    width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 1)) * 100))}%` 
+                  }
+                ]} 
+              />
             </View>
             <View style={styles.flashSoldRow}>
-                <Flame size={12} color="#DC2626" fill="#DC2626" />
-                <Text style={styles.flashSoldText}>{product.sold} Sold</Text>
+                <Flame size={14} color="#DC2626" fill="#DC2626" />
+                <Text style={styles.flashSoldText}>{(product.sold || 0).toLocaleString()} SOLD</Text>
             </View>
           </View>
         )}
@@ -142,10 +164,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     left: 10,
-    backgroundColor: '#EA580C', // Vibrant Orange
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    backgroundColor: '#DC2626', // Red
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
     zIndex: 10,
   },
   discountText: {
@@ -153,17 +175,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
+  flashBadge: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: 5,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  flashBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
   shippingBadge: {
     position: 'absolute',
-    bottom: 10,
-    left: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 106, 0, 0.2)',
+    borderColor: 'rgba(255, 106, 0, 0.3)',
     zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    elevation: 2,
   },
   shippingText: {
     color: COLORS.primary,

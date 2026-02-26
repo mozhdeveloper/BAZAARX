@@ -307,6 +307,10 @@ export interface Product {
   // Legacy compatibility
   is_active?: boolean;
   original_price?: number;
+  originalPrice?: number;
+  campaignBadge?: string;
+  campaignBadgeColor?: string;
+  campaignEndsAt?: string;
 }
 
 export interface ProductImage {

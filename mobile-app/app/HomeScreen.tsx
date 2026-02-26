@@ -44,6 +44,7 @@ import { useSellerStore } from '../src/stores/sellerStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
+import { discountService } from '../src/services/discountService';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -112,6 +113,8 @@ export default function HomeScreen({ navigation }: Props) {
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [flashSaleProducts, setFlashSaleProducts] = useState<any[]>([]);
+  const [flashTimer, setFlashTimer] = useState('00:00:00');
   const scrollRef = useRef<ScrollView>(null);
   const scrollAnchor = useRef(0);
   const [showLocationRow, setShowLocationRow] = useState(true);
@@ -206,33 +209,11 @@ export default function HomeScreen({ navigation }: Props) {
           const option2Values = Array.from(new Set(variants.map((v: any) => v.option_2_value || v.size).filter(Boolean))) as string[];
 
           return {
-            id: row.id,
-            name: row.name,
+            ...row,
             price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
-            originalPrice: row.original_price,
             image: primaryImage,
             images: images.length > 0 ? images : [primaryImage],
-            rating: typeof row.rating === 'number' ? row.rating : 0,
-            reviewCount: row.reviewCount || 0,
-            sold: row.sold || 0,
-            seller: row.seller?.store_name || 'Verified Seller',
-            seller_id: row.seller_id || row.seller?.id,
-            sellerId: row.seller_id || row.seller?.id,
-            sellerRating: 4.9,
-            sellerVerified: !!row.seller?.verified_at,
-            isFreeShipping: !!row.is_free_shipping,
-            isVerified: true,
-            location: row.seller?.business_profile?.city || 'Philippines',
-            description: row.description || '',
-            category: row.category?.name || row.category || '',
-            stock: row.stock || 0,
-            variants,
-            colors,
-            sizes,
-            variant_label_1: row.variant_label_1,
-            variant_label_2: row.variant_label_2,
-            option1Values,
-            option2Values,
+            seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
           } as Product;
         });
         const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
@@ -246,6 +227,49 @@ export default function HomeScreen({ navigation }: Props) {
     };
     loadProducts();
   }, []);
+
+  useEffect(() => {
+    const loadFlashSales = async () => {
+      try {
+        const data = await discountService.getFlashSaleProducts();
+        setFlashSaleProducts(data);
+      } catch (e) {
+        console.error('Error loading flash sales:', e);
+      }
+    };
+    loadFlashSales();
+  }, []);
+
+  useEffect(() => {
+    if (flashSaleProducts.length === 0) return;
+
+    const updateTimer = () => {
+      // Find the soonest ending campaign
+      const now = new Date().getTime();
+      const endTiems = flashSaleProducts
+        .map(p => new Date(p.campaignEndsAt).getTime())
+        .filter(t => t > now)
+        .sort((a, b) => a - b);
+
+      if (endTiems.length === 0) {
+        setFlashTimer('00:00:00');
+        return;
+      }
+
+      const diff = endTiems[0] - now;
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setFlashTimer(
+        `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+      );
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [flashSaleProducts]);
 
   useEffect(() => {
     const fetchSellers = async () => {
@@ -550,7 +574,7 @@ export default function HomeScreen({ navigation }: Props) {
                   <Text style={styles.flashSaleTitle}>Flash Sale</Text>
                   <View style={styles.timerBadge}>
                     <Timer size={14} color="#FFF" />
-                    <Text style={styles.timerText}>02:15:40</Text>
+                    <Text style={styles.timerText}>{flashTimer}</Text>
                   </View>
                 </View>
                 <Pressable onPress={() => navigation.navigate('FlashSale')}>
@@ -562,11 +586,19 @@ export default function HomeScreen({ navigation }: Props) {
                 showsHorizontalScrollIndicator={false} 
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, gap: 12 }}
               >
-                {popularProducts.slice(0, 5).map((product) => (
-                  <View key={product.id} style={{ width: 150 }}>
-                    <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
-                  </View>
-                ))}
+                {flashSaleProducts.length > 0 ? (
+                  flashSaleProducts.slice(0, 10).map((product) => (
+                    <View key={product.id} style={{ width: 150 }}>
+                      <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
+                    </View>
+                  ))
+                ) : (
+                  popularProducts.slice(0, 5).map((product) => (
+                    <View key={product.id} style={{ width: 150 }}>
+                      <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
+                    </View>
+                  ))
+                )}
               </ScrollView>
             </LinearGradient>
 

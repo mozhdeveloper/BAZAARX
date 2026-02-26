@@ -313,11 +313,15 @@ export class DiscountService {
         .select(`
           *,
           campaign:discount_campaigns(*),
-          product:products(
+          product:products (
             id,
             name,
             price,
-            product_images(image_url, is_primary, sort_order)
+            seller_id,
+            images:product_images (image_url, is_primary, sort_order),
+            variants:product_variants (stock),
+            seller:sellers!products_seller_id_fkey (id, store_name, verified_at),
+            category:categories!products_category_id_fkey (name)
           )
         `)
         .eq('campaign_id', campaignId);
@@ -327,6 +331,102 @@ export class DiscountService {
     } catch (error) {
       console.error('Error fetching products in campaign:', error);
       throw new Error('Failed to fetch campaign products.');
+    }
+  }
+
+  /**
+   * Get all active flash sale products across all active flash sale campaigns
+   */
+  async getFlashSaleProducts(): Promise<any[]> {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
+    try {
+      // 1. Fetch active flash sale campaigns
+      const { data: campaigns, error: campaignsError } = await supabase
+        .from('discount_campaigns')
+        .select('*')
+        .eq('campaign_type', 'flash_sale')
+        .eq('status', 'active')
+        .lte('starts_at', new Date().toISOString())
+        .gte('ends_at', new Date().toISOString())
+        .order('priority', { ascending: false });
+
+      if (campaignsError) throw campaignsError;
+      if (!campaigns || campaigns.length === 0) return [];
+
+      const campaignIds = campaigns.map(c => c.id);
+
+      // 2. Fetch products in these campaigns
+      const { data: productDiscounts, error: pError } = await supabase
+        .from('product_discounts')
+        .select(`
+          *,
+          campaign:discount_campaigns(*),
+          product:products (
+            id,
+            name,
+            price,
+            seller_id,
+            images:product_images (image_url, is_primary, sort_order),
+            variants:product_variants (stock),
+            seller:sellers!products_seller_id_fkey (id, store_name, verified_at),
+            category:categories!products_category_id_fkey (name)
+          )
+        `)
+        .in('campaign_id', campaignIds);
+
+      if (pError) throw pError;
+
+      // 3. Transform into generic product objects for UI
+      return (productDiscounts || []).map(pd => {
+        const p = pd.product as any;
+        const c = pd.campaign as any;
+        
+        // Calculate discounted price
+        let discountedPrice = p.price;
+        const dType = pd.discount_type || c.discount_type;
+        const dValue = pd.discount_value || c.discount_value;
+
+        if (dType === 'percentage') {
+          discountedPrice = p.price * (1 - (dValue / 100));
+          if (c.max_discount_amount) {
+            const maxD = parseFloat(c.max_discount_amount);
+            discountedPrice = Math.max(discountedPrice, p.price - maxD);
+          }
+        } else if (dType === 'fixed_amount') {
+          discountedPrice = Math.max(0, p.price - dValue);
+        }
+
+        // Get primary image
+        const images = p.images || [];
+        const primaryImg = images.find((i: any) => i.is_primary)?.image_url || images[0]?.image_url || '';
+
+        const totalStock = (p.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+        const soldCount = (pd.sold_count as number) || 0;
+
+        return {
+          id: p.id,
+          name: p.name,
+          price: discountedPrice,
+          originalPrice: p.price,
+          image: primaryImg,
+          images: images.map((i: any) => i.image_url),
+          seller: p.seller?.store_name || 'Generic Store',
+          sellerId: p.seller_id,
+          sellerVerified: !!p.seller?.verified_at,
+          category: p.category?.name || 'General',
+          stock: totalStock,
+          sold: soldCount,
+          campaignBadge: c.badge_text,
+          campaignBadgeColor: c.badge_color,
+          campaignEndsAt: c.ends_at,
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching flash sale products:', error);
+      return [];
     }
   }
 
@@ -382,7 +482,7 @@ export class DiscountService {
           ? parseFloat(String(campaignMeta.max_discount_amount))
           : undefined,
         discountedPrice: parseFloat(discount.discounted_price),
-        originalPrice: parseFloat(discount.original_price),
+        originalPrice: parseFloat(discount.original_price || discount.price),
         badgeText: discount.badge_text,
         badgeColor: discount.badge_color,
         endsAt: new Date(discount.ends_at)
@@ -494,7 +594,6 @@ export class DiscountService {
             order_id: usage.orderId,
             product_id: usage.productId,
             discount_amount: usage.discountAmount,
-            original_price: usage.originalPrice,
             discounted_price: usage.discountedPrice,
             quantity: usage.quantity || 1
           }
