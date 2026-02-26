@@ -56,7 +56,39 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       const imageUrl = variant?.thumbnail_url || primaryImg?.image_url || firstImg?.image_url || PLACEHOLDER_PRODUCT;
 
       // Price: use variant price if available, else product price
-      const price = (variant?.price != null && variant.price > 0) ? variant.price : (product.price || 0);
+      const originalPrice = (variant?.price != null && variant.price > 0) ? variant.price : (product.price || 0);
+
+      // Calculate discounted price from active campaign
+      let discountedPrice = originalPrice;
+      const productDiscounts = product.product_discounts || [];
+      const now = new Date();
+      
+      const activeDiscount = productDiscounts.find((pd: any) => {
+        const campaign = pd.campaign;
+        if (!campaign || campaign.status !== 'active') return false;
+        const startsAt = new Date(campaign.starts_at);
+        const endsAt = new Date(campaign.ends_at);
+        return now >= startsAt && now <= endsAt;
+      });
+
+      if (activeDiscount) {
+        const campaign = activeDiscount.campaign;
+        const dType = activeDiscount.discount_type || campaign.discount_type;
+        const dValue = activeDiscount.discount_value || campaign.discount_value;
+
+        if (dType === 'percentage') {
+          discountedPrice = originalPrice * (1 - (dValue / 100));
+          if (campaign.max_discount_amount) {
+            const maxD = parseFloat(String(campaign.max_discount_amount));
+            discountedPrice = Math.max(discountedPrice, originalPrice - maxD);
+          }
+        } else if (dType === 'fixed_amount') {
+          discountedPrice = Math.max(0, originalPrice - dValue);
+        }
+      }
+
+      // Use discounted price as the cart price if there's an active discount
+      const price = discountedPrice < originalPrice ? discountedPrice : originalPrice;
 
       // Get seller info
       const seller = product.seller || {};
@@ -92,14 +124,24 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
         }
       }
 
+      // Store campaign discount info if active
+      const hasActiveDiscount = discountedPrice < originalPrice;
+      const campaignDiscount = hasActiveDiscount ? {
+        campaignId: activeDiscount?.campaign?.id,
+        campaignName: activeDiscount?.campaign?.badge_text || 'Discount',
+        discountType: activeDiscount?.discount_type || activeDiscount?.campaign?.discount_type,
+        discountValue: activeDiscount?.discount_value || activeDiscount?.campaign?.discount_value,
+        maxDiscountAmount: activeDiscount?.campaign?.max_discount_amount,
+      } : undefined;
+
       return {
         id: product.id || ci.product_id,
         cartItemId: ci.id,
         name: product.name || 'Product',
         description: product.description || '',
         price,
-        // Prioritize product original price (variants don't have original_price in schema)
-        originalPrice: product.original_price || 0,
+        // Store original price (before discount) for display
+        originalPrice: originalPrice,
         image: imageUrl,
         images: productImages.map((img: any) => img.image_url),
         seller: sellerName,
@@ -116,6 +158,8 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
         variant_label_2: product.variant_label_2,
         option1Values: product.option1Values || [],
         option2Values: product.option2Values || [],
+        // Campaign discount info
+        campaignDiscount,
       } as CartItem;
     });
 }

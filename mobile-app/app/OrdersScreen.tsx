@@ -241,6 +241,10 @@ export default function OrdersScreen({ navigation, route }: Props) {
             (typeof it.unit_price === 'number' ? it.unit_price :
               (typeof p.price === 'number' ? p.price : 0));
 
+          // Calculate original price from discounted price + discount
+          const priceDiscount = typeof it.price_discount === 'number' ? it.price_discount : 0;
+          const itemOriginalPrice = priceDiscount > 0 ? priceNum + priceDiscount : (typeof p.original_price === 'number' ? p.original_price : undefined);
+
           // Get seller info from product
           const itemSeller = p.seller || productSeller;
           const itemSellerName = itemSeller.store_name || sellerName;
@@ -263,7 +267,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             productId: p.id || it.product_id, // actual product id for reviews
             name: productName,
             price: priceNum,
-            originalPrice: typeof p.original_price === 'number' ? p.original_price : undefined,
+            originalPrice: itemOriginalPrice,
             image: image,
             images: productImages.map((img: any) => img.image_url),
             rating: typeof p.rating === 'number' ? p.rating : 0,
@@ -318,11 +322,18 @@ export default function OrdersScreen({ navigation, route }: Props) {
           discountAmount: orderVouchers.reduce((sum: number, v: any) => sum + (v.discount_amount || 0), 0)
         } : null;
         
-        const discount = voucherInfo?.discountAmount || 0;
+        // Calculate campaign discount from order items (price_discount)
+        const campaignDiscount = (order.items || []).reduce((sum: number, it: any) => {
+          const priceDiscount = typeof it.price_discount === 'number' ? it.price_discount : 0;
+          return sum + (priceDiscount * (it.quantity || 1));
+        }, 0);
 
-        // totalNum = items + shipping (original price before discount)
+        // Total discount = voucher + campaign
+        const discount = (voucherInfo?.discountAmount || 0) + campaignDiscount;
+
+        // totalNum = items + shipping (original price before any discount)
         // Total displayed should be what customer paid = original price - discount
-        const total = totalNum - discount;
+        const total = totalNum - campaignDiscount - (voucherInfo?.discountAmount || 0);
 
         return {
           id: order.order_number || order.id,
@@ -333,8 +344,13 @@ export default function OrdersScreen({ navigation, route }: Props) {
           total,
           subtotal: totalNum - shippingFee,
           shippingFee,
-          discount,
+          discount: campaignDiscount + (voucherInfo?.discountAmount || 0),
           voucherInfo,
+          campaignDiscounts: campaignDiscount > 0 ? [{
+            campaignId: 'campaign',
+            campaignName: 'Campaign Discount',
+            discountAmount: campaignDiscount
+          }] : undefined,
           status: mappedStatus,
           isPaid: order.payment_status === 'paid',
           scheduledDate: new Date(order.created_at).toLocaleDateString(),

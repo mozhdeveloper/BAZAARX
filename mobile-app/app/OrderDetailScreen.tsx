@@ -354,6 +354,26 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <Text style={styles.cardTitle}>Order Summary</Text>
           </View>
           <View style={styles.cardContent}>
+            {/* Show original subtotal if there's campaign discount */}
+            {((order as any).campaignDiscounts && (order as any).campaignDiscounts.length > 0) && (
+              <>
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: '#6B7280' }]}>Original Subtotal</Text>
+                  <Text style={[styles.summaryValue, { color: '#6B7280', textDecorationLine: 'line-through' }]}>
+                    ₱{(((order as any).subtotal || order.total - order.shippingFee) + ((order as any).campaignDiscounts?.[0]?.discountAmount || 0)).toLocaleString()}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Tag size={14} color="#DC2626" />
+                    <Text style={[styles.summaryLabel, { marginLeft: 4 }]}>Campaign Discount</Text>
+                  </View>
+                  <Text style={[styles.summaryValue, { color: '#DC2626' }]}>
+                    -₱{((order as any).campaignDiscounts?.[0]?.discountAmount || 0).toLocaleString()}
+                  </Text>
+                </View>
+              </>
+            )}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>
               <Text style={styles.summaryValue}>₱{((order as any).subtotal || order.total - order.shippingFee - (order.discount || 0)).toLocaleString()}</Text>
@@ -367,19 +387,17 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 {order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}
               </Text>
             </View>
-            {(order.discount || 0) > 0 && (
+            {order.voucherInfo && (order.voucherInfo.discountAmount || 0) > 0 && (
               <View style={styles.summaryRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Tag size={14} color="#10B981" />
                   <Text style={[styles.summaryLabel, { marginLeft: 4 }]}>Voucher</Text>
-                  {order.voucherInfo && (
-                    <Text style={[styles.summaryLabel, { marginLeft: 4, color: '#6B7280' }]}>
-                      ({order.voucherInfo.code})
-                    </Text>
-                  )}
+                  <Text style={[styles.summaryLabel, { marginLeft: 4, color: '#6B7280' }]}>
+                    ({order.voucherInfo.code})
+                  </Text>
                 </View>
                 <Text style={[styles.summaryValue, { color: '#10B981' }]}>
-                  -₱{order.discount?.toLocaleString()}
+                  -₱{order.voucherInfo.discountAmount?.toLocaleString()}
                 </Text>
               </View>
             )}

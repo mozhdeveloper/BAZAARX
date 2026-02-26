@@ -352,15 +352,13 @@ export class ProductService {
       sold_count: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
       // Seller info for legacy code
       seller: product.seller ? {
-        ...product.seller,
-        business_profile: businessProfile,
-      } : undefined,
-      // Flash sale info
-      campaignBadge,
-      campaignBadgeColor,
-      campaignEndsAt,
-      // Ensure originalPrice is mapped from original_price
-      originalPrice: product.original_price,
+      ...product.seller,
+      business_profile: businessProfile,
+    } : undefined,
+    // Flash sale info
+    campaignBadge,
+    campaignBadgeColor,
+    campaignEndsAt,
     };
   }
 
