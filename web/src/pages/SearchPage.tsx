@@ -540,63 +540,101 @@ const SearchPage: React.FC = () => {
             </div>
 
             {/* Product Grid */}
-            {sortedResults.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {sortedResults.map((product, index) => (
+            {sortedResults.length > 0 ? (() => {
+                const groupedProducts: Record<string, typeof sortedResults> = {};
+                const normalProducts: typeof sortedResults = [];
+                
+                sortedResults.forEach(product => {
+                  const badge = (product as any).campaignBadge;
+                  if (badge) {
+                    if (!groupedProducts[badge]) {
+                      groupedProducts[badge] = [];
+                    }
+                    groupedProducts[badge].push(product);
+                  } else {
+                    normalProducts.push(product);
+                  }
+                });
+
+                const renderProduct = (product: any, index: number) => (
                   <motion.div
                     key={product.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     onClick={() => navigate(`/product/${product.id}`)}
-                    className="product-card-premium product-card-premium-interactive"
+                    className="product-card-premium product-card-premium-interactive h-full flex flex-col group cursor-pointer border-0 rounded-2xl overflow-hidden"
                   >
-                    <div className="relative aspect-square overflow-hidden">
+                    <div className="relative aspect-square overflow-hidden bg-[#FFF6E5]">
                       <img
                         src={product.image}
                         alt={product.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       {product.originalPrice && product.originalPrice > product.price && (
-                        <Badge className="absolute top-3 left-3 bg-destructive hover:bg-destructive text-white text-xs">
+                        <div
+                          className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm"
+                        >
                           {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
-                        </Badge>
+                        </div>
                       )}
                     </div>
 
-                    <div className="p-2 flex-1 flex flex-col">
-                      <h3 className="product-title-premium h-10 text-xs">
-                        {product.name}
-                      </h3>
+                    <div className="p-4 flex flex-col justify-between flex-1">
+                      <div>
+                        <h3 className="product-title-premium text-[15px] font-bold mb-1.5 line-clamp-2 text-[#1f2937]">
+                          {product.name}
+                        </h3>
 
-                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                        <div className="flex items-center">
-                          <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
-                          <span className="text-xs text-gray-600 ml-1">{product.rating} ({product.sold})</span>
+                        <div className="flex items-center mb-4">
+                          <div className="flex text-[#F59E0B] text-[11px] mr-1.5">
+                            {[...Array(5)].map((_, i) => (
+                              <span
+                                key={i}
+                                className={
+                                  i < Math.floor(product.rating || 5)
+                                    ? "fill-current"
+                                    : "text-gray-300"
+                                }
+                              >
+                                ★
+                              </span>
+                            ))}
+                          </div>
+                          <span className="text-[12px] text-gray-500 font-medium">
+                            ({product.rating || 5.0})
+                          </span>
                         </div>
-                        {product.isVerified && (
-                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 gap-1 border-[var(--brand-wash-gold)] bg-[var(--brand-wash)] text-[var(--color-success)] font-bold shadow-sm">
-                            <BadgeCheck className="w-2.5 h-2.5" /> Verified
-                          </Badge>
-                        )}
-                      </div>
 
-                      <div className="mt-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base product-price-premium">₱{product.price.toLocaleString()}</span>
+                        <div className="flex items-baseline gap-2 mb-2">
+                          <span className={product.originalPrice && product.originalPrice > product.price ? "text-[22px] font-black text-[#DC2626] leading-none" : "text-[22px] font-black text-[#D97706] leading-none"}>
+                            ₱{product.price.toLocaleString()}
+                          </span>
                           {product.originalPrice && product.originalPrice > product.price && (
-                            <span className="text-xs text-gray-500 line-through">₱{product.originalPrice.toLocaleString()}</span>
+                            <span className="text-[14px] text-gray-400 line-through font-medium leading-none">
+                              ₱{product.originalPrice.toLocaleString()}
+                            </span>
                           )}
                         </div>
+                          
+                        <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-4">
+                          {(product.sold || 0).toLocaleString()} sold
+                        </div>
                       </div>
 
-                      <div className="mt-1.5 text-[11px] text-gray-500 min-h-[2rem] flex items-center">
-                        <MapPin className="w-2.5 h-2.5 mr-1 flex-shrink-0" />
-                        <span className="line-clamp-1">{product.location}</span>
-                      </div>
-
-                      <div className="mt-1">
-                        <p className="text-[10px] text-gray-500">{product.category}</p>
+                      <div className="pt-4 border-t border-[var(--brand-accent-light)]/50 pb-2">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
+                            {product.seller || "BazaarX Store"}
+                          </p>
+                          {product.isVerified && (
+                            <BadgeCheck className="w-4 h-4 text-[#16A34A] flex-shrink-0" />
+                          )}
+                        </div>
+                        <div className="flex items-center text-[10px] text-gray-500">
+                          <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
+                          <span className="line-clamp-1">{product.location}</span>
+                        </div>
                       </div>
 
                       <div className="mt-auto pt-3 flex gap-1.5">
@@ -666,9 +704,19 @@ const SearchPage: React.FC = () => {
                       </div>
                     </div>
                   </motion.div>
-                ))}
-              </div>
-            ) : (
+                );
+
+                return (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                  >
+                    {sortedResults.map((product, index) => renderProduct(product, index))}
+                  </motion.div>
+                );
+              })()
+             : (
               <div className="text-center py-20">
                 <h3 className="text-xl font-bold text-[var(--text-headline)]">No products found</h3>
                 <p className="text-[var(--text-muted)] mt-2">Try adjusting your filters or search query</p>

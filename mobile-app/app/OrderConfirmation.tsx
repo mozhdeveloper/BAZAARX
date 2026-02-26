@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CheckCircle, HelpCircle, Package, ChevronRight, Home, Flame } from 'lucide-react-native';
+import { CheckCircle, HelpCircle, Package, ChevronRight, Home, Flame, Tag } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
@@ -107,6 +107,20 @@ export default function OrderConfirmation({ navigation, route }: Props) {
                   </Text>
                 </View>
               ))}
+
+              {(order.discount || 0) > 0 && (
+                <View style={styles.totalRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Tag size={14} color="#10B981" />
+                    <Text style={[styles.totalLabel, { marginLeft: 4 }]}>
+                      Voucher {order.voucherInfo && `(${order.voucherInfo.code})`}
+                    </Text>
+                  </View>
+                  <Text style={[styles.totalAmount, { color: '#10B981' }]}>
+                    -₱{order.discount?.toLocaleString()}
+                  </Text>
+                </View>
+              )}
 
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total Amount</Text>

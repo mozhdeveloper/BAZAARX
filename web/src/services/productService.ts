@@ -104,6 +104,23 @@ export class ProductService {
             business_profile:seller_business_profiles (
               city
             )
+          ),
+          product_discounts (
+            id,
+            discount_type,
+            discount_value,
+            sold_count,
+            campaign:discount_campaigns (
+              id,
+              badge_text,
+              badge_color,
+              discount_type,
+              discount_value,
+              max_discount_amount,
+              ends_at,
+              status,
+              starts_at
+            )
           )
         `,
                 )
@@ -210,6 +227,42 @@ export class ProductService {
                 0,
             ) || 0;
 
+        // Extract campaign info if active
+        const now = new Date();
+        const activeDiscount = product.product_discounts?.find((pd: any) => {
+            const campaign = pd.campaign;
+            if (!campaign || campaign.status !== 'active') return false;
+            const startsAt = new Date(campaign.starts_at);
+            const endsAt = new Date(campaign.ends_at);
+            return now >= startsAt && now <= endsAt;
+        });
+
+        const campaignBadge = activeDiscount?.campaign?.badge_text;
+        const campaignBadgeColor = activeDiscount?.campaign?.badge_color;
+        const campaignEndsAt = activeDiscount?.campaign?.ends_at;
+        const campaignSoldCount = activeDiscount?.sold_count;
+
+        // Calculate discounted price if campaign is active
+        let price = product.price;
+        let originalPrice = product.original_price;
+
+        if (activeDiscount) {
+            const campaign = activeDiscount.campaign;
+            const dType = activeDiscount.discount_type || campaign.discount_type;
+            const dValue = activeDiscount.discount_value || campaign.discount_value;
+
+            if (dType === 'percentage') {
+                price = product.price * (1 - (dValue / 100));
+                if (campaign.max_discount_amount) {
+                    const maxD = parseFloat(String(campaign.max_discount_amount));
+                    price = Math.max(price, product.price - maxD);
+                }
+            } else if (dType === 'fixed_amount') {
+                price = Math.max(0, product.price - dValue);
+            }
+            originalPrice = product.price; // Set original price to the regular price before discount
+        }
+
         // Calculate average rating from reviews
         const reviews = product.reviews || [];
         const totalRatings = reviews.length;
@@ -236,13 +289,20 @@ export class ProductService {
             // Rating from reviews
             rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
             reviewCount: totalRatings,
-            // Sold count from completed orders (paid + delivered)
-            sold: soldCount,
-            sales: soldCount, // Alias for backward compatibility with UI
-            sold_count: soldCount, // Another alias for consistency
+            // Sold count from the campaign if active, otherwise lifetime sold count from completed orders
+            sold: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
+            sales: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
+            sold_count: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
             // Seller info
             sellerName: product.seller?.store_name,
             sellerLocation: product.seller?.business_profile?.city,
+            // Flash sale info
+            campaignBadge,
+            campaignBadgeColor,
+            campaignEndsAt,
+            // Prices
+            price: price,
+            originalPrice: originalPrice,
         };
     }
 
@@ -340,6 +400,18 @@ export class ProductService {
             avatar_url,
             business_profile:seller_business_profiles (
               city
+            )
+          ),
+          product_discounts (
+            id,
+            sold_count,
+            campaign:discount_campaigns (
+              id,
+              badge_text,
+              badge_color,
+              ends_at,
+              status,
+              starts_at
             )
           )
         `,

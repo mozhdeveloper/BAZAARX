@@ -570,7 +570,7 @@ export function SellerPOS() {
       }
 
       // Also update local store for immediate UI update
-      addOfflineOrder(cart, total, receiptNote);
+      await addOfflineOrder(cart, total, receiptNote);
 
       // Update cash drawer session
       updateCashDrawerOnSale(total, paymentMethod);

@@ -75,6 +75,7 @@ const AdminSellers: React.FC = () => {
     suspendSeller,
     selectSeller,
     hasCompleteRequirements,
+    updateSellerTier,
   } = useAdminSellers();
 
   const [open, setOpen] = useState(false);
@@ -320,6 +321,29 @@ const AdminSellers: React.FC = () => {
     }
   };
 
+  const getTierBadge = (tierLevel?: 'standard' | 'premium_outlet') => {
+    if (tierLevel === 'premium_outlet') {
+      return (
+        <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+          Premium Outlet
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="text-gray-500">
+        Standard
+      </Badge>
+    );
+  };
+
+  const handleTogglePremiumOutlet = async (sellerId: string, isPremium: boolean) => {
+    try {
+      await updateSellerTier(sellerId, isPremium ? 'premium_outlet' : 'standard');
+    } catch (error) {
+      console.error('Error toggling premium outlet:', error);
+    }
+  };
+
   const getResubmissionReviewBadge = (seller: Seller) => {
     const hasPendingResubmissionItems = seller.documents.some((doc) => doc.isRejected);
 
@@ -471,6 +495,36 @@ const AdminSellers: React.FC = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {seller.status === "approved" && (
+              <div className="bg-purple-50 rounded-lg p-4 mb-4 border border-purple-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-purple-900">
+                      Premium Outlet
+                    </span>
+                    {getTierBadge(seller.tierLevel)}
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={seller.tierLevel === 'premium_outlet'}
+                      onChange={(e) => handleTogglePremiumOutlet(seller.id, e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    <span className="ml-2 text-sm text-gray-600">
+                      {seller.tierLevel === 'premium_outlet' ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </label>
+                </div>
+                <p className="text-xs text-purple-700 mt-1">
+                  {seller.tierLevel === 'premium_outlet' 
+                    ? 'Products bypass assessment and are auto-verified'
+                    : 'Products go through standard assessment workflow'}
+                </p>
               </div>
             )}
 

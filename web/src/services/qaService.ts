@@ -359,9 +359,39 @@ export class QAService {
   }
 
   /**
+   * Check if a seller has premium_outlet tier
+   */
+  async isPremiumOutlet(sellerId: string): Promise<boolean> {
+    if (!isSupabaseConfigured() || !sellerId) {
+      return false;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('seller_tiers')
+        .select('tier_level, bypasses_assessment')
+        .eq('seller_id', sellerId)
+        .eq('tier_level', 'premium_outlet')
+        .eq('bypasses_assessment', true)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('[QA Service] Error checking seller tier:', error);
+        return false;
+      }
+
+      return !!data;
+    } catch (error) {
+      console.warn('[QA Service] Exception checking seller tier:', error);
+      return false;
+    }
+  }
+
+  /**
    * Create assessment entry when product is first created.
    * Uses upsert to avoid unique constraint errors on retry, and does NOT
    * rely on SELECT after insert (which can fail due to RLS SELECT policies).
+   * Premium Outlet sellers bypass the assessment workflow.
    */
   async createQAEntry(
     productId: string,
@@ -374,14 +404,20 @@ export class QAService {
     }
 
     try {
+      const isPremium = await this.isPremiumOutlet(sellerId);
+      const status = isPremium ? 'verified' : 'pending_digital_review';
+      const verifiedAt = isPremium ? new Date().toISOString() : null;
+      const productApprovalStatus = isPremium ? 'approved' : 'pending';
+
       // Upsert so retries are idempotent (unique constraint on product_id)
       const { error } = await supabase
         .from('product_assessments')
         .upsert(
           {
             product_id: productId,
-            status: 'pending_digital_review',
+            status,
             submitted_at: new Date().toISOString(),
+            verified_at: verifiedAt,
             created_by: sellerId || null,
           },
           { onConflict: 'product_id', ignoreDuplicates: true }
@@ -392,7 +428,24 @@ export class QAService {
         throw error;
       }
 
-      console.log(`[QA Service] Assessment created/confirmed for product ${productId}`);
+      // Also update the product's approval_status for Premium Outlet sellers
+      if (isPremium) {
+        const { error: productError } = await supabase
+          .from('products')
+          .update({ 
+            approval_status: 'approved',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', productId);
+
+        if (productError) {
+          console.warn('[QA Service] Could not update product approval_status:', productError);
+        } else {
+          console.log(`[QA Service] Product ${productId} approval_status updated to approved`);
+        }
+      }
+
+      console.log(`[QA Service] Assessment created for product ${productId} with status: ${status}`);
       // Return minimal object — caller will reload from DB to get full data
       return null;
     } catch (error) {

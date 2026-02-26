@@ -17,6 +17,7 @@ import {
     Heart,
     Ruler,
     X,
+    Flame,
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import {
@@ -759,28 +760,44 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
                         {/* Price Section */}
                         <div className="flex items-center gap-4 mb-4">
-                            <div className="flex items-baseline gap-2">
-                                {(() => {
-                                    const currentVariant = getSelectedVariant();
-                                    const displayPrice =
-                                        currentVariant?.price ||
-                                        productData.price;
-                                    return (
-                                        <span className="text-3xl font-black text-[var(--brand-primary)]">
-                                            ₱{displayPrice.toLocaleString()}
-                                        </span>
-                                    );
-                                })()}
-                                {productData.originalPrice > (getSelectedVariant()?.price || productData.price) && (
-                                    <span className="text-lg text-[var(--text-muted)] line-through decoration-[var(--text-muted)]/50 font-bold">
-                                        ₱{productData.originalPrice.toLocaleString()}
-                                    </span>
-                                )}
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-4">
+                                    {(() => {
+                                        const currentVariant = getSelectedVariant();
+                                        const basePrice = currentVariant?.price || productData.price;
+                                        const discountedPrice = getCampaignAdjustedPrice(basePrice);
+                                        const originalPrice = productData.originalPrice || basePrice;
+                                        const hasDiscount = originalPrice > discountedPrice;
+
+                                        return (
+                                            <div className="flex items-center gap-4">
+                                                <span className={cn(
+                                                    "text-4xl font-black",
+                                                    hasDiscount ? "text-[#DC2626]" : "text-[var(--text-headline)]"
+                                                )}>
+                                                    ₱{discountedPrice.toLocaleString()}
+                                                </span>
+                                                
+                                                {hasDiscount && (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-base text-[var(--text-muted)] line-through font-bold">
+                                                            ₱{originalPrice.toLocaleString()}
+                                                        </span>
+                                                        <Badge className="bg-[#DC2626] hover:bg-[#DC2626]/90 text-white text-[10px] font-black px-2 py-0.5 rounded-sm border-0 uppercase tracking-wider">
+                                                            {Math.round(((originalPrice - discountedPrice) / originalPrice) * 100)}% OFF
+                                                        </Badge>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
+                                    {/* Campaign Badge removed as requested */}
+                                </div>
                             </div>
                         </div>
 
-                        {/* Rating & Sold Section */}
-                        <div className="flex items-center gap-3 mb-8 mt-2">
+                        {/* Rating Section (Sold removed) */}
+                        <div className="flex items-center gap-3 mb-6 mt-2 border-b border-[var(--border)]/30 pb-4">
                             <div className="flex items-center gap-1">
                                 <Star className="w-3.5 h-3.5 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
                                 <span className="font-black text-[var(--text-headline)] text-sm">
@@ -788,12 +805,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 </span>
                             </div>
                             <span className="text-[var(--border)] font-light">|</span>
-                            <p className="text-[var(--text-muted)] text-sm">
-                                <span className="text-[var(--brand-primary)] font-bold">
-                                    {productData.sold || 0}
-                                </span>{" "}
-                                products sold
-                            </p>
+                            <span className="text-[var(--text-muted)] text-sm">Trusted Quality</span>
                         </div>
 
                         {/* Variant Label 2 Selection */}

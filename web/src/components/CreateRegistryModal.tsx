@@ -123,7 +123,7 @@ export const CreateRegistryModal = ({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="w-full max-w-3xl bg-white rounded-2xl shadow-xl relative z-10 overflow-hidden max-h-[90vh] flex flex-col"
           >
-            <div className="p-6 relative overflow-y-auto max-h-[calc(90vh)]">
+            <div className="p-6 relative overflow-y-auto max-h-[calc(90vh)] scrollbar-hide">
               <button
                 onClick={onClose}
                 className="absolute right-4 top-4 p-2 rounded-full hover:bg-gray-100 transition-colors"

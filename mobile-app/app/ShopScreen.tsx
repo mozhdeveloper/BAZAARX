@@ -211,37 +211,15 @@ const normalizeProductForShop = (row: any): Product => {
   const categoryName = typeof row.category === 'string' ? row.category : row.category?.name || '';
 
   return {
+    ...row,
     id: row.id,
     name: row.name ?? 'Unknown Product',
     price: toNumber(row.price, 0),
-    originalPrice: originalPrice > 0 ? originalPrice : undefined,
-    original_price: originalPrice > 0 ? originalPrice : undefined,
+    originalPrice: originalPrice > 0 ? originalPrice : row.originalPrice,
     image: primaryImage,
     images: imageUrls.length > 0 ? imageUrls : [primaryImage],
-    rating: toNumber(row.rating, 0),
-    review_count: toNumber(row.review_count ?? row.reviewCount, 0),
-    sold: toNumber(row.sold ?? row.sales_count, 0),
-    sales_count: toNumber(row.sold ?? row.sales_count, 0),
-    seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
-    seller_id: row.seller_id || row.seller?.id,
-    sellerId: row.seller_id || row.seller?.id,
-    sellerVerified: !!row.seller?.verified_at || row.seller?.approval_status === 'verified',
-    sellerRating: toNumber(row.seller?.rating ?? row.sellerRating, 0),
     category: categoryName,
-    category_id: row.category_id || row.category?.id,
-    description: row.description,
-    created_at: row.created_at,
-    variants,
-    colors,
-    sizes,
-    variant_label_1: row.variant_label_1,
-    variant_label_2: row.variant_label_2,
-    option1Values,
-    option2Values,
-    stock:
-      row.stock != null
-        ? toNumber(row.stock, 0)
-        : variants.reduce((sum: number, variant: any) => sum + toNumber(variant.stock, 0), 0),
+    seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
     isFreeShipping: !!(row.is_free_shipping ?? row.isFreeShipping),
   };
 };
@@ -607,23 +585,23 @@ export default function ShopScreen({ navigation, route }: Props) {
             )}
 
             <View style={styles.productsSection}>
-              <Text style={styles.sectionTitle}>
-                {searchQuery ? `Results for "${searchQuery}"` : 'All Products'}
-              </Text>
               <View style={styles.productsGrid}>
                 {filteredProducts.map((product) => (
                   <View key={product.id} style={styles.cardWrapper}>
                     <ProductCard product={product} onPress={() => navigation.navigate('ProductDetail', { product })} />
                   </View>
                 ))}
-                {!isLoading && filteredProducts.length === 0 && (
-                  <View style={styles.emptyBox}>
-                    <Text style={styles.emptyTitle}>No products found</Text>
-                    <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
-                  </View>
-                )}
               </View>
             </View>
+
+            {!isLoading && filteredProducts.length === 0 && (
+              <View style={[styles.productsSection, { marginTop: 20 }]}>
+                <View style={styles.emptyBox}>
+                  <Text style={styles.emptyTitle}>No products found</Text>
+                  <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
+                </View>
+              </View>
+            )}
           </>
         )}
         <View style={{ height: 100 }} />

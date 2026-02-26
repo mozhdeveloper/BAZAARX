@@ -208,7 +208,7 @@ export function AddProductsToCampaignDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col bg-white border-none shadow-2xl scrollbar-hide">
         <DialogHeader>
           <DialogTitle>Add Products to Campaign</DialogTitle>
           <DialogDescription>
@@ -223,19 +223,19 @@ export function AddProductsToCampaignDialog({
             placeholder="Search products..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-10 h-11 bg-white border border-[var(--brand-primary)]/70 focus:border-[var(--brand-primary)] rounded-xl shadow-none focus-visible:ring-0 focus:ring-0 transition-all font-medium"
           />
         </div>
 
         {/* Campaign Info */}
         {campaign && (
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+          <div className="bg-[var(--brand-accent-light)]/30 border border-[var(--brand-accent-light)]/50 rounded-2xl p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-900">
+                <p className="text-sm font-black text-[var(--text-headline)]">
                   Campaign: {campaign.name}
                 </p>
-                <p className="text-sm text-gray-600">
+                <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wider mt-0.5">
                   Discount:{" "}
                   {campaign.discountType === "percentage"
                     ? `${campaign.discountValue}%`
@@ -243,8 +243,8 @@ export function AddProductsToCampaignDialog({
                 </p>
               </div>
               {selectedCount > 0 && (
-                <Badge className="bg-orange-500">
-                  {selectedCount} selected
+                <Badge className="bg-[var(--brand-primary)] text-white font-bold rounded-lg border-0 px-3 py-1">
+                  {selectedCount} Selected
                 </Badge>
               )}
             </div>
@@ -252,7 +252,7 @@ export function AddProductsToCampaignDialog({
         )}
 
         {/* Products List */}
-        <div className="flex-1 overflow-y-auto border rounded-lg">
+        <div className="flex-1 overflow-y-auto border border-gray-100 rounded-2xl bg-white scrollbar-hide">
           {filteredProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-gray-500">
               <Package className="h-12 w-12 mb-2" />
@@ -269,9 +269,8 @@ export function AddProductsToCampaignDialog({
                 return (
                   <div
                     key={product.id}
-                    className={`p-4 hover:bg-gray-50 transition-colors ${
-                      isInCampaign ? "opacity-50" : ""
-                    }`}
+                    className={`p-4 hover:bg-gray-50 transition-colors ${isInCampaign ? "opacity-50" : ""
+                      }`}
                   >
                     <div className="flex items-start gap-4">
                       {/* Checkbox */}
@@ -342,7 +341,7 @@ export function AddProductsToCampaignDialog({
                                   parseInt(e.target.value) || 0,
                                 )
                               }
-                              className="w-32 h-8 text-sm"
+                              className="w-32 h-9 text-sm focus:ring-0 focus-visible:ring-0 border-gray-200 focus:border-[var(--brand-primary)] rounded-lg transition-all"
                             />
                             <span className="text-xs text-gray-500">
                               units at discount
@@ -358,18 +357,19 @@ export function AddProductsToCampaignDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0 mt-2">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={loading}
+            className="rounded-xl border-[var(--btn-border)] font-bold hover:bg-gray-100 hover:text-[var(--text-headline)] active:scale-95 transition-all h-11"
           >
             Cancel
           </Button>
           <Button
             onClick={handleAddProducts}
             disabled={selectedCount === 0 || loading}
-            className="bg-orange-500 hover:bg-orange-600"
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all px-8 h-11"
           >
             {loading
               ? "Adding..."

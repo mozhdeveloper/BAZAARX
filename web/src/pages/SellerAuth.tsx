@@ -375,15 +375,10 @@ export function SellerRegister() {
           return;
         }
 
-        const switchOwnerName =
-          `${formData.firstName} ${formData.lastName}`.trim() ||
-          [switchContext?.firstName, switchContext?.lastName].filter(Boolean).join(" ").trim();
-
         await authService.upgradeCurrentUserToSeller({
           store_name: formData.storeName.trim(),
           store_description: formData.storeDescription.trim(),
           phone: formData.storeContact.trim() || undefined,
-          owner_name: switchOwnerName || undefined,
         });
 
         await hydrateSellerFromSession();

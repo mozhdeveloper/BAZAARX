@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBuyerStore, demoSellers } from '../stores/buyerStore';
@@ -22,10 +22,9 @@ import {
   Truck,
   ShoppingCart,
   Filter,
-  Grid,
-  List,
   ThumbsUp,
-  Loader2
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -36,6 +35,12 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
+import { CartModal } from "../components/ui/cart-modal";
+import ShopBuyNowModal from "../components/shop/ShopBuyNowModal";
+import ShopVariantModal from "../components/shop/ShopVariantModal";
+import { useToast } from "../hooks/use-toast";
+import { BazaarFooter } from "../components/ui/bazaar-footer";
+import StorefrontProductCard from '../components/StorefrontProductCard';
 
 import { useProductStore } from '../stores/sellerStore';
 import { sellerService, type SellerData } from '../services/sellerService';
@@ -47,30 +52,8 @@ import {
 } from '../services/reviewService';
 import type { ProductWithSeller } from '@/types/database.types';
 
-interface Reply {
-  id: number;
-  text: string;
-  author: string;
-  date: string;
-  avatar: string;
-  isSeller?: boolean;
-}
-
-interface Review {
-  id: string;
-  author: string;
-  avatar: string;
-  rating: number;
-  date: string;
-  content: string;
-  helpfulCount: number;
-  isLiked?: boolean;
-  replies: Reply[];
-  productName?: string;
-  productImage?: string;
-  images?: string[];
-  variantLabel?: string;
-}
+import StorefrontReviewsTab, { type Review } from '../components/shop/StorefrontReviewsTab';
+import { supabase } from '@/lib/supabase';
 
 export default function SellerStorefrontPage() {
   const navigate = useNavigate();
@@ -92,6 +75,33 @@ export default function SellerStorefrontPage() {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
 
+  const { toast } = useToast();
+  const reviewsStartRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to reviews when filter changes
+  useEffect(() => {
+    // Only scroll if we are actually viewing the reviews tab and the filter changed from its initial state
+    if (reviewsStartRef.current) {
+      const offset = 144; // Match the sticky top-36 (144px) of the filters
+      const rect = reviewsStartRef.current.getBoundingClientRect();
+      const scrollTop = window.scrollY;
+      const targetY = rect.top + scrollTop - offset;
+
+      window.scrollTo({
+        top: targetY,
+        behavior: 'smooth'
+      });
+    }
+  }, [reviewFilter]);
+  const [showCartModal, setShowCartModal] = useState(false);
+  const [addedProduct, setAddedProduct] = useState<{ name: string; image: string; } | null>(null);
+  const [showBuyNowModal, setShowBuyNowModal] = useState(false);
+  const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
+  const [showVariantModal, setShowVariantModal] = useState(false);
+  const [variantProduct, setVariantProduct] = useState<any>(null);
+  const [isBuyNowAction, setIsBuyNowAction] = useState(false);
+  const { cartItems } = useBuyerStore();
+
   // Real data state
   const [realSeller, setRealSeller] = useState<SellerData | null>(null);
   const [realProducts, setRealProducts] = useState<ProductWithSeller[]>([]);
@@ -103,6 +113,7 @@ export default function SellerStorefrontPage() {
   });
 
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [followersCount, setFollowersCount] = useState(0);
 
   const handleToggleLike = (reviewId: string) => {
     setReviews(prev => prev.map(review => {
@@ -164,6 +175,17 @@ export default function SellerStorefrontPage() {
           setRealProducts(productsData);
         }
 
+        // Fetch followers count for this seller
+        try {
+          const { count } = await supabase
+            .from('buyers')
+            .select('id', { count: 'exact', head: true })
+            .contains('followed_shops', [sellerId]);
+          setFollowersCount(count || 0);
+        } catch {
+          // silently ignore, followers count is non-critical
+        }
+
         // Fetch real reviews for this seller
         try {
           const reviewsData = await reviewService.getSellerReviews(sellerId);
@@ -181,18 +203,19 @@ export default function SellerStorefrontPage() {
                 {
                   id: 1,
                   text: review.sellerReply.message,
-                  author: 'Seller',
+                  author: sellerData?.store_name || realSeller?.store_name || (seller as any)?.name || 'Seller',
                   date: review.sellerReply.repliedAt
                     ? formatRelativeDate(review.sellerReply.repliedAt)
                     : 'Recently',
                   avatar:
                     sellerData?.avatar_url ||
-                    'https://ui-avatars.com/api/?name=S&background=FF6A00&color=fff',
+                    'https://ui-avatars.com/api/?name=S&background=D97706&color=fff',
                   isSeller: true,
                 },
               ]
               : [],
             productName: review.productName || undefined,
+            baseProductName: review.baseProductName || undefined,
             productImage: review.productImage || undefined,
             images: review.images || [],
             variantLabel: review.variantLabel || undefined,
@@ -252,9 +275,10 @@ export default function SellerStorefrontPage() {
     totalReviews:
       reviewStats.total ||
       Number((realSeller as any).total_reviews || 0),
-    followers: 0,
+    followers: followersCount,
     isVerified: realSeller.is_verified || false,
-    description: realSeller.store_description || realSeller.business_description || 'Welcome to our store!',
+    tierLevel: (realSeller as any).tier_level || 'standard',
+    description: realSeller.store_description || 'Welcome to our store!',
     location: [realSeller.city, realSeller.province].filter(Boolean).join(', ') || 'Philippines',
     established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
     badges: realSeller.is_verified ? ['Verified Seller'] : [],
@@ -269,6 +293,7 @@ export default function SellerStorefrontPage() {
     totalReviews: 10,
     followers: 5,
     isVerified: true,
+    tierLevel: (dbSellerProduct as any).sellerTierLevel || 'standard',
     description: 'Welcome to our store!',
     location: dbSellerProduct.sellerLocation || 'Metro Manila',
     established: '2024',
@@ -277,6 +302,8 @@ export default function SellerStorefrontPage() {
     categories: ['General'],
     products: []
   } : demoSellers[0]);
+
+  const isPremiumOutlet = seller.tierLevel === 'premium_outlet';
 
   useEffect(() => {
     if (seller) {
@@ -293,6 +320,7 @@ export default function SellerStorefrontPage() {
       originalPrice: 95999,
       image: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=400&fit=crop',
       rating: 4.9,
+      review_count: 125,
       sold: 1250,
       category: 'Electronics',
       isFreeShipping: true
@@ -304,6 +332,7 @@ export default function SellerStorefrontPage() {
       originalPrice: 135999,
       image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&h=400&fit=crop',
       rating: 4.8,
+      review_count: 42,
       sold: 890,
       category: 'Computers',
       isFreeShipping: true
@@ -315,6 +344,7 @@ export default function SellerStorefrontPage() {
       originalPrice: 17999,
       image: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=400&h=400&fit=crop',
       rating: 4.7,
+      review_count: 560,
       sold: 2130,
       category: 'Electronics',
       isFreeShipping: false
@@ -328,17 +358,54 @@ export default function SellerStorefrontPage() {
       name: p.name || 'Untitled Product',
       price: p.price || 0,
       originalPrice: p.original_price || undefined,
-      image: p.primary_image || (p.images && p.images[0]) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
+      image: (p.images && p.images.length > 0 && p.images[0].image_url) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
       rating: p.rating || 5.0,
+      review_count: p.review_count || 0,
       sold: p.sales_count || 0,
-      category: p.category || 'General',
-      isFreeShipping: p.is_free_shipping || false
+      category: (p.category && (typeof p.category === 'string' ? p.category : (p.category as any).name)) || 'General',
+      isFreeShipping: p.is_free_shipping || false,
+      created_at: p.created_at || new Date().toISOString(),
+      variants: (p as any).variants || [],
+      variantLabel1: (p as any).variant_label_1,
+      variantLabel2: (p as any).variant_label_2,
+      variantLabel1Values: (p as any).variant_label_1_values || [],
+      variantLabel2Values: (p as any).variant_label_2_values || [],
+      stock: (p as any).stock || 99,
+      sellerLocation: seller?.location,
+      sellerName: seller?.name,
+      isVerified: seller?.isVerified,
     }))
-    : demoProducts;
+    : demoProducts.map(p => ({
+      ...p,
+      created_at: new Date(2024, 0, 1).toISOString(),
+      variants: [],
+      variantLabel1Values: [],
+      variantLabel2Values: [],
+      stock: 99,
+      sellerLocation: seller?.location,
+      sellerName: seller?.name,
+      isVerified: seller?.isVerified,
+    }));
 
-  const filteredProducts = selectedCategory === 'all'
-    ? displayProducts
-    : displayProducts.filter(p => p.category === selectedCategory);
+  // Get all unique categories from the displayed products
+  const sellerCategories = Array.from(new Set(displayProducts.map(p => p.category))).sort();
+
+  const filteredProducts = displayProducts
+    .filter(p => selectedCategory === 'all' || p.category === selectedCategory)
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'popular':
+          return b.sold - a.sold;
+        case 'newest':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'price-low':
+          return a.price - b.price;
+        case 'price-high':
+          return b.price - a.price;
+        default:
+          return 0;
+      }
+    });
 
   const handleAddToCart = (product: any) => {
     const cartProduct = {
@@ -355,6 +422,32 @@ export default function SellerStorefrontPage() {
     addToCart(cartProduct, 1);
   };
 
+  const onVariantSelect = (product: any, isBuyNow: boolean) => {
+    setVariantProduct(product);
+    setIsBuyNowAction(isBuyNow);
+    setShowVariantModal(true);
+  };
+
+  const onBuyNow = (product: any) => {
+    setBuyNowProduct({
+      ...product,
+      quantity: 1,
+      selectedVariant: null,
+      selectedVariantLabel1: null,
+      selectedVariantLabel2: null,
+    } as any);
+    setShowBuyNowModal(true);
+  };
+
+  const onLoginRequired = () => {
+    toast({
+      title: "Login Required",
+      description: "Please sign in to proceed with your purchase.",
+      variant: "destructive",
+    });
+    navigate("/login");
+  };
+
   // Show loading state
   if (loading) {
     return (
@@ -362,7 +455,7 @@ export default function SellerStorefrontPage() {
         <Header hideSearch />
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 animate-spin text-[#FF6A00]" />
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--brand-primary)]" />
             <p className="text-gray-500">Loading store...</p>
           </div>
         </div>
@@ -371,7 +464,7 @@ export default function SellerStorefrontPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted/30">
       <Header hideSearch />
 
       {/* Seller Header - Modern Dark Orange Style */}
@@ -391,7 +484,7 @@ export default function SellerStorefrontPage() {
               variant="ghost"
               size="sm"
               onClick={() => navigate(-1)}
-              className="hover:bg-white/10 px-3 -ml-2 text-white/80 hover:text-white transition-all rounded-full backdrop-blur-md bg-white/5"
+              className="hover:bg-base px-3 -ml-2 text-white/80 hover:text-[var(--brand-primary)] transition-all"
             >
               <ChevronLeft className="w-5 h-5 mr-1" />
               Back
@@ -408,11 +501,6 @@ export default function SellerStorefrontPage() {
                   className="w-full h-full rounded-full object-cover"
                 />
               </div>
-              {seller.isVerified && (
-                <div className="absolute bottom-2 right-2 bg-[#FF6A00] text-white p-1.5 rounded-full shadow-lg border-[3px] border-[#1a0b02]">
-                  <Shield className="w-4 h-4 fill-current" />
-                </div>
-              )}
             </div>
 
             {/* Store Details */}
@@ -422,8 +510,14 @@ export default function SellerStorefrontPage() {
                   {seller.name}
                 </h1>
                 {seller.isVerified && (
-                  <Badge className="bg-white text-[#FF6A00] hover:bg-white border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                    Verified Store
+                  <Badge className="bg-white text-green-600 hover:bg-white border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    Verified
+                  </Badge>
+                )}
+                {isPremiumOutlet && (
+                  <Badge className="bg-purple-500 text-white hover:bg-purple-600 border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    <Star className="w-3 h-3 fill-white" />
+                    Premium Outlet
                   </Badge>
                 )}
               </div>
@@ -433,7 +527,7 @@ export default function SellerStorefrontPage() {
                   <span className="flex items-center">
                     {seller.location}
                   </span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500/50 hidden md:block" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand-primary)]/50 hidden md:block" />
                   <span className="flex items-center">
                     Est. {seller.established}
                   </span>
@@ -458,8 +552,8 @@ export default function SellerStorefrontPage() {
                   className={cn(
                     "h-10 px-8 rounded-xl font-bold transition-all duration-300 min-w-[130px]",
                     isFollowing(seller.id)
-                      ? "bg-white/10 text-white border border-white/20 hover:bg-white/20 backdrop-blur-md"
-                      : "bg-[#FF6A00] text-white hover:bg-[#E65A00] shadow-lg shadow-orange-600/20"
+                      ? "bg-[var(--brand-primary)] text-white border border-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] backdrop-blur-md"
+                      : "bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-dark)] shadow-lg shadow-[var(--brand-primary)]/20"
                   )}
                 >
                   {isFollowing(seller.id) ? (
@@ -472,7 +566,7 @@ export default function SellerStorefrontPage() {
                 <Button
                   variant="outline"
                   onClick={() => navigate(`/messages?sellerId=${seller.id}`)}
-                  className="h-10 px-8 rounded-xl font-bold bg-transparent border-2 border-white/20 text-white hover:bg-white hover:text-[#1a0b02] transition-all min-w-[130px]"
+                  className="h-10 px-8 rounded-xl font-bold bg-transparent border border-white/20 text-white hover:bg-white/10 hover:text-white transition-all min-w-[130px]"
                 >
                   Chat
                 </Button>
@@ -494,24 +588,24 @@ export default function SellerStorefrontPage() {
 
       {/* Store Content */}
       <div className="max-w-7xl mx-auto px-4 py-4">
-        <Tabs defaultValue="products" className="space-y-4">
+        <Tabs defaultValue="products" className="space-y-4" onValueChange={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <div className="sticky top-20 z-30 flex justify-center w-full mb-4 py-2 backdrop-blur-[2px]">
-            <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-gray-100/80 p-1">
+            <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-white p-1 border-0 shadow-sm">
               <TabsTrigger
                 value="products"
-                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
               >
                 Products
               </TabsTrigger>
               <TabsTrigger
                 value="reviews"
-                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
               >
                 Reviews
               </TabsTrigger>
               <TabsTrigger
                 value="about"
-                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
               >
                 About Store
               </TabsTrigger>
@@ -527,21 +621,21 @@ export default function SellerStorefrontPage() {
                   <div className="flex items-center gap-3">
                     <Filter className="h-4 w-4 text-gray-400" />
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
+                      <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
                         <SelectValue placeholder="Category" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                      <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
                         <SelectItem
                           value="all"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
                         >
                           All Categories
                         </SelectItem>
-                        {seller.categories.map((cat) => (
+                        {sellerCategories.map((cat) => (
                           <SelectItem
                             key={cat}
                             value={cat}
-                            className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                            className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors last:mb-0"
                           >
                             {cat}
                           </SelectItem>
@@ -551,31 +645,31 @@ export default function SellerStorefrontPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
+                      <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                      <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
                         <SelectItem
                           value="popular"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
                         >
                           Popular
                         </SelectItem>
                         <SelectItem
                           value="newest"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
                         >
                           Newest
                         </SelectItem>
                         <SelectItem
                           value="price-low"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
                         >
                           Price: Low to High
                         </SelectItem>
                         <SelectItem
                           value="price-high"
-                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 last:mb-0 text-sm transition-colors"
                         >
                           Price: High to Low
                         </SelectItem>
@@ -591,80 +685,26 @@ export default function SellerStorefrontPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className={cn(
-                  "grid gap-6",
-                  viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1'
+                  "grid gap-4",
+                  viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1'
                 )}
               >
                 {filteredProducts.map((product, index) => (
-                  <motion.div
+                  <StorefrontProductCard
                     key={product.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="product-card-premium product-card-premium-interactive"
-                    onClick={() => navigate(`/product/${product.id}`)}
-                  >
-                    <div className="relative">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className={cn(
-                          "w-full object-cover group-hover:scale-105 transition-transform",
-                          viewMode === 'grid' ? 'h-48' : 'h-32 md:h-48'
-                        )}
-                      />
-                      {product.originalPrice && (
-                        <Badge className="absolute top-2 left-2 bg-red-500">
-                          {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
-                        </Badge>
-                      )}
-                      {product.isFreeShipping && (
-                        <Badge variant="outline" className="absolute top-2 right-2 bg-white text-green-600">
-                          <Truck className="h-3 w-3 mr-1" />
-                          Free Ship
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="p-4 flex-1 flex flex-col">
-                      <div className={cn(
-                        "space-y-3",
-                        viewMode === 'list' && 'flex items-center gap-4'
-                      )}>
-                        <div className="flex-1">
-                          <h3 className="product-title-premium line-clamp-2 mb-2">{product.name}</h3>
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="flex items-center gap-1">
-                              <Star className="h-3 w-3 fill-current text-yellow-400" />
-                              <span className="text-sm text-gray-600">{product.rating}</span>
-                            </div>
-                            <span className="text-gray-300">•</span>
-                            <span className="text-sm text-gray-600">{product.sold} sold</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg product-price-premium">
-                              ₱{product.price.toLocaleString()}
-                            </span>
-                            {product.originalPrice && (
-                              <span className="text-sm text-gray-500 line-through">
-                                ₱{product.originalPrice.toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddToCart(product);
-                          }}
-                          size="sm"
-                          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] w-full text-white font-bold"
-                        >
-                          <ShoppingCart className="h-4 w-4 mr-2" />
-                          Add to Cart
-                        </Button>
-                      </div>
-                    </div>
-                  </motion.div>
+                    product={product}
+                    index={index}
+                    seller={seller}
+                    profile={profile}
+                    onAddToCart={(p) => {
+                      handleAddToCart(p);
+                      setAddedProduct({ name: p.name, image: p.image });
+                      setShowCartModal(true);
+                    }}
+                    onBuyNow={onBuyNow}
+                    onVariantSelect={onVariantSelect}
+                    onLoginRequired={onLoginRequired}
+                  />
                 ))}
               </motion.div>
             </div>
@@ -672,259 +712,20 @@ export default function SellerStorefrontPage() {
 
           {/* Reviews Tab */}
           <TabsContent value="reviews">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start"
-            >
-              {/* Sticky Rating Summary (Left Sidebar) */}
-              <div className="md:col-span-5 lg:col-span-4 sticky top-36">
-                <div>
-                  <div className="text-center mb-2">
-                    <div className="text-4xl font-bold text-gray-900 leading-none mb-1">
-                      {reviewStats.total > 0 ? reviewStats.avgRating.toFixed(1) : seller.rating}
-                    </div>
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className={cn(
-                            "h-3 w-3",
-                            i < Math.floor(reviewStats.total > 0 ? reviewStats.avgRating : seller.rating)
-                              ? "fill-current text-yellow-400"
-                              : "text-gray-300"
-                          )}
-                        />
-                      ))}
-                    </div>
-                    <div className="text-xs text-gray-500 font-medium">
-                      {reviewStats.total > 0 ? reviewStats.total.toLocaleString() : seller.totalReviews.toLocaleString()} reviews
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    {[5, 4, 3, 2, 1].map((star) => {
-                      const count = reviewStats.distribution[star - 1] || 0;
-                      const percentage = reviewStats.total > 0
-                        ? Math.round((count / reviewStats.total) * 100)
-                        : (star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1);
-                      return (
-                        <div key={star} className="flex items-center gap-3">
-                          <div className="flex items-center justify-end gap-1.5 w-12 shrink-0">
-                            <span className="text-sm font-medium text-gray-700">{star}</span>
-                            <Star className="h-3 w-3 fill-current text-yellow-400" />
-                          </div>
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-yellow-400 rounded-full"
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-gray-400 w-8 text-right tabular-nums">
-                            {percentage}%
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Reviews List (Right Content) */}
-              <div className="md:col-span-7 lg:col-span-8 space-y-4">
-                {/* Review Filters */}
-                <div className="sticky top-36 z-20 flex flex-wrap items-center gap-2 mb-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                  {['all', '5', '4', '3', '2', '1', 'media'].map((filter) => (
-                    <button
-                      key={filter}
-                      onClick={() => setReviewFilter(filter)}
-                      className={cn(
-                        "px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border",
-                        reviewFilter === filter
-                          ? "bg-orange-50 text-orange-600 border-orange-200"
-                          : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                      )}
-                    >
-                      {filter === 'all' ? 'All' : filter === 'media' ? 'With Media' : `${filter} Star${filter === '1' ? '' : 's'}`}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Filter reviews based on selected filter */}
-                {(() => {
-                  const filteredReviews = reviews.filter(review => {
-                    if (reviewFilter === 'all') return true;
-                    if (reviewFilter === 'media') return review.images && review.images.length > 0;
-                    return review.rating === parseInt(reviewFilter);
-                  });
-
-                  if (filteredReviews.length === 0) {
-                    return (
-                      <div className="text-center py-12">
-                        <div className="text-gray-400 mb-2">
-                          <Star className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-600 mb-2">No Reviews Yet</h3>
-                        <p className="text-gray-500 text-sm">
-                          {reviewFilter === 'all'
-                            ? 'Be the first to review products from this store!'
-                            : `No ${reviewFilter === 'media' ? 'reviews with photos' : `${reviewFilter}-star reviews`} found.`}
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  return filteredReviews.map((review) => (
-                    <Card key={review.id} className="border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                      <CardContent className="p-5">
-                        <div className="flex items-start gap-4">
-                          <img
-                            src={review.avatar}
-                            alt={review.author}
-                            className="w-10 h-10 rounded-full object-cover border border-gray-100"
-                          />
-                          <div className="flex-1">
-                            <div className="mb-2">
-                              <div className="flex flex-col">
-                                <span className="font-semibold text-gray-900 text-sm">{review.author}</span>
-                                <span className="text-xs text-gray-400 mb-1">{review.date}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={cn(
-                                      "h-3 w-3",
-                                      i < review.rating ? "fill-current text-yellow-400" : "text-gray-200"
-                                    )}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Product info if available */}
-                            {review.productName && (
-                              <div className="flex items-center gap-2 mb-2 bg-gray-50 rounded-lg p-2">
-                                {review.productImage && (
-                                  <img
-                                    src={review.productImage}
-                                    alt={review.productName}
-                                    className="w-8 h-8 rounded object-cover"
-                                  />
-                                )}
-                                <span className="text-xs text-gray-600">
-                                  Purchased: <span className="font-medium text-gray-800">{review.productName}</span>
-                                </span>
-                              </div>
-                            )}
-
-                            {review.variantLabel && (
-                              <div className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 text-orange-700 text-[11px] px-2.5 py-1 mb-3">
-                                Variant: {review.variantLabel}
-                              </div>
-                            )}
-
-                            <p className="text-sm text-gray-600 mb-3 leading-relaxed">
-                              {review.content}
-                            </p>
-
-                            {/* Review Images if available */}
-                            {review.images && review.images.length > 0 && (
-                              <div className="flex gap-2 mb-3 flex-wrap">
-                                {review.images.map((img, idx) => (
-                                  <img
-                                    key={idx}
-                                    src={img}
-                                    alt={`Review image ${idx + 1}`}
-                                    className="w-16 h-16 rounded-lg object-cover border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
-                                  />
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Existing Replies */}
-                            {review.replies.length > 0 && (
-                              <div className="mb-4 pl-4 border-l-2 border-gray-100 space-y-3">
-                                {review.replies.map(reply => (
-                                  <div key={reply.id} className="bg-gray-50/50 p-3 rounded-lg">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-semibold text-xs text-gray-900">{reply.author}</span>
-                                      {reply.isSeller && (
-                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-50 text-orange-600 border-orange-200">
-                                          Seller
-                                        </Badge>
-                                      )}
-                                      <span className="text-[10px] text-gray-400">{reply.date}</span>
-                                    </div>
-                                    <p className="text-xs text-gray-600 leading-relaxed">{reply.text}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
-                              <button
-                                onClick={() => handleToggleLike(review.id)}
-                                className={cn(
-                                  "transition-colors flex items-center gap-1.5 group",
-                                  review.isLiked ? "text-orange-600" : "hover:text-orange-600"
-                                )}
-                              >
-                                <ThumbsUp className={cn(
-                                  "h-3.5 w-3.5 transition-colors",
-                                  review.isLiked ? "fill-current text-orange-600" : "group-hover:text-orange-600"
-                                )} />
-                                Helpful ({review.helpfulCount})
-                              </button>
-                              <button
-                                onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
-                                className="hover:text-orange-600 transition-colors"
-                              >
-                                Reply
-                              </button>
-                            </div>
-
-                            {replyingTo === review.id && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                                animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
-                                className="overflow-hidden"
-                              >
-                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                  <Textarea
-                                    value={replyText}
-                                    onChange={(e) => setReplyText(e.target.value)}
-                                    placeholder="Write a reply..."
-                                    className="min-h-[80px] bg-white border-gray-200 focus:border-[#ff6a00] focus:ring-[#ff6a00] mb-3 text-sm resize-none"
-                                  />
-                                  <div className="flex justify-end gap-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => setReplyingTo(null)}
-                                      className="h-8 text-xs hover:bg-gray-200 hover:text-gray-900"
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handlePostReply(review.id)}
-                                      className="h-8 text-xs bg-[#ff6a00] hover:bg-[#ff6a00]/90 text-white"
-                                    >
-                                      Post Reply
-                                    </Button>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ));
-                })()}
-              </div>
-            </motion.div>
+            <StorefrontReviewsTab
+              reviewStats={reviewStats}
+              seller={seller}
+              reviews={reviews}
+              reviewFilter={reviewFilter}
+              setReviewFilter={setReviewFilter}
+              reviewsStartRef={reviewsStartRef}
+              handleToggleLike={handleToggleLike}
+              replyingTo={replyingTo}
+              setReplyingTo={setReplyingTo}
+              replyText={replyText}
+              setReplyText={setReplyText}
+              handlePostReply={handlePostReply}
+            />
           </TabsContent>
 
           {/* About Tab */}
@@ -932,48 +733,101 @@ export default function SellerStorefrontPage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="font-semibold text-lg mb-4">Store Information</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Store Name:</span>
-                      <span className="font-medium">{seller.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Location:</span>
-                      <span className="font-medium">{seller.location}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Established:</span>
-                      <span className="font-medium">{seller.established}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Response Time:</span>
-                      <span className="font-medium">{seller.responseTime}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <Card className="border-0 shadow-md overflow-hidden bg-white rounded-2xl">
+                <CardContent className="p-0 divide-y divide-gray-100">
 
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="font-semibold text-lg mb-4">Categories</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {seller.categories.map((category) => (
-                      <Badge key={category} variant="outline">
-                        {category}
-                      </Badge>
-                    ))}
+                  {/* Description */}
+                  {seller.description && (
+                    <div className="p-6">
+                      <h3 className="font-semibold text-base text-gray-900 mb-2">About {seller.name}</h3>
+                      <p className="text-gray-600 leading-relaxed text-sm whitespace-pre-line">{seller.description}</p>
+                    </div>
+                  )}
+
+                  {/* Store Information */}
+                  <div className="p-6">
+                    <h3 className="font-semibold text-base text-gray-900 mb-4">Store Information</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-500 w-32 shrink-0">Store Name</span>
+                        <span className="text-sm font-medium text-gray-900">{seller.name}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-500 w-32 shrink-0">Location</span>
+                        <span className="text-sm font-medium text-gray-900">{seller.location}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-500 w-32 shrink-0">Established</span>
+                        <span className="text-sm font-medium text-gray-900">{seller.established}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-500 w-32 shrink-0">Response Time</span>
+                        <span className="text-sm font-medium text-gray-900">{seller.responseTime}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-500 w-32 shrink-0">Followers</span>
+                        <span className="text-sm font-medium text-gray-900">{followersCount.toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Categories */}
+                  <div className="p-6">
+                    <h3 className="font-semibold text-base text-gray-900 mb-3">Categories</h3>
+                    <div className="text-sm text-gray-500">
+                      {(sellerCategories.length > 0 ? sellerCategories : seller.categories).join(' | ')}
+                    </div>
+                  </div>
+
                 </CardContent>
               </Card>
             </motion.div>
           </TabsContent>
+
         </Tabs>
       </div>
+
+      {
+        addedProduct && showCartModal && (
+          <CartModal
+            isOpen={showCartModal}
+            onClose={() => setShowCartModal(false)}
+            productName={addedProduct.name}
+            productImage={addedProduct.image}
+            cartItemCount={cartItems.length}
+          />
+        )
+      }
+
+      <ShopBuyNowModal
+        isOpen={showBuyNowModal}
+        onClose={() => {
+          setShowBuyNowModal(false);
+          setBuyNowProduct(null);
+        }}
+        product={buyNowProduct}
+      />
+
+      {
+        variantProduct && showVariantModal && (
+          <ShopVariantModal
+            isOpen={showVariantModal}
+            onClose={() => {
+              setShowVariantModal(false);
+              setVariantProduct(null);
+              setIsBuyNowAction(false);
+            }}
+            product={variantProduct}
+            isBuyNow={isBuyNowAction}
+            onAddToCartSuccess={(name, image) => {
+              setAddedProduct({ name, image });
+              setShowCartModal(true);
+            }}
+          />
+        )
+      }
+      <BazaarFooter />
     </div >
   );
 }

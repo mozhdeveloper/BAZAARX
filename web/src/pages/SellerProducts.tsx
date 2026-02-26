@@ -59,6 +59,7 @@ import { productService } from "@/services/productService";
 import { ProductFormTabs } from "@/components/seller/products/ProductFormTabs";
 import { GeneralInfoTab } from "@/components/seller/products/GeneralInfoTab";
 import { AttributesTab } from "@/components/seller/products/AttributesTab";
+import { uploadProductImages, validateImageFile, compressImage } from "@/utils/storage";
 
 
 
@@ -70,6 +71,8 @@ export function SellerProducts() {
     const [editingProduct, setEditingProduct] = useState<SellerProduct | null>(
         null,
     );
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [productToDelete, setProductToDelete] = useState<string | null>(null);
     const [editFormData, setEditFormData] = useState({
         name: "",
         price: 0,
@@ -141,14 +144,21 @@ export function SellerProducts() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (confirm("Are you sure you want to delete this product?")) {
+    const handleDeleteClick = (id: string) => {
+        setProductToDelete(id);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (productToDelete) {
             try {
-                await deleteProduct(id);
+                await deleteProduct(productToDelete);
                 toast({
                     title: "Product Deleted",
                     description: "Product has been successfully removed.",
                 });
+                setIsDeleteDialogOpen(false);
+                setProductToDelete(null);
             } catch (error) {
                 console.error("Error deleting product.", error);
                 toast({
@@ -442,7 +452,7 @@ export function SellerProducts() {
                                                     </button>
                                                     <button
                                                         onClick={() =>
-                                                            handleDelete(product.id)
+                                                            handleDeleteClick(product.id)
                                                         }
                                                         className="h-10 w-10 flex items-center justify-center text-red-500 rounded-xl hover:text-red-700 transition-all active:scale-95"
                                                     >
@@ -482,11 +492,12 @@ export function SellerProducts() {
             {/* Edit Product Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent
-                    className={
+                    className={cn(
+                        "bg-white border-none shadow-2xl scrollbar-hide focus-visible:ring-0 focus:ring-0",
                         editVariants.length > 0
                             ? "sm:max-w-[600px]"
                             : "sm:max-w-[425px]"
-                    }
+                    )}
                 >
                     <DialogHeader>
                         <DialogTitle>Edit Product</DialogTitle>
@@ -497,7 +508,7 @@ export function SellerProducts() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                    <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto scrollbar-hide">
                         <div>
                             <Label htmlFor="edit-name" className="mb-2 block">
                                 Product Name
@@ -511,7 +522,7 @@ export function SellerProducts() {
                                         name: e.target.value,
                                     })
                                 }
-                                className="w-full"
+                                className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                 placeholder="Enter product name"
                             />
                         </div>
@@ -532,14 +543,14 @@ export function SellerProducts() {
                                         price: parseFloat(e.target.value) || 0,
                                     })
                                 }
-                                className="w-full"
+                                className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                 placeholder="Enter price"
                             />
                         </div>
 
                         {/* Show variants or simple stock field */}
                         {editVariants.length > 0 ? (
-                            <div className="border rounded-lg p-3 bg-gray-50">
+                            <div className="border border-gray-100 rounded-xl p-4 bg-white">
                                 <Label className="mb-2 block font-medium">
                                     Variants ({editVariants.length})
                                 </Label>
@@ -550,7 +561,7 @@ export function SellerProducts() {
                                         0,
                                     )}
                                 </p>
-                                <div className="space-y-3 max-h-48 overflow-y-auto">
+                                <div className="space-y-3 max-h-56 overflow-y-auto scrollbar-hide">
                                     {editVariants.map((variant, index) => (
                                         <div
                                             key={variant.id}
@@ -608,7 +619,7 @@ export function SellerProducts() {
                                                                 newVariants,
                                                             );
                                                         }}
-                                                        className="w-20 h-8 text-sm"
+                                                        className="w-24 h-9 text-sm focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                                     />
                                                 </div>
                                                 <div>
@@ -638,7 +649,7 @@ export function SellerProducts() {
                                                                 newVariants,
                                                             );
                                                         }}
-                                                        className="w-20 h-8 text-sm"
+                                                        className="w-24 h-9 text-sm focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                                     />
                                                 </div>
                                             </div>
@@ -666,14 +677,14 @@ export function SellerProducts() {
                                                 parseInt(e.target.value) || 0,
                                         })
                                     }
-                                    className="w-full"
+                                    className="w-full focus-visible:ring-0 focus:ring-0 border-gray-100 focus:border-[var(--brand-primary)] transition-all"
                                     placeholder="Enter stock quantity"
                                 />
                             </div>
                         )}
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="gap-2 sm:gap-0 mt-2">
                         <Button
                             variant="outline"
                             onClick={() => {
@@ -681,12 +692,13 @@ export function SellerProducts() {
                                 setEditingProduct(null);
                                 setEditVariants([]);
                             }}
+                            className="rounded-xl border-[var(--btn-border)] font-bold hover:bg-gray-100 hover:text-[var(--text-headline)] active:scale-95 transition-all h-11"
                         >
                             Cancel
                         </Button>
                         <Button
                             onClick={handleSaveEdit}
-                            className="bg-orange-500 hover:bg-orange-600"
+                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all px-8 h-11"
                             disabled={
                                 !editFormData.name.trim() ||
                                 editFormData.price <= 0 ||
@@ -710,6 +722,41 @@ export function SellerProducts() {
                 onClose={() => setIsBulkUploadOpen(false)}
                 onUpload={handleBulkUpload}
             />
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogContent className="sm:max-w-[400px] bg-white border-none shadow-2xl rounded-2xl p-6">
+                    <DialogHeader className="space-y-3">
+                        <div className="w-12 h-12 flex items-center justify-center mb-2">
+                            <AlertTriangle className="h-6 w-6 text-red-500" />
+                        </div>
+                        <DialogTitle className="text-xl font-bold text-[var(--text-headline)]">
+                            Delete Product?
+                        </DialogTitle>
+                        <DialogDescription className="text-[var(--text-muted)]">
+                            Are you sure you want to delete this product? This action cannot be undone and will remove the product from your store inventory.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-3 mt-6">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setIsDeleteDialogOpen(false);
+                                setProductToDelete(null);
+                            }}
+                            className="flex-1 h-11 rounded-xl border-gray-100 font-bold hover:bg-gray-100 hover:text-[var(--text-headline)] active:scale-95 transition-all"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleConfirmDelete}
+                            className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/20 active:scale-95 transition-all"
+                        >
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div >
     );
 }
@@ -908,6 +955,54 @@ export function AddProduct() {
         return variantConfigs.reduce((sum, v) => sum + (v.stock || 0), 0);
     };
 
+    // Image file upload state (for Upload mode in GeneralInfoTab)
+    const [imageFiles, setImageFiles] = useState<(File | null)[]>([null]);
+    const [imageFileErrors, setImageFileErrors] = useState<(string | null)[]>([null]);
+
+    const handleFileSelect = async (index: number, file: File | null) => {
+        if (!file) {
+            const updated = [...imageFiles];
+            updated[index] = null;
+            setImageFiles(updated);
+            const updatedErrors = [...imageFileErrors];
+            updatedErrors[index] = null;
+            setImageFileErrors(updatedErrors);
+            return;
+        }
+        const validation = validateImageFile(file);
+        if (!validation.valid) {
+            const updatedErrors = [...imageFileErrors];
+            updatedErrors[index] = validation.error ?? "Invalid file";
+            setImageFileErrors(updatedErrors);
+            return;
+        }
+        const compressed = await compressImage(file);
+        const updated = [...imageFiles];
+        updated[index] = compressed;
+        setImageFiles(updated);
+        const updatedErrors = [...imageFileErrors];
+        updatedErrors[index] = null;
+        setImageFileErrors(updatedErrors);
+    };
+
+    const addImageFileSlot = () => {
+        setImageFiles((prev) => [...prev, null]);
+        setImageFileErrors((prev) => [...prev, null]);
+    };
+
+    const removeImageFileSlot = (index: number) => {
+        setImageFiles((prev) => prev.filter((_, i) => i !== index));
+        setImageFileErrors((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const setImageFileError = (index: number, error: string | null) => {
+        setImageFileErrors((prev) => {
+            const updated = [...prev];
+            updated[index] = error;
+            return updated;
+        });
+    };
+
     // Categories now fetched from database via useEffect above
 
     const handleChange = (
@@ -1015,7 +1110,8 @@ export function AddProduct() {
             newErrors.category = "Please select a category";
         }
         const validImages = formData.images.filter((img) => img.trim() !== "");
-        if (validImages.length === 0) {
+        const validFiles = imageFiles.filter((f): f is File => f !== null);
+        if (validImages.length === 0 && validFiles.length === 0) {
             newErrors.images = "At least one product image is required";
         }
 
@@ -1082,6 +1178,52 @@ export function AddProduct() {
                 variants: variantsForSubmit,
             };
 
+            // Upload any file-based images and merge with URL images
+            const filesToUpload = imageFiles.filter((f): f is File => f !== null);
+            let uploadedUrls: string[] = [];
+            if (filesToUpload.length > 0 && seller?.id) {
+                try {
+                    const tempProductId = crypto.randomUUID();
+                    uploadedUrls = await uploadProductImages(
+                        filesToUpload,
+                        seller.id,
+                        tempProductId,
+                    );
+                    if (uploadedUrls.length === 0) {
+                        throw new Error("Image upload failed. Please check your storage permissions or try using URL mode instead.");
+                    }
+                } catch (uploadError) {
+                    console.error("Image upload failed:", uploadError);
+                    toast({
+                        title: "Upload Failed",
+                        description: uploadError instanceof Error 
+                            ? uploadError.message 
+                            : "Could not upload images. Please try using URL mode or contact support.",
+                        variant: "destructive",
+                    });
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
+            // Final image array: existing URLs + newly uploaded URLs
+            const allImages = [
+                ...formData.images.filter((img) => img.trim() !== ""),
+                ...uploadedUrls,
+            ];
+
+            if (allImages.length === 0) {
+                toast({
+                    title: "Images Required",
+                    description: "Please add at least one product image (URL or file).",
+                    variant: "destructive",
+                });
+                setIsSubmitting(false);
+                return;
+            }
+
+            productData.images = allImages;
+
             await addProduct(productData);
 
             // Show success message
@@ -1137,20 +1279,25 @@ export function AddProduct() {
                         <div className="sticky top-6 space-y-6">
                             <div className="bg-white rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden border border-white/50">
                                 <div className="relative aspect-[4/5] bg-gray-50">
-                                    {formData.images[0] ? (
-                                        <img
-                                            src={formData.images[0]}
-                                            alt="Preview"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="flex h-full flex-col items-center justify-center text-gray-300 gap-4">
-                                            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-                                                <Upload className="h-8 w-8 text-gray-300" />
+                                    {(() => {
+                                        const urlPreview = formData.images[0] || null;
+                                        const filePreview = imageFiles[0] ? URL.createObjectURL(imageFiles[0]) : null;
+                                        const previewSrc = urlPreview || filePreview;
+                                        return previewSrc ? (
+                                            <img
+                                                src={previewSrc}
+                                                alt="Preview"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="flex h-full flex-col items-center justify-center text-gray-300 gap-4">
+                                                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+                                                    <Upload className="h-8 w-8 text-gray-300" />
+                                                </div>
+                                                <p className="text-sm font-medium">Upload an image</p>
                                             </div>
-                                            <p className="text-sm font-medium">Upload an image</p>
-                                        </div>
-                                    )}
+                                        );
+                                    })()}
                                     <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-black/30 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white shadow-lg border border-white/10">
                                         <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                                         Live Preview
@@ -1208,8 +1355,8 @@ export function AddProduct() {
                                     Listing Checklist
                                 </h4>
                                 <ul className="space-y-3">
-                                    <li className={cn("flex items-center gap-3 text-sm font-medium transition-colors", formData.images.filter(i => i).length >= 1 ? "text-green-600" : "text-gray-400")}>
-                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", formData.images.filter(i => i).length >= 1 ? "bg-green-100 border-green-200 text-green-600" : "border-gray-200 bg-gray-50")}>
+                                    <li className={cn("flex items-center gap-3 text-sm font-medium transition-colors", (formData.images.filter(i => i).length >= 1 || imageFiles.some(f => f !== null)) ? "text-green-600" : "text-gray-400")}>
+                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", (formData.images.filter(i => i).length >= 1 || imageFiles.some(f => f !== null)) ? "bg-green-100 border-green-200 text-green-600" : "border-gray-200 bg-gray-50")}>
                                             <Check className="w-3 h-3" />
                                         </div>
                                         Add at least 1 image
@@ -1269,6 +1416,12 @@ export function AddProduct() {
                                     addImageField={addImageField}
                                     removeImageField={removeImageField}
                                     getTotalVariantStock={getTotalVariantStock}
+                                    imageFiles={imageFiles}
+                                    imageFileErrors={imageFileErrors}
+                                    onFileSelect={handleFileSelect}
+                                    addImageFileSlot={addImageFileSlot}
+                                    removeImageFileSlot={removeImageFileSlot}
+                                    setImageFileError={setImageFileError}
                                 />
                             )}
 

@@ -605,6 +605,10 @@ export function SellerStoreProfile() {
     const normalizedEmail = formData.email.trim();
     const normalizedPhone = formData.phone.trim();
     const normalizedOwnerName = formData.ownerName.trim();
+    const ownerNameParts = normalizedOwnerName.split(/\s+/).filter(Boolean);
+    const normalizedFirstName = ownerNameParts[0] || null;
+    const normalizedLastName =
+      ownerNameParts.length > 1 ? ownerNameParts.slice(1).join(" ") : null;
 
     if (!normalizedEmail) {
       alert("Email is required.");
@@ -619,7 +623,6 @@ export function SellerStoreProfile() {
         .update({
           store_name: formData.storeName,
           store_description: formData.storeDescription,
-          owner_name: normalizedOwnerName || null,
         })
         .eq("id", sellerId);
 
@@ -630,6 +633,8 @@ export function SellerStoreProfile() {
         .update({
           email: normalizedEmail,
           phone: normalizedPhone || null,
+          first_name: normalizedFirstName,
+          last_name: normalizedLastName,
         })
         .eq("id", sellerId);
 

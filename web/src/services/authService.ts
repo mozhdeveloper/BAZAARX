@@ -175,7 +175,6 @@ export class AuthService {
     sellerData: {
       store_name: string;
       store_description?: string;
-      owner_name?: string;
     }
   ): Promise<any | null> {
     if (!isSupabaseConfigured()) {
@@ -206,7 +205,6 @@ export class AuthService {
           id: userId,
           store_name: sellerData.store_name,
           store_description: sellerData.store_description || null,
-          owner_name: sellerData.owner_name || null,
           avatar_url: null,
           approval_status: 'pending', // New sellers start as pending
         })
@@ -348,23 +346,46 @@ export class AuthService {
 
       // Ensure profile exists and update last login
       if (data.user) {
-        // Upsert profile to ensure it exists (handles legacy users without profiles)
-        const { error: profileError } = await supabase
+        const normalizedEmail = data.user.email || email;
+        const lastLoginAt = new Date().toISOString();
+
+        // Source-of-truth rule: do not overwrite existing profile names from auth metadata.
+        // Use metadata only to bootstrap when the profile row does not exist yet.
+        const { data: existingProfile, error: existingProfileError } = await supabase
           .from('profiles')
-          .upsert(
-            {
+          .select('id')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (existingProfileError) {
+          console.error('Error checking existing profile during sign in:', existingProfileError);
+        } else if (existingProfile?.id) {
+          const { error: profileUpdateError } = await supabase
+            .from('profiles')
+            .update({
+              email: normalizedEmail,
+              last_login_at: lastLoginAt,
+            })
+            .eq('id', data.user.id);
+
+          if (profileUpdateError) {
+            console.error('Error updating profile during sign in:', profileUpdateError);
+          }
+        } else {
+          const { error: profileInsertError } = await supabase
+            .from('profiles')
+            .insert({
               id: data.user.id,
-              email: data.user.email || email,
+              email: normalizedEmail,
               first_name: data.user.user_metadata?.first_name || null,
               last_name: data.user.user_metadata?.last_name || null,
               phone: data.user.user_metadata?.phone || null,
-              last_login_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          );
+              last_login_at: lastLoginAt,
+            });
 
-        if (profileError) {
-          console.error('Error upserting profile:', profileError);
+          if (profileInsertError) {
+            console.error('Error inserting profile during sign in:', profileInsertError);
+          }
         }
 
         // Also ensure buyer record exists for buyer role users
@@ -688,7 +709,6 @@ export class AuthService {
     store_name: string;
     store_description?: string;
     phone?: string;
-    owner_name?: string;
   }): Promise<{ userId: string }> {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase not configured');
@@ -707,12 +727,6 @@ export class AuthService {
       .eq('id', user.id)
       .maybeSingle();
 
-    const ownerNameFromProfile = [existingProfile?.first_name, existingProfile?.last_name]
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-    const ownerName = payload.owner_name?.trim() || ownerNameFromProfile || null;
-
     await this.addUserRole(user.id, 'seller');
 
     const { error: sellerError } = await supabase
@@ -723,7 +737,6 @@ export class AuthService {
           store_name: payload.store_name,
           store_description: payload.store_description || null,
           store_contact_number: payload.phone?.trim() || null,
-          owner_name: ownerName,
           approval_status: 'pending',
         },
         { onConflict: 'id' },

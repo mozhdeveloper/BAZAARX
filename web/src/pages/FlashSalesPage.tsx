@@ -5,6 +5,7 @@ import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Zap, Timer, CheckCircle2, Store, ArrowLeft, ChevronLeft } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import { productService } from '../services/productService';
+import { discountService } from '../services/discountService';
 import { Product } from '../types';
 
 export default function FlashSalesPage() {
@@ -13,48 +14,41 @@ export default function FlashSalesPage() {
     const [loading, setLoading] = useState(true);
 
     // Timer state
-    const [timeLeft, setTimeLeft] = useState({ hours: 2, minutes: 12, seconds: 56 });
+    const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
     useEffect(() => {
-        // Shared countdown
-        const timer = setInterval(() => {
-            setTimeLeft(prev => {
-                let { hours, minutes, seconds } = prev;
-                seconds--;
-                if (seconds < 0) { seconds = 59; minutes--; }
-                if (minutes < 0) { minutes = 59; hours--; }
-                if (hours < 0) return { hours: 0, minutes: 0, seconds: 0 };
-                return { hours, minutes, seconds };
+        if (products.length === 0) return;
+
+        const updateTimer = () => {
+            const now = new Date().getTime();
+            const endTimes = products
+                .map(p => new Date(p.campaignEndsAt).getTime())
+                .filter(t => t > now)
+                .sort((a, b) => a - b);
+
+            if (endTimes.length === 0) {
+                setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
+                return;
+            }
+
+            const diff = endTimes[0] - now;
+            setTimeLeft({
+                hours: Math.floor(diff / (1000 * 60 * 60)),
+                minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+                seconds: Math.floor((diff % (1000 * 60)) / 1000)
             });
-        }, 1000);
+        };
+
+        updateTimer();
+        const timer = setInterval(updateTimer, 1000);
         return () => clearInterval(timer);
-    }, []);
+    }, [products]);
 
     useEffect(() => {
         const loadProducts = async () => {
             try {
-                const data = await productService.getProducts({ isActive: true, approvalStatus: 'approved' });
-                // Simulate real flash sale data from backend
-                const validProducts = (data || []).map((row: any) => {
-                    const images = row.images?.map((img: any) => typeof img === 'string' ? img : img.image_url) || [];
-                    const primaryImage = images[0] || row.primary_image || '';
-
-                    return {
-                        id: row.id,
-                        name: row.name,
-                        price: row.price,
-                        originalPrice: row.original_price,
-                        image: primaryImage,
-                        images: images,
-                        seller: row.seller?.store_name || 'Generic Store',
-                        sellerId: row.seller_id || row.seller?.id,
-                        sellerVerified: !!row.seller?.verified_at,
-                        category: row.category?.name || 'General',
-                        sold: row.sold || 0,
-                        stock: row.stock || 10
-                    } as any;
-                });
-                setProducts(validProducts);
+                const data = await discountService.getFlashSaleProducts();
+                setProducts(data || []);
             } catch (e) {
                 console.error('Failed to load flash deals', e);
             } finally {
