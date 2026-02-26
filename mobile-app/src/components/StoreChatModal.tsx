@@ -10,6 +10,9 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Animated,
+    TouchableWithoutFeedback,
+    Dimensions,
 } from 'react-native';
 import { ArrowLeft, Send, MoreVertical, Store, Ticket } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +22,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { chatService, Conversation, Message as ChatMessage } from '../services/chatService';
 import { useAuthStore } from '../stores/authStore';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface StoreChatModalProps {
     visible: boolean;
@@ -38,7 +43,7 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { user } = useAuthStore();
-    
+
     // Real chat state
     const [conversation, setConversation] = useState<Conversation | null>(null);
     const [realMessages, setRealMessages] = useState<ChatMessage[]>([]);
@@ -47,25 +52,28 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
     const [inputText, setInputText] = useState('');
     const scrollViewRef = useRef<ScrollView>(null);
 
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+
     // Load real conversation if sellerId is provided
     const loadConversation = useCallback(async () => {
         if (!sellerId || !user?.id) {
             console.log('[StoreChatModal] Cannot load conversation:', { sellerId, userId: user?.id });
             return;
         }
-        
+
         console.log('[StoreChatModal] Loading conversation for:', { sellerId, storeName, userId: user.id });
         setLoading(true);
         try {
             const conv = await chatService.getOrCreateConversation(user.id, sellerId);
             console.log('[StoreChatModal] Conversation result:', conv);
-            
+
             if (conv) {
                 setConversation(conv);
                 const msgs = await chatService.getMessages(conv.id);
                 console.log('[StoreChatModal] Loaded messages:', msgs.length);
                 setRealMessages(msgs);
-                
+
                 // Mark as read
                 await chatService.markAsRead(conv.id, user.id, 'buyer');
             } else {
@@ -83,6 +91,26 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
             loadConversation();
         }
     }, [visible, sellerId, user?.id, loadConversation]);
+
+    // Animation trigger
+    useEffect(() => {
+        if (visible) {
+            Animated.parallel([
+                Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+                Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
+            ]).start();
+        } else {
+            fadeAnim.setValue(0);
+            slideAnim.setValue(SCREEN_HEIGHT);
+        }
+    }, [visible]);
+
+    const handleCloseInternal = () => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+            Animated.timing(slideAnim, { toValue: SCREEN_HEIGHT, duration: 250, useNativeDriver: true }),
+        ]).start(() => onClose());
+    };
 
     // Subscribe to new messages
     useEffect(() => {
@@ -122,16 +150,9 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
     const handleSend = async (text?: string) => {
         const messageText = text || inputText.trim();
         if (!messageText || !conversation || !user?.id || sending) {
-            console.log('[StoreChatModal] Cannot send message:', { 
-                hasMessage: !!messageText, 
-                hasConversation: !!conversation, 
-                hasUser: !!user?.id, 
-                sending 
-            });
             return;
         }
 
-        console.log('[StoreChatModal] Sending message:', { conversationId: conversation.id, messageText: messageText.substring(0, 50) });
         setInputText('');
         setSending(true);
 
@@ -143,12 +164,7 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                 messageText
             );
 
-            if (sentMessage) {
-                console.log('[StoreChatModal] Message sent successfully, ID:', sentMessage.id);
-                // Don't add manually - let the subscription handle it to avoid duplicates
-                // The subscription will pick up the new message via real-time
-            } else {
-                console.error('[StoreChatModal] sendMessage returned null');
+            if (!sentMessage) {
                 setInputText(messageText); // Restore on error
             }
         } catch (error) {
@@ -161,157 +177,166 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
 
     const handleAction = (target: string) => {
         if (target === 'CreateTicket') {
-            onClose();
+            handleCloseInternal();
             navigation.navigate('CreateTicket');
         }
     };
 
     return (
-        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-            <KeyboardAvoidingView
-                style={styles.container}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={0}
-            >
-                {/* Header - Store Brand Color */}
-                <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-                    <Pressable onPress={onClose} style={styles.backButton}>
-                        <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-                    </Pressable>
+        <Modal
+            visible={visible}
+            animationType="none"
+            transparent={true}
+            onRequestClose={handleCloseInternal}
+            statusBarTranslucent={true}
+        >
+            <View style={{ flex: 1 }}>
+                {/* Static Background Overlay (Fade animation) */}
+                <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]} />
 
-                    <View style={styles.headerInfo}>
-                        <View style={styles.avatarContainer}>
-                            <Store size={16} color="#FF5722" />
-                        </View>
-                        <View>
-                            <Text style={styles.headerTitle}>{storeName}</Text>
-                            <View style={styles.statusRow}>
-                                <View style={styles.statusDot} />
-                                <Text style={styles.statusText}>Online</Text>
+                <Animated.View style={[styles.modalAnimContainer, { transform: [{ translateY: slideAnim }] }]}>
+                    <KeyboardAvoidingView
+                        style={styles.container}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+                    >
+                        {/* Header - Edge to Edge */}
+                        <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
+                            <Pressable onPress={handleCloseInternal} style={styles.backButton}>
+                                <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+                            </Pressable>
+
+                            <View style={styles.headerInfo}>
+                                <View style={styles.avatarContainer}>
+                                    <Store size={16} color="#FF5722" />
+                                </View>
+                                <View>
+                                    <Text style={styles.headerTitle}>{storeName}</Text>
+                                    <View style={styles.statusRow}>
+                                        <View style={styles.statusDot} />
+                                        <Text style={styles.statusText}>Online</Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            <View style={{ flexDirection: 'row' }}>
+                                <Pressable
+                                    style={styles.menuButton}
+                                    onPress={() => handleAction('CreateTicket')}
+                                >
+                                    <Ticket size={24} color="#FFFFFF" />
+                                </Pressable>
+                                <Pressable style={styles.menuButton}>
+                                    <MoreVertical size={24} color="#FFFFFF" />
+                                </Pressable>
                             </View>
                         </View>
-                    </View>
 
-                    <View style={{ flexDirection: 'row' }}>
-                        <Pressable 
-                            style={styles.menuButton} 
-                            onPress={() => handleAction('CreateTicket')}
+                        {/* Messages */}
+                        <ScrollView
+                            ref={scrollViewRef}
+                            style={styles.messagesContainer}
+                            contentContainerStyle={styles.messagesContent}
                         >
-                            <Ticket size={24} color="#FFFFFF" />
-                        </Pressable>
-                        <Pressable style={styles.menuButton}>
-                            <MoreVertical size={24} color="#FFFFFF" />
-                        </Pressable>
-                    </View>
-                </View>
-
-                {/* Messages */}
-                <ScrollView
-                    ref={scrollViewRef}
-                    style={styles.messagesContainer}
-                    contentContainerStyle={styles.messagesContent}
-                >
-                    {loading ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color={COLORS.primary} />
-                        </View>
-                    ) : !sellerId ? (
-                        // No sellerId provided - cannot chat
-                        <View style={styles.loadingContainer}>
-                            <Text style={{ color: '#6B7280', textAlign: 'center' }}>
-                                Unable to start chat. Store information unavailable.
-                            </Text>
-                        </View>
-                    ) : !user?.id ? (
-                        // Not logged in
-                        <View style={styles.loadingContainer}>
-                            <Text style={{ color: '#6B7280', textAlign: 'center' }}>
-                                Please log in to chat with this store.
-                            </Text>
-                        </View>
-                    ) : !conversation ? (
-                        // Conversation not yet loaded
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color={COLORS.primary} />
-                            <Text style={{ color: '#6B7280', marginTop: 12 }}>Starting conversation...</Text>
-                        </View>
-                    ) : (
-                        // Real messages from database
-                        <>
-                            {realMessages.length === 0 && (
-                                <View style={[styles.messageBubble, styles.storeBubble]}>
-                                    <Text style={[styles.messageText, styles.storeText]}>
-                                        {`Welcome to ${storeName}! 🛍️\nHow can we help you today?`}
+                            {loading ? (
+                                <View style={styles.loadingContainer}>
+                                    <ActivityIndicator size="large" color={COLORS.primary} />
+                                </View>
+                            ) : !sellerId ? (
+                                <View style={styles.loadingContainer}>
+                                    <Text style={{ color: '#6B7280', textAlign: 'center' }}>
+                                        Unable to start chat. Store information unavailable.
                                     </Text>
+                                </View>
+                            ) : !user?.id ? (
+                                <View style={styles.loadingContainer}>
+                                    <Text style={{ color: '#6B7280', textAlign: 'center' }}>
+                                        Please log in to chat with this store.
+                                    </Text>
+                                </View>
+                            ) : !conversation ? (
+                                <View style={styles.loadingContainer}>
+                                    <ActivityIndicator size="large" color={COLORS.primary} />
+                                    <Text style={{ color: '#6B7280', marginTop: 12 }}>Starting conversation...</Text>
+                                </View>
+                            ) : (
+                                <>
+                                    {realMessages.length === 0 && (
+                                        <View style={[styles.messageBubble, styles.storeBubble]}>
+                                            <Text style={[styles.messageText, styles.storeText]}>
+                                                {`Welcome to ${storeName}! 🛍️\nHow can we help you today?`}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {realMessages.map((msg) => (
+                                        <View key={msg.id} style={[
+                                            styles.messageBubble,
+                                            msg.sender_type === 'buyer' ? styles.userBubble : styles.storeBubble,
+                                        ]}>
+                                            <Text style={[
+                                                styles.messageText,
+                                                msg.sender_type === 'buyer' ? styles.userText : styles.storeText,
+                                            ]}>
+                                                {msg.content}
+                                            </Text>
+                                            <Text style={[
+                                                styles.timestamp,
+                                                msg.sender_type === 'buyer' ? styles.userTimestamp : styles.storeTimestamp
+                                            ]}>
+                                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </Text>
+                                        </View>
+                                    ))}
+                                </>
+                            )}
+
+                            {sending && (
+                                <View style={styles.sendingIndicator}>
+                                    <ActivityIndicator size="small" color={COLORS.primary} />
                                 </View>
                             )}
-                            {realMessages.map((msg) => (
-                                <View key={msg.id} style={[
-                                    styles.messageBubble,
-                                    msg.sender_type === 'buyer' ? styles.userBubble : styles.storeBubble,
-                                ]}>
-                                    <Text style={[
-                                        styles.messageText,
-                                        msg.sender_type === 'buyer' ? styles.userText : styles.storeText,
-                                    ]}>
-                                        {msg.content}
-                                    </Text>
-                                    <Text style={[
-                                        styles.timestamp,
-                                        msg.sender_type === 'buyer' ? styles.userTimestamp : styles.storeTimestamp
-                                    ]}>
-                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </Text>
-                                </View>
-                            ))}
-                        </>
-                    )}
-                    
-                    {sending && (
-                        <View style={styles.sendingIndicator}>
-                            <ActivityIndicator size="small" color={COLORS.primary} />
-                        </View>
-                    )}
-                </ScrollView>
-
-                {/* Suggestions */}
-                {conversation && realMessages.length < 3 && (
-                    <View style={styles.quickRepliesContainer}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
-                            {quickReplies.map((reply, i) => (
-                                <Pressable key={i} style={styles.replyChip} onPress={() => handleSend(reply)}>
-                                    <Text style={styles.replyText}>{reply}</Text>
-                                </Pressable>
-                            ))}
                         </ScrollView>
-                    </View>
-                )}
 
-                {/* Input Area */}
-                <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12 }]}>
-                    <View style={styles.inputBar}>
-                        <TextInput
-                            style={styles.input}
-                            value={inputText}
-                            onChangeText={setInputText}
-                            placeholder="Type a message..."
-                            placeholderTextColor="#9CA3AF"
-                            multiline
-                            maxLength={500}
-                        />
-                        <Pressable
-                            onPress={() => handleSend()}
-                            style={[
-                                styles.sendButton,
-                                (!inputText.trim() || sending) && styles.sendButtonDisabled,
-                            ]}
-                            disabled={!inputText.trim()}
-                        >
-                            <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
-                        </Pressable>
-                    </View>
-                </View>
-            </KeyboardAvoidingView>
+                        {/* Suggestions */}
+                        {conversation && realMessages.length < 3 && (
+                            <View style={styles.quickRepliesContainer}>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+                                    {quickReplies.map((reply, i) => (
+                                        <Pressable key={i} style={styles.replyChip} onPress={() => handleSend(reply)}>
+                                            <Text style={styles.replyText}>{reply}</Text>
+                                        </Pressable>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
+
+                        {/* Input Area */}
+                        <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12 }]}>
+                            <View style={styles.inputBar}>
+                                <TextInput
+                                    style={styles.input}
+                                    value={inputText}
+                                    onChangeText={setInputText}
+                                    placeholder="Type a message..."
+                                    placeholderTextColor="#9CA3AF"
+                                    multiline
+                                    maxLength={500}
+                                />
+                                <Pressable
+                                    onPress={() => handleSend()}
+                                    style={[
+                                        styles.sendButton,
+                                        (!inputText.trim() || sending) && styles.sendButtonDisabled,
+                                    ]}
+                                    disabled={!inputText.trim()}
+                                >
+                                    <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
+                                </Pressable>
+                            </View>
+                        </View>
+                    </KeyboardAvoidingView>
+                </Animated.View>
+            </View>
         </Modal>
     );
 }
@@ -320,6 +345,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F5F5F7',
+    },
+    modalOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    modalAnimContainer: {
+        flex: 1,
     },
     header: {
         flexDirection: 'row',
@@ -423,17 +455,6 @@ const styles = StyleSheet.create({
     storeTimestamp: {
         color: '#9CA3AF',
     },
-    typingIndicator: {
-        flexDirection: 'row',
-        gap: 4,
-        padding: 4,
-    },
-    typingDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#9CA3AF',
-    },
     quickRepliesContainer: {
         paddingVertical: 12,
     },
@@ -482,23 +503,6 @@ const styles = StyleSheet.create({
     },
     sendButtonDisabled: {
         backgroundColor: '#E5E7EB',
-    },
-    actionButton: {
-        marginTop: 12,
-        backgroundColor: '#10B981', // Success/Green
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        // Removed gap for compatibility
-        minHeight: 40,
-    },
-    actionButtonText: {
-        color: '#FFF',
-        fontWeight: '600',
-        fontSize: 13,
     },
     loadingContainer: {
         flex: 1,
