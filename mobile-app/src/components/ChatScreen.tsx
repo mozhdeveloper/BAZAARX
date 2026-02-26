@@ -13,10 +13,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft,
+  ChevronLeft,
   Send,
   Store,
   User,
@@ -66,6 +67,10 @@ export default function ChatScreen({
   const displayName = effectiveUserType === 'buyer'
     ? conversationData?.seller_store_name || 'Store'
     : conversationData?.buyer_name || 'Customer';
+
+  const avatarUrl = effectiveUserType === 'buyer'
+    ? conversationData?.seller_avatar
+    : conversationData?.buyer_avatar;
 
   const loadMessages = useCallback(async () => {
     if (!conversationId) return;
@@ -193,21 +198,23 @@ export default function ChatScreen({
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
     >
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      {/* Header - Matching StoreChatModal style */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
         <Pressable onPress={handleBack} style={styles.backButton}>
-          <ArrowLeft size={24} color={COLORS.primary} strokeWidth={2.5} />
+          <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
         </Pressable>
 
         <View style={styles.headerInfo}>
           <View style={styles.avatarContainer}>
-            {effectiveUserType === 'buyer' ? (
-              <Store size={20} color={COLORS.primary} />
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : effectiveUserType === 'buyer' ? (
+              <Store size={18} color={COLORS.primary} />
             ) : (
-              <User size={16} color={COLORS.primary} />
+              <User size={18} color={COLORS.primary} />
             )}
           </View>
           <View>
@@ -219,15 +226,16 @@ export default function ChatScreen({
           </View>
         </View>
 
-        <Pressable
-          style={styles.ticketButton}
-          onPress={() => {
-            handleBack();
-            navigation.navigate('CreateTicket');
-          }}
-        >
-          <Ticket size={22} color={COLORS.primary} />
-        </Pressable>
+        <View style={{ flexDirection: 'row' }}>
+          <Pressable
+            style={styles.menuButton}
+            onPress={() => {
+              navigation.navigate('CreateTicket');
+            }}
+          >
+            <Ticket size={24} color="#FFFFFF" />
+          </Pressable>
+        </View>
       </View>
 
       {/* Messages */}
@@ -240,6 +248,8 @@ export default function ChatScreen({
           ref={scrollViewRef}
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
         >
@@ -290,7 +300,7 @@ export default function ChatScreen({
       )}
 
       {/* Input Area */}
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.inputBar}>
           <TextInput
             style={styles.input}
@@ -309,7 +319,7 @@ export default function ChatScreen({
             ]}
             disabled={!newMessage.trim()}
           >
-            <Send size={20} color={COLORS.primary} strokeWidth={2.5} />
+            <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
         </View>
       </View>
@@ -325,35 +335,41 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFE5CC',
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     paddingHorizontal: 16,
     paddingBottom: 16,
-    gap: 12,
   },
   backButton: {
-    padding: 4,
-    color: COLORS.primary,
+    padding: 8,
   },
   headerInfo: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: 8,
     gap: 12,
   },
   avatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#FFFFFF',
   },
   statusRow: {
     flexDirection: 'row',
@@ -361,17 +377,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#4ADE80',
   },
   statusText: {
-    fontSize: 14,
-    color: '#1F2937',
-    opacity: 0.9,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
   },
-  ticketButton: {
+  menuButton: {
     padding: 8,
   },
   loadingContainer: {
@@ -385,7 +400,7 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     padding: 16,
-    paddingBottom: 100, // Add space for floating input
+    paddingBottom: 20, // Reduced space
     gap: 8,
   },
   dateSeparator: {
@@ -447,11 +462,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 8,
   },
   inputBar: {
     flexDirection: 'row',
@@ -470,21 +480,14 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFE5CC',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FFE5CC',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 6,
   },
   sendButtonDisabled: {
-    backgroundColor: '#FFE5CC',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
+    backgroundColor: '#E5E7EB',
   },
 });

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Linking, StatusBar, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, MessageCircle, Mail, Phone, Clock, ChevronRight, FileText, Headphones, Ticket, Store, Search } from 'lucide-react-native';
+import { ChevronLeft, MessageCircle, Mail, Phone, Clock, ChevronRight, FileText, Headphones, Ticket, Store, Search } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
@@ -43,7 +43,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
 
   const loadTickets = async () => {
     if (!user?.id) return;
-    
+
     setLoading(true);
     try {
       const fetchedTickets = await TicketService.fetchTickets(user.id);
@@ -150,7 +150,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
       icon: Ticket,
       title: 'Submit a Support Ticket',
       subtitle: 'Create a ticket and track your concern',
-      color: '#FF6A00',
+      color: '#F59E0B',
       onPress: () => navigation.navigate('CreateTicket'),
     },
   ];
@@ -169,19 +169,16 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       {/* Header */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      <View
+        style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}
       >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+            <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Help Center</Text>
+          <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Help Center</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -197,7 +194,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
             />
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
@@ -222,8 +219,8 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
         </Pressable>
       </View>
 
-      <ScrollView 
-        style={styles.scrollView} 
+      <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           activeTab === 'tickets' ? (
@@ -236,7 +233,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
             {/* Hero Section */}
             <View style={styles.heroSection}>
               <View style={styles.heroIcon}>
-                <Headphones size={32} color="#FF6A00" />
+                <Headphones size={32} color="#F59E0B" />
               </View>
               <Text style={styles.heroTitle}>How can we help you?</Text>
               <Text style={styles.heroSubtitle}>
@@ -246,7 +243,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
 
             {/* Business Hours */}
             <View style={styles.hoursCard}>
-              <Clock size={20} color="#FF6A00" />
+              <Clock size={20} color={COLORS.primary} />
               <View style={styles.hoursInfo}>
                 <Text style={styles.hoursTitle}>Support Hours</Text>
                 <Text style={styles.hoursText}>Monday - Saturday: 8:00 AM - 8:00 PM</Text>
@@ -266,7 +263,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
                   ]}
                   onPress={option.onPress}
                 >
-                  <View style={[styles.contactIcon, { backgroundColor: `${option.color}15` }]}>
+                  <View style={styles.contactIcon}>
                     <option.icon size={24} color={option.color} />
                   </View>
                   <View style={styles.contactInfo}>
@@ -322,7 +319,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
                   pressed && styles.resourceCardPressed,
                 ]}
               >
-                <FileText size={20} color="#FF6A00" />
+                <FileText size={20} color="#F59E0B" />
                 <View style={styles.resourceInfo}>
                   <Text style={styles.resourceTitle}>User Guide</Text>
                   <Text style={styles.resourceSubtitle}>Learn how to use BazaarX</Text>
@@ -336,7 +333,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
                   pressed && styles.resourceCardPressed,
                 ]}
               >
-                <FileText size={20} color="#FF6A00" />
+                <FileText size={20} color="#F59E0B" />
                 <View style={styles.resourceInfo}>
                   <Text style={styles.resourceTitle}>Terms of Service</Text>
                   <Text style={styles.resourceSubtitle}>Read our terms & conditions</Text>
@@ -393,15 +390,17 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
         )}
       </ScrollView>
 
-      {activeTab === 'tickets' && (
-        <Pressable
-          style={({ pressed }) => [styles.fab, pressed && { opacity: 0.8 }]}
-          onPress={() => navigation.navigate('CreateTicket')}
-        >
-          <Text style={styles.fabText}>+ New Ticket</Text>
-        </Pressable>
-      )}
-    </View>
+      {
+        activeTab === 'tickets' && (
+          <Pressable
+            style={({ pressed }) => [styles.fab, pressed && { opacity: 0.8 }]}
+            onPress={() => navigation.navigate('CreateTicket')}
+          >
+            <Text style={styles.fabText}>+ New Ticket</Text>
+          </Pressable>
+        )
+      }
+    </View >
   );
 }
 
@@ -415,10 +414,11 @@ const styles = StyleSheet.create({
     paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    elevation: 2,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    zIndex: 10,
   },
   headerTop: {
     flexDirection: 'row',
@@ -429,8 +429,6 @@ const styles = StyleSheet.create({
   headerIconButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -447,7 +445,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderRadius: 12,
     paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingVertical: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -457,20 +455,20 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     marginLeft: 10,
-    fontSize: 16,
+    fontSize: 15,
     color: COLORS.textHeadline,
+    height: 36,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#FFF',
+    backgroundColor: COLORS.background,
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingHorizontal: 15,
+    marginTop: -25, // Connect to back of header
+    paddingTop: 30, // Account for negative margin
+    zIndex: 1,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   tabButton: {
     flex: 1,
@@ -480,7 +478,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTabButton: {
-    borderBottomColor: '#FB8C00', // Warm Orange
+    borderBottomColor: '#F59E0B', // Brand Accent
   },
   tabText: {
     fontSize: 16,
@@ -488,7 +486,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   activeTabText: {
-    color: '#7C2D12', // Warm Brown
+    color: '#92400E', // Darker Brand Accent
   },
   scrollView: {
     flex: 1,
@@ -500,17 +498,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 32,
     paddingHorizontal: 24,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 20,
+    backgroundColor: COLORS.background,
   },
   heroIcon: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FEF3E8',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
   },
   heroTitle: {
     fontSize: 24,
@@ -574,13 +568,13 @@ const styles = StyleSheet.create({
   },
   hoursCard: {
     flexDirection: 'row',
-    backgroundColor: '#FEF3E8',
+    backgroundColor: '#FFF7ED',
     marginHorizontal: 20,
     marginBottom: 24,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#FFE4CC',
+    borderColor: COLORS.primary,
   },
   hoursInfo: {
     flex: 1,
@@ -589,12 +583,12 @@ const styles = StyleSheet.create({
   hoursTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FF6A00',
+    color: COLORS.primary,
     marginBottom: 6,
   },
   hoursText: {
     fontSize: 13,
-    color: '#FF6A00',
+    color: '#F59E0B',
     lineHeight: 18,
   },
   categoryTitle: {
