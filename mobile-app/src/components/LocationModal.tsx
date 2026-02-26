@@ -15,13 +15,14 @@ import {
   FlatList,
   Keyboard,
 } from 'react-native';
-import { X, Search, MapPin, Home, Briefcase, Target, Check, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react-native';
+import { X, Search, MapPin, Home, Briefcase, Target, Check, ChevronDown, ChevronUp, ArrowLeft, ChevronLeft } from 'lucide-react-native';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
+import { COLORS } from '../constants/theme';
 
 const { height } = Dimensions.get('window');
 
@@ -42,6 +43,7 @@ interface LocationModalProps {
   onSelectLocation: (address: string, coords?: { latitude: number, longitude: number }, details?: LocationDetails) => void;
   currentAddress?: string;
   initialCoordinates?: { latitude: number; longitude: number } | null;
+  statusBarTranslucent?: boolean;
 }
 
 export default function LocationModal({
@@ -50,10 +52,11 @@ export default function LocationModal({
   onSelectLocation,
   currentAddress,
   initialCoordinates,
+  statusBarTranslucent,
 }: LocationModalProps) {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
-  
+
   // Ref to programmatically move the map
   const mapRef = useRef<MapView>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,12 +64,12 @@ export default function LocationModal({
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Loading & Search States
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  
+
   // Location details state for autofill
   const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null);
 
@@ -105,7 +108,7 @@ export default function LocationModal({
       // Reset to map step when modal opens
       setCurrentStep('map');
       setOpenDropdown(null);
-      
+
       if (initialCoordinates) {
         const newRegion = {
           latitude: initialCoordinates.latitude,
@@ -121,7 +124,7 @@ export default function LocationModal({
         setSearchQuery(currentAddress);
       }
       setSuggestions([]); // Clear previous suggestions
-      
+
       // Load regions for dropdown
       regions().then((data: any[]) => setRegionList(data));
     }
@@ -147,12 +150,12 @@ export default function LocationModal({
             coordinates: a.coordinates || null,
             is_default: a.is_default || false,
           }));
-          
+
           // Ensure unique IDs (defensive programming)
-          const uniqueAddresses = mapped.filter((addr, index, self) => 
+          const uniqueAddresses = mapped.filter((addr, index, self) =>
             index === self.findIndex(a => a.id === addr.id)
           );
-          
+
           setAddresses(uniqueAddresses);
         }
       } catch (error) {
@@ -196,7 +199,7 @@ export default function LocationModal({
   const handleSelectSuggestion = (item: any) => {
     const lat = parseFloat(item.lat);
     const lon = parseFloat(item.lon);
-    
+
     // Move Map
     const newRegion = {
       latitude: lat,
@@ -257,12 +260,12 @@ export default function LocationModal({
         { headers: { 'User-Agent': 'BazaarXApp/1.0' } }
       );
       const data = await response.json();
-      
+
       if (data && data.display_name) {
         const simpleAddress = (data.display_name || '').split(',').slice(0, 3).join(',');
         setSearchQuery(simpleAddress);
         setSelectedAddressId(null);
-        
+
         // Extract address details for autofill
         const addr = data.address || {};
         const details: LocationDetails = {
@@ -290,7 +293,7 @@ export default function LocationModal({
     setSelectedAddressId(item.id);
     const addrString = `${item.street}, ${item.city}`;
     setSearchQuery(addrString);
-    
+
     // Set location details from saved address
     const details: LocationDetails = {
       address: addrString,
@@ -303,7 +306,7 @@ export default function LocationModal({
       postalCode: item.postalCode || item.postal_code || '',
     };
     setLocationDetails(details);
-    
+
     if (item.coordinates) {
       const newRegion = {
         latitude: item.coordinates.latitude,
@@ -323,7 +326,7 @@ export default function LocationModal({
     const geocodedProvince = locationDetails?.province || '';
     const geocodedCity = locationDetails?.city || '';
     const geocodedBarangay = locationDetails?.barangay || '';
-    
+
     setFormAddress({
       street: locationDetails?.street || '',
       barangay: geocodedBarangay,
@@ -333,7 +336,7 @@ export default function LocationModal({
       postalCode: locationDetails?.postalCode || '',
       label: 'Home',
     });
-    
+
     // Try to match geocoded data to Philippines address API and load dropdown choices
     try {
       // Load regions if not already loaded
@@ -342,43 +345,43 @@ export default function LocationModal({
         regList = await regions();
         setRegionList(regList);
       }
-      
+
       // Find matching region (try different name variations)
       const matchedRegion = regList.find((r: any) => {
         const rName = r.region_name?.toLowerCase() || '';
         const gRegion = geocodedRegion.toLowerCase();
         const gProvince = geocodedProvince.toLowerCase();
         const gCity = geocodedCity.toLowerCase();
-        
+
         // Check for Metro Manila variations
         if (rName.includes('metro manila') || rName.includes('ncr') || rName.includes('national capital')) {
           if (gRegion.includes('metro manila') || gRegion.includes('ncr') || gRegion.includes('national capital') ||
-              gProvince.includes('metro manila') || gCity.includes('manila') || gCity.includes('quezon') ||
-              gCity.includes('makati') || gCity.includes('pasig') || gCity.includes('taguig') ||
-              gCity.includes('marikina') || gCity.includes('paranaque') || gCity.includes('pasay') ||
-              gCity.includes('caloocan') || gCity.includes('malabon') || gCity.includes('navotas') ||
-              gCity.includes('valenzuela') || gCity.includes('muntinlupa') || gCity.includes('las piñas') ||
-              gCity.includes('san juan') || gCity.includes('mandaluyong') || gCity.includes('pateros')) {
+            gProvince.includes('metro manila') || gCity.includes('manila') || gCity.includes('quezon') ||
+            gCity.includes('makati') || gCity.includes('pasig') || gCity.includes('taguig') ||
+            gCity.includes('marikina') || gCity.includes('paranaque') || gCity.includes('pasay') ||
+            gCity.includes('caloocan') || gCity.includes('malabon') || gCity.includes('navotas') ||
+            gCity.includes('valenzuela') || gCity.includes('muntinlupa') || gCity.includes('las piñas') ||
+            gCity.includes('san juan') || gCity.includes('mandaluyong') || gCity.includes('pateros')) {
             return true;
           }
         }
-        
+
         // Direct match
         return rName.includes(gRegion) || gRegion.includes(rName);
       });
-      
+
       if (matchedRegion) {
         // Update form with matched region name
         setFormAddress(prev => ({ ...prev, region: matchedRegion.region_name }));
-        
+
         // Load provinces for this region
         const provList = await provinces(matchedRegion.region_code);
         setProvinceList(provList);
-        
-        const isMetroManila = matchedRegion.region_name?.toLowerCase().includes('metro manila') || 
-                              matchedRegion.region_name?.toLowerCase().includes('ncr') ||
-                              matchedRegion.region_code === '13';
-        
+
+        const isMetroManila = matchedRegion.region_name?.toLowerCase().includes('metro manila') ||
+          matchedRegion.region_name?.toLowerCase().includes('ncr') ||
+          matchedRegion.region_code === '13';
+
         if (isMetroManila) {
           // For Metro Manila, load all cities from all districts
           let allCities: any[] = [];
@@ -387,20 +390,20 @@ export default function LocationModal({
             allCities = [...allCities, ...provCities];
           }
           setCityList(allCities);
-          
+
           // Find matching city
           const matchedCity = allCities.find((c: any) => {
             const cName = c.city_name?.toLowerCase() || '';
             return cName.includes(geocodedCity.toLowerCase()) || geocodedCity.toLowerCase().includes(cName.split(' ')[0]);
           });
-          
+
           if (matchedCity) {
             setFormAddress(prev => ({ ...prev, city: matchedCity.city_name }));
-            
+
             // Load barangays for this city
             const brgyList = await barangays(matchedCity.city_code);
             setBarangayList(brgyList);
-            
+
             // Find matching barangay
             if (geocodedBarangay) {
               const matchedBrgy = brgyList.find((b: any) => {
@@ -418,27 +421,27 @@ export default function LocationModal({
             const pName = p.province_name?.toLowerCase() || '';
             return pName.includes(geocodedProvince.toLowerCase()) || geocodedProvince.toLowerCase().includes(pName);
           });
-          
+
           if (matchedProvince) {
             setFormAddress(prev => ({ ...prev, province: matchedProvince.province_name }));
-            
+
             // Load cities for this province
             const cityListData = await cities(matchedProvince.province_code);
             setCityList(cityListData);
-            
+
             // Find matching city
             const matchedCity = cityListData.find((c: any) => {
               const cName = c.city_name?.toLowerCase() || '';
               return cName.includes(geocodedCity.toLowerCase()) || geocodedCity.toLowerCase().includes(cName.split(' ')[0]);
             });
-            
+
             if (matchedCity) {
               setFormAddress(prev => ({ ...prev, city: matchedCity.city_name }));
-              
+
               // Load barangays for this city
               const brgyList = await barangays(matchedCity.city_code);
               setBarangayList(brgyList);
-              
+
               // Find matching barangay
               if (geocodedBarangay) {
                 const matchedBrgy = brgyList.find((b: any) => {
@@ -456,23 +459,23 @@ export default function LocationModal({
     } catch (error) {
       console.log('Error loading address dropdowns:', error);
     }
-    
+
     setCurrentStep('form');
   };
 
   // --- 6. FINAL CONFIRM (from form) ---
   const handleFinalConfirm = () => {
     // Check if this is Metro Manila/NCR (no province required)
-    const isMetroManila = formAddress.region?.toLowerCase().includes('metro manila') || 
-                          formAddress.region?.toLowerCase().includes('ncr') ||
-                          formAddress.region?.toLowerCase().includes('national capital');
-    
+    const isMetroManila = formAddress.region?.toLowerCase().includes('metro manila') ||
+      formAddress.region?.toLowerCase().includes('ncr') ||
+      formAddress.region?.toLowerCase().includes('national capital');
+
     // Validate required fields - province optional for Metro Manila
     if (!formAddress.street || !formAddress.city || !formAddress.region) {
       Alert.alert('Incomplete Address', 'Please fill in Street, City, and Region.');
       return;
     }
-    
+
     if (!isMetroManila && !formAddress.province) {
       Alert.alert('Incomplete Address', 'Please select a Province.');
       return;
@@ -483,7 +486,7 @@ export default function LocationModal({
       latitude: region.latitude,
       longitude: region.longitude
     };
-    
+
     const finalDetails: LocationDetails = {
       address: finalAddress,
       coordinates: coords,
@@ -494,7 +497,7 @@ export default function LocationModal({
       region: formAddress.region,
       postalCode: formAddress.postalCode,
     };
-    
+
     onSelectLocation(finalAddress, coords, finalDetails);
     onClose();
   };
@@ -506,7 +509,7 @@ export default function LocationModal({
       latitude: region.latitude,
       longitude: region.longitude
     };
-    
+
     const finalDetails: LocationDetails = locationDetails ? {
       ...locationDetails,
       address: finalAddress,
@@ -515,7 +518,7 @@ export default function LocationModal({
       address: finalAddress,
       coordinates: coords,
     };
-    
+
     onSelectLocation(finalAddress, coords, finalDetails);
     onClose();
   };
@@ -524,16 +527,16 @@ export default function LocationModal({
   const handleRegionSelect = async (regionItem: any) => {
     setFormAddress(prev => ({ ...prev, region: regionItem.region_name, province: '', city: '', barangay: '' }));
     setOpenDropdown(null);
-    
+
     // Load provinces for this region
     const provList = await provinces(regionItem.region_code);
     setProvinceList(provList);
-    
+
     // Check if this is Metro Manila/NCR - load cities directly
-    const isMetroManila = regionItem.region_name?.toLowerCase().includes('metro manila') || 
-                          regionItem.region_name?.toLowerCase().includes('ncr') ||
-                          regionItem.region_code === '13';
-    
+    const isMetroManila = regionItem.region_name?.toLowerCase().includes('metro manila') ||
+      regionItem.region_name?.toLowerCase().includes('ncr') ||
+      regionItem.region_code === '13';
+
     if (isMetroManila) {
       // For Metro Manila, load all cities from all districts
       let allCities: any[] = [];
@@ -545,7 +548,7 @@ export default function LocationModal({
     } else {
       setCityList([]);
     }
-    
+
     setBarangayList([]);
   };
 
@@ -576,13 +579,13 @@ export default function LocationModal({
 
   // When dragging the map manually, reverse geocode the new location
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
   const onRegionChangeComplete = async (newRegion: Region) => {
     setRegion(newRegion);
-    
+
     // Debounce reverse geocoding to avoid too many API calls while dragging
     if (reverseGeocodeTimeout.current) clearTimeout(reverseGeocodeTimeout.current);
-    
+
     reverseGeocodeTimeout.current = setTimeout(async () => {
       try {
         const response = await fetch(
@@ -590,11 +593,11 @@ export default function LocationModal({
           { headers: { 'User-Agent': 'BazaarXApp/1.0' } }
         );
         const data = await response.json();
-        
+
         if (data && data.display_name) {
           const simpleAddress = (data.display_name || '').split(',').slice(0, 3).join(',');
           setSearchQuery(simpleAddress);
-          
+
           // Extract address details for autofill
           const addr = data.address || {};
           const details: LocationDetails = {
@@ -617,173 +620,172 @@ export default function LocationModal({
 
   const getAddressIcon = (label: string) => {
     const l = label.toLowerCase();
-    if (l.includes('home')) return <Home size={20} color="#FF5722" />;
-    if (l.includes('office') || l.includes('work')) return <Briefcase size={20} color="#FF5722" />;
-    return <MapPin size={20} color="#FF5722" />;
+    if (l.includes('home')) return <Home size={20} color={COLORS.primary} />;
+    if (l.includes('office') || l.includes('work')) return <Briefcase size={20} color={COLORS.primary} />;
+    return <MapPin size={20} color={COLORS.primary} />;
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent={statusBarTranslucent}
+    >
       <View style={styles.container}>
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          {currentStep === 'form' ? (
-            <Pressable onPress={() => setCurrentStep('map')} style={styles.backButton}>
-              <ArrowLeft size={22} color="#1F2937" strokeWidth={2.5} />
-            </Pressable>
-          ) : (
-            <View style={{ width: 36 }} />
-          )}
+          <Pressable onPress={currentStep === 'form' ? () => setCurrentStep('map') : onClose} style={styles.backButton}>
+            <ChevronLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+          </Pressable>
           <Text style={styles.headerTitle}>
             {currentStep === 'map' ? 'Select Delivery Location' : 'Complete Address'}
           </Text>
-          <Pressable onPress={onClose} style={styles.closeButton}>
-            <X size={22} color="#1F2937" strokeWidth={2.5} />
-          </Pressable>
+          <View style={{ width: 36 }} />
         </View>
 
         {currentStep === 'map' ? (
           /* ========== MAP STEP ========== */
           <>
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={{ flex: 1 }}
             >
-              <ScrollView 
-                style={styles.scrollContainer} 
-                showsVerticalScrollIndicator={false} 
+              <ScrollView
+                style={styles.scrollContainer}
+                showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 100 }}
                 keyboardShouldPersistTaps="handled"
               >
-            
-            {/* REAL MAP VIEW */}
-            <View style={styles.mapContainer}>
-              <MapView
-                ref={mapRef}
-                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
-                style={styles.map}
-                region={region}
-                onRegionChangeComplete={onRegionChangeComplete}
-                showsUserLocation={true}
-              >
-                {/* Marker stays at center coordinates */}
-                <Marker coordinate={{ latitude: region.latitude, longitude: region.longitude }} />
-              </MapView>
 
-              {/* Search Bar & Suggestions */}
-              <View style={styles.searchContainer}>
-                <View style={styles.searchBar}>
-                  <Search size={20} color="#9CA3AF" />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search address..."
-                    placeholderTextColor="#9CA3AF"
-                    value={searchQuery}
-                    onChangeText={handleTextChange}
-                  />
-                  {isSearching && <ActivityIndicator size="small" color="#FF5722" />}
-                </View>
-
-                {/* AUTOCOMPLETE DROPDOWN */}
-                {suggestions.length > 0 && (
-                  <View style={styles.suggestionsList}>
-                    <FlatList
-                      data={suggestions}
-                      keyExtractor={(item, index) => item.place_id?.toString() || item.osm_id?.toString() || `suggestion-${index}`}
-                      keyboardShouldPersistTaps="handled"
-                      scrollEnabled={false} // Let parent ScrollView handle scrolling if needed
-                      renderItem={({ item }) => (
-                        <Pressable 
-                          style={styles.suggestionItem} 
-                          onPress={() => handleSelectSuggestion(item)}
-                        >
-                          <MapPin size={16} color="#6B7280" style={{ marginTop: 2 }} />
-                          <Text style={styles.suggestionText} numberOfLines={2}>
-                            {item.display_name}
-                          </Text>
-                        </Pressable>
-                      )}
-                    />
-                  </View>
-                )}
-              </View>
-            </View>
-            
-            {/* CURRENT LOCATION BUTTON */}
-            <Pressable 
-              style={({pressed}) => [styles.useLocationButton, pressed && { backgroundColor: '#F3F4F6' }]} 
-              onPress={handleUseCurrentLocation}
-              disabled={isLoadingLocation}
-            >
-              <View style={styles.useLocationIcon}>
-                {isLoadingLocation ? (
-                  <ActivityIndicator size="small" color="#FF5722" />
-                ) : (
-                  <Target size={22} color="#FF5722" />
-                )}
-              </View>
-              <View>
-                <Text style={styles.useLocationTitle}>Use Current Location</Text>
-                <Text style={styles.useLocationSubtitle}>Enable GPS to find your address</Text>
-              </View>
-            </Pressable>
-
-            <View style={styles.divider} />
-
-            {/* Saved Addresses Section */}
-            <View style={styles.savedSection}>
-              <Text style={styles.savedTitle}>Saved Addresses</Text>
-              
-              {addresses.map((address, idx) => {
-                const isSelected = selectedAddressId === address.id;
-                return (
-                  <Pressable
-                    key={address.id || `address-${idx}`}
-                    style={[styles.addressCard, isSelected && styles.addressCardSelected]}
-                    onPress={() => handleSelectAddress(address)}
+                {/* REAL MAP VIEW */}
+                <View style={styles.mapContainer}>
+                  <MapView
+                    ref={mapRef}
+                    provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+                    style={styles.map}
+                    region={region}
+                    onRegionChangeComplete={onRegionChangeComplete}
+                    showsUserLocation={true}
                   >
-                    <View style={styles.addressIconContainer}>
-                      {getAddressIcon(address.label)}
+                    {/* Marker stays at center coordinates */}
+                    <Marker coordinate={{ latitude: region.latitude, longitude: region.longitude }} />
+                  </MapView>
+
+                  {/* Search Bar & Suggestions */}
+                  <View style={styles.searchContainer}>
+                    <View style={styles.searchBar}>
+                      <Search size={20} color="#9CA3AF" />
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search address..."
+                        placeholderTextColor="#9CA3AF"
+                        value={searchQuery}
+                        onChangeText={handleTextChange}
+                      />
+                      {isSearching && <ActivityIndicator size="small" color="#FF5722" />}
                     </View>
-                    <View style={styles.addressContent}>
-                      <Text style={styles.addressLabel}>{address.label}</Text>
-                      <Text style={styles.addressText}>{address.street}, {address.city}</Text>
-                    </View>
-                    {isSelected && (
-                      <View style={styles.checkmarkContainer}>
-                        <Check size={18} color="#FF5722" strokeWidth={3} />
+
+                    {/* AUTOCOMPLETE DROPDOWN */}
+                    {suggestions.length > 0 && (
+                      <View style={styles.suggestionsList}>
+                        <FlatList
+                          data={suggestions}
+                          keyExtractor={(item, index) => item.place_id?.toString() || item.osm_id?.toString() || `suggestion-${index}`}
+                          keyboardShouldPersistTaps="handled"
+                          scrollEnabled={false} // Let parent ScrollView handle scrolling if needed
+                          renderItem={({ item }) => (
+                            <Pressable
+                              style={styles.suggestionItem}
+                              onPress={() => handleSelectSuggestion(item)}
+                            >
+                              <MapPin size={16} color="#6B7280" style={{ marginTop: 2 }} />
+                              <Text style={styles.suggestionText} numberOfLines={2}>
+                                {item.display_name}
+                              </Text>
+                            </Pressable>
+                          )}
+                        />
                       </View>
                     )}
-                  </Pressable>
-                );
-              })}
-              
-              {addresses.length === 0 && (
-                <Text style={{ color: '#9CA3AF', fontStyle: 'italic', marginBottom: 20 }}>No saved addresses found.</Text>
-              )}
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+                  </View>
+                </View>
 
-        {/* Map Step: Confirm Button */}
-        <View style={[styles.confirmContainer, { paddingBottom: insets.bottom + 16 }]}>
-          <Pressable style={styles.confirmButton} onPress={selectedAddressId ? handleConfirm : handleProceedToForm}>
-            <Text style={styles.confirmButtonText}>
-              {selectedAddressId ? 'Use This Address' : 'Continue to Address Details'}
-            </Text>
-          </Pressable>
-        </View>
+                {/* CURRENT LOCATION BUTTON */}
+                <Pressable
+                  style={({ pressed }) => [styles.useLocationButton, pressed && { backgroundColor: '#F3F4F6' }]}
+                  onPress={handleUseCurrentLocation}
+                  disabled={isLoadingLocation}
+                >
+                  <View style={styles.useLocationIcon}>
+                    {isLoadingLocation ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} />
+                    ) : (
+                      <Target size={22} color={COLORS.primary} />
+                    )}
+                  </View>
+                  <View>
+                    <Text style={styles.useLocationTitle}>Use Current Location</Text>
+                    <Text style={styles.useLocationSubtitle}>Enable GPS to find your address</Text>
+                  </View>
+                </Pressable>
+
+                <View style={styles.divider} />
+
+                {/* Saved Addresses Section */}
+                <View style={styles.savedSection}>
+                  <Text style={styles.savedTitle}>Saved Addresses</Text>
+
+                  {addresses.map((address, idx) => {
+                    const isSelected = selectedAddressId === address.id;
+                    return (
+                      <Pressable
+                        key={address.id || `address-${idx}`}
+                        style={[styles.addressCard, isSelected && styles.addressCardSelected]}
+                        onPress={() => handleSelectAddress(address)}
+                      >
+                        <View style={styles.addressIconContainer}>
+                          {getAddressIcon(address.label)}
+                        </View>
+                        <View style={styles.addressContent}>
+                          <Text style={styles.addressLabel}>{address.label}</Text>
+                          <Text style={styles.addressText}>{address.street}, {address.city}</Text>
+                        </View>
+                        {isSelected && (
+                          <View style={styles.checkmarkContainer}>
+                            <Check size={18} color={COLORS.primary} strokeWidth={3} />
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+
+                  {addresses.length === 0 && (
+                    <Text style={{ color: '#9CA3AF', fontStyle: 'italic', marginBottom: 20 }}>No saved addresses found.</Text>
+                  )}
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+
+            {/* Map Step: Confirm Button */}
+            <View style={[styles.confirmContainer, { paddingBottom: insets.bottom + 16 }]}>
+              <Pressable style={styles.confirmButton} onPress={selectedAddressId ? handleConfirm : handleProceedToForm}>
+                <Text style={styles.confirmButtonText}>
+                  {selectedAddressId ? 'Use This Address' : 'Continue to Address Details'}
+                </Text>
+              </Pressable>
+            </View>
           </>
         ) : (
           /* ========== FORM STEP ========== */
           <>
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={{ flex: 1 }}
             >
-              <ScrollView 
-                style={styles.scrollContainer} 
-                showsVerticalScrollIndicator={false} 
+              <ScrollView
+                style={styles.scrollContainer}
+                showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 20 }}
                 keyboardShouldPersistTaps="handled"
               >
@@ -796,9 +798,9 @@ export default function LocationModal({
                       style={[styles.typeOption, formAddress.label === type && styles.typeOptionActive]}
                       onPress={() => setFormAddress(prev => ({ ...prev, label: type }))}
                     >
-                      {type === 'Home' && <Home size={16} color={formAddress.label === 'Home' ? '#FF5722' : '#6B7280'} />}
-                      {type === 'Office' && <Briefcase size={16} color={formAddress.label === 'Office' ? '#FF5722' : '#6B7280'} />}
-                      {type === 'Other' && <MapPin size={16} color={formAddress.label === 'Other' ? '#FF5722' : '#6B7280'} />}
+                      {type === 'Home' && <Home size={16} color={formAddress.label === 'Home' ? COLORS.primary : '#6B7280'} />}
+                      {type === 'Office' && <Briefcase size={16} color={formAddress.label === 'Office' ? COLORS.primary : '#6B7280'} />}
+                      {type === 'Other' && <MapPin size={16} color={formAddress.label === 'Other' ? COLORS.primary : '#6B7280'} />}
                       <Text style={[styles.typeOptionText, formAddress.label === type && styles.typeOptionTextActive]}>{type}</Text>
                     </Pressable>
                   ))}
@@ -806,7 +808,7 @@ export default function LocationModal({
 
                 {/* Region Dropdown */}
                 <Text style={styles.formSectionTitle}>Region *</Text>
-                <Pressable 
+                <Pressable
                   style={styles.dropdownButton}
                   onPress={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
                 >
@@ -828,38 +830,38 @@ export default function LocationModal({
                 )}
 
                 {/* Province Dropdown - Hidden for Metro Manila/NCR */}
-                {!(formAddress.region?.toLowerCase().includes('metro manila') || 
-                   formAddress.region?.toLowerCase().includes('ncr') ||
-                   formAddress.region?.toLowerCase().includes('national capital')) && (
-                  <>
-                    <Text style={styles.formSectionTitle}>Province *</Text>
-                    <Pressable 
-                      style={[styles.dropdownButton, !formAddress.region && styles.dropdownDisabled]}
-                      onPress={() => formAddress.region && setOpenDropdown(openDropdown === 'province' ? null : 'province')}
-                      disabled={!formAddress.region}
-                    >
-                      <Text style={formAddress.province ? styles.dropdownText : styles.dropdownPlaceholder}>
-                        {formAddress.province || 'Select Province'}
-                      </Text>
-                      {openDropdown === 'province' ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
-                    </Pressable>
-                    {openDropdown === 'province' && (
-                      <View style={styles.dropdownList}>
-                        <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-                          {provinceList.map((p, idx) => (
-                            <Pressable key={p.province_code || `province-${idx}`} style={styles.dropdownItem} onPress={() => handleProvinceSelect(p)}>
-                              <Text style={styles.dropdownItemText}>{p.province_name}</Text>
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
-                  </>
-                )}
+                {!(formAddress.region?.toLowerCase().includes('metro manila') ||
+                  formAddress.region?.toLowerCase().includes('ncr') ||
+                  formAddress.region?.toLowerCase().includes('national capital')) && (
+                    <>
+                      <Text style={styles.formSectionTitle}>Province *</Text>
+                      <Pressable
+                        style={[styles.dropdownButton, !formAddress.region && styles.dropdownDisabled]}
+                        onPress={() => formAddress.region && setOpenDropdown(openDropdown === 'province' ? null : 'province')}
+                        disabled={!formAddress.region}
+                      >
+                        <Text style={formAddress.province ? styles.dropdownText : styles.dropdownPlaceholder}>
+                          {formAddress.province || 'Select Province'}
+                        </Text>
+                        {openDropdown === 'province' ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+                      </Pressable>
+                      {openDropdown === 'province' && (
+                        <View style={styles.dropdownList}>
+                          <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                            {provinceList.map((p, idx) => (
+                              <Pressable key={p.province_code || `province-${idx}`} style={styles.dropdownItem} onPress={() => handleProvinceSelect(p)}>
+                                <Text style={styles.dropdownItemText}>{p.province_name}</Text>
+                              </Pressable>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </>
+                  )}
 
                 {/* City Dropdown */}
                 <Text style={styles.formSectionTitle}>City / Municipality *</Text>
-                <Pressable 
+                <Pressable
                   style={[styles.dropdownButton, (!formAddress.province && !(formAddress.region?.toLowerCase().includes('metro manila') || formAddress.region?.toLowerCase().includes('ncr') || formAddress.region?.toLowerCase().includes('national capital'))) && styles.dropdownDisabled]}
                   onPress={() => (formAddress.province || formAddress.region?.toLowerCase().includes('metro manila') || formAddress.region?.toLowerCase().includes('ncr') || formAddress.region?.toLowerCase().includes('national capital')) && setOpenDropdown(openDropdown === 'city' ? null : 'city')}
                   disabled={!formAddress.province && !(formAddress.region?.toLowerCase().includes('metro manila') || formAddress.region?.toLowerCase().includes('ncr') || formAddress.region?.toLowerCase().includes('national capital'))}
@@ -883,7 +885,7 @@ export default function LocationModal({
 
                 {/* Barangay Dropdown */}
                 <Text style={styles.formSectionTitle}>Barangay</Text>
-                <Pressable 
+                <Pressable
                   style={[styles.dropdownButton, !formAddress.city && styles.dropdownDisabled]}
                   onPress={() => formAddress.city && setOpenDropdown(openDropdown === 'barangay' ? null : 'barangay')}
                   disabled={!formAddress.city}
@@ -928,7 +930,7 @@ export default function LocationModal({
 
                 {/* Location Preview */}
                 <View style={styles.locationPreview}>
-                  <MapPin size={18} color="#FF5722" />
+                  <MapPin size={18} color={COLORS.primary} />
                   <Text style={styles.locationPreviewText}>
                     {searchQuery || 'Pin location selected on map'}
                   </Text>
@@ -954,17 +956,17 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 12 },
   headerTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: '#1F2937', textAlign: 'center' },
   closeButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F7', justifyContent: 'center', alignItems: 'center' },
-  
+
   scrollContainer: { flex: 1 },
-  
+
   // MAP STYLES
   mapContainer: { height: height * 0.45, position: 'relative', overflow: 'visible', zIndex: 10 },
   map: { width: '100%', height: '100%' },
-  
+
   searchContainer: { position: 'absolute', top: 20, left: 20, right: 20, zIndex: 20 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 20, paddingVertical: 12, gap: 12, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16 },
   searchInput: { flex: 1, fontSize: 15, color: '#1F2937', padding: 0 },
-  
+
   // Autocomplete Suggestions List
   suggestionsList: {
     backgroundColor: '#FFFFFF',
@@ -993,39 +995,39 @@ const styles = StyleSheet.create({
   },
 
   useLocationButton: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFFFFF' },
-  useLocationIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF5F0', justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  useLocationIcon: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   useLocationTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
   useLocationSubtitle: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  
+
   divider: { height: 8, backgroundColor: '#F9FAFB' },
 
   savedSection: { paddingHorizontal: 20, paddingBottom: 120, paddingTop: 20 },
   savedTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937', marginBottom: 16 },
   addressCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 2, borderColor: '#F3F4F6', elevation: 2 },
-  addressCardSelected: { borderColor: '#FF5722', backgroundColor: '#FFF5F0' },
-  addressIconContainer: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF5F0', justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  addressCardSelected: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
+  addressIconContainer: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   addressContent: { flex: 1 },
   addressLabel: { fontSize: 16, fontWeight: '800', color: '#1F2937', marginBottom: 4 },
   addressText: { fontSize: 13, color: '#6B7280' },
-  checkmarkContainer: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFF5F0', justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-  
+  checkmarkContainer: { width: 28, height: 28, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+
   confirmContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingTop: 16, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 12 },
-  confirmButton: { backgroundColor: '#FF5722', borderRadius: 999, paddingVertical: 18, alignItems: 'center' },
+  confirmButton: { backgroundColor: COLORS.primary, borderRadius: 999, paddingVertical: 18, alignItems: 'center' },
   confirmButtonText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
 
   // Back button for form step
-  backButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F7', justifyContent: 'center', alignItems: 'center' },
+  backButton: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
 
   // Form Styles
   formSectionTitle: { fontSize: 14, fontWeight: '700', color: '#374151', marginTop: 16, marginBottom: 8 },
   formInput: { backgroundColor: '#F9FAFB', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#1F2937', borderWidth: 1, borderColor: '#E5E7EB' },
-  
+
   // Type Selector
   typeSelectorContainer: { flexDirection: 'row', gap: 12, marginBottom: 8 },
   typeOption: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB' },
-  typeOptionActive: { backgroundColor: '#FFF5F0', borderColor: '#FF5722' },
+  typeOptionActive: { backgroundColor: COLORS.primarySoft, borderColor: COLORS.primary },
   typeOptionText: { fontSize: 14, color: '#6B7280', fontWeight: '600' },
-  typeOptionTextActive: { color: '#FF5722' },
+  typeOptionTextActive: { color: COLORS.primary },
 
   // Dropdown Styles
   dropdownButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F9FAFB', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: '#E5E7EB' },
@@ -1037,6 +1039,6 @@ const styles = StyleSheet.create({
   dropdownItemText: { fontSize: 14, color: '#374151' },
 
   // Location Preview
-  locationPreview: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF5F0', borderRadius: 12, padding: 14, marginTop: 16 },
+  locationPreview: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.primarySoft, borderRadius: 12, padding: 14, marginTop: 16 },
   locationPreviewText: { flex: 1, fontSize: 13, color: '#6B7280' },
 });

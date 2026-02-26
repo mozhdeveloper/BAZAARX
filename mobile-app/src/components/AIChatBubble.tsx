@@ -372,8 +372,8 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
             ]}
           >
             <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-              keyboardVerticalOffset={0}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
               style={styles.container}
             >
               {/* Header - Edge to Edge like Seller Chat */}
@@ -412,6 +412,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
                 style={styles.messagesContainer}
                 contentContainerStyle={styles.messagesContent}
                 showsVerticalScrollIndicator={false}
+                onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
               >
                 {messages.map((msg) => (
                   <View
@@ -486,7 +487,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
               )}
 
               {/* Input */}
-              <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12 }]}>
+              <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12, backgroundColor: '#FFFFFF' }]}>
                 <TextInput
                   style={styles.textInput}
                   placeholder="Ask BazBot anything..."
@@ -508,11 +509,6 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
                   <Send size={20} color="#fff" />
                 </Pressable>
               </View>
-
-              {/* Footer */}
-              <Text style={styles.footer}>
-                Powered by Gemini AI • BazaarX
-              </Text>
             </KeyboardAvoidingView>
           </Animated.View>
         </View>
@@ -627,6 +623,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messagesContent: {
+    flexGrow: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,
@@ -708,6 +705,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
     paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
   },
   quickRepliesContent: {
     paddingHorizontal: 12,
@@ -734,6 +732,7 @@ const styles = StyleSheet.create({
     gap: 8,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
   },
   textInput: {
     flex: 1,

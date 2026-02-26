@@ -119,14 +119,20 @@ export default function ChatScreen({
     setSending(true);
 
     try {
-      await chatService.sendMessage(
+      const sentMsg = await chatService.sendMessage(
         conversationId,
         effectiveUserId,
         effectiveUserType,
         messageText
       );
 
-      // Real-time subscription will add the message automatically
+      if (sentMsg) {
+        setMessages(prev => {
+          const exists = prev.some(m => m.id === sentMsg.id);
+          if (exists) return prev;
+          return [...prev, sentMsg];
+        });
+      }
     } catch (error) {
       console.error('[ChatScreen] Error sending message:', error);
       // Restore message if failed
@@ -235,6 +241,7 @@ export default function ChatScreen({
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
         >
           {groupedMessages.map((group, groupIdx) => (
             <View key={groupIdx}>
@@ -313,7 +320,7 @@ export default function ChatScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
@@ -374,6 +381,7 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     flex: 1,
+    backgroundColor: '#F5F5F7',
   },
   messagesContent: {
     padding: 16,

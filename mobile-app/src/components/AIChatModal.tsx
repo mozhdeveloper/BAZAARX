@@ -397,7 +397,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#FFFFFF',
   },
   // Universal Header - Edge to Edge Orange
   header: {

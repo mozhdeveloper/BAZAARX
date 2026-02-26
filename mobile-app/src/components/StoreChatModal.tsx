@@ -76,6 +76,9 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
 
                 // Mark as read
                 await chatService.markAsRead(conv.id, user.id, 'buyer');
+
+                // Immediate scroll for initial load
+                scrollToBottom(false);
             } else {
                 console.error('[StoreChatModal] Failed to get/create conversation');
             }
@@ -140,10 +143,10 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
         }
     }, [realMessages, visible]);
 
-    const scrollToBottom = () => {
+    const scrollToBottom = (animated = true) => {
         setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+            scrollViewRef.current?.scrollToEnd({ animated });
+        }, 200);
     };
 
     // Send message handler
@@ -166,6 +169,14 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
 
             if (!sentMessage) {
                 setInputText(messageText); // Restore on error
+            } else {
+                // Optimistically add to local messages
+                setRealMessages(prev => {
+                    const exists = prev.some(m => m.id === sentMessage.id);
+                    if (exists) return prev;
+                    return [...prev, sentMessage];
+                });
+                scrollToBottom();
             }
         } catch (error) {
             console.error('[StoreChatModal] Error sending message:', error);
@@ -197,7 +208,7 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                 <Animated.View style={[styles.modalAnimContainer, { transform: [{ translateY: slideAnim }] }]}>
                     <KeyboardAvoidingView
                         style={styles.container}
-                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
                         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
                     >
                         {/* Header - Edge to Edge */}
@@ -237,6 +248,8 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                             ref={scrollViewRef}
                             style={styles.messagesContainer}
                             contentContainerStyle={styles.messagesContent}
+                            onContentSizeChange={() => scrollToBottom(true)}
+                            onLayout={() => scrollToBottom(false)}
                         >
                             {loading ? (
                                 <View style={styles.loadingContainer}>
@@ -344,7 +357,7 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F5F5F7',
+        backgroundColor: '#FFFFFF',
     },
     modalOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -406,8 +419,10 @@ const styles = StyleSheet.create({
     },
     messagesContainer: {
         flex: 1,
+        backgroundColor: '#F5F5F7',
     },
     messagesContent: {
+        flexGrow: 1,
         padding: 16,
         gap: 12,
         paddingBottom: 20,
