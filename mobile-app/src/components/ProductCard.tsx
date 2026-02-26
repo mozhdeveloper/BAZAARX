@@ -16,7 +16,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
   const regularPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price || 0));
   const pbPrice = product.originalPrice ?? product.original_price;
   const originalPrice = typeof pbPrice === 'number' ? pbPrice : parseFloat(String(pbPrice || 0));
-  
+
   // Calculate discount only if both prices are valid and discount exists
   const hasDiscount = !!(originalPrice > 0 && regularPrice > 0 && originalPrice > regularPrice);
   const discountPercent = hasDiscount
@@ -68,9 +68,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
         <View style={styles.priceSoldRow}>
           <View style={styles.priceContainer}>
             <Text style={[
-              styles.price, 
-              hasDiscount && { color: '#DC2626' }, 
-              hasDiscount && { fontSize: 20 }
+              styles.price,
+              hasDiscount && { color: isFlash ? '#DC2626' : '#EA580C' }, // Vibrant Orange for Standard
+              isFlash && { fontSize: 18 } // Slightly larger for Flash
             ]}>
               ₱{regularPrice.toLocaleString()}
             </Text>
@@ -86,18 +86,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
         {hasDiscount && isFlash && (
           <View style={styles.flashProgressContainer}>
             <View style={styles.flashProgressBar}>
-              <View 
+              <View
                 style={[
-                  styles.flashProgressFill, 
-                  { 
-                    width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 1)) * 100))}%` 
+                  styles.flashProgressFill,
+                  {
+                    width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 1)) * 100))}%`
                   }
-                ]} 
+                ]}
               />
             </View>
             <View style={styles.flashSoldRow}>
-                <Flame size={14} color="#DC2626" fill="#DC2626" />
-                <Text style={styles.flashSoldText}>{(product.sold || 0).toLocaleString()} SOLD</Text>
+              <Flame size={14} color="#DC2626" fill="#DC2626" />
+              <Text style={styles.flashSoldText}>{(product.sold || 0).toLocaleString()} SOLD</Text>
             </View>
           </View>
         )}
@@ -124,7 +124,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.card, // Warm Ivory/Cream
+    backgroundColor: '#FFFFFF', // Pure White
     borderRadius: 12, // Reduced from 20 to 12
     overflow: 'hidden',
     shadowColor: '#F59E0B', // Golden Shadow
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: '100%',
     aspectRatio: 0.9,
-    backgroundColor: '#FFF6E5', // Pale Cream (matches theme)
+    backgroundColor: '#FFFFFF', // Pure White
     position: 'relative',
   },
   image: {

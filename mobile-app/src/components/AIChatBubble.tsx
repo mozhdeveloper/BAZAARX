@@ -37,6 +37,8 @@ import { COLORS } from '../constants/theme';
 import { aiChatService, ProductContext, StoreContext } from '../services/aiChatService';
 import { useAuthStore } from '../stores/authStore';
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 interface ChatMessage {
   id: string;
   sender: 'user' | 'ai';
@@ -51,8 +53,6 @@ interface AIChatBubbleProps {
   onTalkToSeller?: () => void;
 }
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubbleProps) {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
@@ -64,10 +64,11 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
   const [showTalkToSeller, setShowTalkToSeller] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  
+
   const scrollViewRef = useRef<ScrollView>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   // Pulse animation for the floating button
   useEffect(() => {
@@ -89,23 +90,33 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     return () => pulse.stop();
   }, []);
 
-  // Open/close animation
+  // Open/close animation trigger
   useEffect(() => {
-    Animated.spring(scaleAnim, {
-      toValue: isOpen ? 1 : 0,
-      useNativeDriver: true,
-      tension: 100,
-      friction: 8,
-    }).start();
+    if (isOpen) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
+      ]).start();
+    } else {
+      fadeAnim.setValue(0);
+      slideAnim.setValue(SCREEN_HEIGHT);
+    }
   }, [isOpen]);
+
+  const handleCloseInternal = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: SCREEN_HEIGHT, duration: 250, useNativeDriver: true }),
+    ]).start(() => setIsOpen(false));
+  };
 
   // Initialize quick replies and welcome message, or load history
   useEffect(() => {
     const initializeChat = async () => {
       if (!isOpen || !user?.id || !product?.id) return;
-      
+
       setIsLoadingHistory(true);
-      
+
       try {
         // Get or create conversation for this product
         const conv = await aiChatService.getOrCreateProductConversation(
@@ -113,13 +124,13 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
           product.id,
           product.name
         );
-        
+
         if (conv) {
           setConversationId(conv.id);
-          
+
           // Load message history
           const history = await aiChatService.getMessages(conv.id);
-          
+
           if (history && history.length > 0) {
             // Convert saved messages to ChatMessage format
             const loadedMessages: ChatMessage[] = history.map(msg => ({
@@ -139,11 +150,11 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
               timestamp: new Date(),
             };
             setMessages([welcomeMessage]);
-            
+
             // Save welcome message to database
             await aiChatService.sendMessage(conv.id, 'ai', welcomeMessage.message);
           }
-          
+
           setQuickReplies(aiChatService.getQuickReplies({ product, store }));
         }
       } catch (error) {
@@ -162,7 +173,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
         setIsLoadingHistory(false);
       }
     };
-    
+
     initializeChat();
   }, [isOpen, user?.id, product?.id, product?.name, store]);
 
@@ -178,7 +189,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
   };
 
   const handleClose = () => {
-    setIsOpen(false);
+    handleCloseInternal();
   };
 
   const handleSendMessage = async (text?: string) => {
@@ -229,7 +240,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
         message: response,
         timestamp: new Date(),
       };
-      
+
       setMessages(prev => {
         const filtered = prev.filter(m => m.id !== 'typing');
         return [...filtered, aiMessage];
@@ -258,12 +269,12 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
           timestamp: new Date(),
         }];
       });
-      
+
       // Save error message too
       if (conversationId) {
         await aiChatService.sendMessage(conversationId, 'ai', errorMessage);
       }
-      
+
       setShowTalkToSeller(true);
     } finally {
       setIsAiTyping(false);
@@ -276,7 +287,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
   };
 
   const handleTalkToSeller = () => {
-    setIsOpen(false);
+    handleCloseInternal();
     onTalkToSeller?.();
   };
 
@@ -285,7 +296,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     setMessages([]);
     setShowTalkToSeller(false);
     setConversationId(null);
-    
+
     // Create new conversation
     if (user?.id && product?.id) {
       try {
@@ -294,7 +305,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
           product.id,
           product.name
         );
-        
+
         if (conv) {
           setConversationId(conv.id);
         }
@@ -302,7 +313,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
         console.error('[AIChatBubble] Error creating new conversation:', error);
       }
     }
-    
+
     const context = { product, store };
     const welcomeMessage: ChatMessage = {
       id: 'welcome',
@@ -312,7 +323,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     };
     setMessages([welcomeMessage]);
     setQuickReplies(aiChatService.getQuickReplies(context));
-    
+
     // Save welcome message
     if (conversationId) {
       await aiChatService.sendMessage(conversationId, 'ai', welcomeMessage.message);
@@ -322,10 +333,10 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
   return (
     <>
       {/* Floating Button */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.floatingButton,
-          { 
+          {
             bottom: insets.bottom + 96,
             transform: [{ scale: isOpen ? 0 : pulseAnim }],
             opacity: isOpen ? 0 : 1,
@@ -343,163 +354,168 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
       {/* Chat Modal */}
       <Modal
         visible={isOpen}
-        animationType="slide"
+        animationType="none"
         transparent={true}
         onRequestClose={handleClose}
+        statusBarTranslucent={true}
       >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalContainer}
-        >
-          <Pressable style={styles.modalOverlay} onPress={handleClose} />
-          
-          <Animated.View 
+        <View style={{ flex: 1 }}>
+          {/* Static Background Overlay (Fade animation) */}
+          <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]} />
+
+          <Animated.View
             style={[
-              styles.chatContainer,
-              { 
-                paddingBottom: insets.bottom || 16,
-                transform: [{ scale: scaleAnim }],
+              styles.modalAnimContainer,
+              {
+                transform: [{ translateY: slideAnim }],
               }
             ]}
           >
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <View style={styles.aiAvatar}>
-                  <Bot size={20} color="#fff" />
-                </View>
-                <View>
-                  <Text style={styles.headerTitle}>BazBot</Text>
-                  <Text style={styles.headerSubtitle}>AI Shopping Assistant</Text>
-                </View>
-              </View>
-              <View style={styles.headerRight}>
-                <Pressable onPress={handleNewChat} style={styles.newChatButton}>
-                  <Text style={styles.newChatText}>New Chat</Text>
-                </Pressable>
-                <Pressable onPress={handleClose} style={styles.closeButton}>
-                  <X size={24} color="#6B7280" />
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Product Context Bar */}
-            {product && (
-              <View style={styles.contextBar}>
-                <Text style={styles.contextText} numberOfLines={1}>
-                  💬 Chatting about: {product.name}
-                </Text>
-              </View>
-            )}
-
-            {/* Messages */}
-            <ScrollView 
-              ref={scrollViewRef}
-              style={styles.messagesContainer}
-              contentContainerStyle={styles.messagesContent}
-              showsVerticalScrollIndicator={false}
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              keyboardVerticalOffset={0}
+              style={styles.container}
             >
-              {messages.map((msg) => (
-                <View 
-                  key={msg.id} 
-                  style={[
-                    styles.messageBubble,
-                    msg.sender === 'user' ? styles.userMessage : styles.aiMessage
-                  ]}
-                >
-                  {msg.sender === 'ai' && (
-                    <View style={styles.messageAvatar}>
-                      <Bot size={16} color={COLORS.primary} />
-                    </View>
-                  )}
-                  <View style={[
-                    styles.messageContent,
-                    msg.sender === 'user' ? styles.userContent : styles.aiContent
-                  ]}>
-                    {msg.isTyping ? (
-                      <View style={styles.typingIndicator}>
-                        <ActivityIndicator size="small" color={COLORS.primary} />
-                        <Text style={styles.typingText}>BazBot is typing...</Text>
+              {/* Header - Edge to Edge like Seller Chat */}
+              <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
+                <View style={styles.headerLeft}>
+                  <View style={styles.aiAvatar}>
+                    <Bot size={20} color="#fff" />
+                  </View>
+                  <View>
+                    <Text style={styles.headerTitle}>BazBot</Text>
+                    <Text style={styles.headerSubtitle}>AI Shopping Assistant</Text>
+                  </View>
+                </View>
+                <View style={styles.headerRight}>
+                  <Pressable onPress={handleNewChat} style={styles.newChatButton}>
+                    <Text style={styles.newChatText}>New Chat</Text>
+                  </Pressable>
+                  <Pressable onPress={handleClose} style={styles.closeButton}>
+                    <X size={24} color="#fff" />
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Product Context Bar */}
+              {product && (
+                <View style={styles.contextBar}>
+                  <Text style={styles.contextText} numberOfLines={1}>
+                    💬 Chatting about: {product.name}
+                  </Text>
+                </View>
+              )}
+
+              {/* Messages */}
+              <ScrollView
+                ref={scrollViewRef}
+                style={styles.messagesContainer}
+                contentContainerStyle={styles.messagesContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {messages.map((msg) => (
+                  <View
+                    key={msg.id}
+                    style={[
+                      styles.messageBubble,
+                      msg.sender === 'user' ? styles.userMessage : styles.aiMessage
+                    ]}
+                  >
+                    {msg.sender === 'ai' && (
+                      <View style={styles.messageAvatar}>
+                        <Bot size={16} color={COLORS.primary} />
                       </View>
-                    ) : (
-                      <Text style={[
-                        styles.messageText,
-                        msg.sender === 'user' ? styles.userText : styles.aiText
-                      ]}>
-                        {msg.message}
-                      </Text>
+                    )}
+                    <View style={[
+                      styles.messageContent,
+                      msg.sender === 'user' ? styles.userContent : styles.aiContent
+                    ]}>
+                      {msg.isTyping ? (
+                        <View style={styles.typingIndicator}>
+                          <ActivityIndicator size="small" color={COLORS.primary} />
+                          <Text style={styles.typingText}>BazBot is typing...</Text>
+                        </View>
+                      ) : (
+                        <Text style={[
+                          styles.messageText,
+                          msg.sender === 'user' ? styles.userText : styles.aiText
+                        ]}>
+                          {msg.message}
+                        </Text>
+                      )}
+                    </View>
+                    {msg.sender === 'user' && (
+                      <View style={[styles.messageAvatar, styles.userAvatar]}>
+                        <User size={16} color="#fff" />
+                      </View>
                     )}
                   </View>
-                  {msg.sender === 'user' && (
-                    <View style={[styles.messageAvatar, styles.userAvatar]}>
-                      <User size={16} color="#fff" />
-                    </View>
-                  )}
-                </View>
-              ))}
-
-              {/* Talk to Seller Button */}
-              {showTalkToSeller && onTalkToSeller && (
-                <Pressable 
-                  style={styles.talkToSellerButton}
-                  onPress={handleTalkToSeller}
-                >
-                  <Phone size={18} color="#fff" />
-                  <Text style={styles.talkToSellerText}>Talk to Seller</Text>
-                </Pressable>
-              )}
-            </ScrollView>
-
-            {/* Quick Replies */}
-            {quickReplies.length > 0 && !isAiTyping && (
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                style={styles.quickRepliesContainer}
-                contentContainerStyle={styles.quickRepliesContent}
-              >
-                {quickReplies.map((reply, index) => (
-                  <Pressable
-                    key={index}
-                    style={styles.quickReplyButton}
-                    onPress={() => handleQuickReply(reply)}
-                  >
-                    <Text style={styles.quickReplyText}>{reply}</Text>
-                  </Pressable>
                 ))}
+
+                {/* Talk to Seller Button */}
+                {showTalkToSeller && onTalkToSeller && (
+                  <Pressable
+                    style={styles.talkToSellerButton}
+                    onPress={handleTalkToSeller}
+                  >
+                    <Phone size={18} color="#fff" />
+                    <Text style={styles.talkToSellerText}>Talk to Seller</Text>
+                  </Pressable>
+                )}
               </ScrollView>
-            )}
 
-            {/* Input */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Ask BazBot anything..."
-                placeholderTextColor="#9CA3AF"
-                value={inputText}
-                onChangeText={setInputText}
-                multiline
-                maxLength={500}
-                onSubmitEditing={() => handleSendMessage()}
-              />
-              <Pressable 
-                style={[
-                  styles.sendButton,
-                  (!inputText.trim() || isAiTyping) && styles.sendButtonDisabled
-                ]}
-                onPress={() => handleSendMessage()}
-                disabled={!inputText.trim() || isAiTyping}
-              >
-                <Send size={20} color={inputText.trim() && !isAiTyping ? '#fff' : '#9CA3AF'} />
-              </Pressable>
-            </View>
+              {/* Quick Replies */}
+              {quickReplies.length > 0 && !isAiTyping && (
+                <View style={styles.quickRepliesSection}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.quickRepliesContent}
+                  >
+                    {quickReplies.map((reply, index) => (
+                      <Pressable
+                        key={index}
+                        style={styles.quickReplyButton}
+                        onPress={() => handleQuickReply(reply)}
+                      >
+                        <Text style={styles.quickReplyText}>{reply}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
 
-            {/* Footer */}
-            <Text style={styles.footer}>
-              Powered by Gemini AI • BazaarX
-            </Text>
+              {/* Input */}
+              <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12 }]}>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Ask BazBot anything..."
+                  placeholderTextColor="#9CA3AF"
+                  value={inputText}
+                  onChangeText={setInputText}
+                  multiline
+                  maxLength={500}
+                  onSubmitEditing={() => handleSendMessage()}
+                />
+                <Pressable
+                  style={[
+                    styles.sendButton,
+                    (!inputText.trim() || isAiTyping) && styles.sendButtonDisabled
+                  ]}
+                  onPress={() => handleSendMessage()}
+                  disabled={!inputText.trim() || isAiTyping}
+                >
+                  <Send size={20} color="#fff" />
+                </Pressable>
+              </View>
+
+              {/* Footer */}
+              <Text style={styles.footer}>
+                Powered by Gemini AI • BazaarX
+              </Text>
+            </KeyboardAvoidingView>
           </Animated.View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </>
   );
@@ -533,29 +549,26 @@ const styles = StyleSheet.create({
     top: 8,
     right: 8,
   },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
   modalOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  chatContainer: {
+  modalAnimContainer: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
     backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: SCREEN_HEIGHT * 0.85,
-    minHeight: SCREEN_HEIGHT * 0.6,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    paddingBottom: 16,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -566,34 +579,34 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.primary,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#fff',
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'rgba(255,255,255,0.8)',
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   newChatButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
   },
   newChatText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#fff',
   },
   closeButton: {
     padding: 4,
@@ -691,14 +704,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  quickRepliesContainer: {
-    maxHeight: 50,
+  quickRepliesSection: {
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
+    paddingVertical: 8,
   },
   quickRepliesContent: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
     gap: 8,
   },
   quickReplyButton: {
@@ -706,7 +718,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 16,
-    marginRight: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
