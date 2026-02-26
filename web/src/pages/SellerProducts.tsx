@@ -58,6 +58,7 @@ import { productService } from "@/services/productService";
 import { ProductFormTabs } from "@/components/seller/products/ProductFormTabs";
 import { GeneralInfoTab } from "@/components/seller/products/GeneralInfoTab";
 import { AttributesTab } from "@/components/seller/products/AttributesTab";
+import { uploadProductImages, validateImageFile, compressImage } from "@/utils/storage";
 
 
 
@@ -943,6 +944,54 @@ export function AddProduct() {
         return variantConfigs.reduce((sum, v) => sum + (v.stock || 0), 0);
     };
 
+    // Image file upload state (for Upload mode in GeneralInfoTab)
+    const [imageFiles, setImageFiles] = useState<(File | null)[]>([null]);
+    const [imageFileErrors, setImageFileErrors] = useState<(string | null)[]>([null]);
+
+    const handleFileSelect = async (index: number, file: File | null) => {
+        if (!file) {
+            const updated = [...imageFiles];
+            updated[index] = null;
+            setImageFiles(updated);
+            const updatedErrors = [...imageFileErrors];
+            updatedErrors[index] = null;
+            setImageFileErrors(updatedErrors);
+            return;
+        }
+        const validation = validateImageFile(file);
+        if (!validation.valid) {
+            const updatedErrors = [...imageFileErrors];
+            updatedErrors[index] = validation.error ?? "Invalid file";
+            setImageFileErrors(updatedErrors);
+            return;
+        }
+        const compressed = await compressImage(file);
+        const updated = [...imageFiles];
+        updated[index] = compressed;
+        setImageFiles(updated);
+        const updatedErrors = [...imageFileErrors];
+        updatedErrors[index] = null;
+        setImageFileErrors(updatedErrors);
+    };
+
+    const addImageFileSlot = () => {
+        setImageFiles((prev) => [...prev, null]);
+        setImageFileErrors((prev) => [...prev, null]);
+    };
+
+    const removeImageFileSlot = (index: number) => {
+        setImageFiles((prev) => prev.filter((_, i) => i !== index));
+        setImageFileErrors((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const setImageFileError = (index: number, error: string | null) => {
+        setImageFileErrors((prev) => {
+            const updated = [...prev];
+            updated[index] = error;
+            return updated;
+        });
+    };
+
     // Categories now fetched from database via useEffect above
 
     const handleChange = (
@@ -1050,7 +1099,8 @@ export function AddProduct() {
             newErrors.category = "Please select a category";
         }
         const validImages = formData.images.filter((img) => img.trim() !== "");
-        if (validImages.length === 0) {
+        const validFiles = imageFiles.filter((f): f is File => f !== null);
+        if (validImages.length === 0 && validFiles.length === 0) {
             newErrors.images = "At least one product image is required";
         }
 
@@ -1117,6 +1167,52 @@ export function AddProduct() {
                 variants: variantsForSubmit,
             };
 
+            // Upload any file-based images and merge with URL images
+            const filesToUpload = imageFiles.filter((f): f is File => f !== null);
+            let uploadedUrls: string[] = [];
+            if (filesToUpload.length > 0 && seller?.id) {
+                try {
+                    const tempProductId = crypto.randomUUID();
+                    uploadedUrls = await uploadProductImages(
+                        filesToUpload,
+                        seller.id,
+                        tempProductId,
+                    );
+                    if (uploadedUrls.length === 0) {
+                        throw new Error("Image upload failed. Please check your storage permissions or try using URL mode instead.");
+                    }
+                } catch (uploadError) {
+                    console.error("Image upload failed:", uploadError);
+                    toast({
+                        title: "Upload Failed",
+                        description: uploadError instanceof Error 
+                            ? uploadError.message 
+                            : "Could not upload images. Please try using URL mode or contact support.",
+                        variant: "destructive",
+                    });
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
+            // Final image array: existing URLs + newly uploaded URLs
+            const allImages = [
+                ...formData.images.filter((img) => img.trim() !== ""),
+                ...uploadedUrls,
+            ];
+
+            if (allImages.length === 0) {
+                toast({
+                    title: "Images Required",
+                    description: "Please add at least one product image (URL or file).",
+                    variant: "destructive",
+                });
+                setIsSubmitting(false);
+                return;
+            }
+
+            productData.images = allImages;
+
             await addProduct(productData);
 
             // Show success message
@@ -1172,20 +1268,25 @@ export function AddProduct() {
                         <div className="sticky top-6 space-y-6">
                             <div className="bg-white rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden border border-white/50">
                                 <div className="relative aspect-[4/5] bg-gray-50">
-                                    {formData.images[0] ? (
-                                        <img
-                                            src={formData.images[0]}
-                                            alt="Preview"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="flex h-full flex-col items-center justify-center text-gray-300 gap-4">
-                                            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-                                                <Upload className="h-8 w-8 text-gray-300" />
+                                    {(() => {
+                                        const urlPreview = formData.images[0] || null;
+                                        const filePreview = imageFiles[0] ? URL.createObjectURL(imageFiles[0]) : null;
+                                        const previewSrc = urlPreview || filePreview;
+                                        return previewSrc ? (
+                                            <img
+                                                src={previewSrc}
+                                                alt="Preview"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="flex h-full flex-col items-center justify-center text-gray-300 gap-4">
+                                                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+                                                    <Upload className="h-8 w-8 text-gray-300" />
+                                                </div>
+                                                <p className="text-sm font-medium">Upload an image</p>
                                             </div>
-                                            <p className="text-sm font-medium">Upload an image</p>
-                                        </div>
-                                    )}
+                                        );
+                                    })()}
                                     <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-black/30 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white shadow-lg border border-white/10">
                                         <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                                         Live Preview
@@ -1243,8 +1344,8 @@ export function AddProduct() {
                                     Listing Checklist
                                 </h4>
                                 <ul className="space-y-3">
-                                    <li className={cn("flex items-center gap-3 text-sm font-medium transition-colors", formData.images.filter(i => i).length >= 1 ? "text-green-600" : "text-gray-400")}>
-                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", formData.images.filter(i => i).length >= 1 ? "bg-green-100 border-green-200 text-green-600" : "border-gray-200 bg-gray-50")}>
+                                    <li className={cn("flex items-center gap-3 text-sm font-medium transition-colors", (formData.images.filter(i => i).length >= 1 || imageFiles.some(f => f !== null)) ? "text-green-600" : "text-gray-400")}>
+                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", (formData.images.filter(i => i).length >= 1 || imageFiles.some(f => f !== null)) ? "bg-green-100 border-green-200 text-green-600" : "border-gray-200 bg-gray-50")}>
                                             <Check className="w-3 h-3" />
                                         </div>
                                         Add at least 1 image
@@ -1304,6 +1405,12 @@ export function AddProduct() {
                                     addImageField={addImageField}
                                     removeImageField={removeImageField}
                                     getTotalVariantStock={getTotalVariantStock}
+                                    imageFiles={imageFiles}
+                                    imageFileErrors={imageFileErrors}
+                                    onFileSelect={handleFileSelect}
+                                    addImageFileSlot={addImageFileSlot}
+                                    removeImageFileSlot={removeImageFileSlot}
+                                    setImageFileError={setImageFileError}
                                 />
                             )}
 
