@@ -331,9 +331,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
         // Total discount = voucher + campaign
         const discount = (voucherInfo?.discountAmount || 0) + campaignDiscount;
 
-        // totalNum = items + shipping (original price before any discount)
-        // Total displayed should be what customer paid = original price - discount
-        const total = totalNum - campaignDiscount - (voucherInfo?.discountAmount || 0);
+        // totalNum is order.total_amount from DB - this is the FINAL amount paid (already includes all discounts)
+        // So we should NOT subtract discounts again - use totalNum directly
+        const total = totalNum;
+        
+        // subtotal should be the original price BEFORE campaign discounts
+        // = (discounted price + discount) = items total + campaign discount
+        const itemsSubtotal = items.reduce((sum: number, i: any) => sum + ((i.price || 0) * i.quantity), 0);
+        const subtotal = itemsSubtotal + campaignDiscount;
 
         return {
           id: order.order_number || order.id,
@@ -342,7 +347,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           items,
           sellerInfo: productSeller,
           total,
-          subtotal: totalNum - shippingFee,
+          subtotal,
           shippingFee,
           discount: campaignDiscount + (voucherInfo?.discountAmount || 0),
           voucherInfo,

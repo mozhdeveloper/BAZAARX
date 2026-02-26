@@ -360,7 +360,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryLabel, { color: '#6B7280' }]}>Original Subtotal</Text>
                   <Text style={[styles.summaryValue, { color: '#6B7280', textDecorationLine: 'line-through' }]}>
-                    ₱{(((order as any).subtotal || order.total - order.shippingFee) + ((order as any).campaignDiscounts?.[0]?.discountAmount || 0)).toLocaleString()}
+                    ₱{(((order as any).subtotal || 0) + ((order as any).campaignDiscounts?.[0]?.discountAmount || 0)).toLocaleString()}
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
@@ -376,7 +376,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             )}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>₱{((order as any).subtotal || order.total - order.shippingFee - (order.discount || 0)).toLocaleString()}</Text>
+              <Text style={styles.summaryValue}>₱{((order as any).subtotal || 0).toLocaleString()}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Shipping Fee</Text>
