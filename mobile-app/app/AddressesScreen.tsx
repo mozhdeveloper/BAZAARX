@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Plus, Edit2, Trash2, Home, Briefcase, MapPinned, X, ChevronDown, ChevronUp, Search, Check, Building2, Move, MapPin } from 'lucide-react-native';
+import { ChevronLeft, Plus, Edit2, Trash2, Home, Briefcase, MapPinned, X, ChevronDown, ChevronUp, Search, Check, Building2, Move, MapPin } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -10,7 +10,6 @@ import { COLORS } from '../src/constants/theme';
 import { addressService, type Address } from '../src/services/addressService';
 import { useAuthStore } from '../src/stores/authStore';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
-import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Addresses'>;
 
@@ -348,20 +347,17 @@ export default function AddressesScreen({ navigation }: Props) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       {/* HEADER */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      <View
+        style={[styles.headerContainer, { paddingTop: insets.top + 5, backgroundColor: COLORS.background }]}
       >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+            <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Addresses</Text>
           <View style={{ width: 40 }} />
         </View>
-      </LinearGradient>
+      </View>
 
       {/* ADDRESS LIST */}
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -552,7 +548,7 @@ export default function AddressesScreen({ navigation }: Props) {
           </View>
           <View style={[styles.mapHeader, { paddingTop: insets.top + 10 }]}>
             <Pressable onPress={() => setIsMapModalOpen(false)} style={styles.mapCloseButton}>
-              <ArrowLeft size={24} color="#1F2937" />
+              <ChevronLeft size={24} color="#1F2937" />
             </Pressable>
             <Text style={styles.mapTitle}>Adjust Location</Text>
             <View style={{ width: 40 }} />
@@ -566,8 +562,7 @@ export default function AddressesScreen({ navigation }: Props) {
         </View>
       </Modal>
 
-      {/* Bottom Navigation */}
-      <BuyerBottomNav />
+
     </View>
   );
 }
@@ -575,10 +570,22 @@ export default function AddressesScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   // ... (Previous styles) ...
   container: { flex: 1, backgroundColor: COLORS.background },
-  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, paddingBottom: 20, marginBottom: 10, elevation: 2, zIndex: 10 },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    zIndex: 10,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'relative',
+    height: 40,
+  },
+  headerIconButton: { padding: 4, minWidth: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16 },
   addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: 12, marginBottom: 16 },

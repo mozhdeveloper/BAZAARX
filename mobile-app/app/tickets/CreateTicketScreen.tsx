@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ChevronDown, Paperclip, X, Image as ImageIcon } from 'lucide-react-native';
+import { ChevronLeft, ChevronDown, Paperclip, X, Image as ImageIcon } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
@@ -10,6 +10,7 @@ import { TicketService } from '../../services/TicketService';
 import { useAuthStore } from '../../src/stores/authStore';
 import { supabase } from '../../src/lib/supabase';
 import type { TicketCategoryDb, TicketPriority } from '../types/ticketTypes';
+import { TicketSuccessModal } from '../../src/components/TicketSuccessModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateTicket'>;
 
@@ -33,6 +34,7 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [images, setImages] = useState<string[]>([]);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   React.useEffect(() => {
     loadCategories();
@@ -73,7 +75,7 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
   const handleSubmit = async () => {
     // Get user ID from store or Supabase session
     let userId = user?.id;
-    
+
     if (!userId) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -82,12 +84,12 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
         console.error('Error getting session:', error);
       }
     }
-    
+
     if (!userId) {
       Alert.alert('Error', 'You must be logged in to create a ticket.');
       return;
     }
-    
+
     if (!subject.trim()) {
       Alert.alert('Missing Information', 'Please enter a subject.');
       return;
@@ -106,9 +108,7 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
         priority: 'normal', // Default
         images,
       });
-      Alert.alert('Success', 'Ticket created successfully!', [
-        { text: 'OK', onPress: () => navigation.navigate('HelpSupport', { activeTab: 'tickets' }) }
-      ]);
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error creating ticket:', error);
       Alert.alert('Error', 'Failed to create ticket. Please try again.');
@@ -117,12 +117,17 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
     }
   };
 
+  const handleModalClose = () => {
+    setShowSuccessModal(false);
+    navigation.navigate('HelpSupport', { activeTab: 'tickets' });
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 5 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft size={28} color="#1F2937" />
+          <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
         </Pressable>
         <Text style={styles.headerTitle}>Create New Ticket</Text>
       </View>
@@ -135,7 +140,10 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
         ) : (
           <>
             <Pressable
-              style={styles.pickerButton}
+              style={[
+                styles.pickerButton,
+                showcategoryPicker && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: 0 }
+              ]}
               onPress={() => setShowCategoryPicker(!showcategoryPicker)}
             >
               <Text style={styles.pickerButtonText}>{selectedCategory?.name || 'Select category'}</Text>
@@ -228,7 +236,7 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
       </ScrollView>
 
       {/* Footer / Submit Button */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 20, backgroundColor: COLORS.background }]}>
         <Pressable
           style={[styles.submitButton, loading && styles.submitButtonDisabled]}
           onPress={handleSubmit}
@@ -241,6 +249,11 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
           )}
         </Pressable>
       </View>
+
+      <TicketSuccessModal
+        visible={showSuccessModal}
+        onClose={handleModalClose}
+      />
     </View>
   );
 }
@@ -248,23 +261,24 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFE5CC',
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 8,
-    backgroundColor: '#FFE5CC',
+    paddingBottom: 4,
+    backgroundColor: COLORS.background,
+    zIndex: 10,
   },
   backButton: {
     padding: 8,
     marginRight: 8,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
   },
   content: {
     padding: 16,
@@ -280,28 +294,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
     padding: 16,
+    marginBottom: 12,
   },
   pickerButtonText: {
     fontSize: 16,
     color: '#111827',
   },
   pickerContainer: {
-    marginTop: 8,
+    marginTop: 0,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
+    borderTopWidth: 0,
     borderColor: '#E5E7EB',
-    borderRadius: 12,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
     overflow: 'hidden',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    marginBottom: 12,
   },
   pickerItem: {
     paddingVertical: 14,
@@ -310,24 +328,25 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F3F4F6',
   },
   pickerItemSelected: {
-    backgroundColor: '#FEF3E8',
+    backgroundColor: 'transparent',
   },
   pickerItemText: {
     fontSize: 16,
     color: '#374151',
   },
   pickerItemTextSelected: {
-    color: '#E65100', // Deep Orange
-    fontWeight: '600',
+    color: '#F59E0B', // Brand Accent color
+    fontWeight: '700',
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     color: '#0F172A', // text-primary from global.css
+    marginBottom: 12,
   },
   inputFocused: {
     borderColor: COLORS.primary, // brand-primary from global.css
@@ -337,7 +356,6 @@ const styles = StyleSheet.create({
     height: 150,
   },
   attachButton: {
-    marginTop: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -346,7 +364,7 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
     borderStyle: 'dashed',
     borderRadius: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
   },
   attachButtonText: {
     marginLeft: 8,
@@ -379,7 +397,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    backgroundColor: '#FFE5CC',
+    backgroundColor: COLORS.background,
   },
   submitButton: {
     backgroundColor: COLORS.primary,

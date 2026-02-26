@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Image, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
+import { ChevronLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
@@ -73,22 +73,19 @@ export default function FollowingShopsScreen({ navigation }: Props) {
     if (isGuest) {
         return (
             <View style={styles.container}>
-            <StatusBar barStyle="dark-content" />
-            {/* Header - Guest View */}
-            <LinearGradient
-                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
-            >
-                <View style={styles.headerTop}>
-                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
-                    </Pressable>
-                    <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Following Shops</Text>
-                    <View style={{ width: 40 }} />
+                <StatusBar barStyle="dark-content" />
+                {/* Header - Guest View */}
+                <View
+                    style={[styles.headerContainer, { paddingTop: insets.top + 5, backgroundColor: COLORS.background }]}
+                >
+                    <View style={styles.headerTop}>
+                        <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                            <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
+                        </Pressable>
+                        <Text style={styles.headerTitle}>Following Shops</Text>
+                        <View style={{ width: 40 }} />
+                    </View>
                 </View>
-            </LinearGradient>
 
                 <GuestLoginModal
                     visible={true}
@@ -108,20 +105,17 @@ export default function FollowingShopsScreen({ navigation }: Props) {
             <StatusBar barStyle="dark-content" />
 
             {/* Header */}
-            <LinearGradient
-                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+            <View
+                style={[styles.headerContainer, { paddingTop: insets.top + 5, backgroundColor: COLORS.background }]}
             >
                 <View style={styles.headerTop}>
                     <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+                        <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
                     </Pressable>
-                    <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Following Shops</Text>
+                    <Text style={styles.headerTitle}>Following Shops</Text>
                     <View style={{ width: 40 }} />
                 </View>
-            </LinearGradient>
+            </View>
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
                 {followingShops.length === 0 ? (
@@ -201,24 +195,20 @@ const styles = StyleSheet.create({
     },
     headerContainer: {
         paddingHorizontal: 20,
-        paddingBottom: 25,
-        borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
+        paddingBottom: 4,
+        zIndex: 10,
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
     },
-    headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    headerIconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.5)',
-        justifyContent: 'center',
+    headerTop: {
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'relative',
+        height: 40,
     },
-    headerTitle: { fontSize: 20, fontWeight: '800' },
+    headerIconButton: { padding: 4, minWidth: 40, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
     scrollView: {
         flex: 1,
     },

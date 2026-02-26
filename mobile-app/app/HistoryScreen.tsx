@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Search, Filter, X, Clock, ShoppingCart } from 'lucide-react-native';
+import { ChevronLeft, Search, Filter, X, Clock, ShoppingCart } from 'lucide-react-native';
 import { supabase } from '../src/lib/supabase';
 import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
@@ -30,7 +30,7 @@ export default function HistoryScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const BRAND_COLOR = COLORS.primary;
-  
+
   // State
   const [dbOrders, setDbOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,7 +85,7 @@ export default function HistoryScreen({ navigation }: Props) {
                 || it.product?.images?.[0]?.image_url
                 || it.primary_image_url
                 || 'https://placehold.co/100?text=Product';
-              
+
               return {
                 id: it.id || `${order.id}_${it.product_id}`, // order_item id
                 productId: it.product_id, // actual product id for reviews
@@ -127,8 +127,8 @@ export default function HistoryScreen({ navigation }: Props) {
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(order => 
-        order.transactionId.toLowerCase().includes(query) || 
+      filtered = filtered.filter(order =>
+        order.transactionId.toLowerCase().includes(query) ||
         order.items.some(item => item.name?.toLowerCase().includes(query))
       );
     }
@@ -141,36 +141,33 @@ export default function HistoryScreen({ navigation }: Props) {
   }, [dbOrders, searchQuery, sortOrder]);
 
   const handleBuyAgain = (order: Order) => {
-     if (order.items.length > 0) {
-       order.items.forEach(item => addItem(item as any));
-       navigation.navigate('MainTabs', { screen: 'Cart' });
-     }
+    if (order.items.length > 0) {
+      order.items.forEach(item => addItem(item as any));
+      navigation.navigate('MainTabs', { screen: 'Cart' });
+    }
   };
 
   const getStatusBadgeStyle = (status: Order['status']) => {
-      // History screen mostly deals with 'delivered' but robust handling
-      switch (status) {
-        case 'delivered': return { bg: '#F0FDF4', text: '#166534' }; // Green
-        default: return { bg: '#F3F4F6', text: '#374151' }; // Gray
-      }
+    // History screen mostly deals with 'delivered' but robust handling
+    switch (status) {
+      case 'delivered': return { bg: '#F0FDF4', text: '#166534' }; // Green
+      default: return { bg: '#F3F4F6', text: '#374151' }; // Gray
+    }
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
+      <StatusBar barStyle="dark-content" />
+
       {/* 1. Header */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      <View
+        style={[styles.headerContainer, { paddingTop: insets.top + 5, backgroundColor: COLORS.background }]}
       >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+            <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Purchase History</Text>
+          <Text style={styles.headerTitle}>Purchase History</Text>
           <View style={styles.headerActions}>
             <Pressable style={styles.headerIconButton} onPress={() => setShowFilterModal(true)}>
               <Filter size={22} color={COLORS.textHeadline} strokeWidth={2.5} />
@@ -180,7 +177,7 @@ export default function HistoryScreen({ navigation }: Props) {
             </Pressable>
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
       {/* 2. Content */}
       {isLoading ? (
@@ -224,8 +221,8 @@ export default function HistoryScreen({ navigation }: Props) {
                       </View>
                     )}
                     <View style={styles.dateRow}>
-                       <Clock size={12} color="#9CA3AF" />
-                       <Text style={styles.dateText}>{order.scheduledDate}</Text>
+                      <Clock size={12} color="#9CA3AF" />
+                      <Text style={styles.dateText}>{order.scheduledDate}</Text>
                     </View>
                     <Text style={[styles.totalAmount, { color: BRAND_COLOR }]}>₱{order.total.toLocaleString()}</Text>
                   </View>
@@ -233,13 +230,13 @@ export default function HistoryScreen({ navigation }: Props) {
 
                 <View style={styles.cardFooter}>
                   <View style={styles.buttonRow}>
-                     <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
-                       <Text style={styles.outlineButtonText}>Details</Text>
-                     </Pressable>
-                     <Pressable style={[styles.buyAgainButton, { flex: 1.5 }]} onPress={() => handleBuyAgain(order)}>
-                       <ShoppingCart size={16} color={BRAND_COLOR} strokeWidth={2.5} />
-                       <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
-                     </Pressable>
+                    <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
+                      <Text style={styles.outlineButtonText}>Details</Text>
+                    </Pressable>
+                    <Pressable style={[styles.buyAgainButton, { flex: 1.5 }]} onPress={() => handleBuyAgain(order)}>
+                      <ShoppingCart size={16} color={BRAND_COLOR} strokeWidth={2.5} />
+                      <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
+                    </Pressable>
                   </View>
                 </View>
               </Pressable>
@@ -253,11 +250,11 @@ export default function HistoryScreen({ navigation }: Props) {
         <View style={styles.modalOverlay}>
           <View style={[styles.searchModalContent, { paddingTop: insets.top + 10 }]}>
             <View style={styles.searchBarContainer}>
-              <Pressable onPress={() => setShowSearchModal(false)}><ArrowLeft size={24} color="#1F2937" /></Pressable>
-              <TextInput 
-                style={styles.modalSearchInput} 
-                placeholder="Search history..." 
-                autoFocus 
+              <Pressable onPress={() => setShowSearchModal(false)}><ChevronLeft size={24} color="#1F2937" /></Pressable>
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search history..."
+                autoFocus
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
@@ -273,23 +270,23 @@ export default function HistoryScreen({ navigation }: Props) {
       <Modal visible={showFilterModal} animationType="slide" transparent={true} onRequestClose={() => setShowFilterModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.filterModalContent}>
-             <View style={styles.filterHeader}>
-               <Text style={styles.filterTitle}>Filter History</Text>
-               <Pressable onPress={() => setShowFilterModal(false)}><X size={24} color="#1F2937" /></Pressable>
-             </View>
-             <ScrollView style={{ padding: 20 }}>
-               <Text style={styles.filterLabel}>Sort By Date</Text>
-               <View style={styles.filterRow}>
-                 {['latest', 'oldest'].map(o => (
-                   <Pressable key={o} onPress={() => setSortOrder(o as any)} style={[styles.filterChip, sortOrder === o && { borderColor: BRAND_COLOR, backgroundColor: BRAND_COLOR + '10' }]}>
-                     <Text style={[styles.filterChipText, sortOrder === o && { color: BRAND_COLOR }]}>{o === 'latest' ? 'Newest First' : 'Oldest First'}</Text>
-                   </Pressable>
-                 ))}
-               </View>
-             </ScrollView>
-             <Pressable style={[styles.applyBtn, { backgroundColor: BRAND_COLOR }]} onPress={() => setShowFilterModal(false)}>
-               <Text style={styles.applyBtnText}>Apply Filters</Text>
-             </Pressable>
+            <View style={styles.filterHeader}>
+              <Text style={styles.filterTitle}>Filter History</Text>
+              <Pressable onPress={() => setShowFilterModal(false)}><X size={24} color="#1F2937" /></Pressable>
+            </View>
+            <ScrollView style={{ padding: 20 }}>
+              <Text style={styles.filterLabel}>Sort By Date</Text>
+              <View style={styles.filterRow}>
+                {['latest', 'oldest'].map(o => (
+                  <Pressable key={o} onPress={() => setSortOrder(o as any)} style={[styles.filterChip, sortOrder === o && { borderColor: BRAND_COLOR, backgroundColor: BRAND_COLOR + '10' }]}>
+                    <Text style={[styles.filterChipText, sortOrder === o && { color: BRAND_COLOR }]}>{o === 'latest' ? 'Newest First' : 'Oldest First'}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+            <Pressable style={[styles.applyBtn, { backgroundColor: BRAND_COLOR }]} onPress={() => setShowFilterModal(false)}>
+              <Text style={styles.applyBtnText}>Apply Filters</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -302,21 +299,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   headerContainer: {
     paddingHorizontal: 20,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingBottom: 4,
     zIndex: 10,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 20,
-    paddingBottom: 20,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'relative',
+    height: 40,
+  },
   headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
-  headerIconButton: { padding: 4 },
+  headerIconButton: { padding: 4, minWidth: 40, alignItems: 'center', justifyContent: 'center' },
   headerActions: { flexDirection: 'row', gap: 8 },
-  
+
   scrollContent: { padding: 16, paddingBottom: 50 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   // Card Styles
@@ -343,7 +341,7 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   statusText: { fontSize: 11, fontWeight: '600' },
   orderIdText: { fontSize: 12, color: COLORS.textMuted },
-  
+
   cardBody: { flexDirection: 'row', marginBottom: 16 },
   productThumb: { width: 70, height: 70, borderRadius: 8, backgroundColor: '#F3F4F6' },
   productInfo: { flex: 1, marginLeft: 12, justifyContent: 'center' },
@@ -351,10 +349,10 @@ const styles = StyleSheet.create({
   dateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   dateText: { fontSize: 12, color: COLORS.textMuted, marginLeft: 4 },
   totalAmount: { fontSize: 14, fontWeight: '800', color: '#EA580C' },
-  
+
   cardFooter: { borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 12 },
   buttonRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  
+
   // Buttons
   primaryButton: { backgroundColor: COLORS.primary, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
   primaryButtonText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
@@ -373,7 +371,7 @@ const styles = StyleSheet.create({
   searchModalContent: { flex: 1, backgroundColor: '#FFF' },
   searchBarContainer: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', gap: 12 },
   modalSearchInput: { flex: 1, fontSize: 16, color: COLORS.textHeadline },
-  
+
   filterModalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, height: '40%' },
   filterHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   filterTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textHeadline },

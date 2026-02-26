@@ -13,8 +13,9 @@ import {
     Animated,
     TouchableWithoutFeedback,
     Dimensions,
+    Image,
 } from 'react-native';
-import { ArrowLeft, Send, MoreVertical, Store, Ticket } from 'lucide-react-native';
+import { ChevronLeft, Send, MoreVertical, Store, Ticket } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -214,12 +215,19 @@ export default function StoreChatModal({ visible, onClose, storeName, sellerId }
                         {/* Header - Edge to Edge */}
                         <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
                             <Pressable onPress={handleCloseInternal} style={styles.backButton}>
-                                <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+                                <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
                             </Pressable>
 
                             <View style={styles.headerInfo}>
                                 <View style={styles.avatarContainer}>
-                                    <Store size={16} color="#FF5722" />
+                                    {conversation?.seller_avatar ? (
+                                        <Image
+                                            source={{ uri: conversation.seller_avatar }}
+                                            style={styles.avatarImage}
+                                        />
+                                    ) : (
+                                        <Store size={18} color={COLORS.primary} />
+                                    )}
                                 </View>
                                 <View>
                                     <Text style={styles.headerTitle}>{storeName}</Text>
@@ -393,6 +401,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 10,
+        overflow: 'hidden',
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
     },
     headerTitle: {
         fontSize: 16,

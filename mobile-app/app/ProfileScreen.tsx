@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image, Animated, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -42,6 +42,20 @@ export default function ProfileScreen({ navigation }: Props) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSwitching, setIsSwitching] = React.useState(false);
   const avatarBase64Ref = React.useRef<{ base64: string; mimeType: string } | null>(null);
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+
+  useEffect(() => {
+    if (editModalVisible) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      slideAnim.setValue(Dimensions.get('window').height);
+    }
+  }, [editModalVisible, slideAnim]);
 
   // Bazcoins State
   const [bazcoins, setBazcoins] = React.useState(0);
@@ -248,7 +262,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
         if (!error && orders) {
           const counts = { toPay: 0, toShip: 0, toReceive: 0, toReview: 0 };
-          
+
           orders.forEach(order => {
             const status = order.shipment_status?.toLowerCase();
             if (['pending', 'pending_payment'].includes(status)) counts.toPay++;
@@ -300,7 +314,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const accountMenuItems = [
     { icon: Clock, label: 'History', onPress: () => navigation.navigate('History') },
-    { icon: Gift, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
+    { icon: Heart, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
     { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops') },
     { icon: Package, label: 'My Requests', onPress: () => navigation.navigate('MyRequests') },
@@ -378,7 +392,7 @@ export default function ProfileScreen({ navigation }: Props) {
           {/* Main Actions for Guest */}
           <View style={styles.card}>
             <Pressable style={[styles.menuItem, styles.borderBottom]} onPress={() => navigation.getParent()?.navigate('Login')}>
-              <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+              <View style={styles.iconContainer}>
                 <User size={20} color={BRAND_COLOR} strokeWidth={2} />
               </View>
               <Text style={styles.menuLabel}>Login / Sign Up</Text>
@@ -386,7 +400,7 @@ export default function ProfileScreen({ navigation }: Props) {
             </Pressable>
 
             <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerAuthChoice')}>
-              <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+              <View style={styles.iconContainer}>
                 <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
               </View>
               <Text style={styles.menuLabel}>Start Selling</Text>
@@ -415,14 +429,11 @@ export default function ProfileScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <LinearGradient
-          colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.header, { paddingTop: insets.top + 20 }]}
+        <View
+          style={[styles.header, { paddingTop: insets.top + 20, backgroundColor: COLORS.primary }]}
         >
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrapper}>
@@ -438,77 +449,57 @@ export default function ProfileScreen({ navigation }: Props) {
               </Pressable>
             </View>
             <View style={styles.headerInfo}>
-              <Text style={[styles.userName, { color: COLORS.textHeadline }]}>{profile.firstName} {profile.lastName}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2, opacity: 0.9 }}>
-                <User size={12} color={COLORS.primary} style={{ marginRight: 6 }} />
-                <Text style={{ color: COLORS.textPrimary, fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>Buyer Account</Text>
+              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{profile.firstName} {profile.lastName}</Text>
+              {/* Integrated Stats */}
+              <View style={styles.headerStatsRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.headerStatItem, pressed && { opacity: 0.7 }]}
+                  onPress={() => navigation.navigate('Orders', { initialTab: 'pending' })}
+                >
+                  <Text style={styles.headerStatVal}>{profile.totalOrders}</Text>
+                  <Text style={styles.headerStatLabel}>Orders</Text>
+                </Pressable>
+
+                <View style={styles.headerStatDivider} />
+                <Pressable
+                  style={({ pressed }) => [styles.headerStatItem, pressed && { opacity: 0.7 }]}
+                  onPress={() => Alert.alert('Bazcoins', `You have ${profile.loyaltyPoints} Bazcoins available to redeem!`)}
+                >
+                  <Text style={styles.headerStatVal}>{profile.loyaltyPoints}</Text>
+                  <Text style={styles.headerStatLabel}>Bazcoins</Text>
+                </Pressable>
               </View>
             </View>
           </View>
-
-          {/* 2. STATS ROW (Integrated into Header Design) */}
-          <View style={styles.statsCard}>
-            <Pressable
-              style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-              onPress={() => navigation.navigate('Orders', { initialTab: 'pending' })}
-            >
-              <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
-              <Text style={styles.statLab}>Orders</Text>
-            </Pressable>
-            <View style={styles.statDivider} />
-            <Pressable
-              style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-              onPress={() => navigation.navigate('Wishlist')}
-            >
-              <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.wishlistCount}</Text>
-              <Text style={styles.statLab}>Wishlist</Text>
-            </Pressable>
-            <View style={styles.statDivider} />
-            <Pressable
-              style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-              onPress={() => Alert.alert('Bazcoins', `You have ${profile.loyaltyPoints} Bazcoins available to redeem!`)}
-            >
-              <Text style={[styles.statVal, { color: '#EAB308' }]}>{profile.loyaltyPoints}</Text>
-              <Text style={styles.statLab}>Bazcoins</Text>
-            </Pressable>
-          </View>
-        </LinearGradient>
+        </View>
         {/* My Purchases Section */}
-        <View style={styles.purchasesContainer}>
-          <View style={styles.purchasesHeader}>
-            <Text style={styles.purchasesTitle}>My Purchases</Text>
-            <Pressable
-              style={styles.viewHistoryBtn}
-              onPress={() => navigation.navigate('Orders', { initialTab: 'pending' })}
-            >
-              <Text style={styles.viewHistoryText}>View Purchase History</Text>
-              <ChevronRight size={16} color={COLORS.textMuted} />
-            </Pressable>
-          </View>
-
-          <View style={styles.purchasesGrid}>
-            {[
-              { label: 'Pending', tab: 'pending', icon: Wallet },
-              { label: 'Processing', tab: 'confirmed', icon: Package },
-              { label: 'Shipped', tab: 'shipped', icon: Truck },
-              { label: 'Delivered', tab: 'delivered', icon: Star, badge: 1 },
-            ].map((item, idx) => (
-              <Pressable
-                key={idx}
-                style={styles.purchaseItem}
-                onPress={() => navigation.navigate('Orders', { initialTab: item.tab as any })}
-              >
-                <View style={styles.iconWrapper}>
-                  <item.icon size={23} color={BRAND_COLOR} strokeWidth={2} />
-                  {item.badge && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{item.badge}</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.purchaseLabel}>{item.label}</Text>
-              </Pressable>
-            ))}
+        <View style={styles.menuGroup}>
+          <Text style={[styles.groupTitle, { marginTop: 20 }]}>My Purchases</Text>
+          <View style={styles.purchasesContainer}>
+            <View style={styles.purchasesGrid}>
+              {[
+                { label: 'Pending', tab: 'pending', icon: Wallet },
+                { label: 'Processing', tab: 'confirmed', icon: Package },
+                { label: 'Shipped', tab: 'shipped', icon: Truck },
+                { label: 'Delivered', tab: 'delivered', icon: Star, badge: 1 },
+              ].map((item, idx) => (
+                <Pressable
+                  key={idx}
+                  style={styles.purchaseItem}
+                  onPress={() => navigation.navigate('Orders', { initialTab: item.tab as any })}
+                >
+                  <View style={styles.iconWrapper}>
+                    <item.icon size={23} color={BRAND_COLOR} strokeWidth={2} />
+                    {item.badge && (
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{item.badge}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.purchaseLabel}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         </View>
 
@@ -565,7 +556,7 @@ export default function ProfileScreen({ navigation }: Props) {
           disabled={isSwitching}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: 'rgba(255,255,255,0.2)', margin: 0, marginRight: 0 }]}>
+            <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: 'transparent', margin: 0, marginRight: 0 }]}>
               {isSwitching ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
@@ -593,9 +584,23 @@ export default function ProfileScreen({ navigation }: Props) {
       </ScrollView>
 
       {/* EDIT PROFILE MODAL */}
-      <Modal visible={editModalVisible} animationType="slide" transparent={true} onRequestClose={() => setEditModalVisible(false)}>
+      <Modal
+        visible={editModalVisible}
+        animationType="fade"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                paddingBottom: insets.bottom + 20,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Profile</Text>
               <Pressable onPress={() => setEditModalVisible(false)}><X size={24} color={COLORS.textHeadline} /></Pressable>
@@ -604,14 +609,16 @@ export default function ProfileScreen({ navigation }: Props) {
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               {/* Avatar Section */}
               <View style={styles.avatarSection}>
-                <Pressable style={styles.avatarContainer} onPress={handlePickImage}>
-                  {editAvatar ? (
-                    <Image source={{ uri: editAvatar }} style={styles.avatarImageLarge} />
-                  ) : (
-                    <User size={50} color={BRAND_COLOR} />
-                  )}
+                <Pressable style={{ position: 'relative', marginBottom: 8 }} onPress={handlePickImage}>
+                  <View style={styles.avatarContainer}>
+                    {editAvatar ? (
+                      <Image source={{ uri: editAvatar }} style={styles.avatarImageLarge} />
+                    ) : (
+                      <User size={50} color={BRAND_COLOR} />
+                    )}
+                  </View>
                   <View style={[styles.cameraBadge, { backgroundColor: BRAND_COLOR }]}>
-                    <Camera size={12} color="#FFF" />
+                    <Camera size={14} color="#FFF" />
                   </View>
                 </Pressable>
                 <Text style={styles.changePhotoText}>Change Photo</Text>
@@ -633,7 +640,7 @@ export default function ProfileScreen({ navigation }: Props) {
                 {isSaving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>Save Changes</Text>}
               </Pressable>
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -652,13 +659,13 @@ export default function ProfileScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: COLORS.background 
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background
   },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 25,
+    paddingBottom: 15,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     elevation: 4,
@@ -666,13 +673,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 10,
   },
-  profileHeader: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginBottom: 20 
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  avatarWrapper: { 
-    position: 'relative' 
+  avatarWrapper: {
+    position: 'relative'
   },
   avatarCircle: {
     width: 80,
@@ -704,24 +710,38 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.primary
   },
-  headerInfo: { marginLeft: 20 },
-  userName: { fontSize: 24, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 4 },
-  userSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
-  statsCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    paddingVertical: 20,
-    shadowColor: '#F59E0B',
-    shadowOpacity: 0.2, // Increased for gold glow
-    shadowRadius: 15,
-    elevation: 6,
-    marginBottom: 5,
+  headerInfo: {
+    flex: 1,
+    marginLeft: 20
   },
-  statBox: { flex: 1, alignItems: 'center' },
-  statVal: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
-  statLab: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
-  statDivider: { width: 1, height: '50%', backgroundColor: '#F3F4F6', alignSelf: 'center' },
+  userName: { fontSize: 22, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 2 },
+  userSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
+  headerStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  headerStatItem: {
+    alignItems: 'flex-start',
+    marginRight: 12,
+  },
+  headerStatVal: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  headerStatLabel: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  headerStatDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginRight: 12,
+  },
 
   // Order Status Styles
   statusItem: {
@@ -754,25 +774,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderRadius: 10,
     padding: 20,
-    marginHorizontal: 20,
-    marginBottom: 15,
-    marginTop: 0,
+    marginBottom: 0,
     shadowColor: '#000',
     shadowOpacity: 0.02,
     shadowRadius: 10,
     elevation: 2,
   },
-  purchasesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  purchasesTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textHeadline,
-  },
+
   viewHistoryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -798,10 +806,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 48,
-    height: 48,
-    backgroundColor: '#FFF5F0',
-    borderRadius: 14,
+    width: 32, // Reduced size as there's no bg
+    height: 32,
   },
   badge: {
     position: 'absolute',
@@ -832,7 +838,13 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#FFF', borderRadius: 10, paddingHorizontal: 15, shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10, elevation: 2 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
   borderBottom: { borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
-  iconContainer: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center', marginRight: 15 },
+  iconContainer: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15
+  },
   menuLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: COLORS.textHeadline },
 
   // Footer & Logout (FIXED MISSING PROPERTIES)
@@ -855,30 +867,30 @@ const styles = StyleSheet.create({
   // Modal Styles (FIXED MISSING PROPERTIES)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
-  modalHeader: { 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' 
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6'
   },
   modalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline },
   avatarSection: { alignItems: 'center', marginBottom: 20 },
-  avatarContainer: { 
-    width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', 
-    alignItems: 'center', justifyContent: 'center', marginBottom: 8, overflow: 'hidden' 
+  avatarContainer: {
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
   },
   avatarImageLarge: { width: '100%', height: '100%' },
-  cameraBadge: { 
-    position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, 
-    borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' 
+  cameraBadge: {
+    position: 'absolute', bottom: 0, right: 0, width: 28, height: 28,
+    borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF'
   },
   changePhotoText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
   inputLabel: { fontSize: 13, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 6, marginTop: 10 },
-  input: { 
-    backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', 
+  input: {
+    backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB',
     borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, fontSize: 15, color: COLORS.textHeadline
   },
-  saveButton: { 
-    marginTop: 30, paddingVertical: 15, borderRadius: 16, alignItems: 'center', 
-    justifyContent: 'center', elevation: 3 
+  saveButton: {
+    marginTop: 30, paddingVertical: 15, borderRadius: 16, alignItems: 'center',
+    justifyContent: 'center', elevation: 3
   },
   saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

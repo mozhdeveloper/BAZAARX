@@ -56,6 +56,7 @@ import StoreChatModal from '../src/components/StoreChatModal';
 import { AIChatBubble } from '../src/components/AIChatBubble';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
 import { QuantityStepper } from '../src/components/QuantityStepper';
+import { AddToWishlistModal } from '../src/components/AddToWishlistModal';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 import { trendingProducts } from '../src/data/products';
@@ -107,6 +108,16 @@ const getColorHex = (colorName: string): string => {
   const normalized = colorName.toLowerCase().trim();
   return colorNameToHex[normalized] || '#6B7280'; // Default gray if not found
 };
+
+const OCCASIONS = [
+  { id: 'wedding', label: 'Wedding', icon: 'Gift' },
+  { id: 'baby_shower', label: 'Baby Shower', icon: 'Baby' },
+  { id: 'birthday', label: 'Birthday', icon: 'Cake' },
+  { id: 'graduation', label: 'Graduation', icon: 'GraduationCap' },
+  { id: 'housewarming', label: 'Housewarming', icon: 'Home' },
+  { id: 'christmas', label: 'Christmas', icon: 'Tree' },
+  { id: 'other', label: 'Other', icon: 'MoreHorizontal' },
+];
 
 // Helper to format review date
 const formatReviewDate = (dateString: string): string => {
@@ -360,9 +371,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const soldCount = Number((product as any).sales_count ?? (product as any).sold ?? 0);
 
   // Wishlist State
-  const [showWishlistDropdown, setShowWishlistDropdown] = useState(false);
-  const [newListName, setNewListName] = useState('');
-  const [isCreatingList, setIsCreatingList] = useState(false);
+  const [showWishlistModal, setShowWishlistModal] = useState(false);
 
   // Menu State
   const [showMenu, setShowMenu] = useState(false);
@@ -798,28 +807,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleWishlistAction = (categoryId?: string) => {
+  const handleWishlistAction = () => {
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
       setGuestModalMessage("Sign up to create wishlists.");
       setShowGuestModal(true);
-      setShowWishlistDropdown(false);
       return;
     }
 
-    if (categoryId) {
-      // Add to specific category
-      addToWishlist(product, 'medium', 1, categoryId);
-      const categoryName = categories.find(c => c.id === categoryId)?.name;
-      Alert.alert('Saved!', `Added to ${categoryName}`);
-      setShowWishlistDropdown(false);
+    if (isFavorite) {
+      removeFromWishlist(product.id);
     } else {
-      // Initial click - toggle dropdown
-      if (isFavorite) {
-        removeFromWishlist(product.id);
-      } else {
-        setShowWishlistDropdown(!showWishlistDropdown);
-      }
+      setShowWishlistModal(true);
     }
   };
 
@@ -853,15 +852,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleCreateList = () => {
-    if (!newListName.trim()) return;
-    const newId = createCategory(newListName, 'private');
-    addToWishlist(product, 'medium', 1, newId);
-    setNewListName('');
-    setIsCreatingList(false);
-    setShowWishlistDropdown(false);
-    Alert.alert('Success', `List created and item added!`);
-  };
+
 
 
 
@@ -1419,105 +1410,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         />
       )}
 
-      <Modal
-        visible={showWishlistDropdown}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowWishlistDropdown(false)}
-        statusBarTranslucent={true}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowWishlistDropdown(false)}>
-          <View style={{ flex: 1 }}>
-            <TouchableWithoutFeedback>
-              <View style={{
-                position: 'absolute',
-                top: 280,
-                right: 16,
-                backgroundColor: COLORS.background,
-                borderRadius: 12,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.15,
-                shadowRadius: 12,
-                elevation: 8,
-                minWidth: 220,
-                maxWidth: 280,
-              }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginBottom: 8, paddingHorizontal: 16, paddingTop: 12 }}>Save to Wishlist</Text>
-                <ScrollView style={{ maxHeight: 180 }}>
-                  {categories.map((cat) => (
-                    <Pressable
-                      key={cat.id}
-                      style={styles.menuItem}
-                      onPress={() => handleWishlistAction(cat.id)}
-                    >
-                      <FolderHeart size={18} color={BRAND_ACCENT} />
-                      <Text style={styles.menuItemText}>{cat.name}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-                <View style={styles.menuDivider} />
-                {isCreatingList ? (
-                  <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
-                    <TextInput
-                      style={{
-                        borderWidth: 1,
-                        borderColor: '#E5E7EB',
-                        borderRadius: 6,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        fontSize: 13,
-                        marginBottom: 6,
-                      }}
-                      placeholder="List name"
-                      value={newListName}
-                      onChangeText={setNewListName}
-                      autoFocus
-                    />
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <Pressable
-                        onPress={() => {
-                          setIsCreatingList(false);
-                          setNewListName('');
-                        }}
-                        style={{
-                          flex: 1,
-                          paddingVertical: 6,
-                          borderRadius: 6,
-                          backgroundColor: '#F3F4F6',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <Text style={{ color: '#6B7280', fontWeight: '600', fontSize: 13 }}>Cancel</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={handleCreateList}
-                        style={{
-                          flex: 1,
-                          paddingVertical: 6,
-                          borderRadius: 6,
-                          backgroundColor: '#FB8C00',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 13 }}>Create</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ) : (
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => setIsCreatingList(true)}
-                  >
-                    <PlusCircle size={18} color="#FB8C00" />
-                    <Text style={[styles.menuItemText, { color: '#FB8C00' }]}>Create New List</Text>
-                  </Pressable>
-                )}
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <AddToWishlistModal
+        visible={showWishlistModal}
+        onClose={() => setShowWishlistModal(false)}
+        product={product}
+      />
 
       {/* Product Menu Modal */}
       <Modal

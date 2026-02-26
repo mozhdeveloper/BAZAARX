@@ -12,7 +12,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { ArrowLeft, Send, Bot, MoreVertical, Scale } from 'lucide-react-native';
+import { ChevronLeft, Send, Bot, MoreVertical, Scale } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -269,16 +269,21 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent={true}
+    >
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-        {/* Universal Header - Edge to Edge Orange */}
-        <View style={[styles.header, { paddingTop: 16 }]}>
+        {/* Header - Edge to Edge Primary Orange */}
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
           <Pressable onPress={onClose} style={styles.backButton}>
-            <ArrowLeft size={24} color={COLORS.primary} strokeWidth={2.5} />
+            <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>AI Assistant</Text>
           <Pressable onPress={handleClearChat} style={styles.menuButton}>
@@ -385,7 +390,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
               ]}
               disabled={!inputText.trim()}
             >
-              <Send size={20} color={COLORS.primary} strokeWidth={2.5} />
+              <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -399,16 +404,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  // Universal Header - Edge to Edge Orange
+  // Header - Edge to Edge Primary Orange
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: '#FFE5CC',
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   backButton: {
     width: 40,
@@ -418,9 +423,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
-    color: '#1F2937',
+    color: '#FFFFFF',
     textAlign: 'center',
     letterSpacing: -0.5,
     marginHorizontal: 16,
@@ -432,7 +437,7 @@ const styles = StyleSheet.create({
   clearText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#FFFFFF',
     letterSpacing: -0.2,
   },
   // Messages Area
@@ -646,11 +651,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
   inputBar: {
     flexDirection: 'row',
@@ -659,32 +661,24 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: '#F2F2F2',
-    borderRadius: 999,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 24,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 10,
     fontSize: 15,
     color: '#1F2937',
     maxHeight: 100,
-    letterSpacing: -0.1,
   },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFE5CC',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FFE5CC',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 6,
   },
   sendButtonDisabled: {
-    backgroundColor: '#FFE5CC',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
+    backgroundColor: '#E5E7EB',
   },
 
 });

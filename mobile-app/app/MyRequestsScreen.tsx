@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Dimensions,
+  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -131,20 +132,26 @@ export default function MyRequestsScreen({ navigation }: Props) {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={24} color="#1F2937" />
-        </Pressable>
-        <Text style={styles.headerTitle}>My Requests</Text>
-        <Pressable
-          onPress={() => setShowRequestModal(true)}
-          style={styles.newRequestBtn}
-        >
-          <Plus size={18} color="#FFFFFF" />
-          <Text style={styles.newRequestBtnText}>New</Text>
-        </Pressable>
+      <View
+        style={[styles.headerContainer, { paddingTop: insets.top + 5, backgroundColor: COLORS.background }]}
+      >
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>My Requests</Text>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <Pressable
+              onPress={() => setShowRequestModal(true)}
+              style={styles.headerIconButton}
+            >
+              <Plus size={24} color={COLORS.primary} strokeWidth={2.5} />
+            </Pressable>
+          </View>
+        </View>
       </View>
 
       <ScrollView
@@ -166,7 +173,7 @@ export default function MyRequestsScreen({ navigation }: Props) {
           <View style={styles.filterBar}>
             <Filter size={14} color="#6B7280" />
             <Text style={styles.filterText}>
-              Showing: <Text style={styles.filterTextBold}>{STATUS_CONFIG[filterStatus]?.label}</Text>
+              Showing: <Text style={styles.filterTextBold}>{filterStatus ? STATUS_CONFIG[filterStatus]?.label : ''}</Text>
             </Text>
             <Pressable onPress={() => setFilterStatus(null)}>
               <Text style={styles.clearFilter}>Clear</Text>
@@ -266,31 +273,28 @@ export default function MyRequestsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF9F0',
+    backgroundColor: COLORS.background,
   },
-  header: {
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    zIndex: 10,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  backBtn: {
-    width: 40,
+    position: 'relative',
     height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#1F2937',
+    color: COLORS.textHeadline,
   },
+  headerIconButton: { padding: 4, minWidth: 40, alignItems: 'center', justifyContent: 'center' },
   newRequestBtn: {
     flexDirection: 'row',
     alignItems: 'center',

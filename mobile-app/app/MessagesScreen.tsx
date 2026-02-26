@@ -9,12 +9,13 @@ import {
   RefreshControl,
   ActivityIndicator,
   StatusBar,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Bot,
-  ArrowLeft,
+  ChevronLeft,
   MessageSquare,
   Search,
   Store,
@@ -85,27 +86,27 @@ export default function MessagesScreen() {
   };
 
   /* Removed console.log for filtered length */
-    const uniqueConversations = React.useMemo(() => {
-      const uniqueIds = new Set();
-      const unique: Conversation[] = [];
-      
-      conversations.forEach(conv => {
-        if (!uniqueIds.has(conv.id)) {
-          uniqueIds.add(conv.id);
-          unique.push(conv);
-        }
-      });
-  
-      if (unique.length !== conversations.length) {
-        console.warn('[MessagesScreen] Found duplicate conversations!', conversations.length, '->', unique.length);
+  const uniqueConversations = React.useMemo(() => {
+    const uniqueIds = new Set();
+    const unique: Conversation[] = [];
+
+    conversations.forEach(conv => {
+      if (!uniqueIds.has(conv.id)) {
+        uniqueIds.add(conv.id);
+        unique.push(conv);
       }
-      return unique;
-    }, [conversations]);
-    
-    const filteredConversations = uniqueConversations.filter(conv =>
-      (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (conv.last_message || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    });
+
+    if (unique.length !== conversations.length) {
+      console.warn('[MessagesScreen] Found duplicate conversations!', conversations.length, '->', unique.length);
+    }
+    return unique;
+  }, [conversations]);
+
+  const filteredConversations = uniqueConversations.filter(conv =>
+    (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (conv.last_message || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -134,21 +135,20 @@ export default function MessagesScreen() {
     >
       <StatusBar barStyle="dark-content" />
 
-      {/* Edge-to-Edge Header */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      {/* HEADER */}
+      <View
+        style={[styles.headerContainer, { paddingTop: insets.top + 5, backgroundColor: COLORS.background }]}
       >
         <View style={styles.headerTop}>
-          <View style={styles.headerIcon} />
-          <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Messages</Text>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIcon}>
+            <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Messages</Text>
           <Pressable onPress={() => setShowAIChat(true)} style={styles.headerIcon}>
             <Bot size={24} color={COLORS.primary} strokeWidth={2.5} />
           </Pressable>
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -216,7 +216,14 @@ export default function MessagesScreen() {
               }}
             >
               <View style={styles.avatar}>
-                <Store size={20} color="#FFFFFF" />
+                {conv.seller_avatar ? (
+                  <Image
+                    source={{ uri: conv.seller_avatar }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Store size={20} color="#FFFFFF" />
+                )}
               </View>
 
               <View style={styles.conversationContent}>
@@ -260,19 +267,16 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   headerContainer: {
-    paddingBottom: 25,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    zIndex: 10,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    position: 'relative',
+    height: 40,
   },
   headerIcon: {
     width: 40,
@@ -280,16 +284,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1F2937',
-    flex: 1,
-    textAlign: 'center',
-  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
   searchContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   searchInputContainer: {
     flexDirection: 'row',
@@ -297,7 +295,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', // Changed to White for cleaner shadow
     borderRadius: 12,
     paddingHorizontal: 16, // Slightly wider padding
-    paddingVertical: 12, // Slightly taller
+    paddingVertical: 2,
     gap: 12, // Increased gap slightly
 
     // Soft Shadow
@@ -362,7 +360,7 @@ const styles = StyleSheet.create({
   conversationItem: {
     flexDirection: 'row',
     padding: 16,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0.5,
     borderBottomColor: '#F3F4F6',
     gap: 12,
   },
@@ -373,6 +371,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   conversationContent: {
     flex: 1,
