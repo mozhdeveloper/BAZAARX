@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   actionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16, // Explicit gap between stepper and delete icon
+    justifyContent: 'space-between',
     marginTop: 8,
   },
   removeButton: {

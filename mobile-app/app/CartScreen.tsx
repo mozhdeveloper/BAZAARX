@@ -10,7 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, CheckCircle, Circle, Flame, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, CheckCircle, Circle, Flame, ChevronRight } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
@@ -145,7 +145,7 @@ export default function CartScreen({ navigation }: any) {
     return sum + savings;
   }, 0);
   const shippingFee = (subtotal > 500 || subtotal === 0) ? 0 : 50;
-  const total = subtotal + shippingFee;
+  const total = subtotal; // Only items subtotal, exclude shipping here as per request
 
   const isAllSelected = items.length > 0 && selectedIds.length === items.length;
 
@@ -208,17 +208,17 @@ export default function CartScreen({ navigation }: any) {
       <StatusBar barStyle="dark-content" />
 
       {/* HEADER */}
-      {/* HEADER */}
-      <LinearGradient
-        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 5 }]}
+      <View
+        style={[styles.headerContainer, { paddingTop: insets.top + 5, backgroundColor: COLORS.background }]}
       >
         <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+            <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
+          </Pressable>
           <Text style={styles.headerTitle}>My Cart</Text>
+          <View style={{ width: 40 }} />
         </View>
-      </LinearGradient>
+      </View>
 
       {/* SELECT ALL BAR */}
       <View style={styles.selectAllBar}>
@@ -318,9 +318,10 @@ export default function CartScreen({ navigation }: any) {
       <View style={[styles.bottomBar, { bottom: insets.bottom + 80 }]}>
         <View style={styles.bottomBarContent}>
           <View>
+            <Text style={styles.totalInfoLabel}>Total Amount</Text>
             <Text style={[styles.totalInfoPrice, { color: BRAND_PRIMARY }]}>₱{total.toLocaleString()}</Text>
             {totalSavings > 0 && (
-              <Text style={styles.savingsText}>Saved: ₱{totalSavings.toLocaleString()}</Text>
+              <Text style={styles.savingsText}>You saved ₱{totalSavings.toLocaleString()}</Text>
             )}
           </View>
           <Pressable
@@ -372,23 +373,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background }, // Match soft amber theme
   headerContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 15,
-    // backgroundColor: '#FFE5CC', // Removed for gradient
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 8,
+    paddingBottom: 4,
     zIndex: 10,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     position: 'relative',
     height: 40,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
   clearTextWrapper: {
