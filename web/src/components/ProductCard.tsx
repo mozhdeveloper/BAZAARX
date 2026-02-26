@@ -49,15 +49,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
           </div>
         )}
 
-        {/* Campaign Badge Banner Removed for Grouped Layout */}
-        {product.isFreeShipping && (
-          <div 
-            className="absolute top-3 left-3 bg-white/90 text-[var(--brand-accent)] px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider shadow-sm border border-[var(--brand-accent)]/20"
-            style={{ top: hasDiscount ? '42px' : '12px' }}
-          >
-            Free Ship
-          </div>
-        )}
+
         {product.isVerified && !isFlash && (
           <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
             <ShieldCheck className="w-3 h-3 text-[var(--brand-accent)]" />
@@ -103,7 +95,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
             )}
           </div>
 
-          {hasDiscount ? (
+          {hasDiscount && isFlash ? (
             <div className="mb-4">
               <div className="w-full h-[6px] bg-[#FEE2E2] rounded-full mb-1.5 border border-[#FCA5A5]/30 overflow-hidden">
                 <div
