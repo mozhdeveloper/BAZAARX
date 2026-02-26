@@ -354,11 +354,11 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <Text style={styles.cardTitle}>Order Summary</Text>
           </View>
           <View style={styles.cardContent}>
-            {/* Show original subtotal if there's campaign discount */}
+            {/* Show original items total if there's campaign discount */}
             {((order as any).campaignDiscounts && (order as any).campaignDiscounts.length > 0) && (
               <>
                 <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: '#6B7280' }]}>Original Subtotal</Text>
+                  <Text style={[styles.summaryLabel, { color: '#6B7280' }]}>Original Price</Text>
                   <Text style={[styles.summaryValue, { color: '#6B7280', textDecorationLine: 'line-through' }]}>
                     ₱{(((order as any).subtotal || 0) + ((order as any).campaignDiscounts?.[0]?.discountAmount || 0)).toLocaleString()}
                   </Text>
