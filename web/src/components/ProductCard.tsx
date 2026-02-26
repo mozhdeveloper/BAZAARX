@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BadgeCheck, ShieldCheck, Flame } from 'lucide-react';
+import { BadgeCheck, ShieldCheck, Flame, Star } from 'lucide-react';
 
 
 interface ProductCardProps {
@@ -22,6 +22,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
         100,
       ))
     : 0;
+
+  const isPremiumOutlet = product.sellerTierLevel === 'premium_outlet' || product.isPremiumOutlet;
 
   return (
     <motion.div
@@ -128,6 +130,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
             <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
               {product.seller || "BazaarX Store"}
             </p>
+            {isPremiumOutlet && (
+              <div className="flex items-center gap-0.5 bg-purple-100 px-1.5 py-0.5 rounded-full">
+                <Star className="w-3 h-3 text-purple-600 fill-purple-600" />
+                <span className="text-[9px] font-bold text-purple-700 uppercase">Premium</span>
+              </div>
+            )}
             {product.sellerVerified && (
               <BadgeCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
             )}

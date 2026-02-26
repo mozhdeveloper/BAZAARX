@@ -277,6 +277,7 @@ export default function SellerStorefrontPage() {
       Number((realSeller as any).total_reviews || 0),
     followers: followersCount,
     isVerified: realSeller.is_verified || false,
+    tierLevel: (realSeller as any).tier_level || 'standard',
     description: realSeller.store_description || 'Welcome to our store!',
     location: [realSeller.city, realSeller.province].filter(Boolean).join(', ') || 'Philippines',
     established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
@@ -292,6 +293,7 @@ export default function SellerStorefrontPage() {
     totalReviews: 10,
     followers: 5,
     isVerified: true,
+    tierLevel: (dbSellerProduct as any).sellerTierLevel || 'standard',
     description: 'Welcome to our store!',
     location: dbSellerProduct.sellerLocation || 'Metro Manila',
     established: '2024',
@@ -300,6 +302,8 @@ export default function SellerStorefrontPage() {
     categories: ['General'],
     products: []
   } : demoSellers[0]);
+
+  const isPremiumOutlet = seller.tierLevel === 'premium_outlet';
 
   useEffect(() => {
     if (seller) {
@@ -508,6 +512,12 @@ export default function SellerStorefrontPage() {
                 {seller.isVerified && (
                   <Badge className="bg-white text-green-600 hover:bg-white border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
                     Verified
+                  </Badge>
+                )}
+                {isPremiumOutlet && (
+                  <Badge className="bg-purple-500 text-white hover:bg-purple-600 border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    <Star className="w-3 h-3 fill-white" />
+                    Premium Outlet
                   </Badge>
                 )}
               </div>
