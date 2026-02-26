@@ -214,13 +214,32 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Calculate campaign discount and original subtotal
+  const { campaignDiscountTotal, originalSubtotal } = useMemo(() => {
+    let campaignDiscount = 0;
+    let originalTotal = 0;
+    
+    checkoutItems.forEach(item => {
+      const itemOriginalPrice = item.originalPrice ?? item.price ?? 0;
+      const itemDiscount = (itemOriginalPrice - (item.price ?? 0)) * item.quantity;
+      campaignDiscount += itemDiscount;
+      originalTotal += itemOriginalPrice * item.quantity;
+    });
+    
+    return { 
+      campaignDiscountTotal: campaignDiscount, 
+      originalSubtotal: originalTotal 
+    };
+  }, [checkoutItems]);
+
   // Optimize total calculation with useMemo
   const { subtotal, shippingFee, discount, total } = useMemo(() => {
+    // subtotal is the discounted price (what customer sees)
     const subtotal = checkoutSubtotal;
     let shippingFee = subtotal > 500 ? 0 : 50;
     let discount = 0;
 
-    // Apply voucher discount
+    // Apply voucher discount (on discounted subtotal)
     if (appliedVoucher) {
       const originalShippingFee = subtotal > 500 ? 0 : 50;
       
@@ -1239,7 +1258,18 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         discount,
         voucherId: appliedVoucher?.id || null,
         discountAmount: discount,
-        email: user.email
+        email: user.email,
+        // Campaign discount info
+        campaignDiscountTotal,
+        campaignDiscounts: checkoutItems
+          .filter(item => item.campaignDiscount)
+          .map(item => ({
+            campaignId: item.campaignDiscount?.campaignId,
+            campaignName: item.campaignDiscount?.campaignName || 'Discount',
+            discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity,
+            productId: item.id,
+            quantity: item.quantity
+          }))
       };
 
       const result = await processCheckout(payload);
@@ -1288,6 +1318,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           type: appliedVoucher.type,
           discountAmount: discount
         } : undefined,
+        campaignDiscounts: campaignDiscountTotal > 0 ? checkoutItems
+          .filter(item => item.campaignDiscount)
+          .map(item => ({
+            campaignId: item.campaignDiscount?.campaignId || '',
+            campaignName: item.campaignDiscount?.campaignName || 'Discount',
+            discountAmount: ((item.originalPrice ?? item.price ?? 0) - (item.price ?? 0)) * item.quantity
+          })) : undefined,
         status: 'pending',
         isPaid: false,
         scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
@@ -1319,7 +1356,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder]);
+  }, [selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher]);
 
   return (
     <LinearGradient
@@ -1685,6 +1722,20 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           {/* Order Summary */}
           <View style={styles.sectionCard}>
             <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Order Summary</Text>
+
+            {/* Show original subtotal and campaign discount if applicable */}
+            {campaignDiscountTotal > 0 && (
+              <>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Original Price</Text>
+                  <Text style={[styles.summaryValue, { color: '#6B7280', textDecorationLine: 'line-through' }]}>₱{originalSubtotal.toLocaleString()}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Campaign Discount</Text>
+                  <Text style={[styles.summaryValue, { color: '#DC2626' }]}>-₱{campaignDiscountTotal.toLocaleString()}</Text>
+                </View>
+              </>
+            )}
 
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Merchandise Subtotal</Text>

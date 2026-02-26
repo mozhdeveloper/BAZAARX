@@ -108,16 +108,32 @@ export default function OrderConfirmation({ navigation, route }: Props) {
                 </View>
               ))}
 
-              {(order.discount || 0) > 0 && (
+              {/* Campaign Discount */}
+              {(order as any).campaignDiscounts && (order as any).campaignDiscounts.length > 0 && (order as any).campaignDiscounts[0].discountAmount > 0 && (
+                <View style={styles.totalRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Tag size={14} color="#DC2626" />
+                    <Text style={[styles.totalLabel, { marginLeft: 4 }]}>
+                      Campaign Discount
+                    </Text>
+                  </View>
+                  <Text style={[styles.totalAmount, { color: '#DC2626' }]}>
+                    -₱{(order as any).campaignDiscounts[0].discountAmount?.toLocaleString()}
+                  </Text>
+                </View>
+              )}
+
+              {/* Voucher Discount */}
+              {order.voucherInfo && (order.voucherInfo.discountAmount || 0) > 0 && (
                 <View style={styles.totalRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Tag size={14} color="#10B981" />
                     <Text style={[styles.totalLabel, { marginLeft: 4 }]}>
-                      Voucher {order.voucherInfo && `(${order.voucherInfo.code})`}
+                      Voucher {order.voucherInfo.code && `(${order.voucherInfo.code})`}
                     </Text>
                   </View>
                   <Text style={[styles.totalAmount, { color: '#10B981' }]}>
-                    -₱{order.discount?.toLocaleString()}
+                    -₱{order.voucherInfo.discountAmount?.toLocaleString()}
                   </Text>
                 </View>
               )}

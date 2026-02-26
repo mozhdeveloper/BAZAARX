@@ -160,6 +160,23 @@ export class CartService {
               price,
               stock,
               thumbnail_url
+            ),
+            product_discounts (
+              id,
+              discount_type,
+              discount_value,
+              sold_count,
+              campaign:discount_campaigns (
+                id,
+                badge_text,
+                badge_color,
+                discount_type,
+                discount_value,
+                max_discount_amount,
+                ends_at,
+                status,
+                starts_at
+              )
             )
           ),
           variant:product_variants (
