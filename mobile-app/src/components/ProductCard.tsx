@@ -44,22 +44,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
           </View>
         )}
 
-        {/* Campaign Badge (Flash or Other) */}
-        {product.campaignBadge && (
-          <View style={[
-            styles.flashBadge, 
-            { backgroundColor: `${product.campaignBadgeColor || '#DC2626'}CC` }
-          ]}>
-            <Text style={styles.flashBadgeText}>{product.campaignBadge}</Text>
-          </View>
-        )}
+        {/* Campaign Badge Removed for Grouped Layout */}
 
-        {/* Free Shipping Badge */}
-        {product.isFreeShipping && (
-          <View style={styles.shippingBadge}>
-            <Text style={styles.shippingText}>Free Shipping</Text>
-          </View>
-        )}
+        {/* Free Shipping Badge Removed */}
 
 
       </View>
@@ -91,12 +78,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
               <Text style={styles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
             )}
           </View>
-          {!hasDiscount && (
+          {!(hasDiscount && isFlash) && (
             <Text style={styles.soldText}>{(product.sold || 0).toLocaleString()} sold</Text>
           )}
         </View>
 
-        {hasDiscount && (
+        {hasDiscount && isFlash && (
           <View style={styles.flashProgressContainer}>
             <View style={styles.flashProgressBar}>
               <View 

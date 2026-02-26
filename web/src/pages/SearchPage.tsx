@@ -563,9 +563,9 @@ const SearchPage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     onClick={() => navigate(`/product/${product.id}`)}
-                    className="product-card-premium product-card-premium-interactive"
+                    className="product-card-premium product-card-premium-interactive h-full flex flex-col group cursor-pointer border-0 rounded-2xl overflow-hidden"
                   >
-                    <div className="relative aspect-square overflow-hidden bg-white/50">
+                    <div className="relative aspect-square overflow-hidden bg-[#FFF6E5]">
                       <img
                         src={product.image}
                         alt={product.name}
@@ -580,64 +580,61 @@ const SearchPage: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="p-2 flex-1 flex flex-col">
-                      <h3 className="product-title-premium h-10 text-xs">
-                        {product.name}
-                      </h3>
+                    <div className="p-4 flex flex-col justify-between flex-1">
+                      <div>
+                        <h3 className="product-title-premium text-[15px] font-bold mb-1.5 line-clamp-2 text-[#1f2937]">
+                          {product.name}
+                        </h3>
 
-                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                        <div className="flex items-center">
-                          <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
-                          <span className="text-xs text-gray-600 ml-1">{product.rating} ({product.sold})</span>
+                        <div className="flex items-center mb-4">
+                          <div className="flex text-[#F59E0B] text-[11px] mr-1.5">
+                            {[...Array(5)].map((_, i) => (
+                              <span
+                                key={i}
+                                className={
+                                  i < Math.floor(product.rating || 5)
+                                    ? "fill-current"
+                                    : "text-gray-300"
+                                }
+                              >
+                                ★
+                              </span>
+                            ))}
+                          </div>
+                          <span className="text-[12px] text-gray-500 font-medium">
+                            ({product.rating || 5.0})
+                          </span>
                         </div>
-                        {product.isVerified && (
-                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 gap-1 border-[var(--brand-wash-gold)] bg-[var(--brand-wash)] text-[var(--color-success)] font-bold shadow-sm">
-                            <BadgeCheck className="w-2.5 h-2.5" /> Verified
-                          </Badge>
-                        )}
-                      </div>
 
-                      <div className="mt-1.5 mb-2">
                         <div className="flex items-baseline gap-2 mb-2">
                           <span className={product.originalPrice && product.originalPrice > product.price ? "text-[22px] font-black text-[#DC2626] leading-none" : "text-[22px] font-black text-[#D97706] leading-none"}>
                             ₱{product.price.toLocaleString()}
                           </span>
                           {product.originalPrice && product.originalPrice > product.price && (
-                            <span className="text-[13px] text-gray-400 line-through font-medium leading-none">
+                            <span className="text-[14px] text-gray-400 line-through font-medium leading-none">
                               ₱{product.originalPrice.toLocaleString()}
                             </span>
                           )}
                         </div>
-                        
-                        {product.originalPrice && product.originalPrice > product.price ? (
-                          <div className="mb-2">
-                            <div className="w-full h-[6px] bg-[#FEE2E2] rounded-full mb-1.5 border border-[#FCA5A5]/30 overflow-hidden">
-                              <div
-                                className="h-full bg-[#DC2626] rounded-full"
-                                style={{ width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 100)) * 100))}%` }}
-                              />
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Flame className="w-3.5 h-3.5 text-[#DC2626] fill-[#DC2626]" />
-                              <span className="text-[11px] text-[#DC2626] font-bold uppercase tracking-widest flex items-center gap-1">
-                                {(product.sold || 0).toLocaleString()} SOLD
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2 mt-1">
-                            {(product.sold || 0).toLocaleString()} sold
-                          </div>
-                        )}
+                          
+                        <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-4">
+                          {(product.sold || 0).toLocaleString()} sold
+                        </div>
                       </div>
 
-                      <div className="mt-1.5 text-[11px] text-gray-500 min-h-[2rem] flex items-center">
-                        <MapPin className="w-2.5 h-2.5 mr-1 flex-shrink-0" />
-                        <span className="line-clamp-1">{product.location}</span>
-                      </div>
-
-                      <div className="mt-1">
-                        <p className="text-[10px] text-gray-500">{product.category}</p>
+                      <div className="pt-4 border-t border-[var(--brand-accent-light)]/50 pb-2">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
+                            {product.seller || "BazaarX Store"}
+                          </p>
+                          {product.isVerified && (
+                            <BadgeCheck className="w-4 h-4 text-[#16A34A] flex-shrink-0" />
+                          )}
+                        </div>
+                        <div className="flex items-center text-[10px] text-gray-500">
+                          <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
+                          <span className="line-clamp-1">{product.location}</span>
+                        </div>
                       </div>
 
                       <div className="mt-auto pt-3 flex gap-1.5">
@@ -710,40 +707,13 @@ const SearchPage: React.FC = () => {
                 );
 
                 return (
-                  <div className="space-y-12">
-                    {Object.entries(groupedProducts).map(([campaignName, campaignProducts]) => (
-                      <div key={campaignName} className="bg-gradient-to-br from-white via-white to-[#FEE2E2]/30 rounded-2xl p-4 sm:p-6 shadow-sm border border-[#FCA5A5]/20">
-                        <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight font-heading mb-6 flex items-center gap-2">
-                          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#DC2626] to-[#ED4444]">
-                            {campaignName}
-                          </span>
-                          <div className="h-0.5 flex-1 bg-gradient-to-r from-[#DC2626]/20 to-transparent ml-4 rounded-full"></div>
-                        </h2>
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                        >
-                          {campaignProducts.map((p, i) => renderProduct(p, i))}
-                        </motion.div>
-                      </div>
-                    ))}
-
-                    {normalProducts.length > 0 && (
-                      <div>
-                        {Object.keys(groupedProducts).length > 0 && (
-                          <h2 className="text-lg font-bold text-[var(--text-headline)] mb-4 mt-4">All Matches</h2>
-                        )}
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                        >
-                          {normalProducts.map((p, i) => renderProduct(p, i))}
-                        </motion.div>
-                      </div>
-                    )}
-                  </div>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                  >
+                    {sortedResults.map((product, index) => renderProduct(product, index))}
+                  </motion.div>
                 );
               })()
              : (
