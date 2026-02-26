@@ -359,8 +359,6 @@ export class ProductService {
       campaignBadge,
       campaignBadgeColor,
       campaignEndsAt,
-      // Ensure originalPrice is mapped from original_price
-      originalPrice: product.original_price,
     };
   }
 
