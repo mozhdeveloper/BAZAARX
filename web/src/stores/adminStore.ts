@@ -96,6 +96,10 @@ export interface Seller {
   suspendedAt?: Date;
   suspendedBy?: string;
   suspensionReason?: string;
+  
+  // Tier information
+  tierLevel?: 'standard' | 'premium_outlet';
+  bypassesAssessment?: boolean;
 }
 
 export interface SellerDocument {
@@ -582,6 +586,8 @@ interface SellersState {
   addSeller: (seller: Seller) => void;
   clearError: () => void;
   hasCompleteRequirements: (seller: Seller) => boolean;
+  updateSellerTier: (sellerId: string, tierLevel: 'standard' | 'premium_outlet') => Promise<void>;
+  getSellerTier: (sellerId: string) => Promise<'standard' | 'premium_outlet' | null>;
 }
 
 export const useAdminSellers = create<SellersState>()(
@@ -609,7 +615,8 @@ export const useAdminSellers = create<SellersState>()(
                 profiles(*),
                 business_profile:seller_business_profiles(*),
                 payout_account:seller_payout_accounts(*),
-                verification_documents:seller_verification_documents(*)
+                verification_documents:seller_verification_documents(*),
+                tier:seller_tiers(tier_level, bypasses_assessment)
               `)
               .order('created_at', { ascending: false });
 
@@ -850,6 +857,8 @@ export const useAdminSellers = create<SellersState>()(
                 suspendedAt: seller.suspended_at ? new Date(seller.suspended_at) : undefined,
                 suspendedBy: seller.suspended_by || undefined,
                 suspensionReason: seller.suspension_reason || undefined,
+                tierLevel: seller.tier?.tier_level || 'standard',
+                bypassesAssessment: seller.tier?.bypasses_assessment || false,
               };
             });
 
@@ -1546,7 +1555,94 @@ export const useAdminSellers = create<SellersState>()(
         const hasBusinessAddress = seller.businessAddress && seller.businessAddress !== 'Not provided';
 
         return hasAllDocs && hasBusinessAddress;
-      }
+      },
+
+      updateSellerTier: async (sellerId: string, tierLevel: 'standard' | 'premium_outlet') => {
+        set({ isLoading: true, error: null });
+
+        const bypassesAssessment = tierLevel === 'premium_outlet';
+
+        if (isSupabaseConfigured()) {
+          try {
+            // Upsert seller tier
+            const { error: tierError } = await supabase
+              .from('seller_tiers')
+              .upsert(
+                {
+                  seller_id: sellerId,
+                  tier_level: tierLevel,
+                  bypasses_assessment: bypassesAssessment,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'seller_id', ignoreDuplicates: false }
+              );
+
+            if (tierError) {
+              console.error('[AdminSellers] Error updating seller tier:', tierError);
+              throw tierError;
+            }
+
+            // Update local state
+            set(state => ({
+              sellers: state.sellers.map(seller =>
+                seller.id === sellerId
+                  ? {
+                    ...seller,
+                    tierLevel,
+                    bypassesAssessment,
+                  }
+                  : seller
+              ),
+              isLoading: false,
+            }));
+
+            console.log(`[AdminSellers] Updated seller ${sellerId} tier to ${tierLevel}`);
+          } catch (error) {
+            console.error('Error updating seller tier:', error);
+            set({ error: 'Failed to update seller tier', isLoading: false });
+          }
+          return;
+        }
+
+        // Fallback to local state
+        set(state => ({
+          sellers: state.sellers.map(seller =>
+            seller.id === sellerId
+              ? {
+                ...seller,
+                tierLevel,
+                bypassesAssessment,
+              }
+              : seller
+          ),
+          isLoading: false,
+        }));
+      },
+
+      getSellerTier: async (sellerId: string): Promise<'standard' | 'premium_outlet' | null> => {
+        if (!isSupabaseConfigured()) {
+          const seller = (await import('./adminStore')).useAdminSellers.getState().sellers.find(s => s.id === sellerId);
+          return seller?.tierLevel || null;
+        }
+
+        try {
+          const { data, error } = await supabase
+            .from('seller_tiers')
+            .select('tier_level')
+            .eq('seller_id', sellerId)
+            .maybeSingle();
+
+          if (error) {
+            console.warn('[AdminSellers] Error getting seller tier:', error);
+            return null;
+          }
+
+          return (data?.tier_level as 'standard' | 'premium_outlet') || null;
+        } catch (error) {
+          console.warn('[AdminSellers] Exception getting seller tier:', error);
+          return null;
+        }
+      },
     }),
     {
       name: 'admin-sellers-storage',
