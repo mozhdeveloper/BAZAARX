@@ -479,6 +479,9 @@ export const useProductQAStore = create<ProductQAStore>()(
             return;
           }
 
+          // Check if seller is premium outlet (bypasses assessment)
+          const isPremiumOutlet = await qaService.isPremiumOutlet(productData.sellerId);
+          
           // Create in database if configured
           if (isSupabaseConfigured() && productData.sellerId) {
             await qaService.createQAEntry(
@@ -488,17 +491,29 @@ export const useProductQAStore = create<ProductQAStore>()(
             );
             // Reload using this seller's ID specifically so seller sees their own updated list
             await get().loadProducts(productData.sellerId);
+            
+            // Sync premium outlet products to seller store as approved
+            if (isPremiumOutlet) {
+              syncToSellerStore(productData.id, 'approved');
+            }
           } else {
             // Fallback to local state
             const newQAProduct: QAProduct = {
               ...productData,
-              status: 'PENDING_DIGITAL_REVIEW',
+              status: isPremiumOutlet ? 'ACTIVE_VERIFIED' : 'PENDING_DIGITAL_REVIEW',
               logistics: null,
               submittedAt: new Date().toISOString(),
+              approvedAt: isPremiumOutlet ? new Date().toISOString() : undefined,
+              verifiedAt: isPremiumOutlet ? new Date().toISOString() : undefined,
             };
             set((state) => ({
               products: [...state.products, newQAProduct],
             }));
+            
+            // Sync premium outlet products to seller store as approved (local)
+            if (isPremiumOutlet) {
+              syncToSellerStore(productData.id, 'approved');
+            }
           }
         } catch (error) {
           console.error('Error adding product to QA:', error);
