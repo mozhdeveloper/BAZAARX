@@ -585,23 +585,23 @@ export default function ShopScreen({ navigation, route }: Props) {
             )}
 
             <View style={styles.productsSection}>
-              <Text style={styles.sectionTitle}>
-                {searchQuery ? `Results for "${searchQuery}"` : 'All Products'}
-              </Text>
               <View style={styles.productsGrid}>
                 {filteredProducts.map((product) => (
                   <View key={product.id} style={styles.cardWrapper}>
                     <ProductCard product={product} onPress={() => navigation.navigate('ProductDetail', { product })} />
                   </View>
                 ))}
-                {!isLoading && filteredProducts.length === 0 && (
-                  <View style={styles.emptyBox}>
-                    <Text style={styles.emptyTitle}>No products found</Text>
-                    <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
-                  </View>
-                )}
               </View>
             </View>
+
+            {!isLoading && filteredProducts.length === 0 && (
+              <View style={[styles.productsSection, { marginTop: 20 }]}>
+                <View style={styles.emptyBox}>
+                  <Text style={styles.emptyTitle}>No products found</Text>
+                  <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
+                </View>
+              </View>
+            )}
           </>
         )}
         <View style={{ height: 100 }} />

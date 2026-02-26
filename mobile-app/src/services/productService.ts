@@ -273,6 +273,7 @@ export class ProductService {
     const campaignBadge = activeDiscount?.campaign?.badge_text;
     const campaignBadgeColor = activeDiscount?.campaign?.badge_color;
     const campaignEndsAt = activeDiscount?.campaign?.ends_at;
+    const campaignSoldCount = activeDiscount?.sold_count;
 
     // Calculate discounted price if campaign is active
     let price = product.price;
@@ -345,10 +346,10 @@ export class ProductService {
       // Rating calculated from reviews
       rating: averageRating,
       review_count: reviewCount,
-      // Sold count from completed orders (paid + delivered)
-      sold: soldCount,
-      sales: soldCount, // Alias for backward compatibility with UI
-      sold_count: soldCount, // Another alias for consistency
+      // Sold count from the campaign if active, otherwise lifetime sold count from completed orders
+      sold: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
+      sales: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
+      sold_count: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
       // Seller info for legacy code
       seller: product.seller ? {
         ...product.seller,
