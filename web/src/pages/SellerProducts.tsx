@@ -1234,20 +1234,25 @@ export function AddProduct() {
                         <div className="sticky top-6 space-y-6">
                             <div className="bg-white rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden border border-white/50">
                                 <div className="relative aspect-[4/5] bg-gray-50">
-                                    {formData.images[0] ? (
-                                        <img
-                                            src={formData.images[0]}
-                                            alt="Preview"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="flex h-full flex-col items-center justify-center text-gray-300 gap-4">
-                                            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-                                                <Upload className="h-8 w-8 text-gray-300" />
+                                    {(() => {
+                                        const urlPreview = formData.images[0] || null;
+                                        const filePreview = imageFiles[0] ? URL.createObjectURL(imageFiles[0]) : null;
+                                        const previewSrc = urlPreview || filePreview;
+                                        return previewSrc ? (
+                                            <img
+                                                src={previewSrc}
+                                                alt="Preview"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="flex h-full flex-col items-center justify-center text-gray-300 gap-4">
+                                                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+                                                    <Upload className="h-8 w-8 text-gray-300" />
+                                                </div>
+                                                <p className="text-sm font-medium">Upload an image</p>
                                             </div>
-                                            <p className="text-sm font-medium">Upload an image</p>
-                                        </div>
-                                    )}
+                                        );
+                                    })()}
                                     <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-black/30 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white shadow-lg border border-white/10">
                                         <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                                         Live Preview
