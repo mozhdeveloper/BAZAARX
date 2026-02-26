@@ -37,16 +37,22 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
         />
-        {hasDiscount && !isFlash && (
+        {/* Discount Badge */}
+        {hasDiscount && (
           <div
             title={product.discountBadgeTooltip}
-            className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider"
+            className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm"
           >
-            -{discountPercent}%
+            {discountPercent}% OFF
           </div>
         )}
+
+        {/* Campaign Badge Banner Removed for Grouped Layout */}
         {product.isFreeShipping && (
-          <div className="absolute top-3 right-3 bg-[var(--brand-accent)] text-white px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider">
+          <div 
+            className="absolute top-3 left-3 bg-white/90 text-[var(--brand-accent)] px-2 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider shadow-sm border border-[var(--brand-accent)]/20"
+            style={{ top: hasDiscount ? '42px' : '12px' }}
+          >
             Free Ship
           </div>
         )}
@@ -58,62 +64,64 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
         )}
       </div>
 
-      <div className="p-4">
-        <h3 className="product-title-premium text-sm mb-1 line-clamp-2">
-          {product.name}
-        </h3>
+      <div className="p-4 flex flex-col justify-between flex-1">
+        <div>
+          <h3 className="product-title-premium text-[15px] font-bold mb-1.5 line-clamp-2 text-[#1f2937]">
+            {product.name}
+          </h3>
 
-        <div className="flex items-center mb-3">
-          <div className="flex text-[var(--brand-accent)] text-[10px] mr-1">
-            {[...Array(5)].map((_, i) => (
-              <span
-                key={i}
-                className={
-                  i < Math.floor(product.rating || 5)
-                    ? "fill-current"
-                    : "text-gray-300"
-                }
-              >
-                ★
-              </span>
-            ))}
-          </div>
-          <span className="text-[10px] text-[var(--text-muted)] font-medium">
-            ({product.rating || 5.0})
-          </span>
-        </div>
-
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className={isFlash ? "text-xl font-bold text-[var(--price-flash)]" : "text-xl product-price-premium"}>
-            ₱{product.price.toLocaleString()}
-          </span>
-          {hasDiscount && (
-            <span className="text-xs text-[var(--text-muted)] line-through">
-              ₱{product.originalPrice!.toLocaleString()}
+          <div className="flex items-center mb-4">
+            <div className="flex text-[#F59E0B] text-[11px] mr-1.5">
+              {[...Array(5)].map((_, i) => (
+                <span
+                  key={i}
+                  className={
+                    i < Math.floor(product.rating || 5)
+                      ? "fill-current"
+                      : "text-gray-300"
+                  }
+                >
+                  ★
+                </span>
+              ))}
+            </div>
+            <span className="text-[12px] text-gray-500 font-medium">
+              ({product.rating || 5.0})
             </span>
+          </div>
+
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className={hasDiscount ? "text-[22px] font-black text-[#DC2626] leading-none" : "text-[22px] font-black text-[#D97706] leading-none"}>
+              ₱{product.price.toLocaleString()}
+            </span>
+            {hasDiscount && (
+              <span className="text-[14px] text-gray-400 line-through font-medium leading-none">
+                ₱{product.originalPrice!.toLocaleString()}
+              </span>
+            )}
+          </div>
+
+          {hasDiscount ? (
+            <div className="mb-4">
+              <div className="w-full h-[6px] bg-[#FEE2E2] rounded-full mb-1.5 border border-[#FCA5A5]/30 overflow-hidden">
+                <div
+                  className="h-full bg-[#DC2626] rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 1)) * 100))}%` }}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Flame className="w-4 h-4 text-[#DC2626] fill-[#DC2626]" />
+                <span className="text-[11px] text-[#DC2626] font-bold uppercase tracking-widest flex items-center gap-1">
+                  {(product.sold || 0).toLocaleString()} SOLD
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-4">
+              {(product.sold || 0).toLocaleString()} sold
+            </div>
           )}
         </div>
-
-        {isFlash ? (
-          <div className="mb-4">
-            <div className="w-full h-1.5 bg-red-100 rounded-full mb-1 border border-red-200 overflow-hidden">
-              <div
-                className="h-full bg-red-500 rounded-full"
-                style={{ width: '75%' }}
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <Flame className="w-3 h-3 text-red-600 fill-red-600" />
-              <span className="text-[10px] text-red-600 font-bold uppercase tracking-widest flex items-center gap-1">
-                {(product.sold || 0).toLocaleString()} sold
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest mb-4">
-            {(product.sold || 0).toLocaleString()} sold
-          </div>
-        )}
 
         <div className="pt-4 border-t border-[var(--brand-accent-light)]/50">
           <div className="flex items-center gap-2">

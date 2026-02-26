@@ -64,6 +64,8 @@ import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { productService } from '../src/services/productService';
+import { discountService } from '../src/services/discountService';
+import { ActiveDiscount } from '../src/types/discount';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
@@ -143,6 +145,22 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
     };
     fetchFullProduct();
+  }, [product.id]);
+
+  const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(null);
+
+  useEffect(() => {
+    const loadDiscount = async () => {
+      if (product.id) {
+        try {
+          const discount = await discountService.getActiveProductDiscount(product.id);
+          setActiveCampaignDiscount(discount);
+        } catch (e) {
+          console.error('[ProductDetail] Error fetching discount:', e);
+        }
+      }
+    };
+    loadDiscount();
   }, [product.id]);
 
   // Structured variants from product_variants table
@@ -327,6 +345,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const effectiveReviewTotal = reviewsTotal > 0
     ? reviewsTotal
     : Number((product as any).reviewCount || (product as any).totalReviews || 0);
+  const regularPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price || 0));
+  const pbPrice = (product as any).original_price ?? (product as any).originalPrice;
+  const originalPrice = typeof pbPrice === 'number' ? pbPrice : parseFloat(String(pbPrice || 0));
+  
+  const hasDiscount = !!(originalPrice > 0 && regularPrice > 0 && originalPrice > regularPrice);
+  const discountPercent = hasDiscount
+    ? Math.round(((originalPrice - regularPrice) / originalPrice) * 100)
+    : 0;
+
   const soldCount = Number((product as any).sales_count ?? (product as any).sold ?? 0);
 
   // Wishlist State
@@ -362,7 +389,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const isFavorite = isInWishlist(product.id);
 
   // Constants
-  const originalPrice = (product as any).original_price ?? (product as any).originalPrice ?? null;
   const cartItemCount = useCartStore((state) => state.items.length);
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
@@ -566,10 +592,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     // Build selected variant object for cart/order
     const variantObj = buildSelectedVariant(selectedVariant.option1Value, selectedVariant.option2Value);
 
+    const discountedPrice = discountService.calculateLineDiscount(variantPrice || 0, 1, activeCampaignDiscount).discountedUnitPrice;
+
     if (variantModalAction === 'cart') {
       addItem({
         ...product,
-        price: variantPrice,
+        price: discountedPrice,
         selectedVariant: {
           ...variantObj,
           variantId,
@@ -589,7 +617,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     } else {
        setQuickOrder({
         ...product,
-        price: variantPrice,
+        price: discountedPrice,
         selectedVariant: {
           ...variantObj,
            variantId,
@@ -626,10 +654,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    const discountedPrice = discountService.calculateLineDiscount(product.price || 0, 1, activeCampaignDiscount).discountedUnitPrice;
+
     // Add to cart
     addItem({
       ...product,
-      price: product.price,
+      price: discountedPrice,
       selectedVariant,
       quantity
     });
@@ -662,8 +692,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     // Build variant info
     const selectedVariant = buildSelectedVariant(selectedColor, selectedSize);
 
+    const discountedPrice = discountService.calculateLineDiscount(product.price || 0, 1, activeCampaignDiscount).discountedUnitPrice;
+
     // Set quick order with variant info
-    setQuickOrder({ ...product, selectedVariant }, quantity);
+    setQuickOrder({ ...product, price: discountedPrice, selectedVariant }, quantity);
     navigation.navigate('Checkout', {});
   };
 
@@ -878,10 +910,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <Text style={{ fontSize: 13, color: '#6B7280' }}>
               {effectiveReviewTotal.toLocaleString()} Reviews
             </Text>
-            <Text style={{ fontSize: 13, color: 'rgba(120, 53, 15, 0.4)', marginHorizontal: 8 }}>|</Text>
-            <Text style={{ fontSize: 13, color: '#6B7280' }}>
-              {soldCount.toLocaleString()} Sold
-            </Text>
           </View>
         </View>
 
@@ -911,7 +939,25 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           {/* Price & Heart */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
             <View style={styles.priceRow}>
-              <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
+              {hasDiscount ? (
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Text style={[styles.currentPrice, { color: '#DC2626', fontSize: 28 }]}>
+                      ₱{regularPrice.toLocaleString()}
+                    </Text>
+                    <View style={{ backgroundColor: '#DC2626', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                      <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '900' }}>{discountPercent}% OFF</Text>
+                    </View>
+                  </View>
+                  {originalPrice > 0 && (
+                    <Text style={{ fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through', marginTop: 4 }}>
+                      ₱{originalPrice.toLocaleString()}
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
+              )}
             </View>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 }}>
               <Gift size={24} color="#FB8C00" strokeWidth={1.5} fill={isFavorite ? "#FB8C00" : "transparent"} />

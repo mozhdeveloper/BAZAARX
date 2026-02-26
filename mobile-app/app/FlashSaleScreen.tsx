@@ -13,6 +13,7 @@ import { ArrowLeft, Timer, Zap, Store, BadgeCheck } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProductCard } from '../src/components/ProductCard';
 import { productService } from '../src/services/productService';
+import { discountService } from '../src/services/discountService';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -35,49 +36,46 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
     const [loading, setLoading] = useState(true);
 
     // Countdown timer
-    const [timeLeft, setTimeLeft] = useState({ hours: 2, minutes: 12, seconds: 56 });
+    const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
     useEffect(() => {
         loadProducts();
     }, []);
 
     useEffect(() => {
-        const timer = setInterval(() => {
-            setTimeLeft(prev => {
-                let { hours, minutes, seconds } = prev;
-                seconds--;
-                if (seconds < 0) { seconds = 59; minutes--; }
-                if (minutes < 0) { minutes = 59; hours--; }
-                if (hours < 0) return { hours: 0, minutes: 0, seconds: 0 };
-                return { hours, minutes, seconds };
+        if (groupedProducts.length === 0) return;
+
+        const updateTimer = () => {
+            const allProducts = groupedProducts.flatMap(g => g.products);
+            const now = new Date().getTime();
+            const endTimes = allProducts
+                .map(p => new Date((p as any).campaignEndsAt).getTime())
+                .filter(t => t > now)
+                .sort((a, b) => a - b);
+
+            if (endTimes.length === 0) {
+                setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
+                return;
+            }
+
+            const diff = endTimes[0] - now;
+            setTimeLeft({
+                hours: Math.floor(diff / (1000 * 60 * 60)),
+                minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+                seconds: Math.floor((diff % (1000 * 60)) / 1000)
             });
-        }, 1000);
-        return () => clearInterval(timer);
-    }, []);
+        };
+
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [groupedProducts]);
 
     const loadProducts = async () => {
         try {
-            const data = await productService.getProducts({ isActive: true, approvalStatus: 'approved' });
-            // Process and group products
-            const productsWithSellers = (data || []).map((row: any) => {
-                const images = row.images?.map((img: any) => typeof img === 'string' ? img : img.image_url) || [];
-                const primaryImage = images[0] || row.primary_image || '';
-                return {
-                    id: row.id,
-                    name: row.name,
-                    price: row.price,
-                    originalPrice: row.original_price,
-                    image: primaryImage,
-                    category: row.category?.name || 'General',
-                    seller: row.seller?.store_name || 'Generic Store',
-                    sellerId: row.seller_id || row.seller?.id,
-                    sellerVerified: !!row.seller?.verified_at,
-                    stock: row.stock || 10,
-                    sold: row.sold || 0,
-                } as any as Product;
-            });
-
-            const groups = productsWithSellers.reduce((acc, product) => {
+            const data = await discountService.getFlashSaleProducts();
+            
+            const groups = (data || []).reduce((acc: any, product: any) => {
                 const sName = product.seller || 'Unknown Seller';
                 if (!acc[sName]) {
                     acc[sName] = {
@@ -91,7 +89,7 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                 return acc;
             }, {} as Record<string, SellerGroup>);
             
-            setGroupedProducts(Object.values(groups).filter(g => g.products.length > 0));
+            setGroupedProducts(Object.values(groups).filter((g: any) => g.products.length > 0) as SellerGroup[]);
 
         } catch (err) {
             console.error('Failed to load flash sale products:', err);

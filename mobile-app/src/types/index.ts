@@ -84,6 +84,10 @@ export interface Product {
     option2Value?: string;
   } | null;
   quantity?: number;
+  // Flash sale fields
+  campaignBadge?: string;
+  campaignBadgeColor?: string;
+  campaignEndsAt?: string | Date;
 }
 
 export interface ProductVariant {

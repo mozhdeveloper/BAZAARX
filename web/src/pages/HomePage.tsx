@@ -40,6 +40,7 @@ const ConfidenceStats = lazy(() => import("../components/sections/ConfidenceStat
 import { bestSellerProducts, newArrivals } from "../data/products";
 import { featuredStores } from "../data/stores";
 import { productService } from "../services/productService";
+import { discountService } from "../services/discountService";
 
 // Loading fallback component
 const SectionLoader = () => (
@@ -65,78 +66,48 @@ const buyerNavItems = [
 
 const HomePage: React.FC = () => {
   const [flashSaleProducts, setFlashSaleProducts] = React.useState<any[]>([]);
+  const [flashLoading, setFlashLoading] = React.useState(true);
+  const [flashEndsAt, setFlashEndsAt] = React.useState<string | null>(null);
+  const [countdown, setCountdown] = React.useState('');
 
   React.useEffect(() => {
     const loadFlashSales = async () => {
       try {
-        const data = await productService.getProducts({ isActive: true, approvalStatus: 'approved' });
-        const filteredData = (data || []).filter((row: any) => row.original_price && row.original_price > row.price);
-
-        const validProducts = filteredData.map((row: any) => {
-          const images = row.images?.map((img: any) => typeof img === 'string' ? img : img.image_url) || [];
-          const primaryImage = images[0] || row.primary_image || '';
-
-          return {
-            id: row.id,
-            name: row.name,
-            price: row.price,
-            originalPrice: row.original_price,
-            image: primaryImage,
-            images: images,
-            seller: row.seller?.store_name || 'Generic Store',
-            sellerId: row.seller_id || row.seller?.id,
-            sellerVerified: !!row.seller?.verified_at,
-            category: row.category?.name || 'General',
-            sold: row.sold || 0,
-            stock: row.stock || 10
-          } as any;
-        });
-
-        if (validProducts.length === 0 && data && data.length > 0) {
-          // Fallback: Use real products but add a dummy original price
-          const validRealProducts = data.slice(0, 4).map((row: any) => {
-            const images = row.images?.map((img: any) => typeof img === 'string' ? img : img.image_url) || [];
-            const primaryImage = images[0] || row.primary_image || '';
-
-            return {
-              id: row.id,
-              name: row.name,
-              price: row.price,
-              originalPrice: row.price * 1.5,
-              image: primaryImage,
-              images: images,
-              seller: row.seller?.store_name || 'Generic Store',
-              sellerId: row.seller_id || row.seller?.id,
-              sellerVerified: !!row.seller?.verified_at,
-              category: row.category?.name || 'General',
-              sold: row.sold || 0,
-              stock: row.stock || 10
-            } as any;
-          });
-          setFlashSaleProducts(validRealProducts);
-        } else if (validProducts.length === 0) {
-          // Ultimate fallback
-          const dummyFlashSales = bestSellerProducts.slice(0, 4).map(p => ({
-            ...p,
-            id: `flash-${p.id}`,
-            originalPrice: p.price * 1.5
-          }));
-          setFlashSaleProducts(dummyFlashSales);
-        } else {
-          setFlashSaleProducts(validProducts);
+        const data = await discountService.getFlashSaleProducts();
+        if (data && data.length > 0) {
+          setFlashSaleProducts(data);
+          // Find the earliest ending campaign
+          const earliest = data
+            .map((p: any) => p.campaignEndsAt)
+            .filter(Boolean)
+            .sort()
+            [0];
+          if (earliest) setFlashEndsAt(earliest);
         }
       } catch (e) {
         console.error('Failed to load flash deals', e);
-        const dummyFlashSales = bestSellerProducts.slice(0, 4).map(p => ({
-          ...p,
-          id: `flash-${p.id}`,
-          originalPrice: p.price * 1.5
-        }));
-        setFlashSaleProducts(dummyFlashSales);
+      } finally {
+        setFlashLoading(false);
       }
     };
     loadFlashSales();
   }, []);
+
+  // Countdown timer
+  React.useEffect(() => {
+    if (!flashEndsAt) return;
+    const tick = () => {
+      const diff = new Date(flashEndsAt).getTime() - Date.now();
+      if (diff <= 0) { setCountdown('Ended'); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [flashEndsAt]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--brand-wash)' }}>
@@ -199,19 +170,31 @@ const HomePage: React.FC = () => {
         </div>
       </Suspense>
 
-      <Suspense fallback={<SectionLoader />}>
-        {/* Flash Sale Rail */}
-        <div id="bazaar-flash-sales">
-          <ProductRail
-            title="Flash Sales"
-            subtitle="Limited time offers from our trusted sellers!"
-            products={flashSaleProducts.slice(0, 4)} // Uses real flash sale data
-            actionLabel="See More"
-            actionLink="/flash-sales"
-            isFlash={true}
-          />
-        </div>
-      </Suspense>
+      {/* Flash Sale Rail - only shown when there are active campaigns */}
+      {!flashLoading && flashSaleProducts.length > 0 && (
+        <Suspense fallback={<SectionLoader />}>
+          <div id="bazaar-flash-sales">
+            {/* Countdown Banner */}
+            {countdown && countdown !== 'Ended' && (
+              <div style={{ background: 'linear-gradient(90deg,#b91c1c,#ef4444)', color: '#fff' }}
+                className="w-full flex items-center justify-center gap-4 py-3 text-sm font-bold tracking-wide">
+                <span>⚡ FLASH SALE ENDS IN</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: '1.1rem', letterSpacing: '0.1em' }}>
+                  {countdown}
+                </span>
+              </div>
+            )}
+            <ProductRail
+              title="Flash Sales"
+              subtitle="Limited time offers from our trusted sellers!"
+              products={flashSaleProducts.slice(0, 4)}
+              actionLabel="See All Flash Sales"
+              actionLink="/flash-sales"
+              isFlash={true}
+            />
+          </div>
+        </Suspense>
+      )}
 
       <Suspense fallback={<SectionLoader />}>
         {/* Best Sellers Rail */}
