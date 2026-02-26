@@ -1169,15 +1169,49 @@ export function AddProduct() {
 
             // Upload any file-based images and merge with URL images
             const filesToUpload = imageFiles.filter((f): f is File => f !== null);
+            let uploadedUrls: string[] = [];
             if (filesToUpload.length > 0 && seller?.id) {
-                const tempProductId = crypto.randomUUID();
-                const uploadedUrls = await uploadProductImages(
-                    filesToUpload,
-                    seller.id,
-                    tempProductId,
-                );
-                productData.images = [...productData.images, ...uploadedUrls];
+                try {
+                    const tempProductId = crypto.randomUUID();
+                    uploadedUrls = await uploadProductImages(
+                        filesToUpload,
+                        seller.id,
+                        tempProductId,
+                    );
+                    if (uploadedUrls.length === 0) {
+                        throw new Error("Image upload failed. Please check your storage permissions or try using URL mode instead.");
+                    }
+                } catch (uploadError) {
+                    console.error("Image upload failed:", uploadError);
+                    toast({
+                        title: "Upload Failed",
+                        description: uploadError instanceof Error 
+                            ? uploadError.message 
+                            : "Could not upload images. Please try using URL mode or contact support.",
+                        variant: "destructive",
+                    });
+                    setIsSubmitting(false);
+                    return;
+                }
             }
+
+            // Final image array: existing URLs + newly uploaded URLs
+            const allImages = [
+                ...formData.images.filter((img) => img.trim() !== ""),
+                ...uploadedUrls,
+            ];
+
+            if (allImages.length === 0) {
+                toast({
+                    title: "Images Required",
+                    description: "Please add at least one product image (URL or file).",
+                    variant: "destructive",
+                });
+                setIsSubmitting(false);
+                return;
+            }
+
+            productData.images = allImages;
 
             await addProduct(productData);
 
