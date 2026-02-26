@@ -232,7 +232,14 @@ export default function HomeScreen({ navigation }: Props) {
     const loadFlashSales = async () => {
       try {
         const data = await discountService.getFlashSaleProducts();
-        setFlashSaleProducts(data);
+        // Deduplicate by product ID — a product can belong to multiple campaigns
+        const seen = new Set<string>();
+        const unique = (data || []).filter((p: any) => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
+        setFlashSaleProducts(unique);
       } catch (e) {
         console.error('Error loading flash sales:', e);
       }
@@ -587,14 +594,14 @@ export default function HomeScreen({ navigation }: Props) {
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, gap: 12 }}
               >
                 {flashSaleProducts.length > 0 ? (
-                  flashSaleProducts.slice(0, 10).map((product) => (
-                    <View key={product.id} style={{ width: 150 }}>
+                  flashSaleProducts.slice(0, 10).map((product, i) => (
+                    <View key={`flash-${product.id}-${i}`} style={{ width: 150 }}>
                       <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
                     </View>
                   ))
                 ) : (
-                  popularProducts.slice(0, 5).map((product) => (
-                    <View key={product.id} style={{ width: 150 }}>
+                  popularProducts.slice(0, 5).map((product, i) => (
+                    <View key={`popular-fallback-${product.id}-${i}`} style={{ width: 150 }}>
                       <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
                     </View>
                   ))
@@ -608,8 +615,8 @@ export default function HomeScreen({ navigation }: Props) {
                 <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>View All</Text></Pressable>
               </View>
               <View style={styles.gridBody}>
-                {popularProducts.map((product) => (
-                  <View key={product.id} style={styles.itemBoxContainerVertical}>
+                {popularProducts.map((product, i) => (
+                  <View key={`pop-${product.id}-${i}`} style={styles.itemBoxContainerVertical}>
                     <ProductCard product={product} onPress={() => handleProductPress(product)} />
                   </View>
                 ))}
