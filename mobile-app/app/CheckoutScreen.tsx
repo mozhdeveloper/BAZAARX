@@ -23,26 +23,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
 import { processCheckout } from '@/services/checkoutService';
 import { addressService } from '@/services/addressService';
+import { voucherService, calculateVoucherDiscount, getVoucherErrorMessage } from '@/services/voucherService';
 import { useCartStore } from '../src/stores/cartStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
 import LocationModal from '../src/components/LocationModal';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
-import type { CartItem, ShippingAddress, Order } from '../src/types';
+import type { CartItem, ShippingAddress, Order, Voucher } from '../src/types';
 import { safeImageUri } from '../src/utils/imageUtils';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 
 type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
-// Dummy voucher codes
-const VOUCHERS = {
-  'WELCOME10': { type: 'percentage', value: 10, description: '10% off' },
-  'SAVE50': { type: 'fixed', value: 50, description: '₱50 off' },
-  'FREESHIP': { type: 'shipping', value: 0, description: 'Free shipping' },
-  'NEWYEAR25': { type: 'percentage', value: 25, description: '25% off New Year' },
-  'FLASH100': { type: 'fixed', value: 100, description: '₱100 flash discount' },
-} as const;
 
 interface Address {
   id: string;
@@ -199,7 +192,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   // Payments and Vouchers
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo'>('cod');
   const [voucherCode, setVoucherCode] = useState('');
-  const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
+  const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
 
 
@@ -228,14 +221,16 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     let discount = 0;
 
     // Apply voucher discount
-    if (appliedVoucher && VOUCHERS[appliedVoucher]) {
-      const voucher = VOUCHERS[appliedVoucher];
-      if (voucher.type === 'percentage') {
-        discount = Math.round(subtotal * (voucher.value / 100));
-      } else if (voucher.type === 'fixed') {
-        discount = voucher.value;
-      } else if (voucher.type === 'shipping') {
+    if (appliedVoucher) {
+      const originalShippingFee = subtotal > 500 ? 0 : 50;
+      
+      if (appliedVoucher.type === 'percentage') {
+        discount = calculateVoucherDiscount(appliedVoucher, subtotal);
+      } else if (appliedVoucher.type === 'fixed') {
+        discount = calculateVoucherDiscount(appliedVoucher, subtotal);
+      } else if (appliedVoucher.type === 'shipping') {
         shippingFee = 0;
+        discount = originalShippingFee;
       }
     }
 
@@ -248,15 +243,32 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     regions().then(res => setRegionList(res));
   }, []);
 
-  const handleApplyVoucher = useCallback(() => {
-    const code = voucherCode.trim().toUpperCase();
-    if (VOUCHERS[code as keyof typeof VOUCHERS]) {
-      setAppliedVoucher(code as keyof typeof VOUCHERS);
-      Alert.alert('Success', `Voucher "${code}" applied successfully!`);
-    } else {
-      Alert.alert('Invalid Voucher', 'This voucher code is not valid.');
+  const handleApplyVoucher = useCallback(async () => {
+    if (!voucherCode.trim()) {
+      Alert.alert('Error', 'Please enter a voucher code');
+      return;
     }
-  }, [voucherCode]);
+
+    const code = voucherCode.trim().toUpperCase();
+    
+    try {
+      const result = await voucherService.validateVoucherDetailed(code, checkoutSubtotal, user?.id);
+      
+      if (result.errorCode) {
+        const errorMessage = getVoucherErrorMessage(result.errorCode);
+        Alert.alert('Invalid Voucher', errorMessage);
+        return;
+      }
+
+      if (result.voucher) {
+        setAppliedVoucher(result.voucher);
+        Alert.alert('Success', `Voucher "${code}" applied successfully!`);
+      }
+    } catch (error) {
+      console.error('Voucher validation error:', error);
+      Alert.alert('Error', 'Failed to validate voucher. Please try again.');
+    }
+  }, [voucherCode, checkoutSubtotal, user?.id]);
 
   const handleRemoveVoucher = useCallback(() => {
     setAppliedVoucher(null);
@@ -1225,6 +1237,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         earnedBazcoins,
         shippingFee,
         discount,
+        voucherId: appliedVoucher?.id || null,
+        discountAmount: discount,
         email: user.email
       };
 
@@ -1268,6 +1282,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         items: checkoutItems,
         total,
         shippingFee,
+        discount: discount > 0 ? discount : undefined,
+        voucherInfo: appliedVoucher ? {
+          code: appliedVoucher.code,
+          type: appliedVoucher.type,
+          discountAmount: discount
+        } : undefined,
         status: 'pending',
         isPaid: false,
         scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
@@ -1596,9 +1616,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <View style={styles.appliedVoucherContainer}>
                 <View style={styles.appliedVoucherBadge}>
                   <Tag size={16} color={COLORS.primary} />
-                  <Text style={styles.appliedVoucherCode}>{appliedVoucher}</Text>
+                  <Text style={styles.appliedVoucherCode}>{appliedVoucher.code}</Text>
                   <Text style={styles.appliedVoucherDesc}>
-                    {VOUCHERS[appliedVoucher].description}
+                    {appliedVoucher.type === 'percentage' 
+                      ? `${appliedVoucher.value}% off` 
+                      : appliedVoucher.type === 'fixed' 
+                        ? `₱${appliedVoucher.value} off`
+                        : 'Free shipping'}
                   </Text>
                 </View>
                 <Pressable onPress={handleRemoveVoucher} style={styles.removeVoucherButton}>
@@ -1627,7 +1651,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
             {!appliedVoucher && (
               <View style={styles.voucherHintContainer}>
-                <Text style={styles.voucherHint}>Try: WELCOME10, SAVE50, FREESHIP</Text>
+                <Text style={styles.voucherHint}>Enter a valid voucher code to avail discounts</Text>
               </View>
             )}
           </View>
