@@ -1,6 +1,7 @@
+import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload, Link as LinkIcon, ImagePlus, X } from "lucide-react";
 
 interface GeneralInfoTabProps {
     formData: {
@@ -25,6 +26,109 @@ interface GeneralInfoTabProps {
     addImageField: () => void;
     removeImageField: (index: number) => void;
     getTotalVariantStock: () => number;
+    // File upload props
+    imageFiles: (File | null)[];
+    imageFileErrors: (string | null)[];
+    onFileSelect: (index: number, file: File | null) => void;
+    addImageFileSlot: () => void;
+    removeImageFileSlot: (index: number) => void;
+    setImageFileError: (index: number, error: string | null) => void;
+}
+
+function FileSlot({
+    index,
+    file,
+    error,
+    onFileSelect,
+    onRemove,
+    showRemove,
+}: {
+    index: number;
+    file: File | null;
+    error: string | null;
+    onFileSelect: (index: number, file: File | null) => void;
+    onRemove: () => void;
+    showRemove: boolean;
+}) {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const preview = file ? URL.createObjectURL(file) : null;
+
+    return (
+        <div className="flex gap-3 items-start">
+            <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className={cn(
+                    "relative h-20 w-20 flex-shrink-0 rounded-xl border-2 border-dashed overflow-hidden flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500",
+                    error
+                        ? "border-red-400 bg-red-50"
+                        : file
+                        ? "border-orange-300 bg-orange-50"
+                        : "border-gray-200 bg-gray-50 hover:border-orange-300 hover:bg-orange-50/50",
+                )}
+                title={file ? "Replace image" : "Select image"}
+            >
+                {preview ? (
+                    <img
+                        src={preview}
+                        alt={`Upload ${index + 1}`}
+                        className="h-full w-full object-cover"
+                    />
+                ) : (
+                    <ImagePlus className="h-6 w-6 text-gray-300" />
+                )}
+                {file && (
+                    <div className="absolute inset-0 bg-black/0 hover:bg-black/20 flex items-center justify-center transition-colors">
+                        <Upload className="h-4 w-4 text-white opacity-0 hover:opacity-100 transition-opacity" />
+                    </div>
+                )}
+            </button>
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    onFileSelect(index, f);
+                    // Reset so the same file can be re-selected
+                    e.target.value = "";
+                }}
+            />
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-700 truncate">
+                    {file ? file.name : index === 0 ? "Main image" : `Image ${index + 1}`}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                    {file
+                        ? `${(file.size / 1024).toFixed(0)} KB`
+                        : "JPEG, PNG or WebP · max 5 MB"}
+                </p>
+                {error && (
+                    <p className="text-xs text-red-600 mt-1">{error}</p>
+                )}
+                {!file && (
+                    <button
+                        type="button"
+                        onClick={() => inputRef.current?.click()}
+                        className="mt-1.5 text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors"
+                    >
+                        Choose file
+                    </button>
+                )}
+            </div>
+            {showRemove && (
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onRemove}
+                    className="px-3 py-2 flex-shrink-0 self-start"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            )}
+        </div>
+    );
 }
 
 export function GeneralInfoTab({
@@ -38,7 +142,15 @@ export function GeneralInfoTab({
     addImageField,
     removeImageField,
     getTotalVariantStock,
+    imageFiles,
+    imageFileErrors,
+    onFileSelect,
+    addImageFileSlot,
+    removeImageFileSlot,
+    setImageFileError: _setImageFileError,
 }: GeneralInfoTabProps) {
+    const [imageUploadMode, setImageUploadMode] = useState<"url" | "upload">("url");
+
     return (
         <div className="space-y-8">
             {/* Product Name */}
@@ -224,61 +336,118 @@ export function GeneralInfoTab({
             {/* Images */}
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <label className="block text-sm font-semibold text-gray-800 mb-1">
+                    <label className="block text-sm font-semibold text-gray-800">
                         Product Images *
                     </label>
-                    <span className="text-xs text-gray-500">
-                        Use high-res, clean backgrounds
-                    </span>
+                    {/* Upload / URL toggle pill */}
+                    <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setImageUploadMode("url")}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                                imageUploadMode === "url"
+                                    ? "bg-white text-orange-600 shadow-sm"
+                                    : "text-gray-500 hover:text-gray-700",
+                            )}
+                        >
+                            <LinkIcon className="h-3 w-3" />
+                            URL
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setImageUploadMode("upload")}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                                imageUploadMode === "upload"
+                                    ? "bg-white text-orange-600 shadow-sm"
+                                    : "text-gray-500 hover:text-gray-700",
+                            )}
+                        >
+                            <Upload className="h-3 w-3" />
+                            Upload
+                        </button>
+                    </div>
                 </div>
-                <div className="space-y-2">
-                    {formData.images.map((image, index) => (
-                        <div key={index} className="flex gap-3 items-center">
-                            <div className="h-12 w-12 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center text-xs text-gray-400">
-                                {image ? (
-                                    <img
-                                        src={image}
-                                        alt={`Preview ${index + 1}`}
-                                        className="h-full w-full object-cover"
-                                    />
-                                ) : (
-                                    <span>{index === 0 ? "Main" : "Alt"}</span>
+
+                {/* URL mode */}
+                {imageUploadMode === "url" && (
+                    <div className="space-y-2">
+                        {formData.images.map((image, index) => (
+                            <div key={index} className="flex gap-3 items-center">
+                                <div className="h-12 w-12 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center text-xs text-gray-400">
+                                    {image ? (
+                                        <img
+                                            src={image}
+                                            alt={`Preview ${index + 1}`}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    ) : (
+                                        <span>{index === 0 ? "Main" : "Alt"}</span>
+                                    )}
+                                </div>
+                                <input
+                                    type="url"
+                                    value={image}
+                                    onChange={(e) =>
+                                        handleImageChange(index, e.target.value)
+                                    }
+                                    className="flex-1 rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                    placeholder="https://..."
+                                    required={index === 0}
+                                />
+                                {formData.images.length > 1 && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => removeImageField(index)}
+                                        className="px-3 py-2"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
                                 )}
                             </div>
-                            <input
-                                type="url"
-                                value={image}
-                                onChange={(e) =>
-                                    handleImageChange(index, e.target.value)
-                                }
-                                className="flex-1 rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                placeholder="https://..."
-                                required={index === 0}
+                        ))}
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={addImageField}
+                            className="w-full border-dashed"
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Another Image
+                        </Button>
+                    </div>
+                )}
+
+                {/* Upload mode */}
+                {imageUploadMode === "upload" && (
+                    <div className="space-y-3">
+                        {imageFiles.map((file, index) => (
+                            <FileSlot
+                                key={index}
+                                index={index}
+                                file={file}
+                                error={imageFileErrors[index] ?? null}
+                                onFileSelect={onFileSelect}
+                                onRemove={() => removeImageFileSlot(index)}
+                                showRemove={imageFiles.length > 1}
                             />
-                            {formData.images.length > 1 && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => removeImageField(index)}
-                                    className="px-3 py-2"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            )}
-                        </div>
-                    ))}
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={addImageField}
-                        className="w-full border-dashed"
-                    >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Another Image
-                    </Button>
-                </div>
+                        ))}
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={addImageFileSlot}
+                            className="w-full border-dashed"
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Another Image
+                        </Button>
+                    </div>
+                )}
+
                 <p className="text-xs text-gray-500">
-                    The first image is the thumbnail. Aim for 1600x1200, neutral
+                    The first image is the thumbnail. Aim for 1600×1200, neutral
                     backgrounds.
                 </p>
                 {errors.images && (

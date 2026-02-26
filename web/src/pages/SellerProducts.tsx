@@ -58,6 +58,7 @@ import { productService } from "@/services/productService";
 import { ProductFormTabs } from "@/components/seller/products/ProductFormTabs";
 import { GeneralInfoTab } from "@/components/seller/products/GeneralInfoTab";
 import { AttributesTab } from "@/components/seller/products/AttributesTab";
+import { uploadProductImages, validateImageFile, compressImage } from "@/utils/storage";
 
 
 
@@ -943,6 +944,54 @@ export function AddProduct() {
         return variantConfigs.reduce((sum, v) => sum + (v.stock || 0), 0);
     };
 
+    // Image file upload state (for Upload mode in GeneralInfoTab)
+    const [imageFiles, setImageFiles] = useState<(File | null)[]>([null]);
+    const [imageFileErrors, setImageFileErrors] = useState<(string | null)[]>([null]);
+
+    const handleFileSelect = async (index: number, file: File | null) => {
+        if (!file) {
+            const updated = [...imageFiles];
+            updated[index] = null;
+            setImageFiles(updated);
+            const updatedErrors = [...imageFileErrors];
+            updatedErrors[index] = null;
+            setImageFileErrors(updatedErrors);
+            return;
+        }
+        const validation = validateImageFile(file);
+        if (!validation.valid) {
+            const updatedErrors = [...imageFileErrors];
+            updatedErrors[index] = validation.error ?? "Invalid file";
+            setImageFileErrors(updatedErrors);
+            return;
+        }
+        const compressed = await compressImage(file);
+        const updated = [...imageFiles];
+        updated[index] = compressed;
+        setImageFiles(updated);
+        const updatedErrors = [...imageFileErrors];
+        updatedErrors[index] = null;
+        setImageFileErrors(updatedErrors);
+    };
+
+    const addImageFileSlot = () => {
+        setImageFiles((prev) => [...prev, null]);
+        setImageFileErrors((prev) => [...prev, null]);
+    };
+
+    const removeImageFileSlot = (index: number) => {
+        setImageFiles((prev) => prev.filter((_, i) => i !== index));
+        setImageFileErrors((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const setImageFileError = (index: number, error: string | null) => {
+        setImageFileErrors((prev) => {
+            const updated = [...prev];
+            updated[index] = error;
+            return updated;
+        });
+    };
+
     // Categories now fetched from database via useEffect above
 
     const handleChange = (
@@ -1050,7 +1099,8 @@ export function AddProduct() {
             newErrors.category = "Please select a category";
         }
         const validImages = formData.images.filter((img) => img.trim() !== "");
-        if (validImages.length === 0) {
+        const validFiles = imageFiles.filter((f): f is File => f !== null);
+        if (validImages.length === 0 && validFiles.length === 0) {
             newErrors.images = "At least one product image is required";
         }
 
@@ -1116,6 +1166,18 @@ export function AddProduct() {
                 // Pass variant configurations for database creation
                 variants: variantsForSubmit,
             };
+
+            // Upload any file-based images and merge with URL images
+            const filesToUpload = imageFiles.filter((f): f is File => f !== null);
+            if (filesToUpload.length > 0 && seller?.id) {
+                const tempProductId = crypto.randomUUID();
+                const uploadedUrls = await uploadProductImages(
+                    filesToUpload,
+                    seller.id,
+                    tempProductId,
+                );
+                productData.images = [...productData.images, ...uploadedUrls];
+            }
 
             await addProduct(productData);
 
@@ -1243,8 +1305,8 @@ export function AddProduct() {
                                     Listing Checklist
                                 </h4>
                                 <ul className="space-y-3">
-                                    <li className={cn("flex items-center gap-3 text-sm font-medium transition-colors", formData.images.filter(i => i).length >= 1 ? "text-green-600" : "text-gray-400")}>
-                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", formData.images.filter(i => i).length >= 1 ? "bg-green-100 border-green-200 text-green-600" : "border-gray-200 bg-gray-50")}>
+                                    <li className={cn("flex items-center gap-3 text-sm font-medium transition-colors", (formData.images.filter(i => i).length >= 1 || imageFiles.some(f => f !== null)) ? "text-green-600" : "text-gray-400")}>
+                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", (formData.images.filter(i => i).length >= 1 || imageFiles.some(f => f !== null)) ? "bg-green-100 border-green-200 text-green-600" : "border-gray-200 bg-gray-50")}>
                                             <Check className="w-3 h-3" />
                                         </div>
                                         Add at least 1 image
@@ -1304,6 +1366,12 @@ export function AddProduct() {
                                     addImageField={addImageField}
                                     removeImageField={removeImageField}
                                     getTotalVariantStock={getTotalVariantStock}
+                                    imageFiles={imageFiles}
+                                    imageFileErrors={imageFileErrors}
+                                    onFileSelect={handleFileSelect}
+                                    addImageFileSlot={addImageFileSlot}
+                                    removeImageFileSlot={removeImageFileSlot}
+                                    setImageFileError={setImageFileError}
                                 />
                             )}
 
