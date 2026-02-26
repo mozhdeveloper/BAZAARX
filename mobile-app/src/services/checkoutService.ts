@@ -25,6 +25,8 @@ export interface CheckoutPayload {
     earnedBazcoins: number;
     shippingFee: number;
     discount: number;
+    voucherId?: string | null;
+    discountAmount?: number;
     email: string;
 }
 
@@ -66,6 +68,8 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         earnedBazcoins,
         shippingFee,
         discount,
+        voucherId,
+        discountAmount,
         email
     } = payload;
 
@@ -452,6 +456,25 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 });
 
             if (paymentError) throw paymentError;
+
+            // Record voucher usage if voucher was applied
+            if (voucherId && discountAmount && discountAmount > 0) {
+                const { error: voucherError } = await supabase
+                    .from('order_vouchers')
+                    .insert({
+                        voucher_id: voucherId,
+                        buyer_id: userId,
+                        order_id: orderData.id,
+                        discount_amount: discountAmount,
+                        created_at: new Date().toISOString()
+                    });
+
+                if (voucherError) {
+                    console.error('[Checkout] Failed to record voucher usage:', voucherError);
+                } else {
+                    console.log('[Checkout] ✅ Voucher usage recorded:', voucherId, 'discount:', discountAmount);
+                }
+            }
 
             // Update stock in product_variants table (not products table)
             for (const item of sellerItems) {
