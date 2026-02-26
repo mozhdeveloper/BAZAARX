@@ -594,13 +594,8 @@ export default function HomeScreen({ navigation }: Props) {
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, gap: 12 }}
               >
                 {flashSaleProducts.length > 0 ? (
-<<<<<<< Updated upstream
-                  flashSaleProducts.slice(0, 10).map((product, i) => (
-                    <View key={`flash-${product.id}-${i}`} style={{ width: 150 }}>
-=======
                   Array.from(new Map(flashSaleProducts.slice(0, 10).map(p => [p.id, p])).values()).map((product) => (
                     <View key={product.id} style={{ width: 150 }}>
->>>>>>> Stashed changes
                       <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
                     </View>
                   ))
