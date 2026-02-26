@@ -844,26 +844,9 @@ export default function ShopPage() {
                             )}
                           </div>
                           
-                          {product.originalPrice ? (
-                            <div className="mb-2">
-                              <div className="w-full h-[6px] bg-[#FEE2E2] rounded-full mb-1.5 border border-[#FCA5A5]/30 overflow-hidden">
-                                <div
-                                  className="h-full bg-[#DC2626] rounded-full"
-                                  style={{ width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 1)) * 100))}%` }}
-                                />
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <Flame className="w-3.5 h-3.5 text-[#DC2626] fill-[#DC2626]" />
-                                <span className="text-[11px] text-[#DC2626] font-bold uppercase tracking-widest flex items-center gap-1">
-                                  {(product.sold || 0).toLocaleString()} SOLD
-                                </span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2 mt-1">
-                              {(product.sold || 0).toLocaleString()} sold
-                            </div>
-                          )}
+                          <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2 mt-1">
+                            {(product.sold || 0).toLocaleString()} sold
+                          </div>
                         </div>
 
                         <div className="mt-1.5 text-[11px] text-[var(--text-muted)] font-medium min-h-[2rem] flex items-center">
