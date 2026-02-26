@@ -6,6 +6,8 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useImageUpload } from './hooks/use-image-upload';
 import { cn } from '@/lib/utils';
+import { productRequestService } from '@/services/productRequestService';
+import { supabase } from '@/lib/supabase';
 
 interface ProductRequestModalProps {
   isOpen: boolean;
@@ -45,13 +47,38 @@ export default function ProductRequestModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.productName.trim() || !formData.description.trim()) return;
+
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Get current user info for attribution
+      let requestedByName = 'Anonymous Buyer';
+      let requestedById: string | undefined;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        requestedById = session.user.id;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', session.user.id)
+          .single();
+        if (profile) {
+          requestedByName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Buyer';
+        }
+      }
+
+      await productRequestService.addRequest({
+        productName: formData.productName.trim(),
+        description: formData.description.trim(),
+        category: 'General',
+        requestedByName,
+        requestedById,
+      });
+
       setIsSubmitting(false);
       setIsSuccess(true);
-      
+
       // Reset and close after 2 seconds
       setTimeout(() => {
         setIsSuccess(false);
@@ -60,10 +87,14 @@ export default function ProductRequestModal({
           description: '',
           imageUrl: ''
         });
-        handleRemove(); // Clear uploaded image
+        handleRemove();
         onClose();
       }, 2000);
-    }, 1500);
+    } catch (error: any) {
+      console.error('[ProductRequest] Error submitting:', error);
+      setIsSubmitting(false);
+      alert('Failed to submit product request. Please try again.');
+    }
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {

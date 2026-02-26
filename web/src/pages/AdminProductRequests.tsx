@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { productRequestService, ProductRequest } from '@/services/productRequestService';
 import {
   Search,
   TrendingUp,
@@ -19,114 +20,35 @@ import {
   Eye
 } from 'lucide-react';
 
-interface ProductRequest {
-  id: string;
-  productName: string;
-  description: string;
-  category: string;
-  requestedBy: string;
-  requestDate: Date;
-  votes: number;
-  comments: number;
-  status: 'pending' | 'approved' | 'rejected' | 'in_progress';
-  priority: 'low' | 'medium' | 'high';
-  estimatedDemand: number;
-  adminNotes?: string;
-}
+// Re-export the interface type for local usage
+type ProductRequestItem = ProductRequest;
 
 const AdminProductRequests: React.FC = () => {
   const { isAuthenticated } = useAdminAuth();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'in_progress'>('all');
-  const [selectedRequest, setSelectedRequest] = useState<ProductRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<ProductRequestItem | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock product requests data
-  const [requests, setRequests] = useState<ProductRequest[]>([
-    {
-      id: 'req-1',
-      productName: 'Organic Rice from Ifugao',
-      description: 'Looking for authentic organic rice directly from Ifugao rice terraces. Willing to pay premium for quality.',
-      category: 'Food & Beverages',
-      requestedBy: 'Maria Santos',
-      requestDate: new Date('2024-03-10'),
-      votes: 245,
-      comments: 34,
-      status: 'pending',
-      priority: 'high',
-      estimatedDemand: 1000
-    },
-    {
-      id: 'req-2',
-      productName: 'Handmade Pottery from Vigan',
-      description: 'Traditional Vigan pottery items - jars, pots, and decorative pieces.',
-      category: 'Handicrafts',
-      requestedBy: 'Juan Dela Cruz',
-      requestDate: new Date('2024-03-08'),
-      votes: 189,
-      comments: 23,
-      status: 'approved',
-      priority: 'medium',
-      estimatedDemand: 500,
-      adminNotes: 'Connected with 3 verified Vigan pottery sellers. Expected listing in 2 weeks.'
-    },
-    {
-      id: 'req-3',
-      productName: 'Fresh Mangosteen',
-      description: 'Looking for fresh mangosteen during peak season. Bulk orders available.',
-      category: 'Fruits',
-      requestedBy: 'Carmen Reyes',
-      requestDate: new Date('2024-03-05'),
-      votes: 156,
-      comments: 18,
-      status: 'in_progress',
-      priority: 'high',
-      estimatedDemand: 2000,
-      adminNotes: 'Coordinating with Davao fruit sellers. ETA 1 week.'
-    },
-    {
-      id: 'req-4',
-      productName: 'Baguio Vegetables Bundle',
-      description: 'Mixed vegetables from Baguio - lettuce, carrots, tomatoes, etc.',
-      category: 'Vegetables',
-      requestedBy: 'Roberto Cruz',
-      requestDate: new Date('2024-03-01'),
-      votes: 312,
-      comments: 45,
-      status: 'approved',
-      priority: 'high',
-      estimatedDemand: 1500,
-      adminNotes: 'Multiple Baguio sellers onboarded. Product live on marketplace.'
-    },
-    {
-      id: 'req-5',
-      productName: 'Imported Luxury Watches',
-      description: 'Looking for authentic Rolex and Omega watches',
-      category: 'Accessories',
-      requestedBy: 'Suspicious User',
-      requestDate: new Date('2024-02-28'),
-      votes: 12,
-      comments: 3,
-      status: 'rejected',
-      priority: 'low',
-      estimatedDemand: 10,
-      adminNotes: 'Request rejected - high risk of counterfeit goods. Does not align with marketplace focus.'
-    },
-    {
-      id: 'req-6',
-      productName: 'Mindanao Coffee Beans',
-      description: 'Premium coffee beans from Mindanao. Looking for arabica and robusta varieties.',
-      category: 'Beverages',
-      requestedBy: 'Lisa Chen',
-      requestDate: new Date('2024-03-12'),
-      votes: 278,
-      comments: 56,
-      status: 'pending',
-      priority: 'high',
-      estimatedDemand: 800
-    }
-  ]);
+  // Load from Supabase instead of mock data
+  const [requests, setRequests] = useState<ProductRequestItem[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const data = await productRequestService.getAllRequests();
+        setRequests(data);
+      } catch (error) {
+        console.error('Failed to load product requests:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   // Redirect if not authenticated
   if (!isAuthenticated) {
@@ -146,12 +68,17 @@ const AdminProductRequests: React.FC = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const handleUpdateStatus = (requestId: string, newStatus: 'approved' | 'rejected' | 'in_progress') => {
-    setRequests(prev =>
-      prev.map(r =>
-        r.id === requestId ? { ...r, status: newStatus, adminNotes } : r
-      )
-    );
+  const handleUpdateStatus = async (requestId: string, newStatus: 'approved' | 'rejected' | 'in_progress') => {
+    try {
+      await productRequestService.updateStatus(requestId, newStatus, adminNotes || undefined);
+      setRequests(prev =>
+        prev.map(r =>
+          r.id === requestId ? { ...r, status: newStatus, adminNotes } : r
+        )
+      );
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
     setSelectedRequest(null);
     setAdminNotes('');
   };

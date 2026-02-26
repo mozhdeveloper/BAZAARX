@@ -165,6 +165,14 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
             ? p.category
             : p.category?.name || p.categories?.name || "";
 
+    // Compute average rating from reviews join
+    const reviewsArr = Array.isArray(p.reviews) ? p.reviews : [];
+    const validRatings = reviewsArr.filter((r: any) => typeof r.rating === 'number' && r.rating > 0);
+    const avgRating = validRatings.length > 0
+        ? Math.round((validRatings.reduce((sum: number, r: any) => sum + r.rating, 0) / validRatings.length) * 10) / 10
+        : 0;
+    const reviewCount = validRatings.length;
+
     return {
         id: p.id,
         name: p.name || "",
@@ -181,8 +189,8 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         createdAt: p.created_at || "",
         updatedAt: p.updated_at || "",
         sales: p.sales || p.sold || p.sold_count || 0, // Preserve sold count from transformProduct
-        rating: p.rating || 0,
-        reviews: p.reviewCount || 0,
+        rating: avgRating || p.rating || 0,
+        reviews: reviewCount || p.reviewCount || 0,
         approvalStatus:
             (p.approval_status as SellerProduct["approvalStatus"]) || "pending",
         rejectionReason: undefined,

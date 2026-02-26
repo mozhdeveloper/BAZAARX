@@ -9,7 +9,8 @@ import {
   Download,
   ShoppingCart,
   Package,
-  Flame
+  Flame,
+  CalendarCheck,
 } from "lucide-react";
 import {
   AreaChart,
@@ -101,6 +102,9 @@ const DashboardContent = () => {
 
     const avgOrder = orders.length > 0 ? totalRevenue / orders.length : 0;
 
+    const today = new Date().toDateString();
+    const ordersToday = orders.filter(o => new Date(o.orderDate).toDateString() === today).length;
+
     return [
       {
         title: 'Total Revenue',
@@ -115,6 +119,13 @@ const DashboardContent = () => {
         change: `${orders.filter(o => o.status === 'pending').length} pending`,
         trend: 'up',
         icon: <ShoppingCart className="h-5 w-5" />
+      },
+      {
+        title: 'Orders Today',
+        value: ordersToday.toLocaleString(),
+        change: "Today",
+        trend: ordersToday > 0 ? 'up' : 'neutral',
+        icon: <CalendarCheck className="h-5 w-5" />
       },
       {
         title: 'Avg Order Value',

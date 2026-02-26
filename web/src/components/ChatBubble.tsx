@@ -74,13 +74,19 @@ export function ChatBubble() {
 
       setIsLoading(true);
       try {
-        const conv = await chatService.getOrCreateConversation(profile.id, chatTarget.sellerId);
+        // If seller-initiated (has buyerId), use buyerId and sellerId correctly
+        const buyerId = chatTarget.buyerId || profile.id;
+        const sellerId = chatTarget.buyerId ? chatTarget.sellerId : chatTarget.sellerId;
+        const conv = await chatService.getOrCreateConversation(buyerId, sellerId, chatTarget.orderId);
 
         if (conv) {
           setConversation(conv);
 
           // Load messages
           const msgs = await chatService.getMessages(conv.id);
+
+          // Determine current user type for display
+          const currentUserType = chatTarget.buyerId ? 'seller' : 'buyer';
 
           const formattedMessages: ChatMessage[] = msgs.map((msg: Message) => ({
             id: msg.id,
@@ -101,10 +107,21 @@ export function ChatBubble() {
             });
           }
 
+          // Add order context for seller-initiated chats
+          if (chatTarget.orderId && formattedMessages.length === 0) {
+            formattedMessages.unshift({
+              id: 'system-order-inquiry',
+              sender: 'system',
+              message: `Regarding: ${chatTarget.productName || 'Order'}`,
+              timestamp: new Date(),
+              read: true,
+            });
+          }
+
           setMessages(formattedMessages);
 
           // Mark messages as read
-          await chatService.markConversationAsRead(conv.id, 'buyer');
+          await chatService.markConversationAsRead(conv.id, currentUserType);
           setUnreadCount(0);
         }
       } catch (error) {
@@ -162,11 +179,14 @@ export function ChatBubble() {
     setNewMessage('');
     setIsSending(true);
 
+    // Determine sender type based on chat initiation
+    const senderType = chatTarget?.buyerId ? 'seller' : 'buyer';
+
     // Optimistic update
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage: ChatMessage = {
       id: tempId,
-      sender: 'buyer',
+      sender: senderType,
       message: messageContent,
       timestamp: new Date(),
       read: false,
@@ -177,7 +197,7 @@ export function ChatBubble() {
       const sentMessage = await chatService.sendMessage(
         conversation.id,
         profile.id,
-        'buyer',
+        senderType,
         messageContent
       );
 
@@ -186,7 +206,7 @@ export function ChatBubble() {
         setMessages(prev =>
           prev.map(m => m.id === tempId ? {
             id: sentMessage.id,
-            sender: 'buyer',
+            sender: senderType,
             message: sentMessage.content,
             timestamp: new Date(sentMessage.created_at),
             read: sentMessage.is_read,
@@ -389,12 +409,17 @@ export function ChatBubble() {
               </div>
             ) : (
               <>
-                {messages.map((msg) => (
+                {messages.map((msg) => {
+                  // "my message" = same sender type as current user
+                  const isMine = chatTarget?.buyerId
+                    ? msg.sender === 'seller'  // seller-initiated: seller messages on right
+                    : msg.sender === 'buyer';  // buyer-initiated: buyer messages on right
+                  return (
                   <div
                     key={msg.id}
                     className={cn(
                       "flex",
-                      msg.sender === 'buyer' ? 'justify-end' : 'justify-start',
+                      isMine ? 'justify-end' : 'justify-start',
                       msg.sender === 'system' && 'justify-center'
                     )}
                   >
@@ -406,7 +431,7 @@ export function ChatBubble() {
                       <div
                         className={cn(
                           "max-w-[75%] px-4 py-2.5 rounded-2xl",
-                          msg.sender === 'buyer'
+                          isMine
                             ? 'bg-[var(--brand-primary)] text-white rounded-br-md'
                             : 'bg-white text-gray-900 rounded-bl-md shadow-sm border border-gray-100'
                         )}
@@ -414,14 +439,15 @@ export function ChatBubble() {
                         <p className="text-sm leading-relaxed">{msg.message}</p>
                         <p className={cn(
                           "text-[10px] mt-1",
-                          msg.sender === 'buyer' ? 'text-white/70' : 'text-gray-400'
+                          isMine ? 'text-white/70' : 'text-gray-400'
                         )}>
                           {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </>
             )}

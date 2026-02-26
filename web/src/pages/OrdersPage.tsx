@@ -33,6 +33,7 @@ import { cn } from "../lib/utils";
 import { useToast } from "../hooks/use-toast";
 import { orderReadService } from "../services/orders/orderReadService";
 import { orderMutationService } from "../services/orders/orderMutationService";
+import { returnService } from "../services/returnService";
 import { OrderStatusBadge } from "../components/orders/OrderStatusBadge";
 
 export default function OrdersPage() {
@@ -117,34 +118,45 @@ export default function OrdersPage() {
     return daysDifference <= 7 && daysDifference >= 0;
   };
 
-  const handleReturnSubmit = (data: any) => {
-    // In a real app, this would submit to an API
-    console.log("Return request submitted:", data);
+  const handleReturnSubmit = async (data: any) => {
+    if (!data.orderId) return;
 
-    // Update order with return request data
-    if (data.orderId) {
-      const returnRequestData = {
+    try {
+      await returnService.submitReturnRequest({
+        orderId: data.orderId,
+        reason: data.reason || 'Return requested',
+        description: data.comments || data.solution || '',
+        refundAmount: data.refundAmount ? parseFloat(data.refundAmount) : undefined,
+      });
+
+      // Also update local Zustand state so UI reflects immediately
+      updateOrderWithReturnRequest(data.orderId, {
         reason: data.reason,
         solution: data.solution,
         comments: data.comments,
         files: data.files,
         refundAmount: data.refundAmount,
         submittedAt: new Date(),
-      };
+      });
 
-      updateOrderWithReturnRequest(data.orderId, returnRequestData);
+      setReturnModalOpen(false);
+      setOrderToReturn(null);
+      setStatusFilter("returned");
+
+      toast({
+        title: "Return Request Submitted",
+        description:
+          "We have received your return request and will process it shortly.",
+        duration: 5000,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Return Request Failed",
+        description: error.message || "Failed to submit return request. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
     }
-
-    setReturnModalOpen(false);
-    setOrderToReturn(null);
-    setStatusFilter("returned"); // Switch view to returned tab
-
-    toast({
-      title: "Return Request Submitted",
-      description:
-        "We have received your return request and will process it shortly.",
-      duration: 5000,
-    });
   };
 
   const loadBuyerOrders = useCallback(async () => {

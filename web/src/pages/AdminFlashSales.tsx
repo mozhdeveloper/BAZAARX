@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
+import { useProductStore } from '../stores/sellerStore';
+import { discountService } from '../services/discountService';
 import AdminSidebar from '../components/AdminSidebar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +19,9 @@ import {
   Trash2,
   Play,
   Pause,
-  Clock
+  Clock,
+  X,
+  Check,
 } from 'lucide-react';
 
 interface FlashSale {
@@ -47,85 +51,175 @@ interface FlashSaleProduct {
 
 const AdminFlashSales: React.FC = () => {
   const { isAuthenticated } = useAdminAuth();
+  const { products: allStoreProducts, fetchProducts } = useProductStore();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'scheduled' | 'active' | 'ended'>('all');
 
-  // Mock flash sales data
-  const [flashSales, setFlashSales] = useState<FlashSale[]>([
-    {
-      id: 'fs-1',
-      name: 'Holiday Mega Sale',
-      products: [
-        {
-          id: 'fsp-1',
-          productId: 'prod-1',
-          productName: 'Fresh Organic Tomatoes',
-          seller: 'Maria\'s Fresh Produce',
-          image: 'https://images.unsplash.com/photo-1546094096-0df4bcaaa337',
-          originalPrice: 120,
-          flashPrice: 89,
-          discount: 26,
-          stock: 100,
-          sold: 67
-        },
-        {
-          id: 'fsp-2',
-          productId: 'prod-2',
-          productName: 'Handwoven Abaca Bag',
-          seller: 'Traditional Crafts PH',
-          image: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7',
-          originalPrice: 450,
-          flashPrice: 299,
-          discount: 34,
-          stock: 50,
-          sold: 34
-        }
-      ],
-      startDate: new Date('2024-12-20T00:00:00'),
-      endDate: new Date('2024-12-25T23:59:59'),
-      status: 'scheduled',
-      totalProducts: 2,
-      totalRevenue: 0,
-      createdBy: 'Admin'
-    },
-    {
-      id: 'fs-2',
-      name: 'Weekend Flash Deal',
-      products: [
-        {
-          id: 'fsp-3',
-          productId: 'prod-3',
-          productName: 'Philippine Coffee Beans',
-          seller: 'Mountain Brew Coffee',
-          image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e',
-          originalPrice: 350,
-          flashPrice: 250,
-          discount: 29,
-          stock: 200,
-          sold: 156
-        }
-      ],
-      startDate: new Date('2024-03-15T00:00:00'),
-      endDate: new Date('2024-03-17T23:59:59'),
-      status: 'active',
-      totalProducts: 1,
-      totalRevenue: 39000,
-      createdBy: 'Admin'
-    },
-    {
-      id: 'fs-3',
-      name: 'New Year Blowout',
-      products: [],
-      startDate: new Date('2024-01-01T00:00:00'),
-      endDate: new Date('2024-01-05T23:59:59'),
-      status: 'ended',
-      totalProducts: 5,
-      totalRevenue: 125000,
-      createdBy: 'Admin'
+  // Product Picker state
+  const [productSearch, setProductSearch] = useState('');
+  const [selectedProducts, setSelectedProducts] = useState<Array<{
+    productId: string;
+    productName: string;
+    image: string;
+    originalPrice: number;
+    flashPrice: number;
+  }>>([]);
+
+  // Flash Sale form state
+  const [saleName, setSaleName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreateFlashSale = async () => {
+    if (!saleName.trim()) { alert('Please enter a flash sale name'); return; }
+    if (!startDate || !endDate) { alert('Please set start and end dates'); return; }
+    if (selectedProducts.length === 0) { alert('Please add at least one product'); return; }
+
+    setIsCreating(true);
+    try {
+      // 1. Create the campaign
+      const campaign = await discountService.createCampaign({
+        name: saleName,
+        campaignType: 'flash_sale',
+        discountType: 'fixed',
+        discountValue: 0, // Per-product overrides used instead
+        startsAt: new Date(startDate).toISOString(),
+        endsAt: new Date(endDate).toISOString(),
+        badgeText: 'Flash Sale',
+        badgeColor: '#FF0000',
+        appliesTo: 'specific_products',
+      });
+
+      // 2. Add products with their flash prices
+      const overrides = selectedProducts.map(p => ({
+        productId: p.productId,
+        discountType: 'fixed' as string,
+        discountValue: p.originalPrice - p.flashPrice,
+      }));
+
+      await discountService.addProductsToCampaign(
+        campaign.id,
+        '', // admin — no specific seller
+        selectedProducts.map(p => p.productId),
+        overrides
+      );
+
+      setSelectedProducts([]);
+      setShowCreateModal(false);
+      setSaleName('');
+      setStartDate('');
+      setEndDate('');
+      await loadFlashSales();
+      alert('Flash sale created successfully!');
+    } catch (err: any) {
+      console.error('Failed to create flash sale:', err);
+      alert('Failed to create flash sale: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsCreating(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    fetchProducts({});
+  }, []);
+
+  const availableProducts = useMemo(() => {
+    const selectedIds = new Set(selectedProducts.map(p => p.productId));
+    return (allStoreProducts || [])
+      .filter(p => !selectedIds.has(p.id))
+      .filter(p => !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase()))
+      .slice(0, 10);
+  }, [allStoreProducts, productSearch, selectedProducts]);
+
+  const addProduct = (product: any) => {
+    setSelectedProducts(prev => [...prev, {
+      productId: product.id,
+      productName: product.name,
+      image: product.images?.[0] || product.image || '',
+      originalPrice: product.price || 0,
+      flashPrice: Math.round((product.price || 0) * 0.8), // Default 20% off
+    }]);
+    setProductSearch('');
+  };
+
+  const removeProduct = (productId: string) => {
+    setSelectedProducts(prev => prev.filter(p => p.productId !== productId));
+  };
+
+  const updateFlashPrice = (productId: string, price: number) => {
+    setSelectedProducts(prev => prev.map(p =>
+      p.productId === productId ? { ...p, flashPrice: price } : p
+    ));
+  };
+
+  // Flash sales loaded from DB
+  const [flashSales, setFlashSales] = useState<FlashSale[]>([]);
+  const [isLoadingSales, setIsLoadingSales] = useState(true);
+
+  // Load flash sales from database
+  const loadFlashSales = async () => {
+    setIsLoadingSales(true);
+    try {
+      const campaigns = await discountService.getAllFlashSales();
+
+      // Load product details for each campaign
+      const salesWithProducts: FlashSale[] = await Promise.all(
+        campaigns.map(async (campaign) => {
+          let products: FlashSaleProduct[] = [];
+          try {
+            const productDiscounts = await discountService.getProductsInCampaign(campaign.id);
+            products = productDiscounts.map((pd) => ({
+              id: pd.id,
+              productId: pd.productId,
+              productName: pd.productName || 'Unknown Product',
+              seller: '',
+              image: pd.productImage || '',
+              originalPrice: pd.productPrice || 0,
+              flashPrice: pd.productPrice && pd.overrideDiscountValue
+                ? pd.productPrice - pd.overrideDiscountValue
+                : pd.productPrice || 0,
+              discount: pd.productPrice && pd.overrideDiscountValue
+                ? Math.round((pd.overrideDiscountValue / pd.productPrice) * 100)
+                : 0,
+              stock: 0,
+              sold: pd.soldCount || 0,
+            }));
+          } catch { /* ignore product load errors */ }
+
+          // Determine status from campaign status
+          let status: 'scheduled' | 'active' | 'ended' = 'scheduled';
+          if (campaign.status === 'active') status = 'active';
+          else if (campaign.status === 'ended' || campaign.status === 'cancelled') status = 'ended';
+          else if (campaign.status === 'paused') status = 'scheduled';
+
+          return {
+            id: campaign.id,
+            name: campaign.name,
+            products,
+            startDate: new Date(campaign.startsAt),
+            endDate: new Date(campaign.endsAt),
+            status,
+            totalProducts: products.length,
+            totalRevenue: products.reduce((sum, p) => sum + p.flashPrice * p.sold, 0),
+            createdBy: 'Admin',
+          };
+        })
+      );
+
+      setFlashSales(salesWithProducts);
+    } catch (err) {
+      console.error('Failed to load flash sales:', err);
+    } finally {
+      setIsLoadingSales(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFlashSales();
+  }, []);
 
   // Redirect if not authenticated
   if (!isAuthenticated) {
@@ -138,20 +232,35 @@ const AdminFlashSales: React.FC = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const handleDeleteFlashSale = (saleId: string) => {
+  const handleDeleteFlashSale = async (saleId: string) => {
     if (confirm('Are you sure you want to delete this flash sale?')) {
-      setFlashSales(prev => prev.filter(s => s.id !== saleId));
+      try {
+        await discountService.deleteCampaign(saleId);
+        setFlashSales(prev => prev.filter(s => s.id !== saleId));
+      } catch (err: any) {
+        console.error('Failed to delete flash sale:', err);
+        alert('Failed to delete: ' + (err.message || 'Unknown error'));
+      }
     }
   };
 
-  const handleToggleStatus = (saleId: string) => {
-    setFlashSales(prev =>
-      prev.map(s =>
-        s.id === saleId
-          ? { ...s, status: (s.status === 'active' ? 'scheduled' : 'active') as 'active' | 'scheduled' | 'ended' }
-          : s
-      )
-    );
+  const handleToggleStatus = async (saleId: string) => {
+    const sale = flashSales.find(s => s.id === saleId);
+    if (!sale) return;
+    const shouldPause = sale.status === 'active';
+    try {
+      await discountService.toggleCampaignStatus(saleId, shouldPause);
+      setFlashSales(prev =>
+        prev.map(s =>
+          s.id === saleId
+            ? { ...s, status: (shouldPause ? 'scheduled' : 'active') as 'active' | 'scheduled' | 'ended' }
+            : s
+        )
+      );
+    } catch (err: any) {
+      console.error('Failed to toggle flash sale status:', err);
+      alert('Failed to update status: ' + (err.message || 'Unknown error'));
+    }
   };
 
   const stats = {
@@ -468,6 +577,8 @@ const AdminFlashSales: React.FC = () => {
                   <Input
                     id="saleName"
                     placeholder="e.g., Weekend Mega Deal"
+                    value={saleName}
+                    onChange={(e) => setSaleName(e.target.value)}
                   />
                 </div>
 
@@ -477,6 +588,8 @@ const AdminFlashSales: React.FC = () => {
                     <Input
                       id="startDate"
                       type="datetime-local"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
                     />
                   </div>
                   <div>
@@ -484,6 +597,8 @@ const AdminFlashSales: React.FC = () => {
                     <Input
                       id="endDate"
                       type="datetime-local"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
                     />
                   </div>
                 </div>
@@ -491,12 +606,86 @@ const AdminFlashSales: React.FC = () => {
                 <div>
                   <Label>Select Products</Label>
                   <p className="text-sm text-gray-600 mb-2">
-                    Choose products to include in this flash sale
+                    Search and add products to include in this flash sale
                   </p>
-                  <Button variant="outline" className="w-full">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Products
-                  </Button>
+
+                  {/* Product Search */}
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search products by name..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                    {productSearch && availableProducts.length > 0 && (
+                      <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {availableProducts.map((p: any) => (
+                          <button
+                            key={p.id}
+                            onClick={() => addProduct(p)}
+                            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left"
+                          >
+                            <img src={p.images?.[0] || p.image || ''} alt="" className="w-8 h-8 rounded object-cover bg-gray-100" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                              <p className="text-xs text-gray-500">₱{(p.price || 0).toLocaleString()}</p>
+                            </div>
+                            <Plus className="h-4 w-4 text-gray-400" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selected Products with Flash Price */}
+                  {selectedProducts.length > 0 && (
+                    <div className="space-y-2 border border-gray-200 rounded-lg p-3">
+                      <div className="grid grid-cols-[1fr,100px,100px,32px] gap-2 text-xs font-bold text-gray-500 px-1">
+                        <span>Product</span>
+                        <span>Original</span>
+                        <span>Flash Price</span>
+                        <span></span>
+                      </div>
+                      {selectedProducts.map((p) => {
+                        const discount = p.originalPrice > 0 ? Math.round(((p.originalPrice - p.flashPrice) / p.originalPrice) * 100) : 0;
+                        return (
+                          <div key={p.productId} className="grid grid-cols-[1fr,100px,100px,32px] gap-2 items-center bg-gray-50 rounded-lg px-2 py-1.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img src={p.image} alt="" className="w-7 h-7 rounded object-cover bg-gray-200" />
+                              <span className="text-sm font-medium text-gray-900 truncate">{p.productName}</span>
+                            </div>
+                            <span className="text-sm text-gray-500">₱{p.originalPrice.toLocaleString()}</span>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                value={p.flashPrice}
+                                onChange={(e) => updateFlashPrice(p.productId, Number(e.target.value))}
+                                className="h-8 text-sm font-bold text-[#FF6A00] pr-1"
+                                min={1}
+                                max={p.originalPrice}
+                              />
+                              {discount > 0 && (
+                                <Badge className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] px-1 py-0 border-0">
+                                  -{discount}%
+                                </Badge>
+                              )}
+                            </div>
+                            <button onClick={() => removeProduct(p.productId)} className="text-gray-400 hover:text-red-500">
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {selectedProducts.length === 0 && !productSearch && (
+                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center">
+                      <Search className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">Search and add products above</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-blue-50 p-4 rounded-lg">
@@ -512,15 +701,17 @@ const AdminFlashSales: React.FC = () => {
 
               <div className="flex gap-3 mt-6">
                 <Button
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={handleCreateFlashSale}
+                  disabled={isCreating}
                   className="flex-1 bg-[#FF6A00] hover:bg-[#E55D00]"
                 >
                   <Zap className="h-4 w-4 mr-2" />
-                  Create Flash Sale
+                  {isCreating ? 'Creating...' : 'Create Flash Sale'}
                 </Button>
                 <Button
                   onClick={() => setShowCreateModal(false)}
                   variant="outline"
+                  disabled={isCreating}
                 >
                   Cancel
                 </Button>

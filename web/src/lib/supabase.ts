@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 // Environment variables - these will be set when Supabase project is created
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY || '';
 
 // Validate that environment variables are set
 if (!supabaseUrl || !supabaseAnonKey) {
@@ -43,6 +44,27 @@ export const supabase = createClient<any>(
       },
     },
   });
+
+/**
+ * Admin Supabase Client (service role)
+ * Used for public-facing inserts that bypass RLS (e.g., product requests)
+ * NOTE: For V1 only. In production, use Edge Functions or a backend API.
+ */
+export const supabaseAdmin = supabaseServiceKey
+  ? createClient<any>(
+      supabaseUrl || 'https://placeholder.supabase.co',
+      supabaseServiceKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+        global: {
+          headers: { 'X-Client-Info': 'bazaarx-web-admin' },
+        },
+      }
+    )
+  : null;
 
 /**
  * Helper function to check if Supabase is configured

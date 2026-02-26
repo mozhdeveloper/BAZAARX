@@ -66,6 +66,19 @@ const buyerNavItems = [
 const HomePage: React.FC = () => {
   const [flashSaleProducts, setFlashSaleProducts] = React.useState<any[]>([]);
 
+  // Compute flash sale end date: next 3-hour block from now
+  const flashSaleEndDate = React.useMemo(() => {
+    const now = new Date();
+    const hours = now.getHours();
+    const nextBlock = Math.ceil((hours + 1) / 3) * 3; // next 3hr mark
+    const end = new Date(now);
+    end.setHours(nextBlock, 0, 0, 0);
+    if (end.getTime() <= now.getTime()) {
+      end.setHours(end.getHours() + 3);
+    }
+    return end;
+  }, []);
+
   React.useEffect(() => {
     const loadFlashSales = async () => {
       try {
@@ -209,6 +222,7 @@ const HomePage: React.FC = () => {
             actionLabel="See More"
             actionLink="/flash-sales"
             isFlash={true}
+            countdownEndDate={flashSaleEndDate}
           />
         </div>
       </Suspense>

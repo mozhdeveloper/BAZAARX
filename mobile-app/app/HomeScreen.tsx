@@ -323,6 +323,34 @@ export default function HomeScreen({ navigation }: Props) {
     return [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8);
   }, [dbProducts]);
 
+  // Flash sale live countdown — rolling 3-hour window
+  const [flashCountdown, setFlashCountdown] = useState('00:00:00');
+  useEffect(() => {
+    const getEndTime = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const nextBlock = Math.ceil((hours + 1) / 3) * 3;
+      const end = new Date(now);
+      end.setHours(nextBlock, 0, 0, 0);
+      if (end.getTime() <= now.getTime()) end.setHours(end.getHours() + 3);
+      return end.getTime();
+    };
+    const endTime = getEndTime();
+    const tick = () => {
+      const diff = endTime - Date.now();
+      if (diff <= 0) { setFlashCountdown('00:00:00'); return; }
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+      setFlashCountdown(
+        `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      );
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const handleProductPress = (product: Product) => {
     navigation.navigate('ProductDetail', { product });
   };
@@ -430,6 +458,42 @@ export default function HomeScreen({ navigation }: Props) {
             ) : (
               <View style={styles.resultsSection}>
                 <Text style={styles.discoveryTitle}>{filteredProducts.length + filteredStores.length} results found</Text>
+                {filteredProducts.length === 0 && filteredStores.length === 0 && (
+                  <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
+                    <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                      <Search size={32} color="#FF6A00" />
+                    </View>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 6, textAlign: 'center' }}>
+                      No results for "{searchQuery}"
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
+                      Can't find what you're looking for? Request it and we'll notify you when a seller offers it!
+                    </Text>
+                    <Pressable
+                      onPress={() => setShowProductRequest(true)}
+                      style={({ pressed }) => [
+                        {
+                          backgroundColor: '#FF6A00',
+                          borderRadius: 14,
+                          paddingHorizontal: 28,
+                          paddingVertical: 14,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 8,
+                          elevation: 3,
+                          shadowColor: '#FF6A00',
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.3,
+                          shadowRadius: 8,
+                        },
+                        pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
+                      ]}
+                    >
+                      <Package size={18} color="#FFFFFF" />
+                      <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>Request This Product</Text>
+                    </Pressable>
+                  </View>
+                )}
                 {filteredStores.length > 0 && (
                   <View style={{ marginBottom: 20 }}>
                     <Text style={styles.sectionHeader}>Stores</Text>
@@ -550,7 +614,7 @@ export default function HomeScreen({ navigation }: Props) {
                   <Text style={styles.flashSaleTitle}>Flash Sale</Text>
                   <View style={styles.timerBadge}>
                     <Timer size={14} color="#FFF" />
-                    <Text style={styles.timerText}>02:15:40</Text>
+                    <Text style={styles.timerText}>{flashCountdown}</Text>
                   </View>
                 </View>
                 <Pressable onPress={() => navigation.navigate('FlashSale')}>
@@ -569,6 +633,51 @@ export default function HomeScreen({ navigation }: Props) {
                 ))}
               </ScrollView>
             </LinearGradient>
+
+            {/* FEATURED STORES SECTION */}
+            {sellers.length > 0 && (
+              <View style={{ marginTop: 20, marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textHeadline }}>Featured Stores</Text>
+                  <Pressable onPress={() => navigation.navigate('Shop', {})}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
+                  </Pressable>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+                  {sellers.slice(0, 8).map((store: any) => (
+                    <Pressable
+                      key={store.id}
+                      onPress={() => navigation.push('StoreDetail', {
+                        store: {
+                          id: store.id,
+                          name: store.store_name || store.storeName || 'Store',
+                          image: store.avatar || store.logo || null,
+                          rating: store.rating || 0,
+                          verified: store.approval_status === 'verified',
+                        }
+                      })}
+                      style={{
+                        width: 100, alignItems: 'center', backgroundColor: '#FFF',
+                        borderRadius: 16, padding: 12, elevation: 1,
+                        shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4,
+                      }}
+                    >
+                      <Image
+                        source={{ uri: store.avatar || store.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || store.storeName || 'S')}&background=FFD89A&color=78350F` }}
+                        style={{ width: 56, height: 56, borderRadius: 28, marginBottom: 8, borderWidth: 1, borderColor: '#F3F4F6' }}
+                      />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textHeadline, textAlign: 'center' }} numberOfLines={1}>{store.store_name || store.storeName || 'Store'}</Text>
+                      {store.approval_status === 'verified' && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 }}>
+                          <CheckCircle2 size={10} color={COLORS.primary} />
+                          <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Verified</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             <View style={styles.gridContainer}>
               <View style={styles.gridHeader}>

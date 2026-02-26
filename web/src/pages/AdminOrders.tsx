@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import AdminSidebar from '../components/AdminSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -58,6 +59,110 @@ const AdminOrders: React.FC = () => {
   const [newStatus, setNewStatus] = useState('');
   const [reason, setReason] = useState('');
   const [refundAmount, setRefundAmount] = useState(0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [orders, setOrders] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, pending: 0, shipped: 0, delivered: 0 });
+
+  // Map DB status to simpler display status
+  const mapStatus = (paymentStatus: string, shipmentStatus: string) => {
+    if (shipmentStatus === 'delivered' || shipmentStatus === 'received') return 'delivered';
+    if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') return 'shipped';
+    if (shipmentStatus === 'returned') return 'cancelled';
+    if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') return 'confirmed';
+    if (paymentStatus === 'refunded') return 'cancelled';
+    return 'pending';
+  };
+
+  const loadOrders = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          buyer_id,
+          payment_status,
+          shipment_status,
+          created_at,
+          notes,
+          address_id,
+          profiles:buyer_id(first_name, last_name, email, phone),
+          order_items(id, product_name, price, quantity, price_discount, product_id, products(seller_id, sellers(store_name))),
+          shipping_addresses:address_id(city, province)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      const mappedOrders = (data || []).map((o: any) => {
+        const items = (o.order_items || []).map((item: any) => ({
+          name: item.product_name || 'Product',
+          quantity: item.quantity || 1,
+          price: Number(item.price) || 0,
+          discount: Number(item.price_discount) || 0,
+        }));
+
+        const subtotal = items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0);
+        const totalDiscount = items.reduce((sum: number, i: any) => sum + (i.discount * i.quantity), 0);
+        const total = subtotal - totalDiscount;
+        const status = mapStatus(o.payment_status, o.shipment_status);
+
+        // Get seller name from first item
+        const sellerName = o.order_items?.[0]?.products?.sellers?.store_name || 'Unknown';
+        const buyerName = o.profiles ? `${o.profiles.first_name || ''} ${o.profiles.last_name || ''}`.trim() : 'Unknown';
+        const address = o.shipping_addresses ? `${o.shipping_addresses.city || ''}, ${o.shipping_addresses.province || ''}` : 'N/A';
+
+        return {
+          id: o.id,
+          orderNumber: o.order_number || o.id.substring(0, 8),
+          buyer: {
+            name: buyerName,
+            email: o.profiles?.email || '',
+            phone: o.profiles?.phone || '',
+          },
+          seller: { name: sellerName, email: '' },
+          items,
+          subtotal,
+          shippingFee: 0,
+          discount: totalDiscount,
+          total,
+          paymentMethod: 'COD',
+          paymentStatus: o.payment_status || 'pending',
+          shipmentStatus: o.shipment_status || 'waiting_for_seller',
+          shippingAddress: address,
+          trackingNumber: '',
+          status,
+          date: o.created_at,
+          canCancel: status === 'pending' || status === 'confirmed',
+          canRefund: o.payment_status === 'paid',
+        };
+      });
+
+      setOrders(mappedOrders);
+      setStats({
+        total: mappedOrders.length,
+        pending: mappedOrders.filter((o: any) => o.status === 'pending').length,
+        shipped: mappedOrders.filter((o: any) => o.status === 'shipped').length,
+        delivered: mappedOrders.filter((o: any) => o.status === 'delivered').length,
+      });
+    } catch (err) {
+      console.error('Error loading admin orders:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
 
   // Redirect if not authenticated
   if (!isAuthenticated) {
@@ -176,7 +281,7 @@ const AdminOrders: React.FC = () => {
     }
   };
 
-  const filteredOrders = sampleOrders.filter(order => {
+  const filteredOrders = orders.filter(order => {
     const matchesSearch = order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.buyer.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
@@ -189,28 +294,95 @@ const AdminOrders: React.FC = () => {
     setShowDetailsDialog(true);
   };
 
-  const handleCancelOrder = () => {
+  const handleCancelOrder = async () => {
     if (!selectedOrder || !reason) return;
-    console.log('Cancelling order:', selectedOrder.orderNumber, 'Reason:', reason);
-    // In real app, update order status
+    try {
+      if (isSupabaseConfigured()) {
+        // Update shipment_status to returned (cancelled equivalent)
+        const { error } = await supabase
+          .from('orders')
+          .update({ shipment_status: 'returned', notes: `Admin cancelled: ${reason}` })
+          .eq('id', selectedOrder.id);
+        if (error) throw error;
+
+        // Log status change
+        await supabase.from('order_status_history').insert({
+          order_id: selectedOrder.id,
+          status: 'cancelled',
+          note: reason,
+          changed_by_role: 'admin',
+        });
+      }
+      await loadOrders();
+    } catch (err) {
+      console.error('Error cancelling order:', err);
+      alert('Failed to cancel order');
+    }
     setShowCancelDialog(false);
     setReason('');
     setSelectedOrder(null);
   };
 
-  const handleRefundOrder = () => {
+  const handleRefundOrder = async () => {
     if (!selectedOrder || refundAmount <= 0) return;
-    console.log('Refunding order:', selectedOrder.orderNumber, 'Amount:', refundAmount);
-    // In real app, process refund
+    try {
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from('orders')
+          .update({ payment_status: 'refunded' })
+          .eq('id', selectedOrder.id);
+        if (error) throw error;
+
+        await supabase.from('order_status_history').insert({
+          order_id: selectedOrder.id,
+          status: 'refunded',
+          note: `Refund ₱${refundAmount} — ${reason}`,
+          changed_by_role: 'admin',
+        });
+      }
+      await loadOrders();
+    } catch (err) {
+      console.error('Error refunding order:', err);
+      alert('Failed to process refund');
+    }
     setShowRefundDialog(false);
     setRefundAmount(0);
+    setReason('');
     setSelectedOrder(null);
   };
 
-  const handleChangeStatus = () => {
+  const handleChangeStatus = async () => {
     if (!selectedOrder || !newStatus) return;
-    console.log('Changing order status:', selectedOrder.orderNumber, 'New status:', newStatus);
-    // In real app, update order status
+    // Map display status back to DB fields
+    const statusMap: Record<string, { payment_status?: string; shipment_status?: string }> = {
+      pending: { shipment_status: 'waiting_for_seller' },
+      confirmed: { shipment_status: 'processing' },
+      shipped: { shipment_status: 'shipped' },
+      delivered: { shipment_status: 'delivered' },
+      cancelled: { shipment_status: 'returned' },
+    };
+    const updates = statusMap[newStatus] || {};
+
+    try {
+      if (isSupabaseConfigured() && Object.keys(updates).length > 0) {
+        const { error } = await supabase
+          .from('orders')
+          .update(updates)
+          .eq('id', selectedOrder.id);
+        if (error) throw error;
+
+        await supabase.from('order_status_history').insert({
+          order_id: selectedOrder.id,
+          status: newStatus,
+          note: `Admin override to ${newStatus}`,
+          changed_by_role: 'admin',
+        });
+      }
+      await loadOrders();
+    } catch (err) {
+      console.error('Error changing order status:', err);
+      alert('Failed to update order status');
+    }
     setShowStatusDialog(false);
     setNewStatus('');
     setSelectedOrder(null);
@@ -243,10 +415,10 @@ const AdminOrders: React.FC = () => {
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               {[
-                { label: 'Total Orders', value: '1,234', icon: ShoppingBag, color: 'blue' },
-                { label: 'Pending', value: '45', icon: Package, color: 'orange' },
-                { label: 'Shipped', value: '89', icon: Truck, color: 'purple' },
-                { label: 'Delivered', value: '1,100', icon: CheckCircle, color: 'green' }
+                { label: 'Total Orders', value: isLoading ? '...' : stats.total.toLocaleString(), icon: ShoppingBag, color: 'blue' },
+                { label: 'Pending', value: isLoading ? '...' : stats.pending.toLocaleString(), icon: Package, color: 'orange' },
+                { label: 'Shipped', value: isLoading ? '...' : stats.shipped.toLocaleString(), icon: Truck, color: 'purple' },
+                { label: 'Delivered', value: isLoading ? '...' : stats.delivered.toLocaleString(), icon: CheckCircle, color: 'green' }
               ].map((stat, index) => (
                 <motion.div
                   key={index}

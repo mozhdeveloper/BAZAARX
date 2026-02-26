@@ -10,6 +10,7 @@ import {
     Truck,
     CheckCircle,
     Star,
+    MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,8 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useOrderStore, SellerOrder } from "@/stores/sellerStore";
+import { useOrderStore, useAuthStore, SellerOrder } from "@/stores/sellerStore";
+import { useChatStore } from "@/stores/chatStore";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 
 interface OrderDetailsModalProps {
@@ -391,6 +393,28 @@ export function OrderDetailsModal({
                                                 "PH"}
                                         </p>
                                     </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-3 w-full text-[#FF6A00] border-[#FF6A00]/20 hover:bg-[#FF6A00]/5"
+                                        onClick={() => {
+                                            const currentSellerId = useAuthStore.getState().seller?.id || '';
+                                            useChatStore.getState().openChat({
+                                                sellerId: currentSellerId,
+                                                sellerName: useAuthStore.getState().seller?.store_name || 'My Store',
+                                                sellerAvatar: '',
+                                                buyerId: order.buyerId || '',
+                                                buyerName: order.buyerName || 'Buyer',
+                                                orderId: order.id,
+                                                productName: `Order #${order.id?.slice(0, 8).toUpperCase()}`,
+                                                productImage: order.items?.[0]?.image || '',
+                                            });
+                                            useChatStore.getState().setMiniMode(false);
+                                        }}
+                                    >
+                                        <MessageCircle className="h-4 w-4 mr-2" />
+                                        Chat with Buyer
+                                    </Button>
                                 </div>
 
                                 {latestReview && (

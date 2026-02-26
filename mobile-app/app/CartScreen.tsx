@@ -296,6 +296,19 @@ export default function CartScreen({ navigation }: any) {
                   {index < sellerProducts.length - 1 && <View style={styles.itemSeparator} />}
                 </View>
               ))}
+
+              {/* Per-Seller Subtotal */}
+              {(() => {
+                const sellerSelected = sellerProducts.filter(item => selectedIds.includes(item.cartItemId));
+                if (sellerSelected.length === 0) return null;
+                const sellerSub = sellerSelected.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
+                return (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingHorizontal: 4 }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Subtotal ({sellerSelected.length} item{sellerSelected.length !== 1 ? 's' : ''})</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: BRAND_PRIMARY }}>₱{sellerSub.toLocaleString()}</Text>
+                  </View>
+                );
+              })()}
             </View>
           );
         })}

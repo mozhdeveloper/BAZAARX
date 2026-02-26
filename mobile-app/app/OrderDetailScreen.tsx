@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,6 +28,7 @@ import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import { reviewService } from '@/services/reviewService';
+import { chatService } from '../src/services/chatService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -37,44 +39,166 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState([
-    {
-      id: '1',
-      sender: 'system',
-      message: 'Order confirmed! Your seller will start preparing your items.',
-      timestamp: new Date(Date.now() - 7200000),
-    },
-    {
-      id: '2',
-      sender: 'seller',
-      message: 'Hello! Thank you for your order. We are preparing your items now.',
-      timestamp: new Date(Date.now() - 5400000),
-    },
-  ]);
+  const [chatMessages, setChatMessages] = useState<Array<{
+    id: string;
+    sender: string;
+    message: string;
+    timestamp: Date;
+  }>>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatScrollRef = useRef<ScrollView>(null);
+  const chatSubscriptionRef = useRef<any>(null);
 
-  const handleSendMessage = () => {
-    if (!chatMessage.trim()) return;
+  // Get seller_id from order items via products
+  const getSellerIdFromOrder = useCallback(async (): Promise<string | null> => {
+    // First check if sellerInfo is on order object
+    if ((order as any).sellerInfo?.id) return (order as any).sellerInfo.id;
 
-    const newMessage = {
-      id: Date.now().toString(),
-      sender: 'buyer',
-      message: chatMessage,
-      timestamp: new Date(),
+    // Otherwise look up via first order item's product
+    const firstItem = order.items?.[0];
+    if (!firstItem) return null;
+    const productId = (firstItem as any).productId || firstItem.id;
+    if (!productId) return null;
+
+    const { data } = await supabase
+      .from('products')
+      .select('seller_id')
+      .eq('id', productId)
+      .single();
+    return data?.seller_id || null;
+  }, [order]);
+
+  // Load chat when modal opens
+  useEffect(() => {
+    if (!showChatModal) {
+      // Cleanup subscription when modal closes
+      if (chatSubscriptionRef.current) {
+        chatSubscriptionRef.current.unsubscribe?.();
+        chatSubscriptionRef.current = null;
+      }
+      return;
+    }
+
+    const initChat = async () => {
+      setChatLoading(true);
+      try {
+        const { user } = useAuthStore.getState();
+        if (!user?.id) {
+          Alert.alert('Error', 'You must be logged in to chat');
+          setShowChatModal(false);
+          return;
+        }
+
+        const sellerId = await getSellerIdFromOrder();
+        if (!sellerId) {
+          Alert.alert('Error', 'Could not determine seller for this order');
+          setShowChatModal(false);
+          return;
+        }
+
+        const realOrderId = (order as any).orderId || order.id;
+        const conversation = await chatService.getOrCreateConversation(user.id, sellerId, realOrderId);
+        if (!conversation) {
+          Alert.alert('Error', 'Could not start conversation');
+          setShowChatModal(false);
+          return;
+        }
+
+        setConversationId(conversation.id);
+
+        // Load existing messages
+        const messages = await chatService.getMessages(conversation.id);
+        setChatMessages(messages.map((msg: any) => ({
+          id: msg.id,
+          sender: msg.sender_type === 'buyer' ? 'buyer' : msg.sender_type === 'system' ? 'system' : 'seller',
+          message: msg.content,
+          timestamp: new Date(msg.created_at),
+        })));
+
+        // Subscribe to real-time new messages
+        const subscription = supabase
+          .channel(`chat-${conversation.id}`)
+          .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${conversation.id}`,
+          }, (payload: any) => {
+            const newMsg = payload.new;
+            // Only add if not from current user (to avoid duplicates with optimistic add)
+            if (newMsg.sender_id !== user.id) {
+              setChatMessages(prev => {
+                if (prev.find(m => m.id === newMsg.id)) return prev;
+                return [...prev, {
+                  id: newMsg.id,
+                  sender: newMsg.sender_type === 'buyer' ? 'buyer' : newMsg.sender_type === 'system' ? 'system' : 'seller',
+                  message: newMsg.content,
+                  timestamp: new Date(newMsg.created_at),
+                }];
+              });
+            }
+          })
+          .subscribe();
+
+        chatSubscriptionRef.current = subscription;
+
+        // Mark messages as read
+        chatService.markAsRead(conversation.id, user.id, 'buyer').catch(() => {});
+      } catch (error) {
+        console.error('[OrderDetail] Error initializing chat:', error);
+        Alert.alert('Error', 'Failed to load chat');
+      } finally {
+        setChatLoading(false);
+      }
     };
 
-    setChatMessages([...chatMessages, newMessage]);
+    initChat();
+  }, [showChatModal, getSellerIdFromOrder, order]);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatMessages.length > 0 && chatScrollRef.current) {
+      setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [chatMessages]);
+
+  const handleSendMessage = async () => {
+    if (!chatMessage.trim() || !conversationId) return;
+
+    const { user } = useAuthStore.getState();
+    if (!user?.id) return;
+
+    const messageText = chatMessage.trim();
     setChatMessage('');
 
-    // Simulate seller response
-    setTimeout(() => {
-      const response = {
-        id: (Date.now() + 1).toString(),
-        sender: 'seller',
-        message: 'Thanks for your message! We will get back to you shortly.',
-        timestamp: new Date(),
-      };
-      setChatMessages(prev => [...prev, response]);
-    }, 1000);
+    // Optimistic add
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg = {
+      id: tempId,
+      sender: 'buyer',
+      message: messageText,
+      timestamp: new Date(),
+    };
+    setChatMessages(prev => [...prev, optimisticMsg]);
+
+    try {
+      const sent = await chatService.sendMessage(conversationId, user.id, 'buyer', messageText);
+      if (sent) {
+        // Replace temp message with real one
+        setChatMessages(prev => prev.map(m => m.id === tempId ? {
+          id: sent.id,
+          sender: 'buyer',
+          message: sent.content,
+          timestamp: new Date(sent.created_at),
+        } : m));
+      }
+    } catch (error) {
+      console.error('[OrderDetail] Error sending message:', error);
+      // Remove optimistic message on failure
+      setChatMessages(prev => prev.filter(m => m.id !== tempId));
+      Alert.alert('Error', 'Failed to send message');
+    }
   };
 
   const handleMarkAsReceived = () => {
@@ -504,10 +628,22 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             </View>
 
             <ScrollView
+              ref={chatScrollRef}
               style={styles.chatMessages}
               contentContainerStyle={{ padding: 16, gap: 16 }}
             >
-              {chatMessages.map((msg) => (
+              {chatLoading ? (
+                <View style={{ alignItems: 'center', paddingTop: 40 }}>
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                  <Text style={{ color: '#9CA3AF', marginTop: 8 }}>Loading messages...</Text>
+                </View>
+              ) : chatMessages.length === 0 ? (
+                <View style={{ alignItems: 'center', paddingTop: 40 }}>
+                  <MessageCircle size={32} color="#D1D5DB" />
+                  <Text style={{ color: '#9CA3AF', marginTop: 8 }}>No messages yet. Say hello!</Text>
+                </View>
+              ) : (
+              chatMessages.map((msg) => (
                 <View
                   key={msg.id}
                   style={[
@@ -530,7 +666,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 </View>
-              ))}
+              ))
+              )}
             </ScrollView>
 
             <View style={styles.chatInputContainer}>
@@ -542,9 +679,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 multiline
               />
               <Pressable
-                style={[styles.sendButton, !chatMessage.trim() && styles.sendButtonDisabled]}
+                style={[styles.sendButton, (!chatMessage.trim() || chatLoading) && styles.sendButtonDisabled]}
                 onPress={handleSendMessage}
-                disabled={!chatMessage.trim()}
+                disabled={!chatMessage.trim() || chatLoading}
               >
                 <Send size={20} color="#FFFFFF" />
               </Pressable>

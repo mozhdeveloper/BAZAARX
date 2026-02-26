@@ -11,6 +11,7 @@ import {
   Camera,
   MessageCircle,
   Headset,
+  Package,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
@@ -336,6 +337,17 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         >
                           <Heart className="h-3.5 w-3.5" />
                           Following
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            navigate("/my-requests");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
+                        >
+                          <Package className="h-3.5 w-3.5" />
+                          My Requests
                         </button>
 
                         <div className="h-px bg-gray-100 my-1 mx-2"></div>

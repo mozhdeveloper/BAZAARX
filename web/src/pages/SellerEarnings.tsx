@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/sellerStore';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
+import { earningsService, EarningsSummary, PayoutRecord } from '@/services/earningsService';
 import {
   Wallet,
   DollarSign,
@@ -10,6 +12,7 @@ import {
   Download,
   CheckCircle,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,38 +22,39 @@ import { Button } from '@/components/ui/button';
 
 export function SellerEarnings() {
   const { seller } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(true);
+  const [summary, setSummary] = useState<EarningsSummary>({
+    totalEarnings: 0, pendingPayout: 0, availableBalance: 0,
+    totalOrders: 0, ordersThisMonth: 0, earningsThisMonth: 0,
+    earningsGrowthPercent: 0,
+  });
+  const [payoutHistory, setPayoutHistory] = useState<PayoutRecord[]>([]);
 
-  // Demo data
-  const payoutHistory = [
-    {
-      id: 1,
-      date: '2024-01-15',
-      amount: 25840.50,
-      status: 'completed',
-      method: 'Bank Transfer',
-      reference: 'PYT-2024-001'
-    },
-    {
-      id: 2,
-      date: '2024-01-08',
-      amount: 18920.00,
-      status: 'completed',
-      method: 'Bank Transfer',
-      reference: 'PYT-2024-002'
-    },
-    {
-      id: 3,
-      date: '2024-01-01',
-      amount: 32150.75,
-      status: 'completed',
-      method: 'Bank Transfer',
-      reference: 'PYT-2024-003'
-    }
-  ];
+  useEffect(() => {
+    if (!seller?.id) return;
 
-  const totalEarnings = 76911.25;
-  const pendingPayout = 15240.50;
-  const availableBalance = totalEarnings - pendingPayout;
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const [summaryData, payoutsData] = await Promise.all([
+          earningsService.getEarningsSummary(seller.id),
+          earningsService.getPayoutHistory(seller.id),
+        ]);
+        setSummary(summaryData);
+        setPayoutHistory(payoutsData);
+      } catch (error) {
+        console.error('Failed to load earnings data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    load();
+  }, [seller?.id]);
+
+  const totalEarnings = summary.totalEarnings;
+  const pendingPayout = summary.pendingPayout;
+  const availableBalance = summary.availableBalance;
+  const lastPayout = payoutHistory.find(p => p.status === 'completed');
 
   return (
     <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
@@ -71,7 +75,7 @@ export function SellerEarnings() {
             </div>
 
             {/* Earnings Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {/* Total Earnings */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -92,7 +96,7 @@ export function SellerEarnings() {
                     </p>
                     <div className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600 mb-1.5">
                       <TrendingUp className="h-3 w-3" />
-                      +12.5%
+                      {summary.earningsGrowthPercent >= 0 ? '+' : ''}{summary.earningsGrowthPercent}%
                     </div>
                   </div>
                 </div>
@@ -151,6 +155,35 @@ export function SellerEarnings() {
                   </div>
                 </div>
               </motion.div>
+
+              {/* Last Payout */}
+              {lastPayout && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] relative overflow-hidden group transition-all duration-300"
+                >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-blue-100 transition-colors"></div>
+                  <div className="flex items-center justify-between mb-4 relative z-10">
+                    <div className="text-blue-600 group-hover:text-blue-700 transition-all">
+                      <Calendar className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-[var(--text-muted)] text-sm relative z-10">Last Payout</h3>
+                    <div className="flex items-end gap-3 mt-1 relative z-10">
+                      <p className="text-2xl font-black text-[var(--text-headline)] font-heading group-hover:text-blue-600 transition-all">
+                        ₱{lastPayout.amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </p>
+                      <div className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 mb-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        {new Date(lastPayout.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* Payout Schedule */}
@@ -162,7 +195,13 @@ export function SellerEarnings() {
                 </div>
                 <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full border border-green-100 shadow-sm">
                   <Calendar className="h-4 w-4" />
-                  <span className="font-bold text-sm">Next payout: Friday, Jan 26</span>
+                  <span className="font-bold text-sm">Next payout: {(() => {
+                    const now = new Date();
+                    const daysUntilFriday = (5 - now.getDay() + 7) % 7 || 7;
+                    const nextFriday = new Date(now);
+                    nextFriday.setDate(now.getDate() + daysUntilFriday);
+                    return nextFriday.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+                  })()}</span>
                 </div>
               </div>
 

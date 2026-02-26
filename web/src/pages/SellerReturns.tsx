@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -45,15 +45,21 @@ export function SellerReturns() {
   const [selectedRequest, setSelectedRequest] = useState<SellerReturnRequest | null>(null);
 
   const { seller, logout } = useAuthStore();
-  const { requests, approveRequest, rejectRequest } = useSellerReturnStore();
+  const { requests, isLoading, loadRequests, approveRequest, rejectRequest } = useSellerReturnStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (seller?.id) {
+      loadRequests(seller.id);
+    }
+  }, [seller?.id, loadRequests]);
 
 
 
   const filteredRequests = requests.filter(req => {
     const matchesSearch =
       req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      req.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       req.buyerName.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || req.status === statusFilter;
@@ -198,7 +204,7 @@ export function SellerReturns() {
                           </TableCell>
                           <TableCell>
                             <span className="font-bold text-[var(--secondary-foreground)] font-mono text-sm group-hover/row:text-[var(--brand-primary)] transition-colors">
-                              {req.orderId}
+                              {req.orderNumber}
                             </span>
                           </TableCell>
                           <TableCell>

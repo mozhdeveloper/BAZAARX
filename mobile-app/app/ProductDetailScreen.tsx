@@ -64,6 +64,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { productService } from '../src/services/productService';
+import { sellerService } from '../src/services/sellerService';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
@@ -211,6 +212,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestModalMessage, setGuestModalMessage] = useState('');
+  const [isFollowingSeller, setIsFollowingSeller] = useState(false);
 
   // Added to Cart Modal State
   const [showAddedToCartModal, setShowAddedToCartModal] = useState(false);
@@ -728,6 +730,43 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     });
   };
 
+  // Check follow status on mount
+  useEffect(() => {
+    const checkFollow = async () => {
+      const sellerId = product.seller_id || product.sellerId;
+      if (!user || isGuest || !sellerId) return;
+      try {
+        const following = await sellerService.checkIsFollowing(user.id, sellerId);
+        setIsFollowingSeller(following);
+      } catch (e) {
+        console.error('[PDP] Error checking follow status:', e);
+      }
+    };
+    checkFollow();
+  }, [product.seller_id, product.sellerId, user, isGuest]);
+
+  const handleFollowSeller = async () => {
+    if (isGuest) {
+      setGuestModalMessage('Sign up to follow shops.');
+      setShowGuestModal(true);
+      return;
+    }
+    const sellerId = product.seller_id || product.sellerId;
+    if (!user || !sellerId) return;
+    const prev = isFollowingSeller;
+    setIsFollowingSeller(!prev);
+    try {
+      if (prev) {
+        await sellerService.unfollowSeller(user.id, sellerId);
+      } else {
+        await sellerService.followSeller(user.id, sellerId);
+      }
+    } catch (e) {
+      setIsFollowingSeller(prev);
+      Alert.alert('Error', 'Failed to update follow status');
+    }
+  };
+
   const handleWishlistAction = (categoryId?: string) => {
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
@@ -1000,6 +1039,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.sellerMetaText}>{soldCount.toLocaleString()} items sold</Text>
               </View>
             </View>
+            <Pressable
+              style={[styles.followBtn, isFollowingSeller && styles.followBtnActive]}
+              onPress={handleFollowSeller}
+            >
+              <Heart size={14} color={isFollowingSeller ? '#FFF' : BRAND_COLOR} fill={isFollowingSeller ? '#FFF' : 'none'} />
+              <Text style={[styles.followBtnText, isFollowingSeller && styles.followBtnTextActive]}>
+                {isFollowingSeller ? 'Following' : 'Follow'}
+              </Text>
+            </Pressable>
             <Pressable style={styles.visitStoreBtn} onPress={handleVisitStore}>
               <Text style={styles.visitStoreText}>Visit Store</Text>
             </Pressable>
@@ -1667,6 +1715,17 @@ const styles = StyleSheet.create({
   sellerMetaDivider: { width: 1, height: 10, backgroundColor: '#E5E7EB', marginHorizontal: 8 },
   sellerRating: { flexDirection: 'row', alignItems: 'center', gap: 4 }, // Kept for reference but not used in new layout directly
 
+  followBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1, borderColor: BRAND_COLOR,
+    marginRight: 6,
+  } as any,
+  followBtnActive: {
+    backgroundColor: BRAND_COLOR,
+  },
+  followBtnText: { fontSize: 12, fontWeight: '600', color: BRAND_COLOR } as any,
+  followBtnTextActive: { color: '#FFF' },
   visitStoreBtn: {
     paddingHorizontal: 14, paddingVertical: 6,
     borderRadius: 20, borderWidth: 1, borderColor: BRAND_COLOR

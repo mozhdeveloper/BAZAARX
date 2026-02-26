@@ -49,6 +49,7 @@ import ReturnRequestScreen from './app/ReturnRequestScreen';
 import ReturnDetailScreen from './app/ReturnDetailScreen';
 import ReturnOrdersScreen from './app/ReturnOrdersScreen';
 import HistoryScreen from './app/HistoryScreen';
+import MyRequestsScreen from './app/MyRequestsScreen';
 import AddProductScreen from '@/components/seller/AddProductScreen';
 import SellerOrderDetailScreen from './app/seller/OrderDetailScreen';
 
@@ -123,6 +124,7 @@ export type RootStackParamList = {
   ReturnDetail: { returnId: string };
   ReturnOrders: undefined;
   History: undefined;
+  MyRequests: undefined;
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
@@ -342,6 +344,7 @@ export default function App() {
             <Stack.Screen name="ReturnDetail" component={ReturnDetailScreen} />
             <Stack.Screen name="ReturnOrders" component={ReturnOrdersScreen} options={{ headerShown: false }} />
             <Stack.Screen name="History" component={HistoryScreen} />
+            <Stack.Screen name="MyRequests" component={MyRequestsScreen} />
             <Stack.Screen name="HelpSupport" component={HelpCenterScreen} />
             <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
             <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -168,6 +168,7 @@ export default function SellerDiscounts() {
 
   const { seller, logout } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
 
   // Form state
@@ -229,6 +230,29 @@ export default function SellerDiscounts() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller?.id]);
+
+  // Auto-open create dialog when redirected from SellerProducts with flash_product param
+  useEffect(() => {
+    const flashProductId = searchParams.get("flash_product");
+    const flashProductName = searchParams.get("flash_product_name");
+    const flashProductPrice = searchParams.get("flash_product_price");
+    if (flashProductId && flashProductName) {
+      setFormData((prev) => ({
+        ...prev,
+        name: `Flash Sale — ${flashProductName}`,
+        campaignType: "flash_sale" as CampaignType,
+        appliesTo: "specific_products" as AppliesTo,
+        discountType: "percentage" as DiscountType,
+      }));
+      setIsCreateDialogOpen(true);
+      // Clean up URL params
+      setSearchParams({}, { replace: true });
+      toast({
+        title: "Flash Sale Setup",
+        description: `Setting up flash sale for "${flashProductName}". Complete the form and add the product after saving.`,
+      });
+    }
+  }, [searchParams, setSearchParams, toast]);
 
   const handleLogout = () => {
     logout();

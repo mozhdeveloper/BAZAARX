@@ -549,6 +549,31 @@ export class DiscountService {
   }
 
   // ============================================================================
+  // ADMIN FLASH SALES
+  // ============================================================================
+
+  /**
+   * Get all flash sale campaigns (admin use — no seller filter)
+   */
+  async getAllFlashSales(): Promise<DiscountCampaign[]> {
+    if (!isSupabaseConfigured()) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('discount_campaigns')
+        .select('*')
+        .eq('campaign_type', 'flash_sale')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return (data || []).map(item => this.transformCampaign(item));
+    } catch (error) {
+      console.error('Error fetching flash sales:', error);
+      throw new Error('Failed to fetch flash sales.');
+    }
+  }
+
+  // ============================================================================
   // PRIVATE HELPER FUNCTIONS
   // ============================================================================
 
