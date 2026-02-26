@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw } from 'lucide-react-native';
+import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -356,7 +356,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           <View style={styles.cardContent}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>₱{(order.total - order.shippingFee).toLocaleString()}</Text>
+              <Text style={styles.summaryValue}>₱{((order as any).subtotal || order.total - order.shippingFee - (order.discount || 0)).toLocaleString()}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Shipping Fee</Text>
@@ -367,6 +367,22 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 {order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}
               </Text>
             </View>
+            {(order.discount || 0) > 0 && (
+              <View style={styles.summaryRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Tag size={14} color="#10B981" />
+                  <Text style={[styles.summaryLabel, { marginLeft: 4 }]}>Voucher</Text>
+                  {order.voucherInfo && (
+                    <Text style={[styles.summaryLabel, { marginLeft: 4, color: '#6B7280' }]}>
+                      ({order.voucherInfo.code})
+                    </Text>
+                  )}
+                </View>
+                <Text style={[styles.summaryValue, { color: '#10B981' }]}>
+                  -₱{order.discount?.toLocaleString()}
+                </Text>
+              </View>
+            )}
             <View style={styles.dividerLine} />
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total Amount</Text>

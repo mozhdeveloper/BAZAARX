@@ -177,6 +177,10 @@ export default function OrdersScreen({ navigation, route }: Props) {
           ),
           cancellations:order_cancellations (
             id
+          ),
+          vouchers:order_vouchers (
+            *,
+            voucher:vouchers (code, title, voucher_type)
           )
         `)
         .eq('buyer_id', user.id)
@@ -306,14 +310,31 @@ export default function OrdersScreen({ navigation, route }: Props) {
           }
         }
 
+        // Get voucher info if any
+        const orderVouchers = order.vouchers || [];
+        const voucherInfo = orderVouchers.length > 0 ? {
+          code: orderVouchers[0].voucher?.code || 'VOUCHER',
+          type: orderVouchers[0].voucher?.voucher_type || 'fixed',
+          discountAmount: orderVouchers.reduce((sum: number, v: any) => sum + (v.discount_amount || 0), 0)
+        } : null;
+        
+        const discount = voucherInfo?.discountAmount || 0;
+
+        // totalNum = items + shipping (original price before discount)
+        // Total displayed should be what customer paid = original price - discount
+        const total = totalNum - discount;
+
         return {
           id: order.order_number || order.id,
           orderId: order.id,
           transactionId: order.order_number || order.id,
           items,
           sellerInfo: productSeller,
-          total: totalNum,
+          total,
+          subtotal: totalNum - shippingFee,
           shippingFee,
+          discount,
+          voucherInfo,
           status: mappedStatus,
           isPaid: order.payment_status === 'paid',
           scheduledDate: new Date(order.created_at).toLocaleDateString(),

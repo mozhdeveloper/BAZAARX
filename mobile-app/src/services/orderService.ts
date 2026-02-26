@@ -530,6 +530,10 @@ export class OrderService {
           order_items(
             *,
             variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
+          ),
+          order_vouchers(
+            *,
+            voucher:vouchers(code, title, voucher_type)
           )
         `)
         .eq('buyer_id', buyerId)
@@ -552,37 +556,61 @@ export class OrderService {
         'failed_to_deliver': 'shipped',
       };
 
-      return (data || []).map(order => ({
-        id: order.id,
-        orderId: order.id, // Include real UUID for database operations
-        transactionId: order.order_number,
-        items: (order.order_items || []).map((item: any) => ({
-          id: item.id,
-          productId: item.product_id, // Include product_id for reviews
-          name: item.product_name,
-          price: item.variant?.price || item.price,
-          quantity: item.quantity,
-          image: item.variant?.thumbnail_url || item.primary_image_url || 'https://placehold.co/100?text=Product',
-        })),
-        total: (order.order_items || []).reduce((sum: number, item: any) => {
+      return (data || []).map(order => {
+        // Get voucher info if any
+        const orderVouchers = order.order_vouchers || [];
+        const voucherInfo = orderVouchers.length > 0 ? {
+          code: orderVouchers[0].voucher?.code || 'VOUCHER',
+          type: orderVouchers[0].voucher?.voucher_type || 'fixed',
+          discountAmount: orderVouchers.reduce((sum: number, v: any) => sum + (v.discount_amount || 0), 0)
+        } : null;
+        
+        const discount = voucherInfo?.discountAmount || 0;
+
+        // Calculate subtotal from items (original price before discount)
+        const subtotal = (order.order_items || []).reduce((sum: number, item: any) => {
           return sum + ((item.variant?.price || item.price || 0) * item.quantity);
-        }, 0),
-        shippingFee: 0,
-        status: statusMap[order.shipment_status || 'pending'] || 'pending',
-        isPaid: order.payment_status === 'paid',
-        scheduledDate: order.estimated_delivery_date || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        shippingAddress: {
-          name: '',
-          email: '',
-          phone: '',
-          address: '',
-          city: '',
-          region: '',
-          postalCode: '',
-        },
-        paymentMethod: order.payment_method || 'Cash on Delivery',
-        createdAt: order.created_at,
-      }));
+        }, 0);
+
+        // Calculate shipping fee based on subtotal (same logic as checkout)
+        const shippingFee = subtotal > 500 ? 0 : 50;
+
+        // Total = what customer paid (subtotal + shipping - discount)
+        const totalPaid = subtotal + shippingFee - discount;
+
+        return {
+          id: order.id,
+          orderId: order.id, // Include real UUID for database operations
+          transactionId: order.order_number,
+          items: (order.order_items || []).map((item: any) => ({
+            id: item.id,
+            productId: item.product_id, // Include product_id for reviews
+            name: item.product_name,
+            price: item.variant?.price || item.price,
+            quantity: item.quantity,
+            image: item.variant?.thumbnail_url || item.primary_image_url || 'https://placehold.co/100?text=Product',
+          })),
+          subtotal: subtotal,
+          shippingFee: shippingFee,
+          total: totalPaid,
+          discount: discount,
+          voucherInfo: voucherInfo,
+          status: statusMap[order.shipment_status || 'pending'] || 'pending',
+          isPaid: order.payment_status === 'paid',
+          scheduledDate: order.estimated_delivery_date || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          shippingAddress: {
+            name: '',
+            email: '',
+            phone: '',
+            address: '',
+            city: '',
+            region: '',
+            postalCode: '',
+          },
+          paymentMethod: order.payment_method || 'Cash on Delivery',
+          createdAt: order.created_at,
+        };
+      });
     } catch (error) {
       console.error('Error fetching orders:', error);
       throw new Error('Failed to fetch orders');

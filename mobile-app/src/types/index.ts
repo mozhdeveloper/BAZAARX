@@ -128,8 +128,15 @@ export interface Order {
   orderId?: string;
   transactionId: string;
   items: CartItem[];
+  subtotal?: number;
   total: number;
   shippingFee: number;
+  discount?: number;
+  voucherInfo?: {
+    code: string;
+    type: 'percentage' | 'fixed' | 'shipping';
+    discountAmount: number;
+  } | null;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   isPaid: boolean;
   scheduledDate: string;
@@ -191,11 +198,7 @@ export interface ReturnRequest {
   id: string;
   orderId: string;
   userId: string;
-  sellerId: string; // In case of multi-seller orders, returns might be per seller, but current Order structure seems to group items. Wait, Order has `items`, each item has `seller`. But the Order itself doesn't explicitly have `sellerId` at top level in the interface provided above, but the dummy data shows items have seller info. 
-  // Looking at dummy data: items have 'seller' field. 
-  // Let's assume an order can be mixed? 
-  // The dummy data shows `items` array. 
-  // Usually returns are per order or per item. The user flow says "Select Item(s)".
+  sellerId: string;
   items: {
     itemId: string;
     quantity: number;
@@ -214,4 +217,36 @@ export interface ReturnRequest {
     note?: string;
     by: 'buyer' | 'seller' | 'admin';
   }[];
+}
+
+export type VoucherValidationErrorCode =
+  | 'NOT_FOUND'
+  | 'INACTIVE'
+  | 'NOT_STARTED'
+  | 'EXPIRED'
+  | 'MIN_ORDER_NOT_MET'
+  | 'ALREADY_USED'
+  | 'SELLER_MISMATCH'
+  | 'UNKNOWN';
+
+export interface VoucherValidationResult {
+  voucher: Voucher | null;
+  errorCode: VoucherValidationErrorCode | null;
+}
+
+export interface Voucher {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  type: 'percentage' | 'fixed' | 'shipping';
+  value: number;
+  minOrderValue: number;
+  maxDiscount?: number;
+  sellerId?: string;
+  validFrom: Date;
+  validTo: Date;
+  usageLimit: number | null;
+  claimLimit: number | null;
+  isActive: boolean;
 }
