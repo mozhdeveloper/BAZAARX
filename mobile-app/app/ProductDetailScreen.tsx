@@ -546,15 +546,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
       const variantText = variantParts.length > 0 ? ` (${variantParts.join(', ')})` : '';
 
-      // Close variant modal first
-      setShowVariantModal(false);
-
-      // Show Added to Cart Modal
-      setAddedProductInfo({
-        name: `${product.name}${variantText}`,
-        image: matchedVariant?.thumbnail_url || productImages[0] || product.image
-      });
-      setTimeout(() => setShowAddedToCartModal(true), 100); // Small delay for smooth transition
+      setTimeout(() => {
+        setAddedProductInfo({
+          name: `${product.name}${variantText}`,
+          image: matchedVariant?.thumbnail_url || productImages[0] || product.image
+        });
+        setShowAddedToCartModal(true);
+      }, 300);
       return;
     } else {
       setQuickOrder({
@@ -572,7 +570,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setSelectedOption1(modalSelectedOption1);
     setSelectedOption2(modalSelectedOption2);
     setQuantity(modalQuantity);
-    setShowVariantModal(false);
+    // Animation is handled internally by handleCloseInternal and onClose
   };
 
   // NEW Handle Confirm from Shared Modal
@@ -606,13 +604,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         quantity: newQuantity
       });
 
-      // Show Added Modal
-      const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
-      setAddedProductInfo({
-        name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
-        image: selectedVariant.image || productImages[0] || product.image || ''
-      });
-      setShowAddedToCartModal(true);
+      // Show Added Modal after exit animation completes
+      setTimeout(() => {
+        const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
+        setAddedProductInfo({
+          name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
+          image: selectedVariant.image || productImages[0] || product.image || ''
+        });
+        setShowAddedToCartModal(true);
+      }, 300);
 
     } else {
       setQuickOrder({
@@ -958,7 +958,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
                 )}
               </View>
-              <Text style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>{selectedVariantInfo.stock} In Stock</Text>
+              <Text style={{
+                fontSize: 13,
+                marginTop: 4,
+                fontWeight: '600',
+                color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#9CA3AF',
+              }}>
+                {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
+              </Text>
             </View>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
