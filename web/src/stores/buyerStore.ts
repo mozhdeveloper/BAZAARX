@@ -331,10 +331,10 @@ interface BuyerStore {
   // Address Book
   addresses: Address[];
   setAddresses: (addresses: Address[]) => void;
-  addAddress: (address: Address) => Promise<void>;
-  updateAddress: (id: string, updates: Partial<Address>) => Promise<void>;
-  deleteAddress: (id: string) => Promise<void>;
-  setDefaultAddress: (id: string) => Promise<void>;
+  addAddress: (address: Omit<Address, 'id' | 'fullName'> & { id?: string, fullName?: string }) => Promise<boolean>;
+  updateAddress: (id: string, updates: Partial<Address>) => Promise<boolean>;
+  deleteAddress: (id: string) => Promise<boolean>;
+  setDefaultAddress: (id: string) => Promise<boolean>;
 
 
   // Following Shops
@@ -571,174 +571,172 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     addAddress: async (address) => {
       const state = get();
       const userId = state.profile?.id;
+      if (!userId) return false;
 
-      // If the new address is default, unset default for all existing addresses
       const updatedAddresses = address.isDefault
         ? state.addresses.map(addr => ({ ...addr, isDefault: false }))
         : state.addresses;
 
-      // Save to database if user is logged in
-      if (userId) {
-        try {
-          // If setting as default, unset others first
-          if (address.isDefault) {
-            await supabase
-              .from('shipping_addresses')
-              .update({ is_default: false })
-              .eq('user_id', userId);
-          }
-
-          // Insert new address
-          // Build address_line_1 with name, phone, street - filter empty values
-          const addressParts = [
-            address.fullName || '',
-            address.phone || '',
-            address.street || ''
-          ].filter(Boolean);
-          const addressLine1 = addressParts.length > 0 ? addressParts.join(', ') : address.street || 'Address';
-
-          const { data: newAddr, error } = await supabase
+      try {
+        if (address.isDefault) {
+          await supabase
             .from('shipping_addresses')
-            .insert({
-              user_id: userId,
-              label: address.fullName || address.label || 'Home',
-              address_line_1: addressLine1,
-              address_line_2: '',
-              barangay: address.barangay || '',
-              city: address.city,
-              province: address.province,
-              region: address.region || 'Metro Manila',
-              postal_code: address.postalCode,
-              landmark: address.landmark || '',
-              delivery_instructions: address.deliveryInstructions || '',
-              is_default: address.isDefault || false,
-            })
-            .select()
-            .single();
-
-          if (!error && newAddr) {
-            // Use the DB-generated ID
-            address.id = newAddr.id;
-          }
-        } catch (err) {
-          console.error('Error saving address to database:', err);
+            .update({ is_default: false })
+            .eq('user_id', userId);
         }
-      }
 
-      set({
-        addresses: [...updatedAddresses, address]
-      });
+        const fullName = `${address.firstName} ${address.lastName}`.trim();
+
+        // Safely store off-schema data like Name & Phone in delivery_instructions as JSON
+        const meta = {
+            firstName: address.firstName,
+            lastName: address.lastName,
+            phone: address.phone,
+            instructions: address.deliveryInstructions || ""
+        };
+
+        const { data: newAddr, error } = await supabase
+          .from('shipping_addresses')
+          .insert({
+            user_id: userId,
+            label: address.label || fullName || 'Home',
+            address_line_1: address.street || '',
+            address_line_2: '',
+            barangay: address.barangay || '',
+            city: address.city,
+            province: address.province,
+            region: address.region || 'Metro Manila',
+            postal_code: address.postalCode,
+            landmark: address.landmark || '',
+            delivery_instructions: JSON.stringify(meta),
+            is_default: address.isDefault || false,
+            address_type: 'residential'
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        const finalAddress = {
+           ...address,
+           id: newAddr.id,
+           fullName
+        } as Address;
+
+        // Only update UI if DB insert succeeds
+        set({ addresses: [...updatedAddresses, finalAddress] });
+        return true;
+      } catch (err) {
+        console.error('Error saving address:', err);
+        return false;
+      }
     },
 
     updateAddress: async (id, updatedAddress) => {
       const state = get();
       const userId = state.profile?.id;
+      if (!userId) return false;
 
-      // If we are setting this address as default, unset others
       const isSettingDefault = updatedAddress.isDefault === true;
 
-      // Update in database
-      if (userId) {
-        try {
-          if (isSettingDefault) {
-            await supabase
-              .from('shipping_addresses')
-              .update({ is_default: false })
-              .eq('user_id', userId);
-          }
-
-          const dbUpdate: Record<string, any> = {};
-          // Build address_line_1 with name, phone, street if any of these are being updated
-          if (updatedAddress.street || updatedAddress.fullName || updatedAddress.phone) {
-            const addressParts = [
-              updatedAddress.fullName || '',
-              updatedAddress.phone || '',
-              updatedAddress.street || ''
-            ].filter(Boolean);
-            if (addressParts.length > 0) {
-              dbUpdate.address_line_1 = addressParts.join(', ');
-            }
-          }
-          if (updatedAddress.city) dbUpdate.city = updatedAddress.city;
-          if (updatedAddress.province) dbUpdate.province = updatedAddress.province;
-          if (updatedAddress.postalCode) dbUpdate.postal_code = updatedAddress.postalCode;
-          if (updatedAddress.fullName || updatedAddress.label) dbUpdate.label = updatedAddress.fullName || updatedAddress.label;
-          if (typeof updatedAddress.isDefault === 'boolean') dbUpdate.is_default = updatedAddress.isDefault;
-          if (updatedAddress.barangay) dbUpdate.barangay = updatedAddress.barangay;
-          if (updatedAddress.region) dbUpdate.region = updatedAddress.region;
-
+      try {
+        if (isSettingDefault) {
           await supabase
             .from('shipping_addresses')
-            .update(dbUpdate)
-            .eq('id', id);
-        } catch (err) {
-          console.error('Error updating address in database:', err);
+            .update({ is_default: false })
+            .eq('user_id', userId);
         }
-      }
 
-      set({
-        addresses: state.addresses.map(addr => {
-          if (addr.id === id) {
-            return { ...addr, ...updatedAddress };
-          }
-          if (isSettingDefault) {
-            return { ...addr, isDefault: false };
-          }
-          return addr;
-        })
-      });
+        const existing = state.addresses.find(a => a.id === id);
+        const meta = {
+          firstName: updatedAddress.firstName ?? existing?.firstName ?? "",
+          lastName: updatedAddress.lastName ?? existing?.lastName ?? "",
+          phone: updatedAddress.phone ?? existing?.phone ?? "",
+          instructions: updatedAddress.deliveryInstructions ?? existing?.deliveryInstructions ?? ""
+        };
+
+        const dbUpdate: Record<string, any> = {
+            delivery_instructions: JSON.stringify(meta)
+        };
+        
+        if (updatedAddress.street !== undefined) dbUpdate.address_line_1 = updatedAddress.street;
+        if (updatedAddress.city !== undefined) dbUpdate.city = updatedAddress.city;
+        if (updatedAddress.province !== undefined) dbUpdate.province = updatedAddress.province;
+        if (updatedAddress.postalCode !== undefined) dbUpdate.postal_code = updatedAddress.postalCode;
+        if (updatedAddress.label !== undefined || updatedAddress.firstName || updatedAddress.lastName) {
+             dbUpdate.label = updatedAddress.label || `${meta.firstName} ${meta.lastName}`.trim();
+        }
+        if (updatedAddress.isDefault !== undefined) dbUpdate.is_default = updatedAddress.isDefault;
+        if (updatedAddress.barangay !== undefined) dbUpdate.barangay = updatedAddress.barangay;
+        if (updatedAddress.region !== undefined) dbUpdate.region = updatedAddress.region;
+
+        const { error } = await supabase
+          .from('shipping_addresses')
+          .update(dbUpdate)
+          .eq('id', id)
+          .eq('user_id', userId); // Security check
+
+        if (error) throw error;
+
+        set({
+          addresses: state.addresses.map(addr => {
+            if (addr.id === id) {
+              return { ...addr, ...updatedAddress, fullName: `${meta.firstName} ${meta.lastName}`.trim() };
+            }
+            if (isSettingDefault) {
+              return { ...addr, isDefault: false };
+            }
+            return addr;
+          })
+        });
+        return true;
+      } catch (err) {
+        console.error('Error updating address:', err);
+        return false;
+      }
     },
 
     deleteAddress: async (id) => {
       const state = get();
       const userId = state.profile?.id;
+      if (!userId) return false;
 
-      // Delete from database
-      if (userId) {
-        try {
-          await supabase
-            .from('shipping_addresses')
-            .delete()
-            .eq('id', id);
-        } catch (err) {
-          console.error('Error deleting address from database:', err);
-        }
+      try {
+        const { error } = await supabase
+          .from('shipping_addresses')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', userId); // Ensure users only delete their own addresses
+
+        if (error) throw error;
+
+        set({ addresses: state.addresses.filter(addr => addr.id !== id) });
+        return true;
+      } catch (err) {
+        console.error('Error deleting address:', err);
+        return false;
       }
-
-      set({
-        addresses: state.addresses.filter(addr => addr.id !== id)
-      });
     },
 
     setDefaultAddress: async (id) => {
       const state = get();
       const userId = state.profile?.id;
+      if (!userId) return false;
 
-      // Update in database
-      if (userId) {
-        try {
-          // Unset all defaults
-          await supabase
-            .from('shipping_addresses')
-            .update({ is_default: false })
-            .eq('user_id', userId);
+      try {
+        await supabase.from('shipping_addresses').update({ is_default: false }).eq('user_id', userId);
+        const { error } = await supabase.from('shipping_addresses').update({ is_default: true }).eq('id', id).eq('user_id', userId);
+        
+        if (error) throw error;
 
-          // Set new default
-          await supabase
-            .from('shipping_addresses')
-            .update({ is_default: true })
-            .eq('id', id);
-        } catch (err) {
-          console.error('Error setting default address in database:', err);
-        }
+        set({
+          addresses: state.addresses.map(addr => ({ ...addr, isDefault: addr.id === id }))
+        });
+        return true;
+      } catch (err) {
+        console.error('Error setting default address:', err);
+        return false;
       }
-
-      set({
-        addresses: state.addresses.map(addr => ({
-          ...addr,
-          isDefault: addr.id === id
-        }))
-      });
     },
 
     addCard: (card) => set((state) => ({
@@ -1668,43 +1666,55 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         // Initialize addresses from the shipping_addresses table (map to expected format)
         // Note: address_line_1 may contain "Name, Phone, Street" format
         const mappedAddresses = (shippingAddresses || []).map((addr: any) => {
-          // Parse address_line_1 which may be in format: "Name, Phone, Street"
-          const addressLine1 = addr.address_line_1 || '';
-          const parts = addressLine1.split(', ');
-
-          // Try to extract name and phone if they were concatenated
-          let fullName = '';
-          let phone = '';
-          let street = addressLine1;
-
-          if (parts.length >= 3) {
-            // Format: "Name, Phone, Street..."
-            const possiblePhone = parts[1];
-            if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
-              fullName = parts[0];
-              phone = possiblePhone;
-              street = parts.slice(2).join(', ');
+          let meta: any = {};
+          try {
+            // Check if delivery_instructions contains our saved JSON payload
+            if (addr.delivery_instructions && addr.delivery_instructions.startsWith('{')) {
+              meta = JSON.parse(addr.delivery_instructions);
             }
+          } catch (e) {
+            console.error("Failed to parse address meta", e);
           }
+
+          // Backwards compatibility for old comma-separated addresses
+          let fallbackName = '';
+          let fallbackPhone = '';
+          let street = addr.address_line_1 || '';
+
+          if (!meta.firstName && street.includes(',')) {
+             const parts = street.split(', ');
+             if (parts.length >= 3) {
+                const possiblePhone = parts[1];
+                if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
+                   fallbackName = parts[0];
+                   fallbackPhone = possiblePhone;
+                   street = parts.slice(2).join(', ');
+                }
+             }
+          }
+
+          const parsedFirstName = meta.firstName || fallbackName.split(' ')[0] || '';
+          const parsedLastName = meta.lastName || fallbackName.split(' ').slice(1).join(' ') || '';
 
           return {
             id: addr.id,
-            fullName: fullName || addr.label,
-            firstName: fullName ? fullName.split(' ')[0] : '',
-            lastName: fullName ? fullName.split(' ').slice(1).join(' ') : '',
+            fullName: `${parsedFirstName} ${parsedLastName}`.trim() || addr.label,
+            firstName: parsedFirstName,
+            lastName: parsedLastName,
             street: street + (addr.address_line_2 ? ', ' + addr.address_line_2 : ''),
             city: addr.city,
             province: addr.province,
             postalCode: addr.postal_code,
-            phone: phone,
+            phone: meta.phone || fallbackPhone,
             isDefault: addr.is_default,
             label: addr.label,
             barangay: addr.barangay,
             region: addr.region,
             landmark: addr.landmark,
-            deliveryInstructions: addr.delivery_instructions,
+            deliveryInstructions: meta.instructions || (addr.delivery_instructions?.startsWith('{') ? '' : addr.delivery_instructions)
           };
         });
+        
         set({ addresses: mappedAddresses });
 
         return buyerInfo;
