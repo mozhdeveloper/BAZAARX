@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
-import { Trash2, Edit3 } from 'lucide-react-native';
+import { Trash2, ChevronDown } from 'lucide-react-native';
 import { CartItem } from '../types';
 import { QuantityStepper } from './QuantityStepper';
 import { safeImageUri } from '../utils/imageUtils';
+import { COLORS } from '../constants/theme';
 
 interface CartItemRowProps {
   item: CartItem;
@@ -37,66 +38,40 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
           </Text>
         </Pressable>
         {/* Variant Info (Tap to Edit) */}
-        {item.selectedVariant && (
-          <Pressable 
-            onPress={onEdit} 
-            disabled={!onEdit}
-            style={({ pressed }) => ({
-              flexDirection: 'row', 
-              flexWrap: 'wrap', 
-              alignItems: 'center',
-              gap: 6, 
-              marginBottom: 8,
-              opacity: pressed ? 0.7 : 1
-            })}
-          >
-            {/* Valid Options */}
-            {(item.selectedVariant.option1Value || item.selectedVariant.option2Value) ? (
-               <>
-                 {item.selectedVariant.option1Value && (
-                  <View style={styles.variantChip}>
-                    <Text style={styles.variantChipText}>
-                      {item.selectedVariant.option1Label || 'Option'}: {item.selectedVariant.option1Value}
-                    </Text>
-                  </View>
-                 )}
-                 {item.selectedVariant.option2Value && (
-                  <View style={styles.variantChip}>
-                    <Text style={styles.variantChipText}>
-                      {item.selectedVariant.option2Label || 'Option'}: {item.selectedVariant.option2Value}
-                    </Text>
-                  </View>
-                 )}
-               </>
-            ) : (
-              /* Legacy Fallback */
-              <>
-                 {item.selectedVariant.size && (
-                  <View style={styles.variantChip}>
-                    <Text style={styles.variantChipText}>Size: {item.selectedVariant.size}</Text>
-                  </View>
-                 )}
-                 {item.selectedVariant.color && (
-                  <View style={styles.variantChip}>
-                    <Text style={styles.variantChipText}>Color: {item.selectedVariant.color}</Text>
-                  </View>
-                 )}
-              </>
-            )}
-            
-            {/* Edit Indicator */}
-            {onEdit && (
-               <View style={styles.editIconWrapper}>
-                 <Edit3 size={10} color="#6B7280" />
-               </View>
-            )}
-          </Pressable>
-        )}
+        {item.selectedVariant && (() => {
+          // Build combined variant label text
+          const parts: string[] = [];
+          const sv = item.selectedVariant;
+          if (sv.option1Value || sv.option2Value) {
+            if (sv.option1Value) parts.push(`${sv.option1Label || 'Option 1'}: ${sv.option1Value}`);
+            if (sv.option2Value) parts.push(`${sv.option2Label || 'Option 2'}: ${sv.option2Value}`);
+          } else {
+            if (sv.color) parts.push(`Color: ${sv.color}`);
+            if (sv.size) parts.push(`Size: ${sv.size}`);
+          }
+          if (parts.length === 0) return null;
+          return (
+            <Pressable
+              onPress={onEdit}
+              disabled={!onEdit}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginBottom: 8,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <View style={styles.variantChip}>
+                <Text style={styles.variantChipText}>{parts.join(' · ')}</Text>
+                {onEdit && (
+                  <ChevronDown size={12} color="#6B7280" style={{ marginLeft: 4 }} />
+                )}
+              </View>
+            </Pressable>
+          );
+        })()}
 
         <Pressable onPress={onPress}>
-          <Text style={styles.seller} numberOfLines={1}>
-            {item.seller}
-          </Text>
           <View style={styles.priceContainer}>
             <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#EF4444' } : null]}>
               ₱{(item.price ?? 0).toLocaleString()}
@@ -117,10 +92,11 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
             onChange={onChange}
             max={item.stock} // Pass correct stock limit
             min={1}
+            iconColor="#9CA3AF"
           />
 
           <Pressable onPress={onRemove} style={styles.removeButton}>
-            <Trash2 size={18} color="#EF4444" />
+            <Trash2 size={18} color="#9d9d9dff" />
           </Pressable>
         </View>
       </View>
@@ -164,7 +140,7 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#FF5722',
+    color: COLORS.primary,
     marginBottom: 0,
     letterSpacing: -0.5,
   },
@@ -187,34 +163,27 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   removeButton: {
-    backgroundColor: '#FEE2E2',
-    padding: 8,
-    borderRadius: 10,
+    padding: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  
+
   // NEW STYLES
   variantChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    alignSelf: 'flex-start',
   },
   variantChipText: {
     fontSize: 11,
     color: '#4B5563',
     fontWeight: '500',
-  },
-  editIconWrapper: {
-    padding: 4,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginLeft: 2,
   },
   // Legacy styles (can be removed or kept for safety)
   editVariantBtn: {

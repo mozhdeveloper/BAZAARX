@@ -27,8 +27,7 @@ import SellerStorefrontPage from "./pages/SellerStorefrontPage";
 import ReviewsPage from "./pages/ReviewsPage";
 import BuyerReviewsPage from "./pages/BuyerReviewsPage";
 import BuyerFollowingPage from "./pages/BuyerFollowingPage";
-import BuyerSettingsPage from "./pages/BuyerSettingsPage";
-import BuyerLoginPage from "./pages/BuyerLoginPage";
+import BuyerSettingsPage from "./pages/BuyerSettingsPage";import BuyerProductRequestsPage from './pages/BuyerProductRequestsPage';import BuyerLoginPage from "./pages/BuyerLoginPage";
 import BuyerSignupPage from "./pages/BuyerSignupPage";
 import { BuyerSupport } from "./pages/BuyerSupport";
 import MyTickets from "./pages/MyTickets";
@@ -209,6 +208,14 @@ function App() {
               // <ProtectedBuyerRoute>
               <BuyerFollowingPage />
               // </ProtectedBuyerRoute>
+            }
+          />
+          <Route
+            path="/my-requests"
+            element={
+              //<ProtectedBuyerRoute>
+              <BuyerProductRequestsPage />
+              //</ProtectedBuyerRoute>
             }
           />
           <Route

@@ -70,6 +70,19 @@ const HomePage: React.FC = () => {
   const [flashEndsAt, setFlashEndsAt] = React.useState<string | null>(null);
   const [countdown, setCountdown] = React.useState('');
 
+  // Compute flash sale end date: next 3-hour block from now
+  const flashSaleEndDate = React.useMemo(() => {
+    const now = new Date();
+    const hours = now.getHours();
+    const nextBlock = Math.ceil((hours + 1) / 3) * 3; // next 3hr mark
+    const end = new Date(now);
+    end.setHours(nextBlock, 0, 0, 0);
+    if (end.getTime() <= now.getTime()) {
+      end.setHours(end.getHours() + 3);
+    }
+    return end;
+  }, []);
+
   React.useEffect(() => {
     const loadFlashSales = async () => {
       try {

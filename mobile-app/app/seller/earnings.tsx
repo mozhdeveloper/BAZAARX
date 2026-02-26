@@ -21,6 +21,7 @@ export default function EarningsScreen() {
   const totalEarnings = 76911.25;
   const pendingPayout = 15240.50;
   const availableBalance = totalEarnings - pendingPayout;
+  const lastPayout = payoutHistory.find(p => p.status === 'completed');
 
   return (
     <View style={styles.container}>
@@ -66,6 +67,19 @@ export default function EarningsScreen() {
             <Text style={styles.cardValueDark}>₱{pendingPayout.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</Text>
             <Text style={styles.cardSubtextGray}>Processing orders</Text>
           </View>
+
+          {/* Last Payout Card */}
+          {lastPayout && (
+            <View style={[styles.availableCard, { borderLeftColor: '#3B82F6', borderLeftWidth: 3 }]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardIconGreen, { backgroundColor: '#EFF6FF' }]}><Calendar size={24} color="#3B82F6" strokeWidth={2} /></View>
+                <CheckCircle size={20} color="#3B82F6" />
+              </View>
+              <Text style={styles.cardLabelGray}>Last Payout</Text>
+              <Text style={styles.cardValueDark}>₱{lastPayout.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</Text>
+              <Text style={styles.cardSubtextGray}>{new Date(lastPayout.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+            </View>
+          )}
         </View>
 
         {/* Payout Schedule */}

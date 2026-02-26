@@ -720,6 +720,13 @@ const SearchPage: React.FC = () => {
               <div className="text-center py-20">
                 <h3 className="text-xl font-bold text-[var(--text-headline)]">No products found</h3>
                 <p className="text-[var(--text-muted)] mt-2">Try adjusting your filters or search query</p>
+                <button
+                  onClick={() => setShowRequestModal(true)}
+                  className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-sm hover:bg-[var(--brand-primary-dark)] transition-all active:scale-95 shadow-lg shadow-[var(--brand-primary)]/20"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Request This Product
+                </button>
               </div>
             )}
           </main>

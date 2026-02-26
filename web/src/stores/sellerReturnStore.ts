@@ -1,11 +1,12 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { returnService, ReturnRequest } from '../services/returnService';
 
 export type ReturnStatus = 'pending' | 'approved' | 'rejected' | 'refunded';
 
 export interface SellerReturnRequest {
   id: string;
-  orderId: string; // "transactionId" in OrderStore, but often ID for linking
+  orderId: string;  // Real UUID for API calls
+  orderNumber: string; // Display order number
   buyerName: string;
   buyerEmail: string;
   items: {
@@ -25,86 +26,102 @@ export interface SellerReturnRequest {
 
 interface SellerReturnStore {
   requests: SellerReturnRequest[];
-  approveRequest: (id: string) => void;
-  rejectRequest: (id: string) => void;
+  isLoading: boolean;
+  error: string | null;
+  loadRequests: (sellerId: string) => Promise<void>;
+  approveRequest: (id: string) => Promise<void>;
+  rejectRequest: (id: string, reason?: string) => Promise<void>;
   getRequestsByStatus: (status: ReturnStatus | 'all') => SellerReturnRequest[];
 }
 
-// Dummy Data matching Mobile Side
-const dummyRequests: SellerReturnRequest[] = [
-  {
-    id: 'ret_1',
-    orderId: 'A238567K',
-    buyerName: 'John Doe',
-    buyerEmail: 'john@example.com',
-    items: [
-      {
-        productName: 'Premium Wireless Earbuds',
-        quantity: 1,
-        price: 2499,
-        image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400',
-        reason: 'defective'
-      }
-    ],
-    totalRefundAmount: 2499,
-    requestDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    status: 'pending',
-    reason: 'Defective / Not Working',
-    description: 'The left earbud is not charging even after 24 hours of case charging.',
-    images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400'],
-  },
-  {
-    id: 'ret_2',
-    orderId: 'B892341M',
-    buyerName: 'Jane Smith',
-    buyerEmail: 'jane@example.com',
-    items: [
-      {
-        productName: 'Sustainable Water Bottle',
-        quantity: 1,
-        price: 899,
-        image: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400',
-        reason: 'damaged'
-      }
-    ],
-    totalRefundAmount: 899,
-    requestDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    status: 'approved',
-    reason: 'Damaged / Broken',
-    description: 'Arrived with a dent on the side.',
-    images: [],
+function mapToSellerReturn(r: ReturnRequest): SellerReturnRequest {
+  // Determine status from DB fields
+  let status: ReturnStatus = 'pending';
+  if (r.refundDate) {
+    status = 'refunded';
+  } else if (r.paymentStatus === 'refunded') {
+    status = 'refunded';
+  } else if (!r.isReturnable) {
+    status = 'rejected';
+  } else if (r.orderStatus === 'returned') {
+    status = 'pending'; // Submitted, waiting for seller action
   }
-];
+
+  return {
+    id: r.id,
+    orderId: r.orderId,
+    orderNumber: r.orderNumber || r.orderId,
+    buyerName: r.buyerName || 'Unknown',
+    buyerEmail: r.buyerEmail || '',
+    items: (r.items || []).map(item => ({
+      productName: item.productName,
+      quantity: item.quantity,
+      price: item.price,
+      image: item.image || '',
+      reason: r.returnReason || 'Return requested',
+    })),
+    totalRefundAmount: r.refundAmount || r.items?.reduce((sum, i) => sum + i.price * i.quantity, 0) || 0,
+    requestDate: r.createdAt,
+    status,
+    reason: r.returnReason || '',
+    description: r.returnReason || '',
+    images: [],
+  };
+}
 
 export const useSellerReturnStore = create<SellerReturnStore>()(
-  persist(
-    (set, get) => ({
-      requests: dummyRequests,
+  (set, get) => ({
+    requests: [],
+    isLoading: false,
+    error: null,
 
-      approveRequest: (id) => {
+    loadRequests: async (sellerId: string) => {
+      set({ isLoading: true, error: null });
+      try {
+        const data = await returnService.getReturnRequestsBySeller(sellerId);
+        set({ requests: data.map(mapToSellerReturn), isLoading: false });
+      } catch (error: any) {
+        set({ error: error.message || 'Failed to load return requests', isLoading: false });
+      }
+    },
+
+    approveRequest: async (id: string) => {
+      const req = get().requests.find(r => r.id === id);
+      if (!req) return;
+
+      try {
+        // Find the actual order ID (not order number) from the return request
+        await returnService.approveReturn(id, req.orderId);
         set((state) => ({
-          requests: state.requests.map((req) =>
-            req.id === id ? { ...req, status: 'approved' } : req
+          requests: state.requests.map((r) =>
+            r.id === id ? { ...r, status: 'approved' as ReturnStatus } : r
           ),
         }));
-      },
+      } catch (error: any) {
+        set({ error: error.message || 'Failed to approve return' });
+      }
+    },
 
-      rejectRequest: (id) => {
+    rejectRequest: async (id: string, reason?: string) => {
+      const req = get().requests.find(r => r.id === id);
+      if (!req) return;
+
+      try {
+        await returnService.rejectReturn(id, req.orderId, reason);
         set((state) => ({
-          requests: state.requests.map((req) =>
-            req.id === id ? { ...req, status: 'rejected' } : req
+          requests: state.requests.map((r) =>
+            r.id === id ? { ...r, status: 'rejected' as ReturnStatus } : r
           ),
         }));
-      },
+      } catch (error: any) {
+        set({ error: error.message || 'Failed to reject return' });
+      }
+    },
 
-      getRequestsByStatus: (status) => {
-        const { requests } = get();
-        if (status === 'all') return requests;
-        return requests.filter((req) => req.status === status);
-      },
-    }),
-    {
-      name: 'seller-return-storage',
-    }
-  )
+    getRequestsByStatus: (status) => {
+      const { requests } = get();
+      if (status === 'all') return requests;
+      return requests.filter((req) => req.status === status);
+    },
+  })
 );

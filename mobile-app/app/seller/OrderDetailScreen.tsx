@@ -11,8 +11,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { ArrowLeft, MapPin, Phone, User, Mail } from 'lucide-react-native';
+import { ArrowLeft, MapPin, Phone, User, Mail, MessageCircle } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
+import { useAuthStore } from '../../src/stores/authStore';
+import { chatService } from '../../src/services/chatService';
 import { safeImageUri } from '../../src/utils/imageUtils';
 import TrackingModal from '../../src/components/seller/TrackingModal';
 
@@ -163,6 +165,38 @@ export default function SellerOrderDetailScreen() {
                     <View style={styles.detailCardContent}>
                         <View style={styles.infoLine}><User size={16} color="#9CA3AF" /><Text style={styles.custName}>{order.buyerName || 'Walk-in'}</Text></View>
                         <View style={[styles.infoLine, { marginTop: 8 }]}><Mail size={16} color="#9CA3AF" /><Text style={styles.custEmail}>{order.buyerEmail || 'No email provided'}</Text></View>
+                        <Pressable
+                            onPress={async () => {
+                                try {
+                                    const sellerId = seller?.id;
+                                    if (!sellerId || !order.buyerId) {
+                                        Alert.alert('Error', 'Unable to start chat — missing user info');
+                                        return;
+                                    }
+                                    const conversation = await chatService.getOrCreateConversation(
+                                        order.buyerId,
+                                        sellerId,
+                                        order.id
+                                    );
+                                    if (!conversation) {
+                                        Alert.alert('Error', 'Could not create conversation');
+                                        return;
+                                    }
+                                    (navigation as any).navigate('Chat', {
+                                        conversation,
+                                        currentUserId: sellerId,
+                                        userType: 'seller',
+                                    });
+                                } catch (err) {
+                                    console.error('Chat navigation error:', err);
+                                    Alert.alert('Error', 'Failed to open chat');
+                                }
+                            }}
+                            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#FF6A0030', backgroundColor: '#FFF7F0' }}
+                        >
+                            <MessageCircle size={16} color="#FF6A00" />
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: '#FF6A00' }}>Chat with Buyer</Text>
+                        </Pressable>
                     </View>
                 </View>
 

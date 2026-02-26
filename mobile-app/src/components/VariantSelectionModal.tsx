@@ -150,11 +150,12 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
   const prevVisibleRef = useRef(visible);
 
   useEffect(() => {
-    const wasClosed = !prevVisibleRef.current && visible;
-
     if (visible) {
-      if (wasClosed) {
-        // Only run initialization when the modal is freshly opened
+      if (!prevVisibleRef.current) {
+        // Reset to initial state ONLY on fresh open
+        fadeAnim.setValue(0);
+        slideAnim.setValue(500);
+
         const initOp1 = initialSelectedVariant?.option1Value || initialSelectedVariant?.color || (hasOption1 ? option1Values[0] : null);
         const initOp2 = initialSelectedVariant?.option2Value || initialSelectedVariant?.size || (hasOption2 ? option2Values[0] : null);
 
@@ -163,15 +164,13 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
         setQuantity(initialQuantity);
       }
 
-      // Always animate in if visible (handles potential interrupted animations)
       Animated.parallel([
         Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
         Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
       ]).start();
-    } else {
-      fadeAnim.setValue(0);
-      slideAnim.setValue(500);
     }
+    // DO NOT reset immediately on false, let handleCloseInternal handle it
+    // If it was closed by prop from outside, content will just vanish because Modal is hidden
 
     prevVisibleRef.current = visible;
   }, [visible, initialSelectedVariant, initialQuantity, hasOption1, hasOption2]);
@@ -223,6 +222,10 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
       return;
     }
 
+    // Start smoothing out first
+    handleCloseInternal();
+
+    // Notify parent
     onConfirm({
       option1Value: selectedOption1 || undefined,
       option2Value: selectedOption2 || undefined,
@@ -231,7 +234,6 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
       stock: activeVariantInfo.stock,
     }, quantity);
 
-    handleCloseInternal();
   };
 
   // Check if an option should be disabled based on the other selected option
@@ -347,12 +349,36 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
             {/* OPTION 1 */}
             {hasOption1 && (
               <View style={styles.optionSection}>
-                <Text style={styles.optionLabel}>{variantLabel1}</Text>
+                <View style={styles.optionLabelRow}>
+                  <Text style={styles.optionLabel}>{variantLabel1}</Text>
+                  {selectedOption1 && (
+                    <Text style={styles.optionLabelValue}> {selectedOption1}</Text>
+                  )}
+                </View>
                 <View style={styles.optionGrid}>
                   {option1Values.map((val: string, i: number) => {
                     const isColor = variantLabel1.toLowerCase() === 'color';
                     const isSelected = selectedOption1 === val;
                     const isDisabled = isOptionDisabled(1, val);
+
+                    if (isColor) {
+                      return (
+                        <Pressable
+                          key={`op1-${i}`}
+                          onPress={() => !isDisabled && setSelectedOption1(val)}
+                          style={[
+                            styles.colorChip,
+                            { backgroundColor: getColorHex(val) },
+                            isSelected && styles.colorChipSelected,
+                            isDisabled && { opacity: 0.5 },
+                          ]}
+                        >
+                          {isDisabled && (
+                            <View style={styles.colorChipDisabledLine} />
+                          )}
+                        </Pressable>
+                      );
+                    }
 
                     return (
                       <Pressable
@@ -360,26 +386,15 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                         onPress={() => !isDisabled && setSelectedOption1(val)}
                         style={[
                           styles.optionChip,
-                          isColor && { backgroundColor: getColorHex(val) },
                           isSelected && styles.optionChipSelected,
-                          isSelected && isColor && { borderColor: BRAND_COLOR, borderWidth: 3 },
-                          isDisabled && styles.optionChipDisabled
+                          isDisabled && styles.optionChipDisabled,
                         ]}
                       >
-                        {!isColor && (
-                          <Text style={[
-                            styles.optionText,
-                            isSelected && { color: '#FFF' },
-                            isDisabled && styles.optionTextDisabled
-                          ]}>{val}</Text>
-                        )}
-                        {isSelected && !isColor && (
-                          <View style={[StyleSheet.absoluteFill, { backgroundColor: BRAND_COLOR, borderRadius: 8, zIndex: -1 }]} />
-                        )}
-                        {isSelected && isColor && (
-                          <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
-                        )}
-                        {/* Optional: Add X or line-through for disabled colors if needed, usually opacity is enough */}
+                        <Text style={[
+                          styles.optionText,
+                          isSelected && { color: '#FFF' },
+                          isDisabled && styles.optionTextDisabled,
+                        ]}>{val}</Text>
                       </Pressable>
                     );
                   })}
@@ -390,7 +405,12 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
             {/* OPTION 2 */}
             {hasOption2 && (
               <View style={styles.optionSection}>
-                <Text style={styles.optionLabel}>{variantLabel2}</Text>
+                <View style={styles.optionLabelRow}>
+                  <Text style={styles.optionLabel}>{variantLabel2}</Text>
+                  {selectedOption2 && (
+                    <Text style={styles.optionLabelValue}> {selectedOption2}</Text>
+                  )}
+                </View>
                 <View style={styles.optionGrid}>
                   {option2Values.map((val: string, i: number) => {
                     const isSelected = selectedOption2 === val;
@@ -403,17 +423,14 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                         style={[
                           styles.optionChip,
                           isSelected && styles.optionChipSelected,
-                          isDisabled && styles.optionChipDisabled
+                          isDisabled && styles.optionChipDisabled,
                         ]}
                       >
                         <Text style={[
                           styles.optionText,
                           isSelected && { color: '#FFF' },
-                          isDisabled && styles.optionTextDisabled
+                          isDisabled && styles.optionTextDisabled,
                         ]}>{val}</Text>
-                        {isSelected && (
-                          <View style={[StyleSheet.absoluteFill, { backgroundColor: BRAND_COLOR, borderRadius: 8, zIndex: -1 }]} />
-                        )}
                       </Pressable>
                     );
                   })}
@@ -457,20 +474,28 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
           </ScrollView>
 
           {/* ACTION BTN */}
-          <Pressable
-            style={[
-              styles.confirmBtn,
-              !isBuyNow && styles.confirmBtnOutlined,
-              ((hasOption1 && !selectedOption1) || (hasOption2 && !selectedOption2)) && styles.disabledBtn
-            ]}
-            onPress={handleConfirm}
-            disabled={(hasOption1 && !selectedOption1) || (hasOption2 && !selectedOption2)}
-          >
-            <Text style={[
-              styles.confirmText,
-              !isBuyNow && styles.confirmTextOutlined
-            ]}>{confirmLabel}</Text>
-          </Pressable>
+          {(() => {
+            const isSelectionValid = (hasOption1 ? !!selectedOption1 : true) && (hasOption2 ? !!selectedOption2 : true);
+            return (
+              <Pressable
+                style={[
+                  styles.confirmBtn,
+                  isSelectionValid
+                    ? { backgroundColor: COLORS.primary, borderColor: COLORS.primary }
+                    : { backgroundColor: COLORS.background, borderColor: COLORS.gray300, borderWidth: 1 }
+                ]}
+                onPress={handleConfirm}
+                disabled={!isSelectionValid}
+              >
+                <Text style={[
+                  styles.confirmText,
+                  isSelectionValid ? { color: '#FFF' } : { color: COLORS.gray400 }
+                ]}>
+                  {confirmLabel}
+                </Text>
+              </Pressable>
+            );
+          })()}
 
         </Animated.View>
       </View>
@@ -538,7 +563,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#374151',
-    marginBottom: 10,
+    marginBottom: 0,
   },
   qtyContainer: {
     flexDirection: 'row',
@@ -564,7 +589,8 @@ const styles = StyleSheet.create({
   },
   optionChipSelected: {
     borderColor: COLORS.primary,
-    backgroundColor: '#FFF7ED',
+    borderWidth: 2,
+    backgroundColor: COLORS.primary,
   },
   optionText: {
     fontSize: 13,
@@ -579,15 +605,11 @@ const styles = StyleSheet.create({
   qtyBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.background,
   },
   qtyBtnDisabled: {
-    borderColor: '#D1D5DB',
+    opacity: 0.3,
   },
   qtyValue: {
     fontSize: 18,
@@ -629,5 +651,43 @@ const styles = StyleSheet.create({
   optionTextDisabled: {
     color: '#9CA3AF',
     textDecorationLine: 'line-through',
+  },
+  optionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  optionLabelValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  colorChip: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorChipSelected: {
+    borderColor: COLORS.primary,
+    borderWidth: 3,
+  },
+  colorCheck: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  colorChipDisabledLine: {
+    position: 'absolute',
+    width: '120%',
+    height: 2,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    transform: [{ rotate: '-45deg' }],
   },
 });

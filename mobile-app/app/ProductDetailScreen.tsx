@@ -64,6 +64,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { productService } from '../src/services/productService';
+import { sellerService } from '../src/services/sellerService';
 import { discountService } from '../src/services/discountService';
 import { ActiveDiscount } from '../src/types/discount';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -230,6 +231,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestModalMessage, setGuestModalMessage] = useState('');
+  const [isFollowingSeller, setIsFollowingSeller] = useState(false);
 
   // Added to Cart Modal State
   const [showAddedToCartModal, setShowAddedToCartModal] = useState(false);
@@ -546,15 +548,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       }
       const variantText = variantParts.length > 0 ? ` (${variantParts.join(', ')})` : '';
 
-      // Close variant modal first
-      setShowVariantModal(false);
-
-      // Show Added to Cart Modal
-      setAddedProductInfo({
-        name: `${product.name}${variantText}`,
-        image: matchedVariant?.thumbnail_url || productImages[0] || product.image
-      });
-      setTimeout(() => setShowAddedToCartModal(true), 100); // Small delay for smooth transition
+      setTimeout(() => {
+        setAddedProductInfo({
+          name: `${product.name}${variantText}`,
+          image: matchedVariant?.thumbnail_url || productImages[0] || product.image
+        });
+        setShowAddedToCartModal(true);
+      }, 300);
       return;
     } else {
       setQuickOrder({
@@ -572,7 +572,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setSelectedOption1(modalSelectedOption1);
     setSelectedOption2(modalSelectedOption2);
     setQuantity(modalQuantity);
-    setShowVariantModal(false);
+    // Animation is handled internally by handleCloseInternal and onClose
   };
 
   // NEW Handle Confirm from Shared Modal
@@ -606,13 +606,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         quantity: newQuantity
       });
 
-      // Show Added Modal
-      const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
-      setAddedProductInfo({
-        name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
-        image: selectedVariant.image || productImages[0] || product.image || ''
-      });
-      setShowAddedToCartModal(true);
+      // Show Added Modal after exit animation completes
+      setTimeout(() => {
+        const variantText = [selectedVariant.option1Value, selectedVariant.option2Value].filter(Boolean).join(', ');
+        setAddedProductInfo({
+          name: `${product.name}${variantText ? ` (${variantText})` : ''}`,
+          image: selectedVariant.image || productImages[0] || product.image || ''
+        });
+        setShowAddedToCartModal(true);
+      }, 300);
 
     } else {
       setQuickOrder({
@@ -757,6 +759,43 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         verified: product.sellerVerified || false,
       }
     });
+  };
+
+  // Check follow status on mount
+  useEffect(() => {
+    const checkFollow = async () => {
+      const sellerId = product.seller_id || product.sellerId;
+      if (!user || isGuest || !sellerId) return;
+      try {
+        const following = await sellerService.checkIsFollowing(user.id, sellerId);
+        setIsFollowingSeller(following);
+      } catch (e) {
+        console.error('[PDP] Error checking follow status:', e);
+      }
+    };
+    checkFollow();
+  }, [product.seller_id, product.sellerId, user, isGuest]);
+
+  const handleFollowSeller = async () => {
+    if (isGuest) {
+      setGuestModalMessage('Sign up to follow shops.');
+      setShowGuestModal(true);
+      return;
+    }
+    const sellerId = product.seller_id || product.sellerId;
+    if (!user || !sellerId) return;
+    const prev = isFollowingSeller;
+    setIsFollowingSeller(!prev);
+    try {
+      if (prev) {
+        await sellerService.unfollowSeller(user.id, sellerId);
+      } else {
+        await sellerService.followSeller(user.id, sellerId);
+      }
+    } catch (e) {
+      setIsFollowingSeller(prev);
+      Alert.alert('Error', 'Failed to update follow status');
+    }
   };
 
   const handleWishlistAction = (categoryId?: string) => {
@@ -958,7 +997,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
                 )}
               </View>
-              <Text style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>{selectedVariantInfo.stock} In Stock</Text>
+              <Text style={{
+                fontSize: 13,
+                marginTop: 4,
+                fontWeight: '600',
+                color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#9CA3AF',
+              }}>
+                {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
+              </Text>
             </View>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
@@ -1045,6 +1091,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.sellerMetaText}>{soldCount.toLocaleString()} items sold</Text>
               </View>
             </View>
+            <Pressable
+              style={[styles.followBtn, isFollowingSeller && styles.followBtnActive]}
+              onPress={handleFollowSeller}
+            >
+              <Heart size={14} color={isFollowingSeller ? '#FFF' : BRAND_COLOR} fill={isFollowingSeller ? '#FFF' : 'none'} />
+              <Text style={[styles.followBtnText, isFollowingSeller && styles.followBtnTextActive]}>
+                {isFollowingSeller ? 'Following' : 'Follow'}
+              </Text>
+            </Pressable>
             <Pressable style={styles.visitStoreBtn} onPress={handleVisitStore}>
               <Text style={styles.visitStoreText}>Visit Store</Text>
               <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
@@ -1713,6 +1768,17 @@ const styles = StyleSheet.create({
   sellerMetaDivider: { width: 1, height: 10, backgroundColor: '#E5E7EB', marginHorizontal: 8 },
   sellerRating: { flexDirection: 'row', alignItems: 'center', gap: 4 }, // Kept for reference but not used in new layout directly
 
+  followBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1, borderColor: BRAND_COLOR,
+    marginRight: 6,
+  } as any,
+  followBtnActive: {
+    backgroundColor: BRAND_COLOR,
+  },
+  followBtnText: { fontSize: 12, fontWeight: '600', color: BRAND_COLOR } as any,
+  followBtnTextActive: { color: '#FFF' },
   visitStoreBtn: {
     flexDirection: 'row',
     alignItems: 'center',

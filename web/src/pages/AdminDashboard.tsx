@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   Plus,
   Activity,
-  Shield
+  Shield,
+  MessageSquare,
 } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
@@ -131,6 +132,15 @@ const Dashboard: React.FC<DashboardProps> = ({
       color: 'from-purple-500 to-purple-600',
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-700'
+    },
+    {
+      title: 'Product Requests',
+      value: stats.productRequests?.toLocaleString() || '0',
+      change: stats.productRequestsGrowth || '+0%',
+      icon: MessageSquare,
+      color: 'from-pink-500 to-pink-600',
+      bgColor: 'bg-pink-50',
+      textColor: 'text-pink-700'
     }
   ];
 

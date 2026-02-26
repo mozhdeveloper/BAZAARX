@@ -248,10 +248,10 @@ export const useCartStore = create<CartStore>()(
           const cartId = get().cartId;
           // If no cartId, try to initialize first
           if (!cartId) {
-             await get().initializeForCurrentUser();
-             if (!get().cartId) return;
+            await get().initializeForCurrentUser();
+            if (!get().cartId) return;
           }
-          
+
           const verifiedCartId = get().cartId as string;
           const previousItems = get().items;
           set(state => ({
@@ -264,12 +264,12 @@ export const useCartStore = create<CartStore>()(
             // For now, if itemId exists in our local items as cartItemId, use that
             const item = previousItems.find(i => i.cartItemId === itemId);
             if (item) {
-               await cartService.removeFromCart(item.cartItemId);
+              await cartService.removeFromCart(item.cartItemId);
             } else {
-               // Fallback for legacy calls using productId: try to find item by productId
-               await cartService.removeItem(verifiedCartId, itemId);
+              // Fallback for legacy calls using productId: try to find item by productId
+              await cartService.removeItem(verifiedCartId, itemId);
             }
-            
+
             // Background refresh to catch any sync adjustments
             const rawItems = await cartService.getCartItems(verifiedCartId);
             set({ items: mapDbCartItemsToCartItems(rawItems) });
@@ -285,38 +285,35 @@ export const useCartStore = create<CartStore>()(
       updateQuantity: (itemId, quantity) => {
         const run = async () => {
           const cartId = get().cartId;
-           if (!cartId) {
-             await get().initializeForCurrentUser();
-             if (!get().cartId) return;
+          if (!cartId) {
+            await get().initializeForCurrentUser();
+            if (!get().cartId) return;
           }
 
           if (quantity <= 0) {
             return get().removeItem(itemId);
           }
 
-          // Optimistic update
+          // Optimistic update — reflects instantly in UI
           const previousItems = get().items;
           set(state => ({
-            items: state.items.map(i => 
-              (i.cartItemId === itemId || i.id === itemId) 
-                ? { ...i, quantity } 
+            items: state.items.map(i =>
+              (i.cartItemId === itemId || i.id === itemId)
+                ? { ...i, quantity }
                 : i
             )
           }));
 
           try {
-             // We know cartId exists because of the check above
-             const verifiedCartId = cartId as string;
-             const item = previousItems.find(i => i.cartItemId === itemId);
-             if (item) {
-                await cartService.updateCartItemQuantity(item.cartItemId, quantity);
-             } else {
-                await cartService.updateQuantity(verifiedCartId, itemId, quantity);
-             }
-            
-            // Background refresh to catch any stock sync/rounding adjustments
-            const rawItems = await cartService.getCartItems(verifiedCartId);
-            set({ items: mapDbCartItemsToCartItems(rawItems) });
+            const item = previousItems.find(i => i.cartItemId === itemId);
+            if (item) {
+              await cartService.updateCartItemQuantity(item.cartItemId, quantity);
+            } else {
+              const verifiedCartId = cartId as string;
+              await cartService.updateQuantity(verifiedCartId, itemId, quantity);
+            }
+            // No re-fetch needed — optimistic update is accurate.
+            // A full refresh happens automatically on next screen focus.
           } catch (e) {
             // Rollback on error
             set({ items: previousItems });
@@ -329,17 +326,17 @@ export const useCartStore = create<CartStore>()(
       updateItemVariant: async (cartItemId, variantId, options) => {
         // Optimistically update local state if needed, or just wait for refresh
         const run = async () => {
-           const cartId = get().cartId;
-           if (!cartId) return;
-            try {
-              // Call service
-              await cartService.updateCartItemVariant(cartItemId, variantId, options);
-              // Refresh
-              await get().initializeForCurrentUser();
-            } catch (e) {
-               console.error('[CartStore] Failed to update item variant:', e);
-               set({ error: 'Failed to update item variant' });
-            }
+          const cartId = get().cartId;
+          if (!cartId) return;
+          try {
+            // Call service
+            await cartService.updateCartItemVariant(cartItemId, variantId, options);
+            // Refresh
+            await get().initializeForCurrentUser();
+          } catch (e) {
+            console.error('[CartStore] Failed to update item variant:', e);
+            set({ error: 'Failed to update item variant' });
+          }
         };
         run();
       },
@@ -348,10 +345,10 @@ export const useCartStore = create<CartStore>()(
         const run = async () => {
           const cartId = get().cartId;
           if (!cartId) return;
-          
+
           const previousItems = get().items;
           set({ items: [] });
-          
+
           try {
             await cartService.clearCart(cartId);
           } catch (e) {
@@ -365,7 +362,7 @@ export const useCartStore = create<CartStore>()(
 
       removeItems: async (cartItemIds: string[]) => {
         if (!cartItemIds || cartItemIds.length === 0) return;
-        
+
         const previousItems = get().items;
         set(state => ({
           items: state.items.filter(i => !cartItemIds.includes(i.cartItemId) && !cartItemIds.includes(i.id))
@@ -373,7 +370,7 @@ export const useCartStore = create<CartStore>()(
 
         try {
           await cartService.removeItems(cartItemIds);
-          
+
           // Background refresh
           const cartId = get().cartId;
           if (cartId) {
@@ -384,7 +381,7 @@ export const useCartStore = create<CartStore>()(
           // Rollback on error
           set({ items: previousItems });
           console.error('[CartStore] Failed to remove multiple items:', e);
-           set({ error: 'Failed to delete selected items' });
+          set({ error: 'Failed to delete selected items' });
         }
       },
 

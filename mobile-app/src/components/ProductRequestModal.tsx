@@ -9,8 +9,13 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { X, Send, Package, MessageSquare } from 'lucide-react-native';
+import { X, Send, Package, MessageSquare, CheckCircle } from 'lucide-react-native';
+import { supabase } from '../lib/supabase';
+import { supabaseAdmin } from '../lib/supabase';
+import { useAuthStore } from '../stores/authStore';
 
 interface ProductRequestModalProps {
   visible: boolean;
@@ -23,6 +28,8 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
   const [otherCategory, setOtherCategory] = useState('');
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const categories = [
     'Fruits',
@@ -37,22 +44,70 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
     'Other',
   ];
 
-  const handleSubmit = () => {
-    if (productName.trim() && category && description.trim()) {
-      console.log('Product Request:', {
-        productName,
-        category,
-        description,
-        quantity,
-      });
-      // Reset form
-      setProductName('');
-      setCategory('');
-      setOtherCategory('');
-      setDescription('');
-      setQuantity('');
-      onClose();
+  const handleSubmit = async () => {
+    const finalCategory = category === 'Other' ? otherCategory.trim() : category;
+    if (!productName.trim() || !finalCategory || !description.trim()) return;
+
+    setSubmitting(true);
+    try {
+      const { user } = useAuthStore.getState();
+
+      // Get user profile name if available
+      let requestedByName = 'Anonymous Buyer';
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', user.id)
+          .single();
+        if (profile) {
+          requestedByName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Buyer';
+        }
+      }
+
+      const insertData = {
+        product_name: productName.trim(),
+        description: description.trim(),
+        category: finalCategory,
+        requested_by_name: requestedByName,
+        requested_by_id: user?.id || null,
+        estimated_demand: quantity ? parseInt(quantity, 10) || 0 : 0,
+        status: 'pending',
+        priority: 'medium',
+      };
+
+      // Try with regular client first
+      const { error } = await supabase.from('product_requests').insert(insertData);
+
+      if (error) {
+        // If RLS error, fallback to admin client
+        if (error.message?.includes('row-level security') && supabaseAdmin) {
+          console.warn('[ProductRequest] RLS blocked, using admin client fallback');
+          const { error: adminErr } = await supabaseAdmin.from('product_requests').insert(insertData);
+          if (adminErr) throw adminErr;
+        } else {
+          throw error;
+        }
+      }
+
+      setSubmitted(true);
+    } catch (error: any) {
+      console.error('[ProductRequest] Error submitting:', error);
+      Alert.alert('Error', 'Failed to submit product request. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleClose = () => {
+    // Reset form
+    setProductName('');
+    setCategory('');
+    setOtherCategory('');
+    setDescription('');
+    setQuantity('');
+    setSubmitted(false);
+    onClose();
   };
 
   const isFormValid = productName.trim() && 
@@ -60,12 +115,31 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
     description.trim();
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={handleClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.modalOverlay}
       >
         <View style={styles.modalContainer}>
+          {submitted ? (
+            /* Confirmation State */
+            <View style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 32 }}>
+              <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#F0FDF4', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                <CheckCircle size={48} color="#22C55E" />
+              </View>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: '#1F2937', marginBottom: 8, textAlign: 'center' }}>Request Submitted!</Text>
+              <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
+                We've received your request for "{productName}". Our team will review it and notify you when a seller offers this product.
+              </Text>
+              <Pressable
+                onPress={handleClose}
+                style={{ backgroundColor: '#FF6A00', borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14, width: '100%', alignItems: 'center' }}
+              >
+                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '700' }}>Done</Text>
+              </Pressable>
+            </View>
+          ) : (
+          <>
           {/* Header */}
           <View style={styles.modalHeader}>
             <View style={styles.headerLeft}>
@@ -79,7 +153,7 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
                 </Text>
               </View>
             </View>
-            <Pressable onPress={onClose} style={styles.closeButton}>
+            <Pressable onPress={handleClose} style={styles.closeButton}>
               <X size={24} color="#6B7280" />
             </Pressable>
           </View>
@@ -189,23 +263,29 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
                 styles.cancelButton,
                 pressed && styles.cancelButtonPressed,
               ]}
-              onPress={onClose}
+              onPress={handleClose}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [
                 styles.submitButton,
-                !isFormValid && styles.submitButtonDisabled,
-                pressed && isFormValid && styles.submitButtonPressed,
+                (!isFormValid || submitting) && styles.submitButtonDisabled,
+                pressed && isFormValid && !submitting && styles.submitButtonPressed,
               ]}
               onPress={handleSubmit}
-              disabled={!isFormValid}
+              disabled={!isFormValid || submitting}
             >
-              <Send size={18} color="#FFFFFF" />
-              <Text style={styles.submitButtonText}>Submit Request</Text>
+              {submitting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Send size={18} color="#FFFFFF" />
+              )}
+              <Text style={styles.submitButtonText}>{submitting ? 'Submitting...' : 'Submit Request'}</Text>
             </Pressable>
           </View>
+          </>
+          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>

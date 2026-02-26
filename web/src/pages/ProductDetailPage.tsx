@@ -78,6 +78,10 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         addToRegistry,
         removeRegistryItem,
         cartItems,
+        followShop,
+        unfollowShop,
+        isFollowing,
+        loadFollowedShops,
     } = useBuyerStore();
     const { products: sellerProducts } = useProductStore();
 
@@ -85,7 +89,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [isCreateRegistryModalOpen, setIsCreateRegistryModalOpen] =
         useState(false);
 
-
+    // Load followed shops from DB on mount
+    useEffect(() => { loadFollowedShops(); }, []);
     const [quantity, setQuantity] = useState(1);
     const [selectedImage, setSelectedImage] = useState(0);
     const [selectedVariantLabel2Index, setSelectedVariantLabel2Index] =
@@ -702,33 +707,51 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 </div>
                             </div>
 
-                            {/* Chat Button */}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    useChatStore.getState().openChat({
-                                        sellerId:
-                                            normalizedProduct?.sellerId ||
-                                            "seller-001",
-                                        sellerName:
-                                            normalizedProduct?.seller ||
-                                            "Official Store",
-                                        sellerAvatar: currentSeller.avatar,
-                                        productId: normalizedProduct?.id,
-                                        productName: productData.name,
-                                        productImage:
-                                            productData.images?.[0] ||
-                                            normalizedProduct?.image,
-                                    });
-                                    useChatStore
-                                        .getState()
-                                        .setMiniMode(false);
-                                }}
-                                className="flex items-center gap-2 px-6 py-2 rounded-full border border-[var(--brand-primary)]/20 bg-[var(--brand-wash)] text-[var(--brand-primary)] text-sm font-black transition-all hover:bg-[var(--brand-primary)]/10 hover:shadow-sm active:scale-95"
-                            >
-                                <MessageCircle className="w-4 h-4" />
-                                Chat
-                            </button>
+                            {/* Follow & Chat Buttons */}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const sid = normalizedProduct?.sellerId || "seller-001";
+                                        isFollowing(sid) ? unfollowShop(sid) : followShop(sid);
+                                    }}
+                                    className={cn(
+                                        "flex items-center gap-2 px-5 py-2 rounded-full text-sm font-black transition-all active:scale-95",
+                                        isFollowing(normalizedProduct?.sellerId || "seller-001")
+                                            ? "border border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary)]/90"
+                                            : "border border-[var(--brand-primary)]/20 bg-[var(--brand-wash)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 hover:shadow-sm"
+                                    )}
+                                >
+                                    <Heart className={cn("w-4 h-4", isFollowing(normalizedProduct?.sellerId || "seller-001") && "fill-current")} />
+                                    {isFollowing(normalizedProduct?.sellerId || "seller-001") ? "Following" : "Follow"}
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        useChatStore.getState().openChat({
+                                            sellerId:
+                                                normalizedProduct?.sellerId ||
+                                                "seller-001",
+                                            sellerName:
+                                                normalizedProduct?.seller ||
+                                                "Official Store",
+                                            sellerAvatar: currentSeller.avatar,
+                                            productId: normalizedProduct?.id,
+                                            productName: productData.name,
+                                            productImage:
+                                                productData.images?.[0] ||
+                                                normalizedProduct?.image,
+                                        });
+                                        useChatStore
+                                            .getState()
+                                            .setMiniMode(false);
+                                    }}
+                                    className="flex items-center gap-2 px-5 py-2 rounded-full border border-[var(--brand-primary)]/20 bg-[var(--brand-wash)] text-[var(--brand-primary)] text-sm font-black transition-all hover:bg-[var(--brand-primary)]/10 hover:shadow-sm active:scale-95"
+                                >
+                                    <MessageCircle className="w-4 h-4" />
+                                    Chat
+                                </button>
+                            </div>
                         </div>
 
                         <h1 className="text-3xl lg:text-4xl font-black text-[var(--text-headline)] mb-3 tracking-tight leading-tight font-heading">

@@ -6,9 +6,10 @@ interface QuantityStepperProps {
   value: number;
   onIncrement: () => void;
   onDecrement: () => void;
-  onChange?: (newValue: number) => void; // New prop for manual input
+  onChange?: (newValue: number) => void;
   min?: number;
   max?: number;
+  iconColor?: string;
 }
 
 export const QuantityStepper: React.FC<QuantityStepperProps> = ({
@@ -18,6 +19,7 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
   onChange,
   min = 1,
   max = 99,
+  iconColor = '#FF5722',
 }) => {
   const [inputValue, setInputValue] = useState(value.toString());
   const canDecrement = value > min;
@@ -67,7 +69,7 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
           pressed && styles.buttonPressed,
         ]}
       >
-        <Minus size={16} color={canDecrement ? '#FF5722' : '#9CA3AF'} strokeWidth={2.5} />
+        <Minus size={16} color={canDecrement ? iconColor : '#9CA3AF'} strokeWidth={2.5} />
       </Pressable>
 
       <View style={styles.valueContainer}>
@@ -91,7 +93,7 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
           pressed && styles.buttonPressed,
         ]}
       >
-        <Plus size={16} color={canIncrement ? '#FF5722' : '#9CA3AF'} strokeWidth={2.5} />
+        <Plus size={16} color={canIncrement ? iconColor : '#9CA3AF'} strokeWidth={2.5} />
       </Pressable>
     </View>
   );
@@ -106,24 +108,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   button: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#FF5722',
-    backgroundColor: '#FFFFFF',
   },
   buttonDisabled: {
     opacity: 0.3,
-    borderColor: '#E5E7EB',
   },
   buttonPressed: {
-    backgroundColor: '#FFF5F0',
+    opacity: 0.6,
   },
   valueContainer: {
-    minWidth: 40, // Increased width for input
+    minWidth: 36,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },

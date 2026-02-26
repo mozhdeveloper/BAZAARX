@@ -98,6 +98,7 @@ export default function ShopPage() {
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
   const [selectedSort, setSelectedSort] = useState("relevance");
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
+  const [minRating, setMinRating] = useState<number>(0);
   const [showFilters, setShowFilters] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
   const [addedProduct, setAddedProduct] = useState<{
@@ -308,7 +309,9 @@ export default function ShopPage() {
       const matchesPrice =
         product.price >= priceRange[0] && product.price <= priceRange[1];
 
-      return matchesSearch && matchesCategory && matchesPrice;
+      const matchesRating = minRating === 0 || (product.rating || 0) >= minRating;
+
+      return matchesSearch && matchesCategory && matchesPrice && matchesRating;
     });
 
     // Apply sorting
@@ -331,12 +334,13 @@ export default function ShopPage() {
     }
 
     return filtered;
-  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange]);
+  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating]);
 
   const resetFilters = () => {
     setSearchQuery("");
     setSelectedSort("relevance");
     setPriceRange([0, 100000]);
+    setMinRating(0);
   };
 
   return (
@@ -653,6 +657,34 @@ export default function ShopPage() {
                               title={color.name}
                               aria-label={`Filter by color: ${color.name}`}
                             />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Rating Filter */}
+                      <div className="space-y-3">
+                        <h3 className="font-bold text-[var(--text-headline)] text-sm">Minimum Rating</h3>
+                        <div className="flex flex-col gap-2">
+                          {[4, 3, 2, 1].map((rating) => (
+                            <button
+                              key={rating}
+                              onClick={() => setMinRating(minRating === rating ? 0 : rating)}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                                minRating === rating
+                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
+                                  : "text-[var(--text-primary)] hover:bg-gray-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-0.5">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`w-3.5 h-3.5 ${i < rating ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-xs">{rating}+ stars</span>
+                            </button>
                           ))}
                         </div>
                       </div>

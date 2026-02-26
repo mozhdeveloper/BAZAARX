@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -12,7 +12,50 @@ interface ProductRailProps {
   actionLink?: string;
   onActionClick?: () => void;
   isFlash?: boolean;
+  countdownEndDate?: Date;
 }
+
+const FlashCountdown = ({ endDate }: { endDate: Date }) => {
+  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
+
+  useEffect(() => {
+    const tick = () => {
+      const diff = endDate.getTime() - Date.now();
+      if (diff <= 0) {
+        setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
+        return;
+      }
+      setTimeLeft({
+        hours: Math.floor(diff / (1000 * 60 * 60)),
+        minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+        seconds: Math.floor((diff % (1000 * 60)) / 1000),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [endDate]);
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  return (
+    <div className="flex items-center gap-2 my-4">
+      <span className="text-sm font-semibold text-red-600 uppercase tracking-wider">Ends in</span>
+      <div className="flex gap-1">
+        {[
+          { val: timeLeft.hours, label: 'h' },
+          { val: timeLeft.minutes, label: 'm' },
+          { val: timeLeft.seconds, label: 's' },
+        ].map(({ val, label }) => (
+          <div key={label} className="bg-red-600 text-white rounded-md px-2 py-1 text-center min-w-[40px]">
+            <span className="text-lg font-bold font-mono">{pad(val)}</span>
+            <span className="text-[10px] ml-0.5 uppercase">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const ProductRail: React.FC<ProductRailProps> = ({
   title,
@@ -21,7 +64,8 @@ const ProductRail: React.FC<ProductRailProps> = ({
   actionLabel = "View All",
   actionLink,
   onActionClick,
-  isFlash
+  isFlash,
+  countdownEndDate
 }) => {
   return (
     <section className="py-20 bg-transparent overflow-hidden">
@@ -63,6 +107,8 @@ const ProductRail: React.FC<ProductRailProps> = ({
                 {subtitle}
               </p>
             )}
+
+            {countdownEndDate && <FlashCountdown endDate={countdownEndDate} />}
 
             <Link
               to={actionLink || "#"}

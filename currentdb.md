@@ -463,6 +463,23 @@ CREATE TABLE public.product_rejections (
   CONSTRAINT product_rejections_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
   CONSTRAINT product_rejections_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
 );
+CREATE TABLE public.product_requests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_name text NOT NULL,
+  description text,
+  category text,
+  requested_by_name text,
+  requested_by_id uuid,
+  votes integer NOT NULL DEFAULT 0,
+  comments_count integer NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'in_progress'::text])),
+  priority text NOT NULL DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
+  estimated_demand integer DEFAULT 0,
+  admin_notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT product_requests_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.product_revisions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   assessment_id uuid NOT NULL,
@@ -706,6 +723,7 @@ CREATE TABLE public.seller_verification_documents (
   dti_registration_url text,
   tax_id_url text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT seller_verification_documents_pkey PRIMARY KEY (seller_id),
   CONSTRAINT seller_verification_documents_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
@@ -719,6 +737,7 @@ CREATE TABLE public.sellers (
   verified_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  store_contact_number text,
   CONSTRAINT sellers_pkey PRIMARY KEY (id),
   CONSTRAINT sellers_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
 );

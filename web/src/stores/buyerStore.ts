@@ -339,9 +339,10 @@ interface BuyerStore {
 
   // Following Shops
   followedShops: string[]; // seller IDs
-  followShop: (sellerId: string) => void;
-  unfollowShop: (sellerId: string) => void;
+  followShop: (sellerId: string) => Promise<void>;
+  unfollowShop: (sellerId: string) => Promise<void>;
   isFollowing: (sellerId: string) => boolean;
+  loadFollowedShops: () => Promise<void>;
 
   // Enhanced Cart with Multi-seller grouping
   cartItems: CartItem[];
@@ -766,15 +767,71 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     // Following Shops
     followedShops: [],
 
-    followShop: (sellerId) => set((state) => ({
-      followedShops: [...state.followedShops, sellerId]
-    })),
+    followShop: async (sellerId) => {
+      // Optimistic local update
+      set((state) => ({
+        followedShops: state.followedShops.includes(sellerId)
+          ? state.followedShops
+          : [...state.followedShops, sellerId]
+      }));
+      // Persist to Supabase
+      try {
+        const user = await getCurrentUser();
+        if (user?.id) {
+          await supabase.from('store_followers').upsert(
+            { buyer_id: user.id, seller_id: sellerId },
+            { onConflict: 'buyer_id,seller_id' }
+          );
+        }
+      } catch (err) {
+        console.error('Follow shop failed:', err);
+        // Rollback on error
+        set((state) => ({
+          followedShops: state.followedShops.filter(id => id !== sellerId)
+        }));
+      }
+    },
 
-    unfollowShop: (sellerId) => set((state) => ({
-      followedShops: state.followedShops.filter(id => id !== sellerId)
-    })),
+    unfollowShop: async (sellerId) => {
+      // Optimistic local update
+      set((state) => ({
+        followedShops: state.followedShops.filter(id => id !== sellerId)
+      }));
+      // Persist to Supabase
+      try {
+        const user = await getCurrentUser();
+        if (user?.id) {
+          await supabase.from('store_followers')
+            .delete()
+            .eq('buyer_id', user.id)
+            .eq('seller_id', sellerId);
+        }
+      } catch (err) {
+        console.error('Unfollow shop failed:', err);
+        // Rollback on error
+        set((state) => ({
+          followedShops: [...state.followedShops, sellerId]
+        }));
+      }
+    },
 
     isFollowing: (sellerId) => get().followedShops.includes(sellerId),
+
+    loadFollowedShops: async () => {
+      try {
+        const user = await getCurrentUser();
+        if (user?.id) {
+          const { data } = await supabase.from('store_followers')
+            .select('seller_id')
+            .eq('buyer_id', user.id);
+          if (data) {
+            set({ followedShops: data.map(row => row.seller_id) });
+          }
+        }
+      } catch (err) {
+        console.error('Load followed shops failed:', err);
+      }
+    },
 
     // Enhanced Cart
     cartItems: [],

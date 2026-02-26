@@ -11,6 +11,10 @@ export interface ChatTarget {
   productId?: string;
   productName?: string;
   productImage?: string;
+  // Seller-initiated chat fields (from order details)
+  buyerId?: string;
+  buyerName?: string;
+  orderId?: string;
 }
 
 interface ChatStore {

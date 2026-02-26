@@ -19,6 +19,7 @@ import {
     ChevronDown,
     Check,
     Users,
+    Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SellerSidebar } from "@/components/seller/SellerSidebar";
@@ -439,6 +440,16 @@ export function SellerProducts() {
                                                             }
                                                         </button>
                                                     )}
+                                                    {/* Add to Flash Sale */}
+                                                    <button
+                                                        onClick={() =>
+                                                            navigate(`/seller/discounts?flash_product=${product.id}&flash_product_name=${encodeURIComponent(product.name)}&flash_product_price=${product.price}`)
+                                                        }
+                                                        title="Add to Flash Sale"
+                                                        className="h-10 w-10 flex items-center justify-center text-orange-500 rounded-xl hover:text-orange-700 hover:bg-orange-50 transition-all active:scale-95"
+                                                    >
+                                                        <Zap className="h-4 w-4" />
+                                                    </button>
                                                     <button
                                                         onClick={() =>
                                                             handleDeleteClick(product.id)

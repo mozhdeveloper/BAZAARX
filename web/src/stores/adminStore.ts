@@ -450,120 +450,138 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
   error: null,
 
   loadCategories: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    // Demo categories
-    const demoCategories: Category[] = [
-      {
-        id: 'cat_1',
-        name: 'Electronics',
-        description: 'Smartphones, laptops, gadgets and electronic devices',
-        image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400',
-        slug: 'electronics',
-        isActive: true,
-        sortOrder: 1,
-        productsCount: 1250,
-        createdAt: new Date('2024-01-15'),
-        updatedAt: new Date('2024-12-15')
-      },
-      {
-        id: 'cat_2',
-        name: 'Fashion & Apparel',
-        description: 'Clothing, shoes, accessories for men, women and children',
-        image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
-        slug: 'fashion-apparel',
-        isActive: true,
-        sortOrder: 2,
-        productsCount: 2340,
-        createdAt: new Date('2024-01-16'),
-        updatedAt: new Date('2024-12-14')
-      },
-      {
-        id: 'cat_3',
-        name: 'Home & Garden',
-        description: 'Furniture, home decor, kitchen appliances, garden tools',
-        image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400',
-        slug: 'home-garden',
-        isActive: true,
-        sortOrder: 3,
-        productsCount: 890,
-        createdAt: new Date('2024-01-17'),
-        updatedAt: new Date('2024-12-13')
-      },
-      {
-        id: 'cat_4',
-        name: 'Health & Beauty',
-        description: 'Skincare, makeup, supplements, personal care products',
-        image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400',
-        slug: 'health-beauty',
-        isActive: true,
-        sortOrder: 4,
-        productsCount: 670,
-        createdAt: new Date('2024-01-18'),
-        updatedAt: new Date('2024-12-12')
-      },
-      {
-        id: 'cat_5',
-        name: 'Sports & Outdoors',
-        description: 'Sports equipment, outdoor gear, fitness accessories',
-        image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400',
-        slug: 'sports-outdoors',
-        isActive: false,
-        sortOrder: 5,
-        productsCount: 445,
-        createdAt: new Date('2024-01-19'),
-        updatedAt: new Date('2024-12-11')
+    try {
+      if (!isSupabaseConfigured()) {
+        set({ isLoading: false, error: 'Supabase not configured' });
+        return;
       }
-    ];
 
-    await new Promise(resolve => setTimeout(resolve, 800));
-    set({ categories: demoCategories, isLoading: false });
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*, products:products(count)')
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+
+      const categories: Category[] = (data || []).map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        description: row.description || '',
+        image: row.image_url || '',
+        parentId: row.parent_id || undefined,
+        slug: row.slug,
+        isActive: !row.disabled_at,
+        sortOrder: row.sort_order || 0,
+        productsCount: Array.isArray(row.products) ? row.products[0]?.count || 0 : 0,
+        createdAt: new Date(row.created_at),
+        updatedAt: new Date(row.updated_at)
+      }));
+
+      set({ categories, isLoading: false });
+    } catch (err: any) {
+      console.error('Failed to load categories:', err);
+      set({ isLoading: false, error: err.message || 'Failed to load categories' });
+    }
   },
 
   addCategory: async (categoryData) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    const newCategory: Category = {
-      ...categoryData,
-      id: `cat_${Date.now()}`,
-      productsCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({
+          name: categoryData.name,
+          slug: categoryData.slug,
+          description: categoryData.description || null,
+          image_url: categoryData.image || null,
+          parent_id: categoryData.parentId || null,
+          sort_order: categoryData.sortOrder || 0,
+        })
+        .select()
+        .single();
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+      if (error) throw error;
 
-    set(state => ({
-      categories: [...state.categories, newCategory],
-      isLoading: false
-    }));
+      const newCategory: Category = {
+        id: data.id,
+        name: data.name,
+        description: data.description || '',
+        image: data.image_url || '',
+        parentId: data.parent_id || undefined,
+        slug: data.slug,
+        isActive: true,
+        sortOrder: data.sort_order || 0,
+        productsCount: 0,
+        createdAt: new Date(data.created_at),
+        updatedAt: new Date(data.updated_at)
+      };
+
+      set(state => ({
+        categories: [...state.categories, newCategory],
+        isLoading: false
+      }));
+    } catch (err: any) {
+      console.error('Failed to add category:', err);
+      set({ isLoading: false, error: err.message || 'Failed to add category' });
+    }
   },
 
   updateCategory: async (id, updates) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const dbUpdates: Record<string, any> = { updated_at: new Date().toISOString() };
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.slug !== undefined) dbUpdates.slug = updates.slug;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.image !== undefined) dbUpdates.image_url = updates.image;
+      if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId || null;
+      if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
 
-    set(state => ({
-      categories: state.categories.map(cat =>
-        cat.id === id
-          ? { ...cat, ...updates, updatedAt: new Date() }
-          : cat
-      ),
-      isLoading: false
-    }));
+      const { error } = await supabase
+        .from('categories')
+        .update(dbUpdates)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      set(state => ({
+        categories: state.categories.map(cat =>
+          cat.id === id
+            ? { ...cat, ...updates, updatedAt: new Date() }
+            : cat
+        ),
+        isLoading: false
+      }));
+    } catch (err: any) {
+      console.error('Failed to update category:', err);
+      set({ isLoading: false, error: err.message || 'Failed to update category' });
+    }
   },
 
   deleteCategory: async (id) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    await new Promise(resolve => setTimeout(resolve, 600));
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id);
 
-    set(state => ({
-      categories: state.categories.filter(cat => cat.id !== id),
-      selectedCategory: state.selectedCategory?.id === id ? null : state.selectedCategory,
-      isLoading: false
-    }));
+      if (error) throw error;
+
+      set(state => ({
+        categories: state.categories.filter(cat => cat.id !== id),
+        selectedCategory: state.selectedCategory?.id === id ? null : state.selectedCategory,
+        isLoading: false
+      }));
+    } catch (err: any) {
+      console.error('Failed to delete category:', err);
+      set({ isLoading: false, error: err.message || 'Failed to delete category' });
+    }
   },
 
   selectCategory: (category) => set({ selectedCategory: category }),
@@ -1676,87 +1694,108 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
   loadBuyers: async () => {
     set({ isLoading: true });
 
-    // Demo buyers data
-    const demoBuyers: Buyer[] = [
-      {
-        id: 'buyer_1',
-        email: 'anna.reyes@gmail.com',
-        firstName: 'Anna',
-        lastName: 'Reyes',
-        phone: '+63 917 111 2222',
-        avatar: 'https://ui-avatars.com/api/?name=Anna+Reyes&background=FF6A00&color=fff',
-        dateOfBirth: new Date('1990-05-15'),
-        gender: 'female',
-        isEmailVerified: true,
-        isPhoneVerified: true,
-        status: 'active',
-        addresses: [
-          {
-            id: 'addr_1',
-            label: 'Home',
-            street: '123 Rizal Street, Brgy. San Antonio',
-            city: 'Makati City',
-            province: 'Metro Manila',
-            zipCode: '1200',
-            isDefault: true
-          }
-        ],
-        metrics: {
-          totalOrders: 47,
-          totalSpent: 89750,
-          averageOrderValue: 1908,
-          cancelledOrders: 2,
-          returnedOrders: 1,
-          bazcoins: 1250
-        },
-        joinDate: new Date('2024-03-15'),
-        lastActivity: new Date('2024-12-15')
-      },
-      {
-        id: 'buyer_2',
-        email: 'miguel.cruz@yahoo.com',
-        firstName: 'Miguel',
-        lastName: 'Cruz',
-        phone: '+63 917 333 4444',
-        avatar: 'https://ui-avatars.com/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
-        dateOfBirth: new Date('1985-08-20'),
-        gender: 'male',
-        isEmailVerified: true,
-        isPhoneVerified: false,
-        status: 'active',
-        addresses: [
-          {
-            id: 'addr_2',
-            label: 'Office',
-            street: '456 EDSA, Ortigas Center',
-            city: 'Pasig City',
-            province: 'Metro Manila',
-            zipCode: '1600',
-            isDefault: true
-          }
-        ],
-        metrics: {
-          totalOrders: 23,
-          totalSpent: 34500,
-          averageOrderValue: 1500,
-          cancelledOrders: 3,
-          returnedOrders: 0,
-          bazcoins: 567
-        },
-        joinDate: new Date('2024-07-20'),
-        lastActivity: new Date('2024-12-14')
+    try {
+      if (!isSupabaseConfigured()) {
+        set({ isLoading: false });
+        return;
       }
-    ];
 
-    await new Promise(resolve => setTimeout(resolve, 800));
-    set({ buyers: demoBuyers, isLoading: false });
+      // Fetch buyers with profiles and addresses
+      const { data: buyersData, error } = await supabase
+        .from('buyers')
+        .select(`
+          id,
+          avatar_url,
+          bazcoins,
+          created_at,
+          updated_at,
+          profiles!inner(email, first_name, last_name, phone, last_login_at)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      // Fetch addresses for all buyers
+      const buyerIds = (buyersData || []).map((b: any) => b.id);
+      const { data: addresses } = buyerIds.length > 0
+        ? await supabase
+            .from('shipping_addresses')
+            .select('id, user_id, label, address_line_1, city, province, postal_code, is_default')
+            .in('user_id', buyerIds)
+        : { data: [] };
+
+      // Fetch order metrics per buyer
+      const { data: orderMetrics } = buyerIds.length > 0
+        ? await supabase
+            .from('orders')
+            .select('buyer_id, payment_status, shipment_status, order_items(price, quantity, price_discount)')
+            .in('buyer_id', buyerIds)
+        : { data: [] };
+
+      // Build metrics map
+      const metricsMap: Record<string, BuyerMetrics> = {};
+      (orderMetrics || []).forEach((o: any) => {
+        if (!o.buyer_id) return;
+        if (!metricsMap[o.buyer_id]) {
+          metricsMap[o.buyer_id] = { totalOrders: 0, totalSpent: 0, averageOrderValue: 0, cancelledOrders: 0, returnedOrders: 0, bazcoins: 0 };
+        }
+        metricsMap[o.buyer_id].totalOrders += 1;
+        const orderTotal = (o.order_items || []).reduce((sum: number, item: any) =>
+          sum + ((Number(item.price) - Number(item.price_discount || 0)) * Number(item.quantity)), 0);
+        metricsMap[o.buyer_id].totalSpent += orderTotal;
+        if (o.shipment_status === 'returned') metricsMap[o.buyer_id].returnedOrders += 1;
+      });
+
+      // Build addresses map
+      const addrMap: Record<string, BuyerAddress[]> = {};
+      (addresses || []).forEach((a: any) => {
+        if (!addrMap[a.user_id]) addrMap[a.user_id] = [];
+        addrMap[a.user_id].push({
+          id: a.id,
+          label: a.label || 'Address',
+          street: a.address_line_1 || '',
+          city: a.city || '',
+          province: a.province || '',
+          zipCode: a.postal_code || '',
+          isDefault: a.is_default || false,
+        });
+      });
+
+      const buyers: Buyer[] = (buyersData || []).map((b: any) => {
+        const profile = b.profiles;
+        const metrics = metricsMap[b.id] || { totalOrders: 0, totalSpent: 0, averageOrderValue: 0, cancelledOrders: 0, returnedOrders: 0, bazcoins: 0 };
+        metrics.bazcoins = b.bazcoins || 0;
+        if (metrics.totalOrders > 0) metrics.averageOrderValue = Math.round(metrics.totalSpent / metrics.totalOrders);
+
+        return {
+          id: b.id,
+          email: profile?.email || '',
+          firstName: profile?.first_name || '',
+          lastName: profile?.last_name || '',
+          phone: profile?.phone || undefined,
+          avatar: b.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent((profile?.first_name || '') + '+' + (profile?.last_name || ''))}&background=FF6A00&color=fff`,
+          isEmailVerified: true,
+          isPhoneVerified: !!profile?.phone,
+          status: 'active' as const,
+          addresses: addrMap[b.id] || [],
+          metrics,
+          joinDate: new Date(b.created_at),
+          lastActivity: profile?.last_login_at ? new Date(profile.last_login_at) : undefined,
+        };
+      });
+
+      set({ buyers, isLoading: false });
+    } catch (error) {
+      console.error('Error loading buyers:', error);
+      set({ error: 'Failed to load buyers', isLoading: false });
+    }
   },
 
   suspendBuyer: async (id, _reason) => {
     set({ isLoading: true });
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
+    // Note: buyers table doesn't have a status column in current schema
+    // We update local state; a migration would be needed for DB-backed status
     set(state => ({
       buyers: state.buyers.map(buyer =>
         buyer.id === id
@@ -1769,9 +1808,6 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
 
   activateBuyer: async (id) => {
     set({ isLoading: true });
-
-    await new Promise(resolve => setTimeout(resolve, 800));
-
     set(state => ({
       buyers: state.buyers.map(buyer =>
         buyer.id === id
@@ -1798,6 +1834,8 @@ interface AdminStatsState {
     ordersGrowth: number;
     sellersGrowth: number;
     buyersGrowth: number;
+    productRequests: number;
+    productRequestsGrowth: string;
   };
   recentActivity: Array<{
     id: string;
@@ -1831,6 +1869,8 @@ export const useAdminStats = create<AdminStatsState>((set) => ({
     ordersGrowth: 0,
     sellersGrowth: 0,
     buyersGrowth: 0,
+    productRequests: 0,
+    productRequestsGrowth: '+0%',
   },
   recentActivity: [],
   revenueChart: [],
@@ -1840,65 +1880,143 @@ export const useAdminStats = create<AdminStatsState>((set) => ({
   loadDashboardData: async () => {
     set({ isLoading: true });
 
-    // Demo dashboard data
-    const demoStats = {
-      totalRevenue: 15750000,
-      totalOrders: 45230,
-      totalSellers: 1247,
-      totalBuyers: 28940,
-      pendingApprovals: 23,
-      revenueGrowth: 15.2,
-      ordersGrowth: 8.7,
-      sellersGrowth: 12.3,
-      buyersGrowth: 23.1,
-    };
-
-    const demoActivity = [
-      {
-        id: 'activity_1',
-        type: 'order' as const,
-        description: 'New order #ORD-2024-15234 placed by Anna Reyes',
-        timestamp: new Date('2024-12-15T14:30:00'),
-        status: 'success' as const
-      },
-      {
-        id: 'activity_2',
-        type: 'seller_registration' as const,
-        description: 'New seller application from Fashion Forward Store',
-        timestamp: new Date('2024-12-15T13:45:00'),
-        status: 'warning' as const
-      },
-      {
-        id: 'activity_3',
-        type: 'product_listing' as const,
-        description: 'TechHub Philippines listed 5 new products',
-        timestamp: new Date('2024-12-15T12:20:00'),
-        status: 'success' as const
+    try {
+      if (!isSupabaseConfigured()) {
+        set({ isLoading: false });
+        return;
       }
-    ];
 
-    const demoRevenueChart = Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(2024, 11, i + 1).toISOString().split('T')[0],
-      revenue: Math.floor(Math.random() * 100000) + 200000,
-      orders: Math.floor(Math.random() * 500) + 800
-    }));
+      // Fetch counts in parallel
+      const [sellersRes, buyersRes, ordersRes, pendingRes, productReqRes] = await Promise.all([
+        supabase.from('sellers').select('id', { count: 'exact', head: true }),
+        supabase.from('buyers').select('id', { count: 'exact', head: true }),
+        supabase.from('orders').select('id', { count: 'exact', head: true }),
+        supabase.from('sellers').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending'),
+        supabase.from('product_requests').select('id', { count: 'exact', head: true }),
+      ]);
 
-    const demoTopCategories = [
-      { name: 'Electronics', revenue: 5250000, growth: 18.5 },
-      { name: 'Fashion & Apparel', revenue: 4120000, growth: 12.8 },
-      { name: 'Home & Garden', revenue: 2890000, growth: 9.2 },
-      { name: 'Health & Beauty', revenue: 1980000, growth: 15.6 }
-    ];
+      // Fetch revenue from paid orders
+      const { data: paidOrders } = await supabase
+        .from('order_items')
+        .select('price, quantity, price_discount, order_id, orders!inner(payment_status)')
+        .eq('orders.payment_status', 'paid');
 
-    await new Promise(resolve => setTimeout(resolve, 1200));
+      const totalRevenue = (paidOrders || []).reduce((sum, item: any) => {
+        return sum + ((Number(item.price) - Number(item.price_discount || 0)) * Number(item.quantity));
+      }, 0);
 
-    set({
-      stats: demoStats,
-      recentActivity: demoActivity,
-      revenueChart: demoRevenueChart,
-      topCategories: demoTopCategories,
-      isLoading: false
-    });
+      // Recent activity from recent orders and sellers
+      const { data: recentOrders } = await supabase
+        .from('orders')
+        .select('id, order_number, created_at, buyer_id, profiles:buyer_id(first_name, last_name)')
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      const { data: recentSellers } = await supabase
+        .from('sellers')
+        .select('id, store_name, created_at, approval_status')
+        .order('created_at', { ascending: false })
+        .limit(2);
+
+      const activity: Array<{ id: string; type: 'order' | 'seller_registration' | 'product_listing' | 'dispute'; description: string; timestamp: Date; status: 'success' | 'warning' | 'error' }> = [];
+
+      (recentOrders || []).forEach((o: any) => {
+        const buyerName = o.profiles ? `${o.profiles.first_name || ''} ${o.profiles.last_name || ''}`.trim() : 'Unknown';
+        activity.push({
+          id: o.id,
+          type: 'order',
+          description: `New order #${o.order_number} placed by ${buyerName}`,
+          timestamp: new Date(o.created_at),
+          status: 'success'
+        });
+      });
+
+      (recentSellers || []).forEach((s: any) => {
+        activity.push({
+          id: s.id,
+          type: 'seller_registration',
+          description: `${s.approval_status === 'pending' ? 'New seller application' : 'Seller registered'}: ${s.store_name}`,
+          timestamp: new Date(s.created_at),
+          status: s.approval_status === 'pending' ? 'warning' : 'success'
+        });
+      });
+
+      activity.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+      // Revenue chart — last 30 days from real orders
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: chartOrders } = await supabase
+        .from('orders')
+        .select('id, created_at, order_items(price, quantity, price_discount)')
+        .gte('created_at', thirtyDaysAgo.toISOString())
+        .order('created_at', { ascending: true });
+
+      const dayMap: Record<string, { revenue: number; orders: number }> = {};
+      for (let i = 0; i < 30; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - 29 + i);
+        dayMap[d.toISOString().split('T')[0]] = { revenue: 0, orders: 0 };
+      }
+
+      (chartOrders || []).forEach((o: any) => {
+        const day = new Date(o.created_at).toISOString().split('T')[0];
+        if (dayMap[day]) {
+          dayMap[day].orders += 1;
+          (o.order_items || []).forEach((item: any) => {
+            dayMap[day].revenue += (Number(item.price) - Number(item.price_discount || 0)) * Number(item.quantity);
+          });
+        }
+      });
+
+      const revenueChart = Object.entries(dayMap).map(([date, val]) => ({
+        date,
+        revenue: Math.round(val.revenue),
+        orders: val.orders,
+      }));
+
+      // Top categories from order items
+      const { data: catItems } = await supabase
+        .from('order_items')
+        .select('price, quantity, price_discount, product_id, products!inner(category_id, categories!inner(name))')
+        .limit(500);
+
+      const catMap: Record<string, number> = {};
+      (catItems || []).forEach((item: any) => {
+        const catName = item.products?.categories?.name || 'Other';
+        const rev = (Number(item.price) - Number(item.price_discount || 0)) * Number(item.quantity);
+        catMap[catName] = (catMap[catName] || 0) + rev;
+      });
+
+      const topCategories = Object.entries(catMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, revenue]) => ({ name, revenue: Math.round(revenue), growth: 0 }));
+
+      set({
+        stats: {
+          totalRevenue: Math.round(totalRevenue),
+          totalOrders: ordersRes.count || 0,
+          totalSellers: sellersRes.count || 0,
+          totalBuyers: buyersRes.count || 0,
+          pendingApprovals: pendingRes.count || 0,
+          revenueGrowth: 0,
+          ordersGrowth: 0,
+          sellersGrowth: 0,
+          buyersGrowth: 0,
+          productRequests: productReqRes.count || 0,
+          productRequestsGrowth: '+0%',
+        },
+        recentActivity: activity.slice(0, 5),
+        revenueChart,
+        topCategories,
+        isLoading: false
+      });
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      set({ isLoading: false });
+    }
   }
 }));
 
@@ -2195,220 +2313,218 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
   error: null,
 
   loadReviews: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    const demoReviews: Review[] = [
-      {
-        id: 'rev_1',
-        productId: 'prod_1',
-        productName: 'Wireless Bluetooth Earbuds',
-        productImage: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=200',
-        buyerId: 'buyer_1',
-        buyerName: 'Anna Reyes',
-        buyerAvatar: 'https://ui-avatars.com/api/?name=Anna+Reyes&background=FF6A00&color=fff',
-        sellerId: 'seller_1',
-        sellerName: 'TechHub Philippines',
-        rating: 5,
-        title: 'Excellent product!',
-        content: 'Great sound quality and battery life. Highly recommended!',
-        images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400'],
-        isVerifiedPurchase: true,
-        status: 'pending',
-        helpfulCount: 0,
-        reportCount: 0,
-        createdAt: new Date('2024-12-15T10:30:00')
-      },
-      {
-        id: 'rev_2',
-        productId: 'prod_2',
-        productName: 'Leather Crossbody Bag',
-        productImage: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200',
-        buyerId: 'buyer_2',
-        buyerName: 'Miguel Cruz',
-        buyerAvatar: 'https://ui-avatars.com/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
-        sellerId: 'seller_2',
-        sellerName: 'Fashion Forward Store',
-        rating: 1,
-        title: 'Fake product, scam!',
-        content: 'This is clearly a fake. Terrible quality and misleading photos. SCAM!',
-        images: [],
-        isVerifiedPurchase: false,
-        status: 'flagged',
-        moderationNote: 'Flagged for inappropriate language and potential false claims',
-        helpfulCount: 2,
-        reportCount: 5,
-        createdAt: new Date('2024-12-14T15:20:00')
-      },
-      {
-        id: 'rev_3',
-        productId: 'prod_3',
-        productName: 'Smart Watch Series 5',
-        productImage: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
-        buyerId: 'buyer_3',
-        buyerName: 'Sofia Lim',
-        buyerAvatar: 'https://ui-avatars.com/api/?name=Sofia+Lim&background=FF6A00&color=fff',
-        sellerId: 'seller_1',
-        sellerName: 'TechHub Philippines',
-        rating: 4,
-        title: 'Good value for money',
-        content: 'Works well, battery could be better. Overall satisfied with purchase.',
-        images: [],
-        isVerifiedPurchase: true,
-        status: 'approved',
-        helpfulCount: 12,
-        reportCount: 0,
-        createdAt: new Date('2024-12-13T09:15:00'),
-        moderatedAt: new Date('2024-12-13T10:00:00'),
-        moderatedBy: 'admin_1'
-      },
-      {
-        id: 'rev_4',
-        productId: 'prod_4',
-        productName: 'Coffee Maker Deluxe',
-        productImage: 'https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?w=200',
-        buyerId: 'buyer_4',
-        buyerName: 'Carlos Tan',
-        buyerAvatar: 'https://ui-avatars.com/api/?name=Carlos+Tan&background=FF6A00&color=fff',
-        sellerId: 'seller_3',
-        sellerName: 'Home Essentials',
-        rating: 3,
-        title: 'Average quality',
-        content: 'It works but nothing special. Expected better for the price.',
-        images: [],
-        isVerifiedPurchase: true,
-        status: 'pending',
-        helpfulCount: 0,
-        reportCount: 0,
-        createdAt: new Date('2024-12-15T14:45:00')
+    try {
+      if (!isSupabaseConfigured()) {
+        set({ isLoading: false, error: 'Supabase not configured' });
+        return;
       }
-    ];
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          product:products(id, name, seller_id, product_images(image_url, is_primary)),
+          buyer:buyers(id, profiles(first_name, last_name, email))
+        `)
+        .order('created_at', { ascending: false })
+        .limit(200);
 
-    const pendingReviews = demoReviews.filter(review => review.status === 'pending');
-    const flaggedReviews = demoReviews.filter(review => review.status === 'flagged');
+      if (error) throw error;
 
-    set({
-      reviews: demoReviews,
-      pendingReviews,
-      flaggedReviews,
-      isLoading: false
-    });
+      const reviews: Review[] = (data || []).map((row: any) => {
+        const product = row.product;
+        const buyer = row.buyer;
+        const buyerProfile = buyer?.profiles;
+        const productImage = Array.isArray(product?.product_images)
+          ? (product.product_images.find((img: any) => img.is_primary)?.image_url || product.product_images[0]?.image_url || '')
+          : '';
+        const buyerName = buyerProfile
+          ? `${buyerProfile.first_name || ''} ${buyerProfile.last_name || ''}`.trim() || buyerProfile.email || 'Unknown'
+          : 'Unknown';
+
+        // Map DB is_hidden boolean to UI status
+        let status: 'pending' | 'approved' | 'rejected' | 'flagged' = 'approved';
+        if (row.is_hidden) {
+          status = 'flagged';
+        }
+
+        return {
+          id: row.id,
+          productId: row.product_id,
+          productName: product?.name || 'Unknown Product',
+          productImage: productImage,
+          buyerId: row.buyer_id,
+          buyerName: buyerName,
+          buyerAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(buyerName)}&background=FF6A00&color=fff`,
+          sellerId: product?.seller_id || '',
+          sellerName: '',
+          rating: row.rating,
+          title: '',
+          content: row.comment || '',
+          images: [],
+          isVerifiedPurchase: row.is_verified_purchase || false,
+          status,
+          moderationNote: undefined,
+          helpfulCount: row.helpful_count || 0,
+          reportCount: 0,
+          createdAt: new Date(row.created_at)
+        };
+      });
+
+      const pendingReviews = reviews.filter(r => r.status === 'pending');
+      const flaggedReviews = reviews.filter(r => r.status === 'flagged');
+
+      set({ reviews, pendingReviews, flaggedReviews, isLoading: false });
+    } catch (err: any) {
+      console.error('Failed to load reviews:', err);
+      set({ isLoading: false, error: err.message || 'Failed to load reviews' });
+    }
   },
 
   approveReview: async (id) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .update({ is_hidden: false, updated_at: new Date().toISOString() })
+        .eq('id', id);
 
-    set(state => {
-      const updatedReviews = state.reviews.map(review =>
-        review.id === id
-          ? {
-            ...review,
-            status: 'approved' as const,
-            moderatedAt: new Date(),
-            moderatedBy: 'admin_1'
-          }
-          : review
-      );
+      if (error) throw error;
 
-      return {
-        reviews: updatedReviews,
-        pendingReviews: updatedReviews.filter(review => review.status === 'pending'),
-        flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
-        isLoading: false
-      };
-    });
+      set(state => {
+        const updatedReviews = state.reviews.map(review =>
+          review.id === id
+            ? { ...review, status: 'approved' as const, moderatedAt: new Date() }
+            : review
+        );
+        return {
+          reviews: updatedReviews,
+          pendingReviews: updatedReviews.filter(r => r.status === 'pending'),
+          flaggedReviews: updatedReviews.filter(r => r.status === 'flagged'),
+          isLoading: false
+        };
+      });
+    } catch (err: any) {
+      console.error('Failed to approve review:', err);
+      set({ isLoading: false, error: err.message || 'Failed to approve review' });
+    }
   },
 
   rejectReview: async (id, reason) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .update({ is_hidden: true, updated_at: new Date().toISOString() })
+        .eq('id', id);
 
-    set(state => {
-      const updatedReviews = state.reviews.map(review =>
-        review.id === id
-          ? {
-            ...review,
-            status: 'rejected' as const,
-            moderationNote: reason,
-            moderatedAt: new Date(),
-            moderatedBy: 'admin_1'
-          }
-          : review
-      );
+      if (error) throw error;
 
-      return {
-        reviews: updatedReviews,
-        pendingReviews: updatedReviews.filter(review => review.status === 'pending'),
-        flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
-        isLoading: false
-      };
-    });
+      set(state => {
+        const updatedReviews = state.reviews.map(review =>
+          review.id === id
+            ? { ...review, status: 'rejected' as const, moderationNote: reason, moderatedAt: new Date() }
+            : review
+        );
+        return {
+          reviews: updatedReviews,
+          pendingReviews: updatedReviews.filter(r => r.status === 'pending'),
+          flaggedReviews: updatedReviews.filter(r => r.status === 'flagged'),
+          isLoading: false
+        };
+      });
+    } catch (err: any) {
+      console.error('Failed to reject review:', err);
+      set({ isLoading: false, error: err.message || 'Failed to reject review' });
+    }
   },
 
   flagReview: async (id, reason) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    await new Promise(resolve => setTimeout(resolve, 600));
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .update({ is_hidden: true, updated_at: new Date().toISOString() })
+        .eq('id', id);
 
-    set(state => {
-      const updatedReviews = state.reviews.map(review =>
-        review.id === id
-          ? {
-            ...review,
-            status: 'flagged' as const,
-            moderationNote: reason
-          }
-          : review
-      );
+      if (error) throw error;
 
-      return {
-        reviews: updatedReviews,
-        flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
-        isLoading: false
-      };
-    });
+      set(state => {
+        const updatedReviews = state.reviews.map(review =>
+          review.id === id
+            ? { ...review, status: 'flagged' as const, moderationNote: reason }
+            : review
+        );
+        return {
+          reviews: updatedReviews,
+          flaggedReviews: updatedReviews.filter(r => r.status === 'flagged'),
+          isLoading: false
+        };
+      });
+    } catch (err: any) {
+      console.error('Failed to flag review:', err);
+      set({ isLoading: false, error: err.message || 'Failed to flag review' });
+    }
   },
 
   unflagReview: async (id) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .update({ is_hidden: false, updated_at: new Date().toISOString() })
+        .eq('id', id);
 
-    set(state => {
-      const updatedReviews = state.reviews.map(review =>
-        review.id === id
-          ? {
-            ...review,
-            status: 'approved' as const,
-            moderationNote: undefined
-          }
-          : review
-      );
+      if (error) throw error;
 
-      return {
-        reviews: updatedReviews,
-        flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
-        isLoading: false
-      };
-    });
+      set(state => {
+        const updatedReviews = state.reviews.map(review =>
+          review.id === id
+            ? { ...review, status: 'approved' as const, moderationNote: undefined }
+            : review
+        );
+        return {
+          reviews: updatedReviews,
+          flaggedReviews: updatedReviews.filter(r => r.status === 'flagged'),
+          isLoading: false
+        };
+      });
+    } catch (err: any) {
+      console.error('Failed to unflag review:', err);
+      set({ isLoading: false, error: err.message || 'Failed to unflag review' });
+    }
   },
 
   deleteReview: async (id) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    await new Promise(resolve => setTimeout(resolve, 600));
+    try {
+      // Delete review images first (FK constraint)
+      await supabase.from('review_images').delete().eq('review_id', id);
+      // Delete review votes
+      await supabase.from('review_votes').delete().eq('review_id', id);
+      // Delete the review
+      const { error } = await supabase.from('reviews').delete().eq('id', id);
 
-    set(state => ({
-      reviews: state.reviews.filter(review => review.id !== id),
-      pendingReviews: state.pendingReviews.filter(review => review.id !== id),
-      flaggedReviews: state.flaggedReviews.filter(review => review.id !== id),
-      selectedReview: state.selectedReview?.id === id ? null : state.selectedReview,
-      isLoading: false
-    }));
+      if (error) throw error;
+
+      set(state => ({
+        reviews: state.reviews.filter(r => r.id !== id),
+        pendingReviews: state.pendingReviews.filter(r => r.id !== id),
+        flaggedReviews: state.flaggedReviews.filter(r => r.id !== id),
+        selectedReview: state.selectedReview?.id === id ? null : state.selectedReview,
+        isLoading: false
+      }));
+    } catch (err: any) {
+      console.error('Failed to delete review:', err);
+      set({ isLoading: false, error: err.message || 'Failed to delete review' });
+    }
   },
 
   selectReview: (review) => set({ selectedReview: review }),
@@ -2450,78 +2566,138 @@ export const useAdminProducts = create<ProductsState>((set) => ({
   loadProducts: async () => {
     set({ isLoading: true });
 
-    // Demo products
-    const demoProducts: AdminProduct[] = [
-      {
-        id: 'prod_1',
-        name: 'Wireless Bluetooth Earbuds',
-        description: 'High quality wireless earbuds with noise cancellation',
-        price: 1299,
-        stock: 50,
-        category: 'Electronics',
-        images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=200'],
-        sellerId: 'seller_1',
-        sellerName: 'TechHub Philippines',
-        status: 'active',
-        rating: 4.8,
-        sales: 120,
-        createdAt: new Date('2024-01-15'),
-        updatedAt: new Date('2024-12-15')
-      },
-      {
-        id: 'prod_2',
-        name: 'Leather Crossbody Bag',
-        description: 'Genuine leather bag for everyday use',
-        price: 2499,
-        stock: 20,
-        category: 'Fashion',
-        images: ['https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200'],
-        sellerId: 'seller_2',
-        sellerName: 'Fashion Forward Store',
-        status: 'active',
-        rating: 4.5,
-        sales: 85,
-        createdAt: new Date('2024-02-10'),
-        updatedAt: new Date('2024-12-10')
-      },
-      {
-        id: 'prod_3',
-        name: 'Smart Watch Series 5',
-        description: 'Fitness tracker and smart watch',
-        price: 3999,
-        stock: 15,
-        category: 'Electronics',
-        images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200'],
-        sellerId: 'seller_1',
-        sellerName: 'TechHub Philippines',
-        status: 'banned',
-        rating: 2.1,
-        sales: 5,
-        createdAt: new Date('2024-03-05'),
-        updatedAt: new Date('2024-03-10')
+    try {
+      if (!isSupabaseConfigured()) {
+        set({ isLoading: false });
+        return;
       }
-    ];
 
-    await new Promise(resolve => setTimeout(resolve, 800));
-    set({ products: demoProducts, isLoading: false });
+      const { data: products, error } = await supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          description,
+          price,
+          category_id,
+          seller_id,
+          approval_status,
+          disabled_at,
+          created_at,
+          updated_at,
+          categories(name),
+          sellers(store_name),
+          product_images(image_url, is_primary, sort_order)
+        `)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+
+      // Get stock from product_variants where applicable
+      const productIds = (products || []).map((p: any) => p.id);
+      const { data: variants } = productIds.length > 0
+        ? await supabase
+            .from('product_variants')
+            .select('product_id, stock')
+            .in('product_id', productIds)
+        : { data: [] };
+
+      const stockMap: Record<string, number> = {};
+      (variants || []).forEach((v: any) => {
+        stockMap[v.product_id] = (stockMap[v.product_id] || 0) + (v.stock || 0);
+      });
+
+      // Get review averages
+      const { data: reviewAvgs } = productIds.length > 0
+        ? await supabase
+            .from('reviews')
+            .select('product_id, rating')
+            .in('product_id', productIds)
+        : { data: [] };
+
+      const ratingMap: Record<string, { sum: number; count: number }> = {};
+      (reviewAvgs || []).forEach((r: any) => {
+        if (!ratingMap[r.product_id]) ratingMap[r.product_id] = { sum: 0, count: 0 };
+        ratingMap[r.product_id].sum += r.rating;
+        ratingMap[r.product_id].count += 1;
+      });
+
+      const adminProducts: AdminProduct[] = (products || []).map((p: any) => {
+        const images = (p.product_images || [])
+          .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+        const primaryImage = images.find((i: any) => i.is_primary) || images[0];
+        const rating = ratingMap[p.id] ? Math.round((ratingMap[p.id].sum / ratingMap[p.id].count) * 10) / 10 : 0;
+
+        let status: 'active' | 'inactive' | 'banned' = 'active';
+        if (p.disabled_at) status = 'banned';
+        else if (p.approval_status === 'rejected') status = 'banned';
+        else if (p.approval_status === 'pending') status = 'inactive';
+
+        return {
+          id: p.id,
+          name: p.name || '',
+          description: p.description || '',
+          price: Number(p.price) || 0,
+          stock: stockMap[p.id] || 0,
+          category: p.categories?.name || 'Uncategorized',
+          images: primaryImage ? [primaryImage.image_url] : [],
+          sellerId: p.seller_id || '',
+          sellerName: p.sellers?.store_name || 'Unknown Seller',
+          status,
+          rating,
+          sales: 0,
+          createdAt: new Date(p.created_at),
+          updatedAt: new Date(p.updated_at),
+        };
+      });
+
+      set({ products: adminProducts, isLoading: false });
+    } catch (error) {
+      console.error('Error loading admin products:', error);
+      set({ error: 'Failed to load products', isLoading: false });
+    }
   },
 
   deactivateProduct: async (id, _reason) => {
     set({ isLoading: true });
-    await new Promise(resolve => setTimeout(resolve, 800));
-    set(state => ({
-      products: state.products.map(p => p.id === id ? { ...p, status: 'banned' as const } : p),
-      isLoading: false
-    }));
+    try {
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from('products')
+          .update({ disabled_at: new Date().toISOString() })
+          .eq('id', id);
+        if (error) throw error;
+      }
+      set(state => ({
+        products: state.products.map(p => p.id === id ? { ...p, status: 'banned' as const } : p),
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Error deactivating product:', error);
+      set({ error: 'Failed to deactivate product', isLoading: false });
+    }
   },
 
   activateProduct: async (id) => {
     set({ isLoading: true });
-    await new Promise(resolve => setTimeout(resolve, 800));
-    set(state => ({
-      products: state.products.map(p => p.id === id ? { ...p, status: 'active' as const } : p),
-      isLoading: false
-    }));
+    try {
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from('products')
+          .update({ disabled_at: null, approval_status: 'approved' })
+          .eq('id', id);
+        if (error) throw error;
+      }
+      set(state => ({
+        products: state.products.map(p => p.id === id ? { ...p, status: 'active' as const } : p),
+        isLoading: false
+      }));
+    } catch (error) {
+      console.error('Error activating product:', error);
+      set({ error: 'Failed to activate product', isLoading: false });
+    }
   }
 }));
 
@@ -2555,43 +2731,111 @@ export const useAdminPayouts = create<PayoutsState>((set) => ({
   error: null,
 
   loadPayouts: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
 
-    const demoPayouts: Payout[] = [
-      {
-        id: 'payout_1',
-        referenceNumber: 'PAY-2024-001',
-        sellerId: 'seller_1',
-        sellerName: 'TechHub Philippines',
-        amount: 25000,
-        status: 'pending',
-        periodStart: new Date('2024-12-01'),
-        periodEnd: new Date('2024-12-15'),
-        bankName: 'BDO',
-        accountNumber: '1234567890'
-      },
-      {
-        id: 'payout_2',
-        referenceNumber: 'PAY-2024-002',
-        sellerId: 'seller_2',
-        sellerName: 'Fashion Forward Store',
-        amount: 12500,
-        status: 'paid',
-        periodStart: new Date('2024-11-16'),
-        periodEnd: new Date('2024-11-30'),
-        payoutDate: new Date('2024-12-05'),
-        bankName: 'BPI',
-        accountNumber: '9876543210'
+    try {
+      // Compute payouts from order_items joined with seller info and payout accounts
+      // Group by seller, aggregate their earnings from paid orders
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select(`
+          id, price, price_discount, quantity, created_at,
+          product:products!inner(seller_id, sellers:sellers(id, store_name)),
+          order:orders!inner(id, payment_status, shipment_status, paid_at, created_at)
+        `)
+        .in('order.payment_status', ['paid', 'refunded']);
+
+      if (itemsError) throw itemsError;
+
+      // Get seller payout accounts
+      const { data: payoutAccounts } = await supabase
+        .from('seller_payout_accounts')
+        .select('seller_id, bank_name, account_name, account_number');
+
+      const accountMap = new Map<string, { bankName: string; accountNumber: string }>();
+      for (const acc of (payoutAccounts || [])) {
+        accountMap.set(acc.seller_id, {
+          bankName: acc.bank_name || 'Not set',
+          accountNumber: acc.account_number || 'N/A',
+        });
       }
-    ];
 
-    await new Promise(resolve => setTimeout(resolve, 800));
-    set({ payouts: demoPayouts, isLoading: false });
+      // Group by seller
+      const sellerPayouts = new Map<string, {
+        sellerId: string;
+        sellerName: string;
+        totalPaid: number;
+        totalPending: number;
+        latestDate: string;
+        earliestDate: string;
+      }>();
+
+      for (const item of (orderItems || []) as any[]) {
+        const sellerId = item.product?.seller_id;
+        const sellerName = item.product?.sellers?.store_name || 'Unknown Store';
+        if (!sellerId) continue;
+
+        const lineTotal = (item.price - item.price_discount) * item.quantity;
+        const existing = sellerPayouts.get(sellerId) || {
+          sellerId,
+          sellerName,
+          totalPaid: 0,
+          totalPending: 0,
+          latestDate: item.order?.created_at || item.created_at,
+          earliestDate: item.order?.created_at || item.created_at,
+        };
+
+        if (item.order?.payment_status === 'paid') {
+          if (['delivered', 'received'].includes(item.order?.shipment_status)) {
+            existing.totalPaid += lineTotal;
+          } else {
+            existing.totalPending += lineTotal;
+          }
+        }
+
+        const dateStr = item.order?.created_at || item.created_at;
+        if (dateStr > existing.latestDate) existing.latestDate = dateStr;
+        if (dateStr < existing.earliestDate) existing.earliestDate = dateStr;
+
+        sellerPayouts.set(sellerId, existing);
+      }
+
+      // Convert to Payout records
+      const payouts: Payout[] = [];
+      let idx = 1;
+      for (const [sellerId, info] of sellerPayouts.entries()) {
+        const account = accountMap.get(sellerId);
+        const total = info.totalPaid + info.totalPending;
+        if (total <= 0) continue;
+
+        payouts.push({
+          id: sellerId,
+          referenceNumber: `PAY-${new Date().getFullYear()}-${String(idx).padStart(3, '0')}`,
+          sellerId,
+          sellerName: info.sellerName,
+          amount: Math.round(total * 100) / 100,
+          status: info.totalPending > 0 ? 'pending' : 'paid',
+          periodStart: new Date(info.earliestDate),
+          periodEnd: new Date(info.latestDate),
+          payoutDate: info.totalPending === 0 ? new Date(info.latestDate) : undefined,
+          bankName: account?.bankName || 'Not set',
+          accountNumber: account?.accountNumber || 'N/A',
+        });
+        idx++;
+      }
+
+      set({ payouts, isLoading: false });
+    } catch (error: any) {
+      console.error('Failed to load payouts:', error);
+      set({ error: error.message || 'Failed to load payouts', isLoading: false });
+    }
   },
 
   markAsPaid: async (id, referenceNumber) => {
     set({ isLoading: true });
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // In the current schema there's no seller_payouts table to update,
+    // so we update local state and log the action. When seller_payouts
+    // table is added, this should INSERT/UPDATE there.
     set(state => ({
       payouts: state.payouts.map(p =>
         p.id === id
@@ -2604,7 +2848,7 @@ export const useAdminPayouts = create<PayoutsState>((set) => ({
 
   processBatch: async (ids) => {
     set({ isLoading: true });
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Same note as markAsPaid — update local state for now
     set(state => ({
       payouts: state.payouts.map(p =>
         ids.includes(p.id)
