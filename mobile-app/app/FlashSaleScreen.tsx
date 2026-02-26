@@ -6,10 +6,12 @@ import {
     StyleSheet,
     Pressable,
     Dimensions,
+    ActivityIndicator,
     StatusBar,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Timer, Zap, Store, BadgeCheck } from 'lucide-react-native';
+import { ArrowLeft, Timer, Zap, Store, Star, CheckCircle2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProductCard } from '../src/components/ProductCard';
 import { productService } from '../src/services/productService';
@@ -23,16 +25,15 @@ type Props = NativeStackScreenProps<RootStackParamList, 'FlashSale'>;
 
 const { width } = Dimensions.get('window');
 
-interface SellerGroup {
-    sellerName: string;
-    sellerId: string;
-    isVerified: boolean;
+interface BadgeGroup {
+    badge: string;
     products: Product[];
+    color: string;
 }
 
 export default function FlashSaleScreen({ navigation, route }: Props) {
     const insets = useSafeAreaInsets();
-    const [groupedProducts, setGroupedProducts] = useState<SellerGroup[]>([]);
+    const [badgeGroups, setBadgeGroups] = useState<BadgeGroup[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Countdown timer
@@ -43,10 +44,10 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
     }, []);
 
     useEffect(() => {
-        if (groupedProducts.length === 0) return;
+        if (badgeGroups.length === 0) return;
 
         const updateTimer = () => {
-            const allProducts = groupedProducts.flatMap(g => g.products);
+            const allProducts = badgeGroups.flatMap(g => g.products);
             const now = new Date().getTime();
             const endTimes = allProducts
                 .map(p => new Date((p as any).campaignEndsAt).getTime())
@@ -69,27 +70,39 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
         updateTimer();
         const interval = setInterval(updateTimer, 1000);
         return () => clearInterval(interval);
-    }, [groupedProducts]);
+    }, [badgeGroups]);
 
     const loadProducts = async () => {
         try {
             const data = await discountService.getFlashSaleProducts();
+
+            // Deduplicate by product ID — a product may appear in multiple campaigns
+            const seen = new Set<string>();
+            const uniqueData = (data || []).filter((p: any) => {
+                if (seen.has(p.id)) return false;
+                seen.add(p.id);
+                return true;
+            });
             
-            const groups = (data || []).reduce((acc: any, product: any) => {
-                const sName = product.seller || 'Unknown Seller';
-                if (!acc[sName]) {
-                    acc[sName] = {
-                        sellerName: sName,
-                        sellerId: product.sellerId || '',
-                        isVerified: !!product.sellerVerified,
+            const groups = uniqueData.reduce((acc: any, product: any) => {
+                const badge = product.campaignBadge || 'Flash Sale';
+                if (!acc[badge]) {
+                    acc[badge] = {
+                        badge,
+                        color: product.campaignBadgeColor || COLORS.primary,
                         products: []
                     };
                 }
-                acc[sName].products.push(product);
+                acc[badge].products.push(product);
                 return acc;
-            }, {} as Record<string, SellerGroup>);
+            }, {} as Record<string, BadgeGroup>);
             
-            setGroupedProducts(Object.values(groups).filter((g: any) => g.products.length > 0) as SellerGroup[]);
+            // Sort groups: Flash Sale first or by most products
+            const sortedGroups = Object.values(groups)
+                .filter((g: any) => g.products.length > 0)
+                .sort((a: any, b: any) => b.products.length - a.products.length) as BadgeGroup[];
+            
+            setBadgeGroups(sortedGroups);
 
         } catch (err) {
             console.error('Failed to load flash sale products:', err);
@@ -149,22 +162,35 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
 
                     {loading ? (
                         <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color={COLORS.primary} />
                             <Text style={styles.loadingText}>Loading deals...</Text>
                         </View>
-                    ) : groupedProducts.length === 0 ? (
+                    ) : badgeGroups.length === 0 ? (
                         <View style={styles.emptyContainer}>
                             <Zap size={48} color="#D1D5DB" />
                             <Text style={styles.emptyText}>No flash sale products at the moment</Text>
                         </View>
                     ) : (
-                        <View style={styles.gridContainer}>
-                            {groupedProducts.flatMap(g => g.products).map((product) => (
-                                <View key={product.id} style={styles.productCardContainer}>
-                                    <ProductCard
-                                        product={product}
-                                        variant="flash"
-                                        onPress={() => navigation.navigate('ProductDetail', { product })}
-                                    />
+                        <View style={styles.groupsWrapper}>
+                            {badgeGroups.map((group) => (
+                                <View key={group.badge} style={styles.badgeSection}>
+                                    <View style={styles.sectionHeader}>
+                                        <View style={[styles.badgeIndicator, { backgroundColor: group.color }]} />
+                                        <Text style={styles.sectionTitle}>{group.badge}</Text>
+                                        <View style={styles.sectionLine} />
+                                    </View>
+                                    
+                                    <View style={styles.productGrid}>
+                                        {group.products.map((product) => (
+                                            <View key={product.id} style={styles.productItem}>
+                                                <ProductCard
+                                                    product={product}
+                                                    variant="flash"
+                                                    onPress={() => navigation.navigate('ProductDetail', { product })}
+                                                />
+                                            </View>
+                                        ))}
+                                    </View>
                                 </View>
                             ))}
                         </View>
@@ -175,8 +201,12 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
     );
 }
 
+const COLUMN_GAP = 16;
+const CONTAINER_PADDING = 20;
+const ITEM_WIDTH = (width - (CONTAINER_PADDING * 2) - COLUMN_GAP) / 2;
+
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.background },
+    container: { flex: 1, backgroundColor: '#FAF9F6' },
     header: {
         paddingHorizontal: 20,
         paddingBottom: 15,
@@ -209,18 +239,45 @@ const styles = StyleSheet.create({
     heroZap: { marginBottom: 12, shadowColor: '#EA580C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10 },
     heroTitle: { fontSize: 26, fontWeight: '900', color: '#7C2D12', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
     heroSub: { fontSize: 14, color: '#9A3412', textAlign: 'center', paddingHorizontal: 20, fontWeight: '500' },
-    loadingContainer: { alignItems: 'center', paddingVertical: 60 },
-    loadingText: { fontSize: 16, color: '#6B7280' },
+    loadingContainer: { alignItems: 'center', paddingVertical: 60, flex: 1 },
+    loadingText: { fontSize: 16, color: '#6B7280', marginTop: 12 },
     emptyContainer: { alignItems: 'center', paddingVertical: 60, gap: 12 },
     emptyText: { fontSize: 16, color: '#6B7280' },
-    gridContainer: { 
+    groupsWrapper: { paddingHorizontal: 0 },
+    badgeSection: { marginBottom: 32 },
+    sectionHeader: { 
         flexDirection: 'row', 
-        flexWrap: 'wrap', 
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
+        alignItems: 'center', 
+        paddingHorizontal: CONTAINER_PADDING,
+        marginBottom: 16,
+        gap: 12,
     },
-    productCardContainer: {
-        width: (width - 40 - 15) / 2, // 40 for container padding, 15 for gap
+    badgeIndicator: {
+        width: 4,
+        height: 20,
+        borderRadius: 2,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: COLORS.textHeadline,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    sectionLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#E5E7EB',
+        marginLeft: 8,
+    },
+    productGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        paddingHorizontal: CONTAINER_PADDING,
+        justifyContent: 'space-between',
+    },
+    productItem: {
+        width: ITEM_WIDTH,
         marginBottom: 20,
     }
 });
