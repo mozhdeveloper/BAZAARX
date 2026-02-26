@@ -16,6 +16,7 @@ export interface SignUpData {
   last_name?: string;
   phone?: string;
   user_type: UserRole;
+  preferences?: Record<string, any>;
 }
 
 // Legacy support - maps to first_name
@@ -25,6 +26,7 @@ export interface LegacySignUpData {
   full_name?: string;
   phone?: string;
   user_type: UserRole;
+  preferences?: Record<string, any>;
 }
 
 export interface AuthResult {
@@ -97,7 +99,7 @@ export class AuthService {
         await this.addUserRole(authData.user.id, userData.user_type);
 
         // Create user-type specific record
-        await this.createUserTypeRecord(authData.user.id, userData.user_type);
+        await this.createUserTypeRecord(authData.user.id, userData.user_type, userData.preferences);
       }
 
       return { user: authData.user, session: authData.session };
@@ -654,14 +656,15 @@ export class AuthService {
    */
   private async createUserTypeRecord(
     userId: string,
-    userType: UserRole
+    userType: UserRole,
+    preferences?: Record<string, any>
   ): Promise<void> {
     if (userType === 'buyer') {
       const { error } = await supabase.from('buyers').upsert(
         {
           id: userId,
           avatar_url: null,
-          preferences: {},
+          preferences: preferences || {},
           bazcoins: 0,
         },
         { onConflict: 'id' }

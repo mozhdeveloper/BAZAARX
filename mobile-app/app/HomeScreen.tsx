@@ -343,9 +343,30 @@ export default function HomeScreen({ navigation }: Props) {
     return () => clearInterval(interval);
   }, [activeSlide]);
 
-  const popularProducts = useMemo(() => {
-    return [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8);
-  }, [dbProducts]);
+  const featuredProducts = useMemo(() => {
+    const interestedCategories = user?.preferences?.interestedCategories as string[] | undefined;
+    let filtered = dbProducts;
+    
+    if (interestedCategories && interestedCategories.length > 0) {
+      const matchNames = categories
+        .filter(c => interestedCategories.includes(c.id))
+        .map(c => c.name.replace('\n', ' ').toLowerCase());
+        
+      const interested = dbProducts.filter(p => {
+        const catName = (p.category || '').toLowerCase();
+        return matchNames.some(m => catName.includes(m) || m.includes(catName));
+      });
+      
+      if (interested.length > 0) {
+        filtered = interested;
+      }
+    }
+
+    return [...filtered].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8);
+  }, [dbProducts, user]);
+
+  const hasPreferences = Boolean(user?.preferences?.interestedCategories && (user.preferences.interestedCategories as string[]).length > 0);
+  const gridTitle = hasPreferences ? 'Featured Products' : 'Popular Items';
 
   const handleProductPress = (product: Product) => {
     navigation.navigate('ProductDetail', { product });
@@ -593,7 +614,7 @@ export default function HomeScreen({ navigation }: Props) {
                     </View>
                   ))
                 ) : (
-                  popularProducts.slice(0, 5).map((product) => (
+                  featuredProducts.slice(0, 5).map((product) => (
                     <View key={product.id} style={{ width: 150 }}>
                       <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
                     </View>
@@ -604,11 +625,11 @@ export default function HomeScreen({ navigation }: Props) {
 
             <View style={styles.gridContainer}>
               <View style={styles.gridHeader}>
-                <Text style={[styles.gridTitleText, { color: COLORS.primary }]}>Popular Items</Text>
+                <Text style={[styles.gridTitleText, { color: COLORS.primary }]}>{gridTitle}</Text>
                 <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>View All</Text></Pressable>
               </View>
               <View style={styles.gridBody}>
-                {popularProducts.map((product) => (
+                {featuredProducts.map((product) => (
                   <View key={product.id} style={styles.itemBoxContainerVertical}>
                     <ProductCard product={product} onPress={() => handleProductPress(product)} />
                   </View>

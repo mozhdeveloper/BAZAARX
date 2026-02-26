@@ -16,8 +16,8 @@ import { Check, Search, ArrowLeft } from 'lucide-react-native';
 import { safeImageUri } from '../../src/utils/imageUtils';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import { authService } from '../../src/services/authService';
+import { useAuthStore } from '../../src/stores/authStore';
 import { COLORS } from '../../src/constants/theme';
 
 // IMPORT THE NEW DATA FILE HERE
@@ -63,21 +63,18 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
     setIsSaving(true);
 
     try {
-      const result = await authService.signUp(
+      const success = await useAuthStore.getState().signUp(
         signupData.email,
         signupData.password,
         {
-          first_name: signupData.firstName,
-          last_name: signupData.lastName,
+          full_name: `${signupData.firstName} ${signupData.lastName}`.trim(),
           phone: signupData.phone,
           user_type: 'buyer',
-          email: signupData.email,
-          password: signupData.password,
-          // metadata: { interestedCategories: selectedCategories }
+          preferences: { interestedCategories: selectedCategories }
         }
       );
 
-      if (!result || !result.user) throw new Error('Signup failed. Please try again.');
+      if (!success) throw new Error('Signup failed. Please try again.');
 
       Alert.alert('Success', 'Welcome to BazaarX!', [
         {

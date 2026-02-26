@@ -26,6 +26,7 @@ interface User {
   savedCards?: SavedCard[];
   roles?: string[];
   bazcoins?: number;
+  preferences?: Record<string, any>;
 }
 
 interface AuthState {
@@ -40,7 +41,7 @@ interface AuthState {
 
   // Auth Actions (using authService)
   signIn: (email: string, password: string) => Promise<boolean>;
-  signUp: (email: string, password: string, userData: { full_name?: string; phone?: string; user_type: 'buyer' | 'seller' }) => Promise<boolean>;
+  signUp: (email: string, password: string, userData: { full_name?: string; phone?: string; user_type: 'buyer' | 'seller'; preferences?: Record<string, any> }) => Promise<boolean>;
   signOut: () => Promise<void>;
 
   // State setters
@@ -97,7 +98,8 @@ export const useAuthStore = create<AuthState>()(
               avatar: buyer?.avatar_url || undefined,
               roles: roles.length > 0 ? roles : ['buyer'],
               savedCards: [],
-              bazcoins: buyer?.bazcoins || 0
+              bazcoins: buyer?.bazcoins || 0,
+              preferences: buyer?.preferences || undefined
             };
             // Determine active role from roles
             const isSeller = roles.includes('seller');
@@ -134,6 +136,7 @@ export const useAuthStore = create<AuthState>()(
               name: userData.full_name || email.split('@')[0],
               phone: userData.phone || '',
               roles: [userData.user_type],
+              preferences: userData.preferences,
             };
             set({
               user,
@@ -192,7 +195,8 @@ export const useAuthStore = create<AuthState>()(
               phone: profile?.phone || '',
               avatar: buyer?.avatar_url || undefined,
               roles: roles.length > 0 ? roles : ['buyer'],
-              bazcoins: buyer?.bazcoins || 0
+              bazcoins: buyer?.bazcoins || 0,
+              preferences: buyer?.preferences || undefined
             };
             set({
               user,

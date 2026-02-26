@@ -124,14 +124,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.card, // Warm Ivory/Cream
-    borderRadius: 12, // Reduced from 20 to 12
+    backgroundColor: COLORS.white, // Pure White
+    borderRadius: 20, // Increased for smoother look
     overflow: 'hidden',
-    shadowColor: '#F59E0B', // Golden Shadow
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2, // Softer glow
+    shadowColor: '#000000', // Deep Shadow for depth
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1, // Soft shadow
     shadowRadius: 12,
-    elevation: 6,
+    elevation: 8,
   },
   pressed: {
     opacity: 0.9,
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: '100%',
     aspectRatio: 0.9,
-    backgroundColor: '#FFF6E5', // Pale Cream (matches theme)
+    backgroundColor: COLORS.white, // Match white card
     position: 'relative',
   },
   image: {
