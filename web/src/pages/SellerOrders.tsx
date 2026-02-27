@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -20,6 +20,8 @@ import {
   AlertCircle,
   Star,
   Users,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SellerSidebar } from "@/components/seller/SellerSidebar";
@@ -64,7 +66,10 @@ export function SellerOrders() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [channelFilter, setChannelFilter] = useState<"all" | "online" | "pos">("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ORDERS_PER_PAGE = 10;
   const [searchParams, setSearchParams] = useSearchParams();
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const getOrderNumberFromParams = (params: URLSearchParams) => {
     for (const key of params.keys()) {
@@ -190,7 +195,7 @@ export function SellerOrders() {
     }
   };
 
-  const filteredOrders = orders.filter((order) => {
+  const baseFilteredOrders = orders.filter((order) => {
     const matchesSearch =
       order.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -199,13 +204,55 @@ export function SellerOrders() {
     const matchesFilter =
       filterStatus === "all" || order.status === filterStatus;
 
+    return matchesSearch && matchesFilter;
+  });
+
+  const channelCounts = {
+    all: baseFilteredOrders.length,
+    online: baseFilteredOrders.filter((o) => o.type === "ONLINE").length,
+    pos: baseFilteredOrders.filter((o) => o.type === "OFFLINE").length,
+  };
+
+  const filteredOrders = baseFilteredOrders.filter((order) => {
     const matchesChannel =
       channelFilter === "all" ||
       (channelFilter === "online" && order.type === "ONLINE") ||
       (channelFilter === "pos" && order.type === "OFFLINE");
 
-    return matchesSearch && matchesFilter && matchesChannel;
+    return matchesChannel;
   });
+
+  // Pagination derived values
+  const totalOrders = filteredOrders.length;
+  const totalPages = Math.max(1, Math.ceil(totalOrders / ORDERS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginationStart = totalOrders === 0 ? 0 : (safeCurrentPage - 1) * ORDERS_PER_PAGE + 1;
+  const paginationEnd = Math.min(safeCurrentPage * ORDERS_PER_PAGE, totalOrders);
+  const paginatedOrders = filteredOrders.slice(
+    (safeCurrentPage - 1) * ORDERS_PER_PAGE,
+    safeCurrentPage * ORDERS_PER_PAGE,
+  );
+
+  // Reset to page 1 whenever filters change
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
+
+  // Scroll to top of table when page changes
+  useEffect(() => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [currentPage]);
+  const handleFilterStatusChange = (value: string) => {
+    setFilterStatus(value);
+    setCurrentPage(1);
+  };
+  const handleChannelFilterChange = (value: "all" | "online" | "pos") => {
+    setChannelFilter(value);
+    setCurrentPage(1);
+  };
 
   const handleStatusUpdate = async (
     orderId: string,
@@ -253,12 +300,12 @@ export function SellerOrders() {
     <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
       <SellerSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto scrollbar-hide relative">
+        <div className="p-2 md:pt-8 md:px-8 md:pb-8 flex-1 w-full h-full overflow-auto scrollbar-hide relative">
           <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
             <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
             <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
           </div>
-          <div className="max-w-7xl mx-auto space-y-8 relative z-10 pb-10">
+          <div className="max-w-7xl mx-auto space-y-8 relative z-10 pb-2">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
@@ -333,18 +380,19 @@ export function SellerOrders() {
                 <Tabs
                   value={channelFilter}
                   onValueChange={(value) =>
-                    setChannelFilter(
+                    handleChannelFilterChange(
                       value as "all" | "online" | "pos",
                     )
                   }
                   className="w-full xl:w-auto"
                 >
-                  <TabsList className="bg-white p-2 border-0 flex items-center gap-2 rounded-full shadow-sm">
+                  <TabsList className="bg-white p-2 border-0 flex items-center rounded-full shadow-sm">
                     <TabsTrigger
                       value="all"
-                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 hover:text-[var(--brand-primary)] font-medium text-xs transition-all"
+                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 hover:text-[var(--brand-primary)] font-medium text-xs transition-all gap-2"
                     >
                       All Channels
+                      <span>({channelCounts.all})</span>
                     </TabsTrigger>
                     <TabsTrigger
                       value="online"
@@ -352,6 +400,7 @@ export function SellerOrders() {
                     >
                       <Globe className="h-3 w-3" />
                       Online App
+                      <span>({channelCounts.online})</span>
                     </TabsTrigger>
                     <TabsTrigger
                       value="pos"
@@ -359,6 +408,7 @@ export function SellerOrders() {
                     >
                       <StoreIcon className="h-3 w-3" />
                       POS / Offline
+                      <span>({channelCounts.pos})</span>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -372,7 +422,7 @@ export function SellerOrders() {
                       placeholder="Search by Order ID, Customer name, or Email..."
                       value={searchQuery}
                       onChange={(e) =>
-                        setSearchQuery(e.target.value)
+                        handleSearchChange(e.target.value)
                       }
                       className="pl-12 w-full h-9 border border-orange-200 bg-white rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-300 transition-all shadow-sm"
                     />
@@ -383,7 +433,7 @@ export function SellerOrders() {
                 <div className="w-full xl:w-auto flex flex-wrap gap-3">
                   <Select
                     value={filterStatus}
-                    onValueChange={setFilterStatus}
+                    onValueChange={handleFilterStatusChange}
                   >
                     <SelectTrigger className="w-full sm:w-[180px] h-9 rounded-xl bg-white border-0 text-gray-700 focus:ring-2 focus:ring-orange-100 focus:border-orange-300 transition-all shadow-md font-medium">
                       <SelectValue placeholder="Filter Status" />
@@ -446,7 +496,10 @@ export function SellerOrders() {
             </div>
 
             {/* Orders Table */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden border-0">
+            <div
+              ref={tableContainerRef}
+              className="bg-white rounded-xl shadow-lg overflow-hidden border-0 scroll-mt-6"
+            >
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
@@ -474,14 +527,14 @@ export function SellerOrders() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.length === 0 ? (
+                  {paginatedOrders.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center text-gray-500">
                         No orders found matching your criteria.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredOrders.map((order) => (
+                    paginatedOrders.map((order) => (
                       <TableRow
                         key={order.id}
                         className="group hover:bg-gray-50 transition-colors cursor-pointer border-b border-gray-100 last:border-0"
@@ -744,6 +797,32 @@ export function SellerOrders() {
                   )}
                 </TableBody>
               </Table>
+              {/* Pagination Bar — below the table */}
+              <div className="flex items-center justify-between px-6 py-3 border-t border-gray-100">
+                <span className="text-sm text-[var(--text-muted)] font-medium">
+                  {totalOrders === 0
+                    ? "0 orders"
+                    : `${paginationStart}–${paginationEnd} of ${totalOrders}`}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeCurrentPage <= 1}
+                    className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-orange-50 hover:text-[var(--brand-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safeCurrentPage >= totalPages}
+                    className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-orange-50 hover:text-[var(--brand-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Order Details Modal */}
