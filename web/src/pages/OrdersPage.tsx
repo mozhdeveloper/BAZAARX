@@ -20,6 +20,7 @@ import {
   ShoppingBag,
   Store,
   ChevronRight,
+  Bell,
 } from "lucide-react";
 import { useCartStore } from "../stores/cartStore";
 import { Button } from "../components/ui/button";
@@ -198,9 +199,8 @@ export default function OrdersPage() {
 
       toast({
         title: "Order Cancelled",
-        description: "Your order has been moved to the Cancelled list.",
+        duration: 1000,
       });
-      setStatusFilter("cancelled");
 
       void loadBuyerOrders();
     } catch (e) {
@@ -1002,7 +1002,7 @@ export default function OrdersPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[150]"
           onClick={() => setViewReturnDetails(null)}
         >
           <motion.div
@@ -1181,7 +1181,7 @@ export default function OrdersPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-md p-4"
             onClick={() => setViewImage(null)}
           >
             <button
@@ -1211,7 +1211,7 @@ export default function OrdersPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
             onClick={() => {
               setCancelModalOpen(false);
               setCancelReason("");
@@ -1222,75 +1222,93 @@ export default function OrdersPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Cancel Order</h3>
-              <p className="text-gray-600 text-sm mb-4">
-                Please tell us why you want to cancel this order.
-              </p>
-
-              {/* Reason Selection */}
-              <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
-                {CANCEL_REASONS.map((reason) => (
-                  <label
-                    key={reason}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
-                      cancelReason === reason
-                        ? "border-[var(--brand-accent)] bg-[var(--brand-wash)]"
-                        : "border-gray-200 hover:border-gray-300"
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="cancelReason"
-                      value={reason}
-                      checked={cancelReason === reason}
-                      onChange={(e) => setCancelReason(e.target.value)}
-                      className="accent-[var(--brand-accent)]"
-                    />
-                    <span className="text-sm text-gray-700">{reason}</span>
-                  </label>
-                ))}
+              {/* Premium Header */}
+              <div className="px-6 pt-6 pb-1">
+                <h3 className="text-xl font-bold text-gray-900 mb-3">Cancel Order</h3>
+                <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-3 flex gap-3 items-start -mb-4">
+                  <p className="text-[var(--brand-primary)] text-xs leading-relaxed">
+                    Please select a reason. Take note that this will cancel all items in the order and cannot be undone.
+                  </p>
+                </div>
               </div>
 
-              {/* Other Reason Input */}
-              {cancelReason === "Other" && (
-                <textarea
-                  placeholder="Please specify your reason..."
-                  value={otherReason}
-                  onChange={(e) => setOtherReason(e.target.value)}
-                  className="w-full p-3 border rounded-lg text-sm mb-4 focus:ring-2 focus:ring-[var(--brand-accent)] focus:outline-none"
-                  rows={2}
-                />
-              )}
+              <div className="px-6 py-4">
 
-              {/* Reassurance */}
-              <p className="text-xs text-gray-500 mb-4">
-                Don't worry, you have not been charged for this order. You can easily buy these items again later.
-              </p>
+                {/* Reason Selection */}
+                <div className="space-y-1 mb-4">
+                  {CANCEL_REASONS.map((reason) => (
+                    <label
+                      key={reason}
+                      className={cn(
+                        "flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all border border-transparent",
+                        cancelReason === reason
+                          ? "bg-[var(--brand-wash)]"
+                          : "bg-base"
+                      )}
+                    >
+                      <div className="relative flex items-center justify-center">
+                        <input
+                          type="radio"
+                          name="cancelReason"
+                          value={reason}
+                          checked={cancelReason === reason}
+                          onChange={(e) => setCancelReason(e.target.value)}
+                          className="sr-only"
+                        />
+                        <div className={cn(
+                          "w-4 h-4 rounded-full border transition-all flex items-center justify-center",
+                          cancelReason === reason
+                            ? "border-[var(--brand-primary)]"
+                            : "border-gray-300"
+                        )}>
+                          {cancelReason === reason && (
+                            <div className="w-2 h-2 rounded-full bg-[var(--brand-primary)]" />
+                          )}
+                        </div>
+                      </div>
+                      <span className={cn(
+                        "text-sm font-medium transition-colors",
+                        cancelReason === reason ? "text-[var(--brand-primary)]" : "text-gray-600"
+                      )}>{reason}</span>
+                    </label>
+                  ))}
+                </div>
 
-              {/* Actions */}
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => {
-                    setCancelModalOpen(false);
-                    setCancelReason("");
-                    setOtherReason("");
-                  }}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Keep Order
-                </Button>
-                <Button
-                  onClick={handleCancelOrder}
-                  disabled={!cancelReason || (cancelReason === "Other" && !otherReason.trim())}
-                  className="flex-1 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50"
-                >
-                  Cancel Order
-                </Button>
+                {/* Other Reason Input */}
+                {cancelReason === "Other" && (
+                  <textarea
+                    placeholder="Please specify your reason..."
+                    value={otherReason}
+                    onChange={(e) => setOtherReason(e.target.value)}
+                    className="w-full p-2.5 border-2 border-gray-100 rounded-xl text-sm mb-3 focus:border focus:border-[var(--brand-primary)] focus:ring-0 focus:outline-none transition-all"
+                    rows={2}
+                  />
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => {
+                      setCancelModalOpen(false);
+                      setCancelReason("");
+                      setOtherReason("");
+                    }}
+                    variant="outline"
+                    className="flex-1 border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-600 rounded-xl h-11"
+                  >
+                    Keep Order
+                  </Button>
+                  <Button
+                    onClick={handleCancelOrder}
+                    disabled={!cancelReason || (cancelReason === "Other" && !otherReason.trim())}
+                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:opacity-50 shadow-lg shadow-orange-100 h-11 rounded-xl font-bold"
+                  >
+                    Confirm
+                  </Button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
