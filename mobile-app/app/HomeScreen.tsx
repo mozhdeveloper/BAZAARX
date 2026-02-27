@@ -45,6 +45,7 @@ import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
 import { discountService } from '../src/services/discountService';
+import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -115,6 +116,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [activeSlide, setActiveSlide] = useState(0);
   const [flashSaleProducts, setFlashSaleProducts] = useState<any[]>([]);
   const [flashTimer, setFlashTimer] = useState('00:00:00');
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const scrollAnchor = useRef(0);
   const [showLocationRow, setShowLocationRow] = useState(true);
@@ -245,6 +247,13 @@ export default function HomeScreen({ navigation }: Props) {
       }
     };
     loadFlashSales();
+  }, []);
+
+  // Fetch featured products
+  useEffect(() => {
+    featuredProductService.getFeaturedProducts(10).then(data => {
+      setFeaturedProducts(data);
+    }).catch(e => console.error('Error loading featured products:', e));
   }, []);
 
   useEffect(() => {
@@ -714,6 +723,54 @@ export default function HomeScreen({ navigation }: Props) {
                       )}
                     </Pressable>
                   ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* FEATURED PRODUCTS SECTION */}
+            {featuredProducts.length > 0 && (
+              <View style={{ marginTop: 20, marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textHeadline }}>Featured Products</Text>
+                    <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#B45309' }}>Sponsored</Text>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => navigation.navigate('Shop', {})}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
+                  </Pressable>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+                  {featuredProducts.slice(0, 10).map((fp: any) => {
+                    const product = fp.product;
+                    if (!product) return null;
+                    const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
+                    const reviews = product.reviews || [];
+                    const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
+                    const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+                    const mapped = {
+                      id: product.id,
+                      name: product.name,
+                      price: product.price,
+                      originalPrice: product.original_price,
+                      original_price: product.original_price,
+                      primary_image_url: primaryImg?.image_url,
+                      primary_image: primaryImg?.image_url,
+                      images: product.images?.map((img: any) => img.image_url) || [],
+                      category: product.category?.name,
+                      seller: product.seller,
+                      rating: avgRating,
+                      review_count: reviews.length,
+                      stock: totalStock,
+                      is_active: !product.disabled_at,
+                    };
+                    return (
+                      <View key={fp.id} style={{ width: 150 }}>
+                        <ProductCard product={mapped as any} onPress={() => handleProductPress(mapped as any)} />
+                      </View>
+                    );
+                  })}
                 </ScrollView>
               </View>
             )}

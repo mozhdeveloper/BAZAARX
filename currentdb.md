@@ -164,6 +164,20 @@ CREATE TABLE public.discount_campaigns (
   CONSTRAINT discount_campaigns_pkey PRIMARY KEY (id),
   CONSTRAINT discount_campaigns_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
+CREATE TABLE public.featured_products (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL UNIQUE,
+  seller_id uuid NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  priority integer NOT NULL DEFAULT 0,
+  featured_at timestamp with time zone NOT NULL DEFAULT now(),
+  expires_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT featured_products_pkey PRIMARY KEY (id),
+  CONSTRAINT featured_products_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT featured_products_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
+);
 CREATE TABLE public.low_stock_alerts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL,
@@ -714,6 +728,16 @@ CREATE TABLE public.seller_rejections (
   CONSTRAINT seller_rejections_pkey PRIMARY KEY (id),
   CONSTRAINT seller_rejections_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id),
   CONSTRAINT seller_rejections_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
+);
+CREATE TABLE public.seller_tiers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  seller_id uuid NOT NULL UNIQUE,
+  tier_level text NOT NULL DEFAULT 'standard'::text CHECK (tier_level = ANY (ARRAY['standard'::text, 'premium_outlet'::text, 'trusted_brand'::text])),
+  bypasses_assessment boolean DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT seller_tiers_pkey PRIMARY KEY (id),
+  CONSTRAINT seller_tiers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
 CREATE TABLE public.seller_verification_documents (
   seller_id uuid NOT NULL,

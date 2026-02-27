@@ -18,7 +18,8 @@ import {
   MessageSquare,
   Zap,
   DollarSign,
-  CheckSquare
+  CheckSquare,
+  ShieldCheck
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -62,6 +63,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
       label: 'Seller Approvals',
       href: '/admin/sellers',
       icon: <UserCheck className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Trusted Brands',
+      href: '/admin/trusted-brands',
+      icon: <ShieldCheck className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
     },
     {
       label: 'Buyers',

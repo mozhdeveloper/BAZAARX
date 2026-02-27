@@ -56,6 +56,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { BulkUploadModal, BulkProductData } from "@/components/BulkUploadModal";
 import { productService } from "@/services/productService";
+import { featuredProductService } from "@/services/featuredProductService";
 import { ProductFormTabs } from "@/components/seller/products/ProductFormTabs";
 import { GeneralInfoTab } from "@/components/seller/products/GeneralInfoTab";
 import { AttributesTab } from "@/components/seller/products/AttributesTab";
@@ -95,12 +96,47 @@ export function SellerProducts() {
     const navigate = useNavigate();
     const { toast } = useToast();
     const { fetchProducts } = useProductStore();
+    const [featuredProductIds, setFeaturedProductIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (seller?.id) {
             fetchProducts({ sellerId: seller.id });
+            // Load featured products for this seller
+            featuredProductService.getSellerFeaturedProducts(seller.id).then(fps => {
+                setFeaturedProductIds(new Set(fps.filter(fp => fp.is_active).map(fp => fp.product_id)));
+            });
         }
     }, [seller?.id, fetchProducts]);
+
+    const handleToggleFeature = async (productId: string) => {
+        if (!seller?.id) return;
+        const isFeatured = featuredProductIds.has(productId);
+        try {
+            if (isFeatured) {
+                const ok = await featuredProductService.unfeatureProduct(productId, seller.id);
+                if (ok) {
+                    setFeaturedProductIds(prev => { const next = new Set(prev); next.delete(productId); return next; });
+                    toast({ title: 'Removed from Featured', description: 'Product is no longer featured.' });
+                } else {
+                    toast({ title: 'Error', description: 'Failed to remove product from featured.', variant: 'destructive' });
+                }
+            } else {
+                if (featuredProductIds.size >= 6) {
+                    toast({ title: 'Limit Reached', description: 'You can feature up to 6 products. Remove one first.', variant: 'destructive' });
+                    return;
+                }
+                const ok = await featuredProductService.featureProduct(productId, seller.id);
+                if (ok) {
+                    setFeaturedProductIds(prev => new Set(prev).add(productId));
+                    toast({ title: 'Product Featured!', description: 'Product will appear in Featured Products section.' });
+                } else {
+                    toast({ title: 'Error', description: 'Failed to feature product. Max 6 products allowed.', variant: 'destructive' });
+                }
+            }
+        } catch {
+            toast({ title: 'Error', description: 'Something went wrong.', variant: 'destructive' });
+        }
+    };
 
 
 
@@ -438,6 +474,21 @@ export function SellerProducts() {
                                                                 ? <ToggleRight className="h-5 w-5" />
                                                                 : <ToggleLeft className="h-5 w-5" />
                                                             }
+                                                        </button>
+                                                    )}
+                                                    {/* Feature / Unfeature */}
+                                                    {product.approvalStatus === 'approved' && (
+                                                        <button
+                                                            onClick={() => handleToggleFeature(product.id)}
+                                                            title={featuredProductIds.has(product.id) ? 'Remove from Featured' : 'Feature Product'}
+                                                            className={cn(
+                                                                "h-10 w-10 flex items-center justify-center rounded-xl transition-all active:scale-95",
+                                                                featuredProductIds.has(product.id)
+                                                                    ? "text-amber-500 bg-amber-50 hover:text-amber-700"
+                                                                    : "text-gray-400 hover:text-amber-500 hover:bg-amber-50"
+                                                            )}
+                                                        >
+                                                            <Star className={cn("h-4 w-4", featuredProductIds.has(product.id) && "fill-amber-500")} />
                                                         </button>
                                                     )}
                                                     {/* Add to Flash Sale */}

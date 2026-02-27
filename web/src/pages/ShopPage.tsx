@@ -37,6 +37,7 @@ import { useBuyerStore } from "../stores/buyerStore";
 import { useProductStore } from "../stores/sellerStore";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { discountService } from "@/services/discountService";
+import { featuredProductService, type FeaturedProductWithDetails } from "@/services/featuredProductService";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import ProductCard from "../components/ProductCard";
@@ -122,6 +123,9 @@ export default function ShopPage() {
   const [flashEndsAt, setFlashEndsAt] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
+  // Featured products
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
+
   // Fetch real flash sale products
   useEffect(() => {
     discountService.getFlashSaleProducts()
@@ -136,6 +140,11 @@ export default function ShopPage() {
         }
       })
       .catch((e) => console.error('Failed to load flash sales:', e));
+
+    // Fetch featured products
+    featuredProductService.getFeaturedProducts(12).then(data => {
+      setFeaturedProducts(data);
+    }).catch(e => console.error('Failed to load featured products:', e));
   }, []);
 
   // Accurate countdown timer driven by real campaignEndsAt
@@ -471,6 +480,48 @@ export default function ShopPage() {
             </div>
             )}
           </div>
+
+          {/* Featured Products Section — shown when sellers have featured products */}
+          {featuredProducts.length > 0 && (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4 px-1">
+                <div className="flex items-center gap-2">
+                  <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+                  <h2 className="text-xl font-bold text-[var(--text-headline)]">Featured Products</h2>
+                  <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">Sponsored</Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {featuredProducts.slice(0, 6).map((fp: any) => {
+                  const product = fp.product;
+                  if (!product) return null;
+                  const primaryImage = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
+                  const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+                  const reviews = product.reviews || [];
+                  const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
+                  const mapped = {
+                    ...product,
+                    primary_image_url: primaryImage?.image_url,
+                    primary_image: primaryImage?.image_url,
+                    images: product.images?.map((img: any) => img.image_url) || [],
+                    category: product.category?.name,
+                    is_active: !product.disabled_at,
+                    rating: avgRating,
+                    review_count: reviews.length,
+                    stock: totalStock,
+                    seller: product.seller,
+                  };
+                  return (
+                    <ProductCard
+                      key={fp.id}
+                      product={mapped}
+                      index={0}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Main Content */}
           <div className="w-full" id="shop-content">

@@ -359,7 +359,8 @@ export class QAService {
   }
 
   /**
-   * Check if a seller has premium_outlet tier
+   * Check if a seller has a tier that bypasses QA assessment
+   * (premium_outlet or trusted_brand with bypasses_assessment = true)
    */
   async isPremiumOutlet(sellerId: string): Promise<boolean> {
     if (!isSupabaseConfigured() || !sellerId) {
@@ -371,7 +372,7 @@ export class QAService {
         .from('seller_tiers')
         .select('tier_level, bypasses_assessment')
         .eq('seller_id', sellerId)
-        .eq('tier_level', 'premium_outlet')
+        .in('tier_level', ['premium_outlet', 'trusted_brand'])
         .eq('bypasses_assessment', true)
         .maybeSingle();
 
@@ -391,7 +392,7 @@ export class QAService {
    * Create assessment entry when product is first created.
    * Uses upsert to avoid unique constraint errors on retry, and does NOT
    * rely on SELECT after insert (which can fail due to RLS SELECT policies).
-   * Premium Outlet sellers bypass the assessment workflow.
+   * Premium Outlet and Trusted Brand sellers bypass the assessment workflow.
    */
   async createQAEntry(
     productId: string,
