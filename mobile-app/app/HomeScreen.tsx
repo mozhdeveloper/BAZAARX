@@ -46,6 +46,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
 import { discountService } from '../src/services/discountService';
 import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
+import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -117,6 +118,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [flashSaleProducts, setFlashSaleProducts] = useState<any[]>([]);
   const [flashTimer, setFlashTimer] = useState('00:00:00');
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
+  const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const scrollAnchor = useRef(0);
   const [showLocationRow, setShowLocationRow] = useState(true);
@@ -254,6 +256,11 @@ export default function HomeScreen({ navigation }: Props) {
     featuredProductService.getFeaturedProducts(10).then(data => {
       setFeaturedProducts(data);
     }).catch(e => console.error('Error loading featured products:', e));
+
+    // Also fetch boosted products
+    adBoostService.getActiveBoostedProducts('featured', 10).then(data => {
+      setBoostedProducts(data);
+    }).catch(e => console.error('Error loading boosted products:', e));
   }, []);
 
   useEffect(() => {
@@ -728,7 +735,7 @@ export default function HomeScreen({ navigation }: Props) {
             )}
 
             {/* FEATURED PRODUCTS SECTION */}
-            {featuredProducts.length > 0 && (
+            {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
               <View style={{ marginTop: 20, marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -742,35 +749,55 @@ export default function HomeScreen({ navigation }: Props) {
                   </Pressable>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
-                  {featuredProducts.slice(0, 10).map((fp: any) => {
-                    const product = fp.product;
-                    if (!product) return null;
-                    const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
-                    const reviews = product.reviews || [];
-                    const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
-                    const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-                    const mapped = {
-                      id: product.id,
-                      name: product.name,
-                      price: product.price,
-                      originalPrice: product.original_price,
-                      original_price: product.original_price,
-                      primary_image_url: primaryImg?.image_url,
-                      primary_image: primaryImg?.image_url,
-                      images: product.images?.map((img: any) => img.image_url) || [],
-                      category: product.category?.name,
-                      seller: product.seller,
-                      rating: avgRating,
-                      review_count: reviews.length,
-                      stock: totalStock,
-                      is_active: !product.disabled_at,
-                    };
-                    return (
-                      <View key={fp.id} style={{ width: 150 }}>
-                        <ProductCard product={mapped as any} onPress={() => handleProductPress(mapped as any)} />
-                      </View>
-                    );
-                  })}
+                  {/* Merge boosted + featured, dedupe by product ID, boosted first */}
+                  {(() => {
+                    const seenIds = new Set<string>();
+                    const allItems: { key: string; product: any }[] = [];
+
+                    // Boosted products first (paid ads priority)
+                    for (const bp of boostedProducts) {
+                      const product = bp.product;
+                      if (!product || seenIds.has(product.id)) continue;
+                      seenIds.add(product.id);
+                      allItems.push({ key: `boost-${bp.id}`, product });
+                    }
+
+                    // Then seller-featured
+                    for (const fp of featuredProducts) {
+                      const product = (fp as any).product;
+                      if (!product || seenIds.has(product.id)) continue;
+                      seenIds.add(product.id);
+                      allItems.push({ key: `feat-${(fp as any).id}`, product });
+                    }
+
+                    return allItems.slice(0, 10).map(({ key, product }) => {
+                      const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
+                      const reviews = product.reviews || [];
+                      const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
+                      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+                      const mapped = {
+                        id: product.id,
+                        name: product.name,
+                        price: product.price,
+                        originalPrice: product.original_price,
+                        original_price: product.original_price,
+                        primary_image_url: primaryImg?.image_url,
+                        primary_image: primaryImg?.image_url,
+                        images: product.images?.map((img: any) => img.image_url) || [],
+                        category: product.category?.name,
+                        seller: product.seller,
+                        rating: avgRating,
+                        review_count: reviews.length,
+                        stock: totalStock,
+                        is_active: !product.disabled_at,
+                      };
+                      return (
+                        <View key={key} style={{ width: 150 }}>
+                          <ProductCard product={mapped as any} onPress={() => handleProductPress(mapped as any)} />
+                        </View>
+                      );
+                    });
+                  })()}
                 </ScrollView>
               </View>
             )}

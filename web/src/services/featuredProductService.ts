@@ -22,7 +22,6 @@ export interface FeaturedProductWithDetails extends FeaturedProduct {
     id: string;
     name: string;
     price: number;
-    original_price: number | null;
     description: string;
     seller_id: string;
     approval_status: string;
@@ -54,7 +53,7 @@ class FeaturedProductService {
         .select(`
           *,
           product:products!inner(
-            id, name, price, original_price, description, seller_id, approval_status, disabled_at,
+            id, name, price, description, seller_id, approval_status, disabled_at,
             images:product_images(id, image_url, is_primary),
             category:categories(id, name),
             seller:sellers(id, store_name, avatar_url),

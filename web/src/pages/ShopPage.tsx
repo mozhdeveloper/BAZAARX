@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   Menu,
   Flame,
+  ChevronRight,
 } from "lucide-react";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
@@ -38,6 +39,7 @@ import { useProductStore } from "../stores/sellerStore";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { discountService } from "@/services/discountService";
 import { featuredProductService, type FeaturedProductWithDetails } from "@/services/featuredProductService";
+import { adBoostService, type AdBoostWithProduct } from "@/services/adBoostService";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import ProductCard from "../components/ProductCard";
@@ -125,6 +127,7 @@ export default function ShopPage() {
 
   // Featured products
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
+  const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
 
   // Fetch real flash sale products
   useEffect(() => {
@@ -145,6 +148,11 @@ export default function ShopPage() {
     featuredProductService.getFeaturedProducts(12).then(data => {
       setFeaturedProducts(data);
     }).catch(e => console.error('Failed to load featured products:', e));
+
+    // Fetch boosted products (ad boosts)
+    adBoostService.getActiveBoostedProducts('featured', 12).then(data => {
+      setBoostedProducts(data);
+    }).catch(e => console.error('Failed to load boosted products:', e));
   }, []);
 
   // Accurate countdown timer driven by real campaignEndsAt
@@ -481,44 +489,129 @@ export default function ShopPage() {
             )}
           </div>
 
-          {/* Featured Products Section — shown when sellers have featured products */}
-          {featuredProducts.length > 0 && (
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-4 px-1">
-                <div className="flex items-center gap-2">
-                  <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-                  <h2 className="text-xl font-bold text-[var(--text-headline)]">Featured Products</h2>
-                  <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">Sponsored</Badge>
+          {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
+          {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
+            <div className="mb-10">
+              {/* Section Header */}
+              <div className="flex items-center justify-between mb-5 px-1">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-1.5 rounded-lg shadow-md shadow-amber-200/50">
+                    <Star className="h-4 w-4 text-white fill-white" />
+                  </div>
+                  <h2 className="text-xl font-extrabold text-[var(--text-headline)] tracking-tight">Featured Products</h2>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5 uppercase tracking-wider">
+                    Sponsored
+                  </span>
                 </div>
+                <button className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1">
+                  See All <ChevronRight className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {featuredProducts.slice(0, 6).map((fp: any) => {
-                  const product = fp.product;
-                  if (!product) return null;
-                  const primaryImage = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
-                  const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-                  const reviews = product.reviews || [];
-                  const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
-                  const mapped = {
-                    ...product,
-                    primary_image_url: primaryImage?.image_url,
-                    primary_image: primaryImage?.image_url,
-                    images: product.images?.map((img: any) => img.image_url) || [],
-                    category: product.category?.name,
-                    is_active: !product.disabled_at,
-                    rating: avgRating,
-                    review_count: reviews.length,
-                    stock: totalStock,
-                    seller: product.seller,
-                  };
-                  return (
-                    <ProductCard
-                      key={fp.id}
-                      product={mapped}
-                      index={0}
-                    />
-                  );
-                })}
+
+              {/* Sponsored Products Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {(() => {
+                  const seenIds = new Set<string>();
+                  const allItems: { key: string; product: any; isBoosted: boolean }[] = [];
+
+                  for (const bp of boostedProducts) {
+                    const product = bp.product;
+                    if (!product || seenIds.has(product.id)) continue;
+                    seenIds.add(product.id);
+                    allItems.push({ key: `boost-${bp.id}`, product, isBoosted: true });
+                  }
+
+                  for (const fp of featuredProducts) {
+                    const product = (fp as any).product;
+                    if (!product || seenIds.has(product.id)) continue;
+                    seenIds.add(product.id);
+                    allItems.push({ key: `feat-${(fp as any).id}`, product, isBoosted: false });
+                  }
+
+                  return allItems.slice(0, 6).map(({ key, product, isBoosted }, idx) => {
+                    const primaryImage = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
+                    const imageUrl = primaryImage?.image_url || 'https://placehold.co/400x400?text=No+Image';
+                    const reviews = product.reviews || [];
+                    const avgRating = reviews.length > 0
+                      ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10
+                      : 0;
+                    const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+                    const sellerName = product.seller?.store_name || 'BazaarX Store';
+
+                    return (
+                      <motion.div
+                        key={key}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: idx * 0.06 }}
+                        onClick={() => navigate(`/product/${product.id}`)}
+                        className="group relative bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-amber-200 shadow-sm hover:shadow-lg hover:shadow-amber-100/40 transition-all duration-300 cursor-pointer flex flex-col"
+                      >
+                        {/* Sponsored indicator */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50/90 backdrop-blur-sm border border-amber-200/60 rounded px-1.5 py-0.5 uppercase tracking-wider">
+                            Ad
+                          </span>
+                        </div>
+
+                        {/* Product Image */}
+                        <div className="relative aspect-square overflow-hidden bg-gray-50">
+                          <img
+                            src={imageUrl}
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
+                            }}
+                          />
+                          {/* Gradient overlay at bottom */}
+                          <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/10 to-transparent" />
+                        </div>
+
+                        {/* Product Info */}
+                        <div className="p-3 flex flex-col flex-1">
+                          {/* Product Name */}
+                          <h3 className="text-[13px] font-semibold text-gray-800 line-clamp-2 leading-tight mb-2 group-hover:text-[var(--brand-primary)] transition-colors min-h-[2.5rem]">
+                            {product.name}
+                          </h3>
+
+                          {/* Rating */}
+                          {avgRating > 0 && (
+                            <div className="flex items-center gap-1 mb-2">
+                              <div className="flex">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`h-3 w-3 ${i < Math.floor(avgRating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'}`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-[11px] text-gray-400 font-medium">({reviews.length})</span>
+                            </div>
+                          )}
+
+                          {/* Price */}
+                          <div className="mb-2">
+                            <span className="text-lg font-extrabold text-[#D97706] leading-none">
+                              ₱{product.price?.toLocaleString() || '0'}
+                            </span>
+                          </div>
+
+                          {/* Sold count */}
+                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">
+                            0 sold
+                          </div>
+
+                          {/* Seller */}
+                          <div className="mt-auto pt-2 border-t border-gray-50">
+                            <p className="text-[11px] text-gray-500 font-medium truncate">{sellerName}</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}

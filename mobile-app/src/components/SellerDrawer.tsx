@@ -32,6 +32,7 @@ import {
   LogOut,
   Bell,
   LifeBuoy,
+  Megaphone,
 } from 'lucide-react-native';
 import { useSellerStore } from '../stores/sellerStore';
 import { useAuthStore } from '../stores/authStore';
@@ -148,6 +149,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
         { icon: Store, label: 'Store Profile', route: 'StoreProfile' },
         { icon: DollarSign, label: 'Earnings', route: 'Earnings' },
         { icon: Zap, label: 'Discounts', route: 'Discounts' },
+        { icon: Megaphone, label: 'Boost Product', route: 'BoostProduct' },
         { icon: TrendingUp, label: 'Analytics', route: 'Analytics' }
       ],
     },

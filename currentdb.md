@@ -402,6 +402,30 @@ CREATE TABLE public.pos_settings (
   CONSTRAINT pos_settings_pkey PRIMARY KEY (id),
   CONSTRAINT pos_settings_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
+CREATE TABLE public.product_ad_boosts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL,
+  seller_id uuid NOT NULL,
+  boost_type text NOT NULL DEFAULT 'featured'::text CHECK (boost_type = ANY (ARRAY['featured'::text, 'search_priority'::text, 'homepage_banner'::text, 'category_spotlight'::text])),
+  duration_days integer NOT NULL DEFAULT 7 CHECK (duration_days > 0),
+  daily_budget numeric NOT NULL DEFAULT 0 CHECK (daily_budget >= 0::numeric),
+  total_budget numeric NOT NULL DEFAULT 0 CHECK (total_budget >= 0::numeric),
+  cost_per_day numeric NOT NULL DEFAULT 0 CHECK (cost_per_day >= 0::numeric),
+  total_cost numeric NOT NULL DEFAULT 0 CHECK (total_cost >= 0::numeric),
+  currency text NOT NULL DEFAULT 'PHP'::text,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['draft'::text, 'active'::text, 'paused'::text, 'ended'::text, 'cancelled'::text])),
+  starts_at timestamp with time zone NOT NULL DEFAULT now(),
+  ends_at timestamp with time zone NOT NULL,
+  paused_at timestamp with time zone,
+  impressions integer NOT NULL DEFAULT 0 CHECK (impressions >= 0),
+  clicks integer NOT NULL DEFAULT 0 CHECK (clicks >= 0),
+  orders_generated integer NOT NULL DEFAULT 0 CHECK (orders_generated >= 0),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT product_ad_boosts_pkey PRIMARY KEY (id),
+  CONSTRAINT product_ad_boosts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT product_ad_boosts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
+);
 CREATE TABLE public.product_approvals (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   assessment_id uuid NOT NULL,

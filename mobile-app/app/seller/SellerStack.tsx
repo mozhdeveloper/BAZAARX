@@ -6,6 +6,7 @@ import SellerStoreProfileScreen from './store-profile';
 import SellerEarningsScreen from './earnings';
 import SellerPOSScreen from './pos';
 import SellerDiscountsScreen from './discounts';
+import BoostProductScreen from './boost-product';
 import SellerMessagesScreen from './messages';
 import SellerReviewsScreen from './reviews';
 import SellerNotificationsScreen from './notifications';
@@ -23,6 +24,7 @@ export type SellerStackParamList = {
   Earnings: undefined;
   POS: undefined;
   Discounts: undefined;
+  BoostProduct: undefined;
   Messages: undefined;
   Reviews: undefined;
   Notifications: undefined;
@@ -51,6 +53,7 @@ export default function SellerStack() {
       <Stack.Screen name="Earnings" component={SellerEarningsScreen} />
       <Stack.Screen name="POS" component={SellerPOSScreen} />
       <Stack.Screen name="Discounts" component={SellerDiscountsScreen} />
+      <Stack.Screen name="BoostProduct" component={BoostProductScreen} />
       <Stack.Screen name="Messages" component={SellerMessagesScreen} />
       <Stack.Screen name="Reviews" component={SellerReviewsScreen} />
       <Stack.Screen name="Notifications" component={SellerNotificationsScreen} />

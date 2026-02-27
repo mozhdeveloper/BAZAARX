@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Bell,
   HelpCircle,
+  Megaphone,
 } from "lucide-react";
 
 export type SellerNavLink = {
@@ -92,6 +93,13 @@ export const sellerLinks: SellerNavLink[] = [
     href: "/seller/discounts",
     icon: (
       <Zap className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
+    label: "Boost Product",
+    href: "/seller/boost",
+    icon: (
+      <Megaphone className="h-5 w-5 flex-shrink-0" />
     ),
   },
   {
