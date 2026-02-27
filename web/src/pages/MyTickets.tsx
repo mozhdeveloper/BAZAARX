@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
     Ticket,
+    ChevronLeft,
     ChevronRight,
     Clock,
     CheckCircle2,
     AlertCircle,
     Search,
     Filter,
-    ArrowLeft,
     Loader2,
     RefreshCw
 } from 'lucide-react';
@@ -25,6 +25,8 @@ export default function MyTickets() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'All' | TicketStatus>('All');
     const [searchQuery, setSearchQuery] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
 
     // Get tickets from store
     const { tickets, loading, fetchUserTickets } = useSupportStore();
@@ -37,6 +39,11 @@ export default function MyTickets() {
         }
     }, [profile?.id, fetchUserTickets]);
 
+    // Reset to page 1 when tab or search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab, searchQuery]);
+
     const filteredTickets = tickets.filter(ticket => {
         const matchesTab = activeTab === 'All' || ticket.status === activeTab;
         const matchesSearch = ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -44,13 +51,19 @@ export default function MyTickets() {
         return matchesTab && matchesSearch;
     });
 
+    const totalItems = filteredTickets.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedTickets = filteredTickets.slice(startIndex, startIndex + itemsPerPage);
+    const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
     const getStatusColor = (status: TicketStatus) => {
         switch (status) {
-            case 'Open': return 'bg-orange-100 text-orange-600 border-orange-200';
-            case 'In Review': return 'bg-blue-100 text-blue-600 border-blue-200';
-            case 'Resolved': return 'bg-green-100 text-green-600 border-green-200';
-            case 'Closed': return 'bg-gray-100 text-gray-500 border-gray-200';
-            default: return 'bg-gray-100 text-gray-800';
+            case 'Open': return 'bg-transparent text-orange-600 border-orange-200';
+            case 'In Review': return 'bg-transparent text-blue-600 border-blue-200';
+            case 'Resolved': return 'bg-transparent text-green-600 border-green-200';
+            case 'Closed': return 'bg-transparent text-gray-400 border-gray-200';
+            default: return 'bg-transparent text-gray-600';
         }
     };
 
@@ -74,10 +87,10 @@ export default function MyTickets() {
                 <div className="w-full max-w-5xl mb-4">
                     <button
                         onClick={() => navigate('/buyer-support')}
-                        className="flex items-center gap-2 text-gray-500 hover:text-[var(--brand-primary)] transition-colors group"
+                        className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors group"
                     >
-                        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                        <span className="text-sm font-medium">Back to Help Center</span>
+                        <ChevronLeft size={20} className="group-hover:-translate-x-0.5 transition-transform" />
+                        <span className="text-sm font-medium">Back</span>
                     </button>
                 </div>
 
@@ -87,24 +100,13 @@ export default function MyTickets() {
                     {/* Header */}
                     <div className="p-6 flex items-center justify-between border-b border-[var(--border)] relative">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-[#FF4500] text-white flex items-center justify-center font-bold text-xl rounded-xl shadow-sm">
+                            <div className="w-10 h-10 text-[var(--brand-primary)] flex items-center justify-center font-bold text-xl rounded-xl">
                                 BX
                             </div>
                             <div>
                                 <h1 className="text-xl font-bold tracking-tight text-gray-900">My Support Tickets</h1>
                                 <p className="text-gray-500 text-xs">Track and manage your requests</p>
                             </div>
-                        </div>
-
-                        <div className="relative hidden md:block flex-1 max-w-xl mx-4">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                            <input
-                                type="text"
-                                placeholder="Search ID or Subject..."
-                                className="w-full pl-11 pr-12 py-2.5 bg-gray-50 border-2 border-transparent focus:border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-gray-100 transition-all text-sm shadow-sm"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
                         </div>
                     </div>
 
@@ -118,39 +120,71 @@ export default function MyTickets() {
 
                     {/* Content Body */}
                     <div className="p-6">
-                        {/* Mobile Search */}
-                        <div className="relative md:hidden mb-6">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                            <input
-                                type="text"
-                                placeholder="Search ID or Subject..."
-                                className="w-full pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent focus:border-gray-300 rounded-lg text-sm shadow-inner focus:outline-none focus:ring-4 focus:ring-gray-100 transition-all placeholder-gray-500"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
+                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
+                            {/* Tabs */}
+                            <div className="flex gap-4 overflow-x-auto scrollbar-hide no-scrollbar border-b border-gray-100 flex-1">
+                                {tabs.map(tab => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab)}
+                                        className={`pb-3 text-xs font-medium whitespace-nowrap transition-all relative
+                                            ${activeTab === tab
+                                                ? 'font-semibold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)]'
+                                                : 'text-gray-400 hover:text-gray-600 border-b border-transparent hover:border-gray-200'}`}
+                                    >
+                                        {tab}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Integrated Search */}
+                            <div className="relative w-full md:max-w-xs group pb-1">
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-[calc(50%+2px)] text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors" size={16} />
+                                <input
+                                    type="text"
+                                    placeholder="Search tickets..."
+                                    className="w-full pl-10 pr-4 py-2 bg-gray-50/50 border border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[var(--brand-primary)] focus:bg-white transition-all text-sm shadow-sm"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
                         </div>
 
-                        {/* Tabs */}
-                        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide no-scrollbar mb-6 border-b border-gray-50">
-                            {tabs.map(tab => (
+                        {/* Pagination Header */}
+                        <div className="flex items-center justify-end gap-6 mb-4 px-1">
+                            <div className="text-xs text-[var(--text-muted)]">
+                                {totalItems > 0 ? (
+                                    <>
+                                        {startIndex + 1}-{endIndex} of {totalItems}
+                                    </>
+                                ) : (
+                                    ""
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
                                 <button
-                                    key={tab}
-                                    onClick={() => setActiveTab(tab)}
-                                    className={`px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border
-                                        ${activeTab === tab
-                                            ? 'bg-orange-50 text-[var(--brand-primary)] border-[#FF4500]/20 shadow-sm'
-                                            : 'bg-white text-gray-400 hover:text-gray-600 border-transparent hover:bg-gray-50'}`}
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-1.5 text-gray-400 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)]/20 disabled:opacity-30 disabled:pointer-events-none transition-all"
                                 >
-                                    {tab}
+                                    <ChevronLeft size={16} />
                                 </button>
-                            ))}
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages || totalPages === 0}
+                                    className="p-1.5 text-gray-400 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)]/20 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Tickets List */}
                         <div className="space-y-3">
                             <AnimatePresence mode="popLayout">
-                                {filteredTickets.length > 0 ? (
-                                    filteredTickets.map((ticket, index) => (
+                                {paginatedTickets.length > 0 ? (
+                                    paginatedTickets.map((ticket, index) => (
                                         <motion.div
                                             key={ticket.id}
                                             layout
@@ -158,15 +192,15 @@ export default function MyTickets() {
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, scale: 0.98 }}
                                             transition={{ duration: 0.2, delay: index * 0.03 }}
-                                            className="bg-white p-4 rounded-xl border border-gray-100 hover:shadow-md hover:border-[var(--brand-primary)]/20 transition-all group flex flex-col md:flex-row md:items-center gap-4 cursor-pointer"
+                                            className="p-4 rounded-xl border border-gray-50 shadow-sm hover:shadow-md transition-all group flex flex-col md:flex-row md:items-center gap-4 cursor-pointer"
                                         >
-                                            <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center text-[var(--brand-primary)] flex-shrink-0 group-hover:bg-[var(--brand-primary)] group-hover:text-white transition-colors">
+                                            <div className="w-8 h-8 flex items-center justify-center text-[var(--brand-primary)] flex-shrink-0 transition-colors">
                                                 <Ticket size={20} />
                                             </div>
 
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                                                    <span className="text-[10px] font-black tracking-widest text-[#FF4500] uppercase">{ticket.id}</span>
+                                                    <span className="text-[10px] font-black tracking-widest text-[var(--brand-primary-dark)] uppercase">{ticket.id}</span>
                                                     <Badge variant="outline" className={`text-[9px] uppercase tracking-tighter gap-1 py-0 rounded-md border ${getStatusColor(ticket.status)}`}>
                                                         {getStatusIcon(ticket.status)}
                                                         {ticket.status}
@@ -201,20 +235,20 @@ export default function MyTickets() {
                                         animate={{ opacity: 1 }}
                                         className="bg-gray-50/50 rounded-2xl p-12 flex flex-col items-center text-center border border-gray-100 border-dashed"
                                     >
-                                        <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-gray-200 mb-4">
+                                        <div className="w-16 h-16 flex items-center justify-center text-[var(--text-muted)]">
                                             <Ticket size={32} />
                                         </div>
-                                        <h3 className="text-lg font-bold text-gray-900 mb-1">No tickets found</h3>
-                                        <p className="text-xs text-gray-400 max-w-xs">We couldn't find any tickets matching your criteria.</p>
+                                        <h3 className="text-lg font-bold text-[var(--text-headline)] mb-1">No tickets found</h3>
+                                        <p className="text-xs text-[var(--text-muted)] max-w-xs">We couldn't find any tickets matching your criteria.</p>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
                         </div>
 
                         {/* Help Footer Area */}
-                        <div className="mt-10 pt-6 border-t border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="mt-10 pt-2 border-t border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-[var(--brand-primary)]">
+                                <div className="w-10 h-10 text-[var(--brand-primary)] flex items-center justify-center">
                                     <AlertCircle size={20} />
                                 </div>
                                 <div>
@@ -224,7 +258,7 @@ export default function MyTickets() {
                             </div>
                             <button
                                 onClick={() => navigate('/buyer-support')}
-                                className="bg-[var(--brand-primary)] text-white px-6 py-2.5 rounded-xl font-bold text-xs hover:bg-[var(--brand-primary-dark)] transition-all shadow-md shadow-orange-500/10 active:scale-95"
+                                className="bg-[var(--brand-primary)] text-white px-6 py-2.5 rounded-xl font-bold text-xs hover:bg-[var(--brand-accent)] transition-all shadow-md shadow-orange-500/10 active:scale-95"
                             >
                                 Start New Chat
                             </button>

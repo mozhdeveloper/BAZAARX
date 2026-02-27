@@ -361,16 +361,17 @@ export default function OrdersPage() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-4 -mt-8"
+          className="mb-4"
         >
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
+            className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
-            <div className="p-1.5">
-              <ChevronLeft className="w-4 h-4 mt-4" />
-            </div>
-            <span className="font-medium text-sm mt-4">Back</span>
+            <ChevronLeft
+              size={20}
+              className="group-hover:-translate-x-0.5 transition-transform"
+            />
+            <span className="text-sm font-medium">Back</span>
           </button>
           <h1 className="text-xl lg:text-3xl font-bold text-gray-900">My Orders</h1>
           <p className="text-gray-500 text-sm">Track and manage all your orders</p>

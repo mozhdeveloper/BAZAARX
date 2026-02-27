@@ -220,17 +220,18 @@ export default function EnhancedCartPage() {
   return (
     <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
-      <div className="max-w-7xl mx-auto px-4 py-4 -mt-6">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
+              className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
             >
-              <div className="p-1.5">
-                <ChevronLeft className="w-4 h-4 mt-2" />
-              </div>
-              <span className="font-medium text-sm mt-2">Back</span>
+              <ChevronLeft
+                size={20}
+                className="group-hover:-translate-x-0.5 transition-transform"
+              />
+              <span className="text-sm font-medium">Back</span>
             </button>
             <div className="flex flex-wrap items-baseline gap-3">
               <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-1">
