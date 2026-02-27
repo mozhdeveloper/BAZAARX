@@ -300,6 +300,12 @@ export default function SellerMessages() {
     <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
       <SellerSidebar />
 
+      {/* Background Decor */}
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
+        <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+      </div>
+
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 flex h-full overflow-hidden max-w-7xl mx-auto w-full p-0 md:px-8 md:py-6 gap-0 md:gap-6">
           {/* Conversations List Sidebar */}
