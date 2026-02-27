@@ -83,6 +83,7 @@ export interface Seller {
   description: string;
   location: string;
   established: string;
+  tierLevel?: string;
   products: Product[];
   badges: string[];
   responseTime: string;
@@ -590,10 +591,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
         // Safely store off-schema data like Name & Phone in delivery_instructions as JSON
         const meta = {
-            firstName: address.firstName,
-            lastName: address.lastName,
-            phone: address.phone,
-            instructions: address.deliveryInstructions || ""
+          firstName: address.firstName,
+          lastName: address.lastName,
+          phone: address.phone,
+          instructions: address.deliveryInstructions || ""
         };
 
         const { data: newAddr, error } = await supabase
@@ -619,9 +620,9 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         if (error) throw error;
 
         const finalAddress = {
-           ...address,
-           id: newAddr.id,
-           fullName
+          ...address,
+          id: newAddr.id,
+          fullName
         } as Address;
 
         // Only update UI if DB insert succeeds
@@ -657,15 +658,15 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         };
 
         const dbUpdate: Record<string, any> = {
-            delivery_instructions: JSON.stringify(meta)
+          delivery_instructions: JSON.stringify(meta)
         };
-        
+
         if (updatedAddress.street !== undefined) dbUpdate.address_line_1 = updatedAddress.street;
         if (updatedAddress.city !== undefined) dbUpdate.city = updatedAddress.city;
         if (updatedAddress.province !== undefined) dbUpdate.province = updatedAddress.province;
         if (updatedAddress.postalCode !== undefined) dbUpdate.postal_code = updatedAddress.postalCode;
         if (updatedAddress.label !== undefined || updatedAddress.firstName || updatedAddress.lastName) {
-             dbUpdate.label = updatedAddress.label || `${meta.firstName} ${meta.lastName}`.trim();
+          dbUpdate.label = updatedAddress.label || `${meta.firstName} ${meta.lastName}`.trim();
         }
         if (updatedAddress.isDefault !== undefined) dbUpdate.is_default = updatedAddress.isDefault;
         if (updatedAddress.barangay !== undefined) dbUpdate.barangay = updatedAddress.barangay;
@@ -727,7 +728,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       try {
         await supabase.from('shipping_addresses').update({ is_default: false }).eq('user_id', userId);
         const { error } = await supabase.from('shipping_addresses').update({ is_default: true }).eq('id', id).eq('user_id', userId);
-        
+
         if (error) throw error;
 
         set({
@@ -948,7 +949,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     removeFromCart: async (productId, variantId) => {
       const previousCartItems = get().cartItems;
-      
+
       // Optimistic Update
       set((state) => ({
         cartItems: state.cartItems.filter(item =>
@@ -983,10 +984,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     updateCartQuantity: async (productId, quantity, variantId) => {
       // Find the specific item to check its current stock levels
-      const item = get().cartItems.find(i => 
+      const item = get().cartItems.find(i =>
         i.id === productId && i.selectedVariant?.id === variantId
       );
-      
+
       if (!item) return;
 
       // 1. Enforce Stock Limit: Determine the max allowed based on available stock
@@ -1044,7 +1045,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const cartItems = get().cartItems;
 
       // 1. Find the current item being edited
-      const oldItemIndex = cartItems.findIndex(item => 
+      const oldItemIndex = cartItems.findIndex(item =>
         item.id === productId && item.selectedVariant?.id === oldVariantId
       );
       if (oldItemIndex === -1) return;
@@ -1053,7 +1054,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const finalQuantity = quantity !== undefined ? quantity : currentItem.quantity;
 
       // 2. Check if the "New" variant already exists elsewhere in the cart
-      const existingNewVariantIndex = cartItems.findIndex(item => 
+      const existingNewVariantIndex = cartItems.findIndex(item =>
         item.id === productId && item.selectedVariant?.id === newVariant.id && item.selectedVariant?.id !== oldVariantId
       );
 
@@ -1739,15 +1740,15 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           let street = addr.address_line_1 || '';
 
           if (!meta.firstName && street.includes(',')) {
-             const parts = street.split(', ');
-             if (parts.length >= 3) {
-                const possiblePhone = parts[1];
-                if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
-                   fallbackName = parts[0];
-                   fallbackPhone = possiblePhone;
-                   street = parts.slice(2).join(', ');
-                }
-             }
+            const parts = street.split(', ');
+            if (parts.length >= 3) {
+              const possiblePhone = parts[1];
+              if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
+                fallbackName = parts[0];
+                fallbackPhone = possiblePhone;
+                street = parts.slice(2).join(', ');
+              }
+            }
           }
 
           const parsedFirstName = meta.firstName || fallbackName.split(' ')[0] || '';
@@ -1771,7 +1772,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             deliveryInstructions: meta.instructions || (addr.delivery_instructions?.startsWith('{') ? '' : addr.delivery_instructions)
           };
         });
-        
+
         set({ addresses: mappedAddresses });
 
         return buyerInfo;

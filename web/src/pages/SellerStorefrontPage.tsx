@@ -451,7 +451,7 @@ export default function SellerStorefrontPage() {
   // Show loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-[var(--brand-wash)]">
         <Header hideSearch />
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex flex-col items-center gap-4">

@@ -27,7 +27,7 @@ import SellerStorefrontPage from "./pages/SellerStorefrontPage";
 import ReviewsPage from "./pages/ReviewsPage";
 import BuyerReviewsPage from "./pages/BuyerReviewsPage";
 import BuyerFollowingPage from "./pages/BuyerFollowingPage";
-import BuyerSettingsPage from "./pages/BuyerSettingsPage";import BuyerProductRequestsPage from './pages/BuyerProductRequestsPage';import BuyerLoginPage from "./pages/BuyerLoginPage";
+import BuyerSettingsPage from "./pages/BuyerSettingsPage"; import BuyerProductRequestsPage from './pages/BuyerProductRequestsPage'; import BuyerLoginPage from "./pages/BuyerLoginPage";
 import BuyerSignupPage from "./pages/BuyerSignupPage";
 import { BuyerSupport } from "./pages/BuyerSupport";
 import MyTickets from "./pages/MyTickets";
@@ -82,6 +82,7 @@ import AdminProductApprovals from "./pages/AdminProductApprovals";
 import AdminTickets from "./pages/AdminTickets";
 import AdminTrustedBrands from "./pages/AdminTrustedBrands";
 import { ChatBubble } from "./components/ChatBubbleAI";
+import NotFoundPage from "./pages/NotFoundPage";
 
 function App() {
   return (
@@ -481,6 +482,7 @@ function App() {
           <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/trusted-brands" element={<AdminTrustedBrands />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
 
         {/* Global components that need Router context */}
