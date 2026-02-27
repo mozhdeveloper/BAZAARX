@@ -304,9 +304,13 @@ export default function BuyerSettingsPage() {
         >
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all group mb-4"
+            className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
-            <ChevronLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+            <ChevronLeft
+              size={20}
+              className="group-hover:-translate-x-0.5 transition-transform"
+            />
+            <span className="text-sm font-medium">Back</span>
           </button>
           <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Settings</h1>
           <p className="text-[var(--text-muted)]">Manage your account settings and preferences</p>

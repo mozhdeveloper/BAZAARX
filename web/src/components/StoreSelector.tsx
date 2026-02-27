@@ -17,15 +17,15 @@ interface SellerWithProfile {
     store_name: string | null;
     owner_name?: string | null;
     profile?:
-        | {
-              first_name: string | null;
-              last_name: string | null;
-          }
-        | {
-              first_name: string | null;
-              last_name: string | null;
-          }[]
-        | null;
+    | {
+        first_name: string | null;
+        last_name: string | null;
+    }
+    | {
+        first_name: string | null;
+        last_name: string | null;
+    }[]
+    | null;
 }
 
 interface StoreSelectorProps {
@@ -112,7 +112,7 @@ export function StoreSelector({ buyerId, selectedSellerId, onSelectStore }: Stor
                 <input
                     type="text"
                     placeholder="Search stores..."
-                    className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[#FF4500] focus:ring-1 focus:ring-[#FF4500] outline-none transition-all"
+                    className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[var(--brand-primary)] focus:ring-0 outline-none transition-all"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -133,9 +133,8 @@ export function StoreSelector({ buyerId, selectedSellerId, onSelectStore }: Stor
                         {/* None option */}
                         <div
                             onClick={() => onSelectStore(null, '')}
-                            className={`p-3 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100 ${
-                                !selectedSellerId ? 'bg-orange-50 border-l-4 border-l-[#FF4500]' : ''
-                            }`}
+                            className={`p-3 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100 ${!selectedSellerId ? 'bg-[var(--brand-primary)]/5 border-l-4 border-l-[var(--brand-primary)]' : ''
+                                }`}
                         >
                             <div className="flex items-center">
                                 <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-3">
@@ -148,14 +147,13 @@ export function StoreSelector({ buyerId, selectedSellerId, onSelectStore }: Stor
                                 </div>
                             </div>
                         </div>
-                        
+
                         {filteredSellers.map((seller) => (
                             <div
                                 key={seller.id}
                                 onClick={() => onSelectStore(seller.id, seller.storeName)}
-                                className={`p-3 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                                    selectedSellerId === seller.id ? 'bg-orange-50 border-l-4 border-l-[#FF4500]' : ''
-                                }`}
+                                className={`p-3 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${selectedSellerId === seller.id ? 'bg-[var(--brand-primary)]/5 border-l-4 border-l-[var(--brand-primary)]' : ''
+                                    }`}
                             >
                                 <div className="flex items-center">
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center mr-3">

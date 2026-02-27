@@ -1,4 +1,5 @@
 import {
+  ChevronLeft,
   ChevronRight,
   RefreshCw,
   Truck,
@@ -115,6 +116,19 @@ export function BuyerSupport() {
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col items-center">
+        {/* Back Link */}
+        <div className="w-full max-w-5xl mb-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors group"
+          >
+            <ChevronLeft
+              size={20}
+              className="group-hover:-translate-x-0.5 transition-transform"
+            />
+            <span className="text-sm font-medium">Back</span>
+          </button>
+        </div>
         {/* Main Card Container */}
         <div className="w-full max-w-5xl bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in duration-300">
           {/* Header */}
@@ -267,7 +281,7 @@ export function BuyerSupport() {
                   <input
                     type="text"
                     placeholder="Type your message briefly here"
-                    className="w-full pl-4 pr-12 py-3 bg-[var(--brand-wash)] border-none rounded-xl text-sm text-[var(--text-headline)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:bg-[var(--bg-secondary)] transition-all"
+                    className="w-full pl-4 pr-12 py-3 bg-white border border-gray-200 rounded-xl text-sm text-[var(--text-headline)] placeholder-[var(--text-muted)] focus:bg-[var(--bg-secondary)] focus:border-[var(--brand-primary)] focus:ring-0 focus:ring-[var(--brand-primary)]/10 outline-none transition-all"
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
                   />
@@ -275,7 +289,7 @@ export function BuyerSupport() {
                 <button
                   type="submit"
                   disabled={!chatMessage.trim()}
-                  className="px-6 py-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] disabled:opacity-50 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                  className="px-6 py-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] disabled:opacity-50 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
                 >
                   Enter
                 </button>
@@ -295,7 +309,7 @@ export function BuyerSupport() {
           onFileUpload={handleFileUpload}
           onTicketChange={handleTicketChange}
           onNavigateMyTickets={() => navigate("/my-tickets")}
-          onNavigateHome={() => navigate("/")}
+          onNavigateHelpCenter={handleCloseModal}
         />
       </div>
       <BazaarFooter />
