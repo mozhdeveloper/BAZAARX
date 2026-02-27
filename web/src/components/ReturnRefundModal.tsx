@@ -3,11 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/button';
 import { X, Upload, Camera, ChevronLeft, ArrowLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
+import {
+    BuyerReturnSubmissionPayload,
+    validateBuyerReturnSubmissionPayload,
+} from '../utils/orders/returns';
 
 interface ReturnRefundModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: any) => void;
+    onSubmit: (data: BuyerReturnSubmissionPayload) => void | Promise<void>;
     order: any;
 }
 
@@ -16,6 +20,8 @@ export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: 
     const [solution, setSolution] = useState('return_refund');
     const [comments, setComments] = useState('');
     const [files, setFiles] = useState<File[]>([]);
+    const [submitError, setSubmitError] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const reasons = [
         { id: 'damaged', label: 'Damaged Item', description: 'Item arrived damaged or broken' },
@@ -50,16 +56,30 @@ export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: 
         setFiles((prev) => prev.filter((_, i) => i !== index));
     };
 
-    const handleSubmit = () => {
-        const data = {
-            orderId: order?.id,
+    const handleSubmit = async () => {
+        const data: BuyerReturnSubmissionPayload = {
+            localOrderId: order?.id || '',
+            orderDbId: order?.dbId,
             reason,
             solution,
             comments,
             files,
-            refundAmount: solution === 'replacement' ? 0 : order?.total
+            refundAmount: solution === 'replacement' ? 0 : Number(order?.total || 0),
         };
-        onSubmit(data);
+
+        const validationError = validateBuyerReturnSubmissionPayload(data);
+        if (validationError) {
+            setSubmitError(validationError);
+            return;
+        }
+
+        try {
+            setSubmitError(null);
+            setIsSubmitting(true);
+            await onSubmit(data);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (!isOpen) return null;
@@ -292,12 +312,17 @@ export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: 
                                     {solution === 'replacement' ? formatCurrency(0) : formatCurrency(order?.total || 0)}
                                 </span>
                             </div>
+                            {submitError && (
+                                <p className="mb-3 text-xs text-red-600">
+                                    {submitError}
+                                </p>
+                            )}
                             <div className="flex gap-3">
-                                <Button variant="outline" onClick={onClose} className="flex-1 py-4 h-auto rounded-xl border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-sm">
+                                <Button variant="outline" onClick={onClose} disabled={isSubmitting} className="flex-1 py-4 h-auto rounded-xl border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-sm">
                                     Cancel
                                 </Button>
-                                <Button onClick={handleSubmit} className="flex-[2] bg-[#FF6a00] hover:bg-[#e65100] text-white py-4 h-auto rounded-xl font-bold text-base shadow-orange-200 shadow-lg transition-all hover:scale-[1.01]">
-                                    Submit Request
+                                <Button onClick={handleSubmit} disabled={isSubmitting} className="flex-[2] bg-[#FF6a00] hover:bg-[#e65100] text-white py-4 h-auto rounded-xl font-bold text-base shadow-orange-200 shadow-lg transition-all hover:scale-[1.01]">
+                                    {isSubmitting ? 'Submitting...' : 'Submit Request'}
                                 </Button>
                             </div>
                         </div>

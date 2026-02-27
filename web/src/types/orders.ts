@@ -55,6 +55,16 @@ export interface OrderReviewSnapshot {
   submittedAt: Date;
 }
 
+export interface BuyerReturnRequestSnapshot {
+  reason: string;
+  solution: string;
+  comments: string;
+  files: File[];
+  refundAmount: number;
+  submittedAt: Date;
+  status: 'pending' | 'approved' | 'rejected';
+}
+
 export interface SellerOrderReviewSnapshot {
   id: string;
   productId: string | null;
@@ -89,6 +99,7 @@ export interface BuyerOrderSnapshot {
   storeName?: string;
   sellerId?: string | null;
   order_type?: "ONLINE" | "OFFLINE";
+  returnRequest?: BuyerReturnRequestSnapshot;
   review?: OrderReviewSnapshot;
   reviews?: OrderReviewSnapshot[];
   pricing?: {
