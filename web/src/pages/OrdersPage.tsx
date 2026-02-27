@@ -51,10 +51,13 @@ export default function OrdersPage() {
 
   const statusFilter = searchParams.get("status") || "pending";
   const setStatusFilter = (status: string) => {
-    setSearchParams(prev => {
-      prev.set("status", status);
-      return prev;
-    });
+    setSearchParams(
+      prev => {
+        prev.set("status", status);
+        return prev;
+      },
+      { replace: true } // Replace history entry so tab switches don't pollute back navigation
+    );
   };
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [trackingOrder, setTrackingOrder] = useState<string | null>(null);
