@@ -106,13 +106,6 @@ export default function BuyerProductRequestsPage() {
   return (
     <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
-
-      {/* Background Decor */}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
-        <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 py-8 relative z-10">
         {/* Page Header */}
         <motion.div
@@ -122,9 +115,13 @@ export default function BuyerProductRequestsPage() {
         >
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all group mb-4"
+            className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
-            <ChevronLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+            <ChevronLeft
+              size={20}
+              className="group-hover:-translate-x-0.5 transition-transform"
+            />
+            <span className="text-sm font-medium">Back</span>
           </button>
 
           <div className="flex items-center justify-between flex-wrap gap-4">
