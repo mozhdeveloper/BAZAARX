@@ -36,6 +36,13 @@ import { orderReadService } from "../services/orders/orderReadService";
 import { orderMutationService } from "../services/orders/orderMutationService";
 import { returnService } from "../services/returnService";
 import { OrderStatusBadge } from "../components/orders/OrderStatusBadge";
+import type { BuyerOrderSnapshot } from "../types/orders";
+import {
+  BuyerReturnSubmissionPayload,
+  isBuyerOrderWithinReturnWindow,
+  mergeBuyerOrdersWithReturnRequests,
+  validateBuyerReturnSubmissionPayload,
+} from "../utils/orders/returns";
 
 export default function OrdersPage() {
   const navigate = useNavigate();
@@ -85,56 +92,37 @@ export default function OrdersPage() {
     "Other"
   ];
 
-  // Helper function to parse date strings (MM/DD/YYYY format)
-  const parseDate = (dateString: string | Date): Date => {
-    if (dateString instanceof Date) return dateString;
+  const isWithinReturnWindow = (order: {
+    shipmentStatus?: string | null;
+    deliveryDate?: Date;
+    deliveredAt?: Date;
+    createdAt: Date;
+  }): boolean => {
+    return isBuyerOrderWithinReturnWindow(order as any);
+  };
 
-    // Handle MM/DD/YYYY format
-    const parts = dateString.split("/");
-    if (parts.length === 3) {
-      const month = parseInt(parts[0], 10) - 1; // Month is 0-indexed
-      const day = parseInt(parts[1], 10);
-      const year = parseInt(parts[2], 10);
-      return new Date(year, month, day);
+  const handleReturnSubmit = async (data: BuyerReturnSubmissionPayload) => {
+    const validationError = validateBuyerReturnSubmissionPayload(data);
+    if (validationError) {
+      toast({
+        title: "Return Request Failed",
+        description: validationError,
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
     }
-
-    return new Date(dateString);
-  };
-
-  // Check if order is within 7-day return window
-  const isWithinReturnWindow = (order: any): boolean => {
-    if (order.status !== "delivered") return false;
-
-    // Use actual delivery date, otherwise fallback to creation date (safer than new Date() which forces window open)
-    const dateReference = order.deliveryDate
-      ? parseDate(order.deliveryDate)
-      : order.createdAt
-        ? parseDate(order.createdAt)
-        : null;
-
-    if (!dateReference) return false; // If no date reference, assume window closed to be safe
-
-    const currentDate = new Date();
-    const daysDifference = Math.floor(
-      (currentDate.getTime() - dateReference.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    return daysDifference <= 7 && daysDifference >= 0;
-  };
-
-  const handleReturnSubmit = async (data: any) => {
-    if (!data.orderId) return;
 
     try {
       await returnService.submitReturnRequest({
-        orderId: data.orderId,
+        orderDbId: data.orderDbId,
         reason: data.reason || 'Return requested',
         description: data.comments || data.solution || '',
-        refundAmount: data.refundAmount ? parseFloat(data.refundAmount) : undefined,
+        refundAmount: data.refundAmount,
       });
 
       // Also update local Zustand state so UI reflects immediately
-      updateOrderWithReturnRequest(data.orderId, {
+      updateOrderWithReturnRequest(data.localOrderId, {
         reason: data.reason,
         solution: data.solution,
         comments: data.comments,
@@ -168,10 +156,19 @@ export default function OrdersPage() {
 
     setIsLoading(true);
     try {
-      const buyerOrders = await orderReadService.getBuyerOrders({
-        buyerId: profile.id,
-      });
-      hydrateBuyerOrders(buyerOrders as any);
+      const [buyerOrders, buyerReturnRequests] = await Promise.all([
+        orderReadService.getBuyerOrders({
+          buyerId: profile.id,
+        }),
+        returnService.getReturnRequestsByBuyer(profile.id),
+      ]);
+
+      const mergedOrders = mergeBuyerOrdersWithReturnRequests(
+        buyerOrders as BuyerOrderSnapshot[],
+        buyerReturnRequests,
+      );
+
+      hydrateBuyerOrders(mergedOrders as any);
     } catch (err) {
       console.error("Error fetching orders:", err);
     } finally {
@@ -638,7 +635,7 @@ export default function OrdersPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 border-t border-gray-100/50">
                       <div>
                         {/* Return/Refund - Left side, lower prominence (Ghost button) */}
-                        {isWithinReturnWindow(order) && order.status === "delivered" && (
+                        {isWithinReturnWindow(order) && (
                           <Button
                             onClick={() => {
                               setOrderToReturn(order);
@@ -1105,8 +1102,18 @@ export default function OrdersPage() {
                         <span className="text-sm font-medium text-gray-700">
                           Status:
                         </span>
-                        <p className="text-orange-600 font-medium">
-                          Pending Review
+                        <p className={`font-medium ${
+                          viewReturnDetails.returnRequest.status === 'approved' 
+                            ? 'text-green-600' 
+                            : viewReturnDetails.returnRequest.status === 'rejected'
+                            ? 'text-red-600'
+                            : 'text-orange-600'
+                        }`}>
+                          {viewReturnDetails.returnRequest.status === 'approved' 
+                            ? 'Approved / Refunded' 
+                            : viewReturnDetails.returnRequest.status === 'rejected'
+                            ? 'Rejected'
+                            : 'Pending Review'}
                         </p>
                       </div>
                       <div>
