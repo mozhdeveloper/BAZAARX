@@ -38,7 +38,7 @@ import { useToast } from "../hooks/use-toast";
 import { CartModal } from "../components/ui/cart-modal";
 import ShopBuyNowModal from "../components/shop/ShopBuyNowModal";
 import ShopVariantModal from "../components/shop/ShopVariantModal";
-
+import { sellerService } from '../services/sellerService';
 
 interface SearchProduct {
   id: string;
@@ -152,6 +152,7 @@ const SearchPage: React.FC = () => {
 
   // Modals state
   const [showCartModal, setShowCartModal] = useState(false);
+  const [matchedStores, setMatchedStores] = useState<any[]>([]);
   const [addedProduct, setAddedProduct] = useState<{ name: string; image: string } | null>(null);
   const [showBuyNowModal, setShowBuyNowModal] = useState(false);
   const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
@@ -209,18 +210,33 @@ const SearchPage: React.FC = () => {
   const brands = useMemo(() => Object.keys(brandCounts).slice(0, 8), [brandCounts]);
 
   // Search Logic
-  const handleSearch = useCallback((query: string) => {
+  const handleSearch = useCallback(async (query: string) => {
     // If empty query, show all (or filtered)
     setSearchQuery(query);
     setIsSearching(true);
+
+    // Fetch matching stores
+    if (query.trim()) {
+      try {
+        const stores = await sellerService.getPublicStores({ searchQuery: query });
+        setMatchedStores(stores);
+      } catch (error) {
+        console.error("Failed to fetch matching stores:", error);
+        setMatchedStores([]);
+      }
+    } else {
+      setMatchedStores([]);
+    }
 
     setTimeout(() => {
       let results = sellerProducts.filter((p) => p.approvalStatus === "approved" && p.isActive);
 
       if (query.trim()) {
+        const lowerQuery = query.toLowerCase();
         results = results.filter(product =>
-          product.name.toLowerCase().includes(query.toLowerCase()) ||
-          product.category.toLowerCase().includes(query.toLowerCase())
+          product.name.toLowerCase().includes(lowerQuery) ||
+          product.category.toLowerCase().includes(lowerQuery) ||
+          (product.sellerName && product.sellerName.toLowerCase().includes(lowerQuery))
         );
       }
 
@@ -485,11 +501,10 @@ const SearchPage: React.FC = () => {
                         <button
                           key={rating}
                           onClick={() => setMinRating(minRating === rating ? 0 : rating)}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
-                            minRating === rating
-                              ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
-                              : "text-[var(--text-primary)] hover:bg-gray-50"
-                          }`}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${minRating === rating
+                            ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
+                            : "text-[var(--text-primary)] hover:bg-gray-50"
+                            }`}
                         >
                           <div className="flex items-center gap-0.5">
                             {Array.from({ length: 5 }).map((_, i) => (
@@ -547,6 +562,52 @@ const SearchPage: React.FC = () => {
 
           {/* Main Content */}
           <main className="flex-1">
+            {/* NEW: Store Matches Section */}
+            {matchedStores.length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-lg font-bold text-gray-900 mb-4 font-primary">Stores matching "{searchQuery}"</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {matchedStores.map((store) => (
+                    <motion.div
+                      key={store.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      onClick={() => navigate(`/seller/${store.id}`)}
+                      className="bg-white border border-gray-100 rounded-xl p-4 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/30 transition-all group"
+                    >
+                      <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
+                        <img
+                          src={store.avatar_url || 'https://via.placeholder.com/150'}
+                          alt={store.store_name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-bold text-[var(--text-headline)] truncate group-hover:text-[var(--brand-primary)] transition-colors">
+                            {store.store_name}
+                          </h3>
+                          {store.is_verified && <BadgeCheck className="w-4 h-4 text-green-500 flex-shrink-0" />}
+                        </div>
+                        <div className="flex items-center text-xs text-gray-500 mt-1 space-x-3">
+                          <span className="flex items-center">
+                            <Star className="w-3 h-3 text-yellow-400 fill-current mr-1" />
+                            {store.rating || 'New'}
+                          </span>
+                          <span>•</span>
+                          <span>{store.products_count || 0} Products</span>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <Button variant="outline" size="sm" className="text-xs rounded-lg group-hover:bg-[var(--brand-primary)] group-hover:text-white group-hover:border-[var(--brand-primary)]">
+                          Visit Store
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Results Header */}
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 pb-2">
@@ -572,194 +633,194 @@ const SearchPage: React.FC = () => {
 
             {/* Product Grid */}
             {sortedResults.length > 0 ? (() => {
-                const groupedProducts: Record<string, typeof sortedResults> = {};
-                const normalProducts: typeof sortedResults = [];
-                
-                sortedResults.forEach(product => {
-                  const badge = (product as any).campaignBadge;
-                  if (badge) {
-                    if (!groupedProducts[badge]) {
-                      groupedProducts[badge] = [];
-                    }
-                    groupedProducts[badge].push(product);
-                  } else {
-                    normalProducts.push(product);
+              const groupedProducts: Record<string, typeof sortedResults> = {};
+              const normalProducts: typeof sortedResults = [];
+
+              sortedResults.forEach(product => {
+                const badge = (product as any).campaignBadge;
+                if (badge) {
+                  if (!groupedProducts[badge]) {
+                    groupedProducts[badge] = [];
                   }
-                });
+                  groupedProducts[badge].push(product);
+                } else {
+                  normalProducts.push(product);
+                }
+              });
 
-                const renderProduct = (product: any, index: number) => (
-                  <motion.div
-                    key={product.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    onClick={() => navigate(`/product/${product.id}`)}
-                    className="product-card-premium product-card-premium-interactive h-full flex flex-col group cursor-pointer border-0 rounded-2xl overflow-hidden"
-                  >
-                    <div className="relative aspect-square overflow-hidden bg-[#FFF6E5]">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      {product.originalPrice && product.originalPrice > product.price && (
-                        <div
-                          className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm"
-                        >
-                          {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-4 flex flex-col justify-between flex-1">
-                      <div>
-                        <h3 className="product-title-premium text-[15px] font-bold mb-1.5 line-clamp-2 text-[#1f2937]">
-                          {product.name}
-                        </h3>
-
-                        <div className="flex items-center mb-4">
-                          <div className="flex text-[#F59E0B] text-[11px] mr-1.5">
-                            {[...Array(5)].map((_, i) => (
-                              <span
-                                key={i}
-                                className={
-                                  i < Math.floor(product.rating || 5)
-                                    ? "fill-current"
-                                    : "text-gray-300"
-                                }
-                              >
-                                ★
-                              </span>
-                            ))}
-                          </div>
-                          <span className="text-[12px] text-gray-500 font-medium">
-                            ({product.rating || 5.0})
-                          </span>
-                        </div>
-
-                        <div className="flex items-baseline gap-2 mb-2">
-                          <span className={product.originalPrice && product.originalPrice > product.price ? "text-[22px] font-black text-[#DC2626] leading-none" : "text-[22px] font-black text-[#D97706] leading-none"}>
-                            ₱{product.price.toLocaleString()}
-                          </span>
-                          {product.originalPrice && product.originalPrice > product.price && (
-                            <span className="text-[14px] text-gray-400 line-through font-medium leading-none">
-                              ₱{product.originalPrice.toLocaleString()}
-                            </span>
-                          )}
-                        </div>
-                          
-                        <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-4">
-                          {(product.sold || 0).toLocaleString()} sold
-                        </div>
-                      </div>
-
-                      <div className="pt-4 border-t border-[var(--brand-accent-light)]/50 pb-2">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
-                            {product.seller || "BazaarX Store"}
-                          </p>
-                          {product.isVerified && (
-                            <BadgeCheck className="w-4 h-4 text-[#16A34A] flex-shrink-0" />
-                          )}
-                        </div>
-                        <div className="flex items-center text-[10px] text-gray-500">
-                          <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
-                          <span className="line-clamp-1">{product.location}</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-auto pt-3 flex gap-1.5">
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!profile) {
-                              toast({ title: "Login Required", description: "Please sign in.", variant: "destructive" });
-                              navigate("/login");
-                              return;
-                            }
-                            const hasVariants = product.variants && product.variants.length > 0;
-                            const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
-                            const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
-
-                            if (hasVariants || hasColors || hasSizes) {
-                              setVariantProduct(product);
-                              setIsBuyNowAction(false);
-                              setShowVariantModal(true);
-                              return;
-                            }
-                            addToCart(product as any);
-                            setAddedProduct({ name: product.name, image: product.image });
-                            setShowCartModal(true);
-                          }}
-                          variant="outline"
-                          size="icon"
-                          className="flex-shrink-0 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg transition-all active:scale-95 h-8 w-8 p-0"
-                        >
-                          <ShoppingCart className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!profile) {
-                              toast({ title: "Login Required", description: "Please sign in.", variant: "destructive" });
-                              navigate("/login");
-                              return;
-                            }
-                            const hasVariants = product.variants && product.variants.length > 0;
-                            const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
-                            const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
-
-                            if (hasVariants || hasColors || hasSizes) {
-                              setVariantProduct(product);
-                              setIsBuyNowAction(true);
-                              setShowVariantModal(true);
-                            } else {
-                              setBuyNowProduct({
-                                ...product,
-                                quantity: 1,
-                                selectedVariant: null,
-                                selectedVariantLabel1: null,
-                                selectedVariantLabel2: null,
-                                variants: product.variants || [],
-                                variantLabel2Values: product.variantLabel2Values || [],
-                                variantLabel1Values: product.variantLabel1Values || [],
-                                stock: product.stock || 99,
-                              } as any);
-                              setShowBuyNowModal(true);
-                            }
-                          }}
-                          className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-lg transition-all active:scale-95 h-8 text-xs font-bold"
-                        >
-                          Buy Now
-                        </Button>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-
-                return (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                  >
-                    {sortedResults.map((product, index) => renderProduct(product, index))}
-                  </motion.div>
-                );
-              })()
-             : (
-              <div className="text-center py-20">
-                <h3 className="text-xl font-bold text-[var(--text-headline)]">No products found</h3>
-                <p className="text-[var(--text-muted)] mt-2">Try adjusting your filters or search query</p>
-                <button
-                  onClick={() => setShowRequestModal(true)}
-                  className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-sm hover:bg-[var(--brand-primary-dark)] transition-all active:scale-95 shadow-lg shadow-[var(--brand-primary)]/20"
+              const renderProduct = (product: any, index: number) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  onClick={() => navigate(`/product/${product.id}`)}
+                  className="product-card-premium product-card-premium-interactive h-full flex flex-col group cursor-pointer border-0 rounded-2xl overflow-hidden"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  Request This Product
-                </button>
-              </div>
-            )}
+                  <div className="relative aspect-square overflow-hidden bg-[#FFF6E5]">
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    {product.originalPrice && product.originalPrice > product.price && (
+                      <div
+                        className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm"
+                      >
+                        {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4 flex flex-col justify-between flex-1">
+                    <div>
+                      <h3 className="product-title-premium text-[15px] font-bold mb-1.5 line-clamp-2 text-[#1f2937]">
+                        {product.name}
+                      </h3>
+
+                      <div className="flex items-center mb-4">
+                        <div className="flex text-[#F59E0B] text-[11px] mr-1.5">
+                          {[...Array(5)].map((_, i) => (
+                            <span
+                              key={i}
+                              className={
+                                i < Math.floor(product.rating || 5)
+                                  ? "fill-current"
+                                  : "text-gray-300"
+                              }
+                            >
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                        <span className="text-[12px] text-gray-500 font-medium">
+                          ({product.rating || 5.0})
+                        </span>
+                      </div>
+
+                      <div className="flex items-baseline gap-2 mb-2">
+                        <span className={product.originalPrice && product.originalPrice > product.price ? "text-[22px] font-black text-[#DC2626] leading-none" : "text-[22px] font-black text-[#D97706] leading-none"}>
+                          ₱{product.price.toLocaleString()}
+                        </span>
+                        {product.originalPrice && product.originalPrice > product.price && (
+                          <span className="text-[14px] text-gray-400 line-through font-medium leading-none">
+                            ₱{product.originalPrice.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-4">
+                        {(product.sold || 0).toLocaleString()} sold
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-[var(--brand-accent-light)]/50 pb-2">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
+                          {product.seller || "BazaarX Store"}
+                        </p>
+                        {product.isVerified && (
+                          <BadgeCheck className="w-4 h-4 text-[#16A34A] flex-shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center text-[10px] text-gray-500">
+                        <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
+                        <span className="line-clamp-1">{product.location}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-auto pt-3 flex gap-1.5">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!profile) {
+                            toast({ title: "Login Required", description: "Please sign in.", variant: "destructive" });
+                            navigate("/login");
+                            return;
+                          }
+                          const hasVariants = product.variants && product.variants.length > 0;
+                          const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
+                          const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
+
+                          if (hasVariants || hasColors || hasSizes) {
+                            setVariantProduct(product);
+                            setIsBuyNowAction(false);
+                            setShowVariantModal(true);
+                            return;
+                          }
+                          addToCart(product as any);
+                          setAddedProduct({ name: product.name, image: product.image });
+                          setShowCartModal(true);
+                        }}
+                        variant="outline"
+                        size="icon"
+                        className="flex-shrink-0 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg transition-all active:scale-95 h-8 w-8 p-0"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!profile) {
+                            toast({ title: "Login Required", description: "Please sign in.", variant: "destructive" });
+                            navigate("/login");
+                            return;
+                          }
+                          const hasVariants = product.variants && product.variants.length > 0;
+                          const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
+                          const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
+
+                          if (hasVariants || hasColors || hasSizes) {
+                            setVariantProduct(product);
+                            setIsBuyNowAction(true);
+                            setShowVariantModal(true);
+                          } else {
+                            setBuyNowProduct({
+                              ...product,
+                              quantity: 1,
+                              selectedVariant: null,
+                              selectedVariantLabel1: null,
+                              selectedVariantLabel2: null,
+                              variants: product.variants || [],
+                              variantLabel2Values: product.variantLabel2Values || [],
+                              variantLabel1Values: product.variantLabel1Values || [],
+                              stock: product.stock || 99,
+                            } as any);
+                            setShowBuyNowModal(true);
+                          }
+                        }}
+                        className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-lg transition-all active:scale-95 h-8 text-xs font-bold"
+                      >
+                        Buy Now
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                >
+                  {sortedResults.map((product, index) => renderProduct(product, index))}
+                </motion.div>
+              );
+            })()
+              : (
+                <div className="text-center py-20">
+                  <h3 className="text-xl font-bold text-[var(--text-headline)]">No products found</h3>
+                  <p className="text-[var(--text-muted)] mt-2">Try adjusting your filters or search query</p>
+                  <button
+                    onClick={() => setShowRequestModal(true)}
+                    className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-sm hover:bg-[var(--brand-primary-dark)] transition-all active:scale-95 shadow-lg shadow-[var(--brand-primary)]/20"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Request This Product
+                  </button>
+                </div>
+              )}
           </main>
         </div>
 
