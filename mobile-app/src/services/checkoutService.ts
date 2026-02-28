@@ -163,6 +163,9 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 0
             );
 
+            // Calculate tax (12% VAT — aligned with web checkout)
+            const taxAmount = Math.round(orderSubtotal * 0.12);
+
             // First, create a shipping address record
             // Build address_line_1 properly - filter out empty values
             const addressParts = [
@@ -172,26 +175,43 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             ].filter(Boolean);
             const addressLine1 = addressParts.length > 0 ? addressParts.join(', ') : shippingAddress.street || 'Address';
 
-            const { data: addressData, error: addressError } = await supabase
+            // Check for existing matching address to avoid duplicates
+            let addressData: { id: string } | null = null;
+            const { data: existingAddr } = await supabase
                 .from('shipping_addresses')
-                .insert({
-                    user_id: userId,
-                    label: 'Checkout Address',
-                    address_line_1: addressLine1,
-                    barangay: shippingAddress.barangay || '',
-                    city: shippingAddress.city || 'Manila',
-                    province: shippingAddress.province || 'Metro Manila',
-                    region: shippingAddress.region || 'NCR',
-                    postal_code: shippingAddress.postalCode || '0000',
-                    is_default: false,
-                    address_type: 'residential',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                })
-                .select()
-                .single();
+                .select('id')
+                .eq('user_id', userId)
+                .eq('address_line_1', addressLine1)
+                .eq('city', shippingAddress.city || 'Manila')
+                .eq('postal_code', shippingAddress.postalCode || '0000')
+                .limit(1)
+                .maybeSingle();
 
-            if (addressError) throw addressError;
+            if (existingAddr) {
+                addressData = existingAddr;
+            } else {
+                const { data: newAddr, error: addressError } = await supabase
+                    .from('shipping_addresses')
+                    .insert({
+                        user_id: userId,
+                        label: 'Checkout Address',
+                        address_line_1: addressLine1,
+                        barangay: shippingAddress.barangay || '',
+                        city: shippingAddress.city || 'Manila',
+                        province: shippingAddress.province || 'Metro Manila',
+                        region: shippingAddress.region || 'NCR',
+                        postal_code: shippingAddress.postalCode || '0000',
+                        is_default: false,
+                        address_type: 'residential',
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    })
+                    .select()
+                    .single();
+
+                if (addressError) throw addressError;
+                addressData = newAddr;
+            }
 
             // Create order with multiple fallback strategies for robustness
             let orderData: { id: string; order_number: string; buyer_id: string } | null = null;
@@ -510,17 +530,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                                 .maybeSingle();
 
                             const { error: discError } = await supabase
-                                .from('discount_usage')
+                                .from('order_discounts')
                                 .insert({
-                                    campaign_id: campaignDisc.campaignId,
-                                    product_discount_id: productDiscount?.id || null,
                                     buyer_id: userId,
                                     order_id: orderData.id,
-                                    product_id: campaignDisc.productId,
+                                    campaign_id: campaignDisc.campaignId,
                                     discount_amount: campaignDisc.discountAmount,
-                                    discounted_price: (items.find(i => i.id === campaignDisc.productId)?.price || 0),
-                                    quantity: campaignDisc.quantity || 1,
-                                    created_at: new Date().toISOString()
+                                    discount_type: 'campaign'
                                 });
 
                             if (discError) {

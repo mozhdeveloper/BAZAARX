@@ -145,6 +145,7 @@ const SearchPage: React.FC = () => {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [minRating, setMinRating] = useState<number>(0);
 
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
@@ -262,6 +263,8 @@ const SearchPage: React.FC = () => {
     if (selectedCategory !== 'All' && !p.category.includes(selectedCategory)) return false;
     // Brand Filter
     if (selectedBrand && p.seller !== selectedBrand) return false;
+    // Rating Filter
+    if (minRating > 0 && (p.rating || 0) < minRating) return false;
     return true;
   });
 
@@ -470,6 +473,34 @@ const SearchPage: React.FC = () => {
                           style={{ backgroundColor: color.hex }}
                           title={color.name}
                         />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Rating Filter */}
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-gray-900 text-sm">Minimum Rating</h3>
+                    <div className="flex flex-col gap-2">
+                      {[4, 3, 2, 1].map((rating) => (
+                        <button
+                          key={rating}
+                          onClick={() => setMinRating(minRating === rating ? 0 : rating)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                            minRating === rating
+                              ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
+                              : "text-[var(--text-primary)] hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-3.5 h-3.5 ${i < rating ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs">{rating}+ stars</span>
+                        </button>
                       ))}
                     </div>
                   </div>

@@ -530,7 +530,8 @@ export default function CheckoutPage() {
     });
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const validationErrorMessages = Object.values(newErrors).filter(Boolean);
+    return { isValid: Object.keys(newErrors).length === 0, messages: validationErrorMessages as string[] };
   };
 
   const handleInputChange = (field: keyof CheckoutFormData, value: string) => {
@@ -606,12 +607,13 @@ export default function CheckoutPage() {
     console.log('  - checkoutItems:', checkoutItems.length);
     console.log('  - Items with variants:', checkoutItems.filter(i => i.selectedVariant).length);
 
-    if (!validateForm()) {
+    const validation = validateForm();
+    if (!validation.isValid) {
       console.log('❌ Form validation failed - see validation errors above');
       // Show toast for validation errors
       toast({
         title: "Please fix the errors",
-        description: Object.values(errors).filter(Boolean).join(', ') || "Missing required fields",
+        description: validation.messages.join(', ') || "Missing required fields",
         variant: "destructive"
       });
       return;
@@ -682,7 +684,8 @@ export default function CheckoutPage() {
         shippingFee: shippingFee,
         discount: discount,
         email: profile.email,
-        voucherId: appliedVoucher?.id ?? null
+        voucherId: appliedVoucher?.id ?? null,
+        selectedAddressId: selectedAddress?.id ?? null
       };
 
       const result = await checkoutService.processCheckout(payload);

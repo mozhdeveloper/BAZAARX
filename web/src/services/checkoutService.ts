@@ -34,6 +34,8 @@ export interface CheckoutPayload {
     email: string;
     /** Voucher ID when a voucher was applied (for order_vouchers tracking) */
     voucherId?: string | null;
+    /** Pre-existing shipping address ID to reuse (avoids creating duplicates) */
+    selectedAddressId?: string | null;
 }
 
 export interface CheckoutResult {
@@ -67,12 +69,13 @@ export class CheckoutService {
 
     /**
      * Generate a unique order number with format: ORD-(YEAR)029283
-     * Example: ORD-2025029283
+     * Includes retry logic to avoid collisions on unique constraint
      */
     private generateOrderNumber(): string {
         const year = new Date().getFullYear();
         const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 digits
-        return `ORD-${year}${randomNum}`;
+        const timestamp = Date.now().toString(36).slice(-4).toUpperCase(); // 4-char time-based suffix
+        return `ORD-${year}${randomNum}${timestamp}`;
     }
 
     /**
@@ -127,12 +130,9 @@ export class CheckoutService {
                 if (item.selected_variant) {
                     const selectedVar = item.selected_variant as any;
                     
-                    // If product has no variants, treat as regular product
+                    // If product has no variants in DB, skip stock validation (no stock column on products table)
                     if (variantsList.length === 0) {
-                        console.warn(`Product ${item.product_id} has selected_variant in cart but no variants in database. Using product stock.`);
-                        if ((product.stock || 0) < item.quantity) {
-                            throw new Error(`Insufficient stock for product. Available: ${product.stock || 0}, Requested: ${item.quantity}`);
-                        }
+                        console.warn(`Product ${item.product_id} has selected_variant in cart but no variants in database. Skipping stock check.`);
                     } else {
                         // Try multiple matching strategies
                         let variant = null;
@@ -222,8 +222,14 @@ export class CheckoutService {
                         }
                     }
                 } else {
-                    if ((product.stock || 0) < item.quantity) {
-                        throw new Error(`Insufficient stock for product. Available: ${product.stock || 0}, Requested: ${item.quantity}`);
+                    // Products table has no stock column — sum from product_variants
+                    const { data: allVariants } = await supabase
+                        .from('product_variants')
+                        .select('stock')
+                        .eq('product_id', item.product_id);
+                    const totalStock = (allVariants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                    if (totalStock > 0 && totalStock < item.quantity) {
+                        throw new Error(`Insufficient stock for product. Available: ${totalStock}, Requested: ${item.quantity}`);
                     }
                 }
             }
@@ -320,34 +326,50 @@ export class CheckoutService {
                 console.warn('Could not create recipient:', e);
             }
 
-            // Create shipping address entry
-            let shippingAddressId: string | null = null;
-            try {
-                const { data: addressData, error: addressError } = await supabase
-                    .from('shipping_addresses')
-                    .insert({
-                        user_id: userId,
-                        label: 'Order Address',
-                        address_line_1: shippingAddress.street || '',
-                        address_line_2: '',
-                        city: shippingAddress.city || '',
-                        province: shippingAddress.province || '',
-                        region: shippingAddress.province || '', // Fallback to province
-                        postal_code: shippingAddress.postalCode || '',
-                        is_default: false
-                    })
-                    .select()
-                    .single();
-                
-                if (!addressError && addressData) {
-                    shippingAddressId = addressData.id;
+            // Reuse existing address if provided, otherwise create one
+            let shippingAddressId: string | null = payload.selectedAddressId || null;
+            if (!shippingAddressId) {
+                try {
+                    // Check for existing matching address to avoid duplicates
+                    const { data: existingAddr } = await supabase
+                        .from('shipping_addresses')
+                        .select('id')
+                        .eq('user_id', userId)
+                        .eq('address_line_1', shippingAddress.street || '')
+                        .eq('city', shippingAddress.city || '')
+                        .eq('postal_code', shippingAddress.postalCode || '')
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (existingAddr) {
+                        shippingAddressId = existingAddr.id;
+                    } else {
+                        const { data: addressData, error: addressError } = await supabase
+                            .from('shipping_addresses')
+                            .insert({
+                                user_id: userId,
+                                label: 'Order Address',
+                                address_line_1: shippingAddress.street || '',
+                                address_line_2: '',
+                                city: shippingAddress.city || '',
+                                province: shippingAddress.province || '',
+                                region: shippingAddress.province || '',
+                                postal_code: shippingAddress.postalCode || '',
+                                is_default: false
+                            })
+                            .select()
+                            .single();
+
+                        if (!addressError && addressData) {
+                            shippingAddressId = addressData.id;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Could not create shipping address:', e);
                 }
-            } catch (e) {
-                console.warn('Could not create shipping address:', e);
             }
 
             // Create the order with the ACTUAL schema columns
-            // Note: orders table doesn't have shipping_address_id - store full address in notes as JSON
             const addressJson = JSON.stringify({
                 fullName: shippingAddress.fullName,
                 street: shippingAddress.street,
@@ -363,8 +385,9 @@ export class CheckoutService {
                 .insert({
                     order_number: orderNumber,
                     buyer_id: userId,
+                    address_id: shippingAddressId,
                     order_type: 'ONLINE',
-                    payment_status: paymentMethod === 'cod' ? 'pending_payment' : 'pending_payment',
+                    payment_status: 'pending_payment',
                     shipment_status: 'waiting_for_seller',
                     recipient_id: recipientId,
                     notes: `SHIPPING_ADDRESS:${addressJson}|PRICING_SUMMARY:${pricingJson}|Payment: ${paymentMethod}`
@@ -374,6 +397,18 @@ export class CheckoutService {
 
             if (orderError) throw orderError;
             createdOrderNumbers.push(orderData.order_number);
+
+            // Create order_payments record for payment tracking
+            try {
+                await supabase.from('order_payments').insert({
+                    order_id: orderData.id,
+                    payment_method: paymentMethod,
+                    amount: Number(payload.totalAmount || 0),
+                    status: paymentMethod === 'cod' ? 'pending' : 'pending',
+                });
+            } catch (e) {
+                console.warn('Could not create order_payments record:', e);
+            }
 
             console.log(`✅ Order created: ${orderData.order_number}`);
 

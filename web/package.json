@@ -40,6 +40,7 @@
     "test:scanner": "tsx scripts/test-hardware-scanner.ts",
     "validate:barcode": "tsx scripts/validate-barcode-schema.ts",
     "verify:pos-schema": "tsx scripts/verify-pos-schema-alignment.ts",
+    "test:phase1": "tsx src/tests/phase1-comprehensive.test.ts",
     "seed:database": "tsx scripts/seed-complete-database.ts"
   },
   "dependencies": {

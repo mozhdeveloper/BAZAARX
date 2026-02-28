@@ -449,25 +449,37 @@ export class CartService {
     return this.addToCart(cartId, productId, quantity, variantId || undefined, personalizedOptions || undefined);
   }
 
-  async removeItem(cartId: string, productId: string): Promise<void> {
-    // Find item by product ID and cart ID, then delete
-    const { data: items } = await supabase
+  async removeItem(cartId: string, productId: string, variantId?: string | null): Promise<void> {
+    // Find item by product ID (and variant if provided) and cart ID, then delete
+    let query = supabase
       .from('cart_items')
       .select('id')
       .eq('cart_id', cartId)
       .eq('product_id', productId);
+
+    if (variantId) {
+      query = query.eq('variant_id', variantId);
+    }
+
+    const { data: items } = await query;
 
     if (items && items.length > 0) {
       await this.removeFromCart(items[0].id);
     }
   }
 
-  async updateQuantity(cartId: string, productId: string, quantity: number): Promise<void> {
-    const { data: items } = await supabase
+  async updateQuantity(cartId: string, productId: string, quantity: number, variantId?: string | null): Promise<void> {
+    let query = supabase
       .from('cart_items')
       .select('id')
       .eq('cart_id', cartId)
       .eq('product_id', productId);
+
+    if (variantId) {
+      query = query.eq('variant_id', variantId);
+    }
+
+    const { data: items } = await query;
 
     if (items && items.length > 0) {
       await this.updateCartItemQuantity(items[0].id, quantity);

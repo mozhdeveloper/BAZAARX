@@ -24,7 +24,7 @@ export interface SellerCoreData {
     store_contact_number: string | null;
     avatar_url: string | null;
     owner_name?: string | null;
-    approval_status: 'pending' | 'verified' | 'approved' | 'rejected' | 'needs_resubmission';
+    approval_status: 'pending' | 'verified' | 'rejected' | 'needs_resubmission';
     verified_at: string | null;
     created_at: string;
     updated_at: string;
@@ -80,7 +80,7 @@ export type SellerInsert = {
     store_description?: string | null;
     store_contact_number?: string | null;
     avatar_url?: string | null;
-    approval_status?: 'pending' | 'verified' | 'approved' | 'rejected' | 'needs_resubmission';
+    approval_status?: 'pending' | 'verified' | 'rejected' | 'needs_resubmission';
 };
 
 export type SellerUpdate = Partial<Omit<SellerInsert, 'id'>>;
