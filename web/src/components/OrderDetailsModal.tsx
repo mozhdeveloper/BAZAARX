@@ -28,8 +28,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { useOrderStore, useAuthStore, SellerOrder } from "@/stores/sellerStore";
-import { useChatStore } from "@/stores/chatStore";
+import { useOrderStore, useAuthStore, useProductStore, SellerOrder } from "@/stores/sellerStore"; import { useChatStore } from "@/stores/chatStore";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 
 interface OrderDetailsModalProps {
@@ -48,6 +47,8 @@ export function OrderDetailsModal({
         markOrderAsShipped,
         markOrderAsDelivered,
     } = useOrderStore();
+
+    const { products } = useProductStore();
 
     const [trackingModal, setTrackingModal] = useState<{
         isOpen: boolean;
@@ -324,49 +325,44 @@ export function OrderDetailsModal({
                                     </AccordionTrigger>
                                     <AccordionContent className="px-4 pb-4">
                                         <div className="space-y-6">
-                                            {order.items.map((item, idx) => (
-                                                <div
-                                                    key={idx}
-                                                    className="flex gap-4"
-                                                >
-                                                    <div className="h-14 w-14 rounded-md bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
-                                                        <img
-                                                            src={item.image}
-                                                            alt={
-                                                                item.productName
-                                                            }
-                                                            className="h-full w-full object-cover"
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                                        <h4 className="font-medium text-gray-900 text-sm truncate">
-                                                            {item.productName}
-                                                        </h4>
-                                                        {(item.selectedVariantLabel2 ||
-                                                            item.selectedVariantLabel1) && (
-                                                                <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                                                    {
-                                                                        item.selectedVariantLabel1
-                                                                    }{" "}
-                                                                    {item.selectedVariantLabel2
-                                                                        ? `• ${item.selectedVariantLabel2}`
-                                                                        : ""}
+                                            {order.items.map((item, idx) => {
+                                                // 🕵️‍♂️ RECOVERY LOGIC: Find the base product in the store
+                                                const baseProduct = products.find(p => p.id === item.productId);
+
+                                                // Detect if the name is just a variant name or "Default"
+                                                const isVariantNameUsed = item.productName === "Default" ||
+                                                    item.productName === item.selectedVariantLabel1 ||
+                                                    item.productName === item.selectedVariantLabel2;
+
+                                                const displayName = (isVariantNameUsed && baseProduct)
+                                                    ? baseProduct.name
+                                                    : item.productName;
+
+                                                return (
+                                                    <div key={idx} className="flex gap-4">
+                                                        <div className="h-14 w-14 rounded-md bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
+                                                            <img src={item.image} alt={displayName} className="h-full w-full object-cover" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                            {/* Display recovered base name */}
+                                                            <h4 className="font-bold text-gray-900 text-sm truncate">{displayName}</h4>
+
+                                                            {/* Display variants underneath if they exist */}
+                                                            {(item.selectedVariantLabel2 || item.selectedVariantLabel1) && (
+                                                                <p className="text-[11px] font-semibold text-[var(--brand-primary)] mt-0.5 truncate uppercase tracking-tight">
+                                                                    {[item.selectedVariantLabel1, item.selectedVariantLabel2]
+                                                                        .filter(val => val && val !== "Default")
+                                                                        .join(" • ")}
                                                                 </p>
                                                             )}
+                                                        </div>
+                                                        <div className="text-right flex flex-col justify-center">
+                                                            <p className="text-sm font-medium text-gray-900">{item.quantity} item{item.quantity > 1 ? "s" : ""}</p>
+                                                            <p className="text-sm text-gray-500">₱{item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-right flex flex-col justify-center">
-                                                        <p className="text-sm font-medium text-gray-900">
-                                                            {item.quantity} item
-                                                            {item.quantity > 1
-                                                                ? "s"
-                                                                : ""}
-                                                        </p>
-                                                        <p className="text-sm text-gray-500">
-                                                            ₱{item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
 
                                             <div className="pt-4 border-t border-gray-100 space-y-2">
                                                 <div className="flex justify-between text-sm">
