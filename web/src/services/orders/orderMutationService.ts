@@ -30,10 +30,14 @@ interface CancelOrderInput {
 interface SubmitOrderReviewInput {
   orderId: string;
   buyerId: string;
-  rating: number;
-  comment: string;
-  images?: string[];
-  imageFiles?: File[];
+  reviews: {
+    productId: string;
+    orderItemId?: string;
+    rating: number;
+    comment: string;
+    images?: string[];
+    imageFiles?: File[];
+  }[];
 }
 
 interface CreatePOSOrderInput {
@@ -108,18 +112,12 @@ class OrderMutationService {
   async submitOrderReview({
     orderId,
     buyerId,
-    rating,
-    comment,
-    images,
-    imageFiles,
+    reviews,
   }: SubmitOrderReviewInput): Promise<boolean> {
     return orderService.submitOrderReview(
       orderId,
       buyerId,
-      rating,
-      comment,
-      images,
-      imageFiles,
+      reviews,
     );
   }
 
