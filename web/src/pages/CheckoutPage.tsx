@@ -630,8 +630,7 @@ export default function CheckoutPage() {
     try {
       // Validate user is logged in
       if (!profile?.id) {
-        // Should not happen if protected route, but safety check
-        alert("Please log in to continue");
+        toast({ title: "Login Required", description: "Please log in to continue", variant: "destructive" });
         return;
       }
 
@@ -745,32 +744,25 @@ export default function CheckoutPage() {
       }
 
       // Navigate to the order detail page for the new order
-      const mainOrderId = result.orderIds && result.orderIds.length > 0 ? result.orderIds[0] : null;
+      const firstOrderNumber = result.orderIds && result.orderIds.length > 0 ? result.orderIds[0] : null;
 
       // Show success toast
       toast({
-        title: "Order Placed Successfully! 🎉",
-        description: `You earned ${earnedBazcoins} Bazcoins with this order!`,
+        title: result.orderIds && result.orderIds.length > 1
+          ? "Orders Placed Successfully! 🎉"
+          : "Order Placed Successfully! 🎉",
+        description: `You earned ${earnedBazcoins} Bazcoins across your purchases!`,
       });
 
-      if (mainOrderId) {
-        // Go to specific order detail page
-        navigate(`/order/${mainOrderId}`, {
-          state: {
-            fromCheckout: true,
-            earnedBazcoins: earnedBazcoins,
-          },
+      if (firstOrderNumber) {
+        // If there are multiple orders, navigating to the first one is standard, 
+        // or you could navigate to a general "Order History" page.
+        navigate(`/order/${firstOrderNumber}`, {
+          state: { fromCheckout: true, earnedBazcoins: earnedBazcoins },
           replace: true,
         });
       } else {
-        // Fallback to orders list
-        navigate("/orders", {
-          state: {
-            fromCheckout: true,
-            earnedBazcoins: earnedBazcoins,
-          },
-          replace: true,
-        });
+        navigate("/orders", { replace: true });
       }
 
     } catch (error: any) {
