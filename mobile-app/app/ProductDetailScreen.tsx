@@ -69,6 +69,7 @@ import { sellerService } from '../src/services/sellerService';
 import { discountService } from '../src/services/discountService';
 import { ActiveDiscount } from '../src/types/discount';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../App';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
@@ -444,11 +445,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   // Fetch reviews from database
-  useEffect(() => {
-    setReviewPage(1);
-    setReviews([]);
-    fetchReviews(1, false, reviewFilters);
-  }, [product.id, reviewFilters]);
+  useFocusEffect(
+    React.useCallback(() => {
+      setReviewPage(1);
+      setReviews([]);
+      fetchReviews(1, false, reviewFilters);
+    }, [product.id, reviewFilters])
+  );
 
   const handleLoadMoreReviews = () => {
     if (isLoadingMoreReviews || reviews.length >= reviewsTotal) {

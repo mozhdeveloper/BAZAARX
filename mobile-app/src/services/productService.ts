@@ -455,9 +455,12 @@ export class ProductService {
           )
         `)
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error(`[ProductService] Error fetching product ${id}:`, error);
+        return null;
+      }
       
       if (!data) return null;
 

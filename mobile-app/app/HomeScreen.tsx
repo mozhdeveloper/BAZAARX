@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
-  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle,
+  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle, Star,
   Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen, Armchair, SprayCan,
 } from 'lucide-react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -370,6 +370,31 @@ export default function HomeScreen({ navigation }: Props) {
     return [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8);
   }, [dbProducts]);
 
+  const verifiedStores = useMemo(() => {
+    return (sellers || [])
+      .map((seller) => {
+        const storeProducts = dbProducts
+          .filter((product) => product.seller_id === seller.id || product.sellerId === seller.id)
+          .slice(0, 2);
+
+        const productRatings = storeProducts.map((product) => Number(product.rating || 0)).filter((rating) => rating > 0);
+        const computedRating = productRatings.length > 0
+          ? Math.round((productRatings.reduce((sum, rating) => sum + rating, 0) / productRatings.length) * 10) / 10
+          : 4.8;
+
+        return {
+          id: seller.id,
+          name: seller.store_name || seller.storeName || 'Store',
+          logo: seller.avatar || seller.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.store_name || seller.storeName || 'S')}&background=FFD89A&color=78350F`,
+          verified: seller.approval_status === 'verified' || !!seller.verified_at,
+          rating: computedRating,
+          products: storeProducts.map((product) => product.image).filter((image: unknown): image is string => typeof image === 'string' && image.length > 0),
+        };
+      })
+      .filter(s => s.products.length > 0)
+      .slice(0, 8);
+  }, [sellers, dbProducts]);
+
   // Flash sale live countdown — rolling 3-hour window
   const [flashCountdown, setFlashCountdown] = useState('00:00:00');
   useEffect(() => {
@@ -690,44 +715,41 @@ export default function HomeScreen({ navigation }: Props) {
             </LinearGradient>
 
             {/* FEATURED STORES SECTION */}
-            {sellers.length > 0 && (
+            {verifiedStores.length > 0 && (
               <View style={{ marginTop: 20, marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
-                  <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textHeadline }}>Featured Stores</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Stores</Text>
                   <Pressable onPress={() => navigation.navigate('Shop', {})}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
-                  {sellers.slice(0, 8).map((store: any) => (
-                    <Pressable
-                      key={store.id}
-                      onPress={() => navigation.push('StoreDetail', {
-                        store: {
-                          id: store.id,
-                          name: store.store_name || store.storeName || 'Store',
-                          image: store.avatar || store.logo || null,
-                          rating: store.rating || 0,
-                          verified: store.approval_status === 'verified',
-                        }
-                      })}
-                      style={{
-                        width: 100, alignItems: 'center', backgroundColor: '#FFF',
-                        borderRadius: 16, padding: 12, elevation: 1,
-                        shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4,
-                      }}
-                    >
-                      <Image
-                        source={{ uri: store.avatar || store.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || store.storeName || 'S')}&background=FFD89A&color=78350F` }}
-                        style={{ width: 56, height: 56, borderRadius: 28, marginBottom: 8, borderWidth: 1, borderColor: '#F3F4F6' }}
-                      />
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textHeadline, textAlign: 'center' }} numberOfLines={1}>{store.store_name || store.storeName || 'Store'}</Text>
-                      {store.approval_status === 'verified' && (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 }}>
-                          <CheckCircle2 size={10} color={COLORS.primary} />
-                          <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Verified</Text>
+                  {verifiedStores.map((store) => (
+                    <Pressable key={store.id} style={styles.storeCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
+                      <View style={styles.storeHeader}>
+                        <View style={styles.storeLogo}>
+                          {store.logo && store.logo !== '🏪' ? (
+                            <Image source={{ uri: store.logo }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                          ) : (
+                            <Text style={{ fontSize: 20 }}>🏪</Text>
+                          )}
                         </View>
-                      )}
+                        <View style={styles.storeInfo}>
+                          <View style={styles.storeNameRow}>
+                            <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
+                            {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
+                          </View>
+                          <View style={styles.ratingRow}>
+                            <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
+                            <Text style={styles.ratingText}>{store.rating}</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <View style={styles.storeProducts}>
+                        {(store.products || []).slice(0, 3).map((url: string, i: number) => (
+                          <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
+                        ))}
+                      </View>
                     </Pressable>
                   ))}
                 </ScrollView>
@@ -739,7 +761,7 @@ export default function HomeScreen({ navigation }: Props) {
               <View style={{ marginTop: 20, marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textHeadline }}>Featured Products</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Products</Text>
                     <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
                       <Text style={{ fontSize: 10, fontWeight: '700', color: '#B45309' }}>Sponsored</Text>
                     </View>
@@ -804,7 +826,7 @@ export default function HomeScreen({ navigation }: Props) {
 
             <View style={styles.gridContainer}>
               <View style={styles.gridHeader}>
-                <Text style={[styles.gridTitleText, { color: COLORS.primary }]}>Popular Items</Text>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Popular Items</Text>
                 <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>View All</Text></Pressable>
               </View>
               <View style={styles.gridBody}>
@@ -988,6 +1010,16 @@ const styles = StyleSheet.create({
   resultsSection: { flex: 1 },
   categoryExpandedContent: { padding: 20 },
   categorySectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
+  storeCard: { width: 260, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
+  storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  storeLogo: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  storeInfo: { flex: 1 },
+  storeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  storeName: { fontSize: 14, fontWeight: '700' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  ratingText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
+  storeProducts: { flexDirection: 'row', gap: 8 },
+  storeProductThumb: { flex: 1, height: 60, borderRadius: 8, backgroundColor: '#F3F4F6' },
   storeSearchResultCard: {
     flexDirection: 'row',
     alignItems: 'center',
