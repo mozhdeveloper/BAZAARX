@@ -10,6 +10,9 @@ import type { Address } from '@/stores/buyerStore';
 export type AddressInsert = {
     user_id: string;
     label: string;
+    first_name: string;
+    last_name: string;
+    phone_number: string;
     address_line_1: string;
     address_line_2?: string;
     barangay?: string;
@@ -46,7 +49,7 @@ export class AddressService {
      */
     async getUserAddresses(userId: string): Promise<Address[]> {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         // Safety Guard: Only fetch if the userId matches the active session
         if (!session || session.user.id !== userId) {
             console.warn('Unauthorized address fetch attempt blocked');
@@ -210,6 +213,9 @@ export class AddressService {
     }
 
     private validateAddressInsert(address: AddressInsert) {
+        if (!address.first_name?.trim()) throw new Error('First name is required.');
+        if (!address.last_name?.trim()) throw new Error('Last name is required.');
+        if (!address.phone_number?.trim()) throw new Error('Phone number is required.');
         if (!address.address_line_1?.trim()) {
             throw new Error('Street address is required.');
         }
@@ -321,17 +327,17 @@ export class AddressService {
         return {
             id: data.id,
             label: data.label || 'Address',
-            firstName: fullName ? fullName.split(' ')[0] : '',
-            lastName: fullName ? fullName.split(' ').slice(1).join(' ') : '',
-            fullName,
-            phone,
-            street,
+            firstName: data.first_name || '', // Read directly from column
+            lastName: data.last_name || '',   // Read directly from column
+            fullName: `${data.first_name} ${data.last_name}`.trim(),
+            phone: data.phone_number || '',    // Read directly from column
+            street: data.address_line_1 || '',
             barangay: data.barangay || '',
             city: data.city || '',
             province: data.province || '',
             region: data.region || '',
             postalCode: data.postal_code || '',
-            country: defaultCountry,
+            country: 'Philippines',
             isDefault: data.is_default || false,
             landmark: data.landmark || '',
             deliveryInstructions: data.delivery_instructions || '',

@@ -38,7 +38,9 @@ type AddressField =
   | "province"
   | "region"
   | "postalCode"
-  | "country";
+  | "country"
+  | "landmark"
+  | "deliveryInstructions";
 
 interface AddressModalProps {
   isOpen: boolean;
@@ -77,6 +79,9 @@ export const AddressModal = ({
     postalCode: "",
     country: "Philippines",
     isDefault: false,
+    landmark: "",
+    deliveryInstructions: "",
+    coordinates: { lat: 14.5995, lng: 120.9842 },
   });
 
   const [regionList, setRegionList] = useState<
@@ -100,6 +105,9 @@ export const AddressModal = ({
         setNewAddress({
           ...address,
           country: address.country || "Philippines",
+          landmark: address.landmark || "", // Fallback to empty string
+          deliveryInstructions: address.deliveryInstructions || "", // Fallback
+          coordinates: address.coordinates || { lat: 14.5995, lng: 120.9842 },
         });
         hydrateAddressLists(address);
       } else {
@@ -132,6 +140,9 @@ export const AddressModal = ({
       postalCode: "",
       country: "Philippines",
       isDefault: false,
+      landmark: "",
+      deliveryInstructions: "",
+      coordinates: { lat: 14.5995, lng: 120.9842 },
     });
   };
 
@@ -518,6 +529,33 @@ export const AddressModal = ({
                 value={newAddress.country}
                 disabled
                 className="bg-gray-50 border-gray-200 text-[var(--text-muted)] cursor-not-allowed"
+              />
+            </div>
+          </div>
+
+          {/* Landmark & Delivery Instructions */}
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                Landmark <span className="text-gray-400 font-normal">(Optional)</span>
+              </Label>
+              <Input
+                placeholder="e.g. Near the Blue Church / Gate 2"
+                value={newAddress.landmark}
+                onChange={(e) => updateField("landmark", e.target.value)}
+                className="border-gray-200 focus-visible:ring-0 focus-visible:border-[var(--brand-primary)]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold text-[var(--text-secondary)]">
+                Delivery Instructions <span className="text-gray-400 font-normal">(Optional)</span>
+              </Label>
+              <textarea
+                placeholder="e.g. Please leave at the lobby"
+                value={newAddress.deliveryInstructions}
+                onChange={(e) => updateField("deliveryInstructions", e.target.value)}
+                className="flex min-h-[80px] w-full rounded-md border border-gray-200 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:border-[var(--brand-primary)]"
               />
             </div>
           </div>
