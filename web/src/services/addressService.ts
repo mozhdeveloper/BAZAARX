@@ -45,34 +45,22 @@ export class AddressService {
      * Get all addresses for a user
      */
     async getUserAddresses(userId: string): Promise<Address[]> {
-        if (!isSupabaseConfigured()) {
-            console.warn('Supabase not configured - cannot fetch addresses');
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        // Safety Guard: Only fetch if the userId matches the active session
+        if (!session || session.user.id !== userId) {
+            console.warn('Unauthorized address fetch attempt blocked');
             return [];
         }
 
-        try {
-            const { data, error } = await supabase
-                .from('shipping_addresses')
-                .select('*')
-                .eq('user_id', userId)
-                .order('is_default', { ascending: false })
-                .order('created_at', { ascending: false });
+        const { data, error } = await supabase
+            .from('shipping_addresses')
+            .select('*')
+            .eq('user_id', userId)
+            .order('is_default', { ascending: false });
 
-            if (error) {
-                // Handle 404 - table may not exist
-                if (error.code === '42P01' || error.code === 'PGRST116' || (error as any).status === 404) {
-                    console.warn('shipping_addresses table not found');
-                    return [];
-                }
-                throw error;
-            }
-
-            // Map database addresses to Address interface
-            return (data || []).map((addr) => this.mapToAddress(addr));
-        } catch (error) {
-            console.error('Error fetching addresses:', error);
-            return []; // Return empty array instead of throwing
-        }
+        if (error) throw error;
+        return (data || []).map(this.mapToAddress);
     }
 
     /**

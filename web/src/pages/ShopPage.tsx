@@ -234,7 +234,7 @@ export default function ShopPage() {
         image: p.images?.[0] || "https://placehold.co/400?text=Product",
         images: p.images || [],
         rating: p.rating || 0,
-        sold: p.reviews || 0, // Use reviews count as "sold" for display
+        sold: p.sales || 0,
         category: p.category,
         seller: p.sellerName || "Verified Seller",
         sellerId: p.sellerId,
@@ -427,65 +427,65 @@ export default function ShopPage() {
           <div className="pt-2 pb-0">
             {/* Flash Sale Section — only shown when there are active campaigns */}
             {flashSaleProducts.length > 0 && (
-            <div className="mb-2 bg-gradient-to-br from-white via-white to-[var(--brand-wash)]/30 rounded-2xl py-6 px-4 sm:px-6 lg:px-8 shadow-[0_4px_25px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_35px_rgba(255,106,0,0.12)] transition-all duration-500 border border-white/50">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                <div className="flex items-center gap-5">
-                  <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading">
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
-                      FLASH SALE
-                    </span>
-                  </h2>
+              <div className="mb-2 bg-gradient-to-br from-white via-white to-[var(--brand-wash)]/30 rounded-2xl py-6 px-4 sm:px-6 lg:px-8 shadow-[0_4px_25px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_35px_rgba(255,106,0,0.12)] transition-all duration-500 border border-white/50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                  <div className="flex items-center gap-5">
+                    <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading">
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
+                        FLASH SALE
+                      </span>
+                    </h2>
 
-                  {/* Ends in + Accurate Timer */}
-                  {flashEndsAt && (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-timer"><line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" /></svg>
-                    <div className="flex items-center gap-1.5 font-bold font-mono text-base">
-                      <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                        {String(timeLeft.hours).padStart(2, "0")}
+                    {/* Ends in + Accurate Timer */}
+                    {flashEndsAt && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-timer"><line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" /></svg>
+                        <div className="flex items-center gap-1.5 font-bold font-mono text-base">
+                          <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
+                            {String(timeLeft.hours).padStart(2, "0")}
+                          </div>
+                          <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
+                          <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
+                            {String(timeLeft.minutes).padStart(2, "0")}
+                          </div>
+                          <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
+                          <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
+                            {String(timeLeft.seconds).padStart(2, "0")}
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
-                      <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                        {String(timeLeft.minutes).padStart(2, "0")}
-                      </div>
-                      <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
-                      <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                        {String(timeLeft.seconds).padStart(2, "0")}
-                      </div>
-                    </div>
+                    )}
                   </div>
-                  )}
-                </div>
 
-                <div className="flex items-center gap-3 self-end sm:self-auto">
-                  <Link
-                    to="/flash-sales"
-                    className="group flex items-center gap-2 text-[var(--brand-accent)] font-medium text-sm hover:text-[var(--brand-primary-dark)] transition-colors"
-                  >
-                    <span>View All</span>
-                    <svg
-                      width="18" height="18" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                      className="group-hover:translate-x-1 transition-transform"
+                  <div className="flex items-center gap-3 self-end sm:self-auto">
+                    <Link
+                      to="/flash-sales"
+                      className="group flex items-center gap-2 text-[var(--brand-accent)] font-medium text-sm hover:text-[var(--brand-primary-dark)] transition-colors"
                     >
-                      <line x1="7" y1="17" x2="17" y2="7"></line>
-                      <polyline points="7 7 17 7 17 17"></polyline>
-                    </svg>
-                  </Link>
+                      <span>View All</span>
+                      <svg
+                        width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                        className="group-hover:translate-x-1 transition-transform"
+                      >
+                        <line x1="7" y1="17" x2="17" y2="7"></line>
+                        <polyline points="7 7 17 7 17 17"></polyline>
+                      </svg>
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 shrink-0 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {flashSaleProducts.slice(0, 6).map((product: any, index: number) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      index={index}
+                      isFlash={true}
+                    />
+                  ))}
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 shrink-0 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {flashSaleProducts.slice(0, 6).map((product: any, index: number) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    index={index}
-                    isFlash={true}
-                  />
-                ))}
-              </div>
-            </div>
             )}
           </div>
 
@@ -537,6 +537,7 @@ export default function ShopPage() {
                       : 0;
                     const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
                     const sellerName = product.seller?.store_name || 'BazaarX Store';
+                    const soldCount = product.soldCount || product.sold_count || 0;
 
                     return (
                       <motion.div
@@ -599,8 +600,14 @@ export default function ShopPage() {
                           </div>
 
                           {/* Sold count */}
-                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">
-                            0 sold
+                          {/* Sold count and Stock indicator */}
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                              {soldCount.toLocaleString()} sold
+                            </div>
+                            <div className={`text-[10px] font-bold ${totalStock < 10 ? 'text-red-500' : 'text-green-600'}`}>
+                              {totalStock > 0 ? `${totalStock} in stock` : 'Out of stock'}
+                            </div>
                           </div>
 
                           {/* Seller */}
@@ -813,11 +820,10 @@ export default function ShopPage() {
                             <button
                               key={rating}
                               onClick={() => setMinRating(minRating === rating ? 0 : rating)}
-                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
-                                minRating === rating
-                                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
-                                  : "text-[var(--text-primary)] hover:bg-gray-50"
-                              }`}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${minRating === rating
+                                ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
+                                : "text-[var(--text-primary)] hover:bg-gray-50"
+                                }`}
                             >
                               <div className="flex items-center gap-0.5">
                                 {Array.from({ length: 5 }).map((_, i) => (
@@ -928,7 +934,7 @@ export default function ShopPage() {
                 {(() => {
                   const groupedProducts: Record<string, typeof filteredProducts> = {};
                   const normalProducts: typeof filteredProducts = [];
-                  
+
                   filteredProducts.forEach(product => {
                     const badge = (product as any).campaignBadge;
                     if (badge) {
@@ -1019,7 +1025,7 @@ export default function ShopPage() {
                               </span>
                             )}
                           </div>
-                          
+
                           <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2 mt-1">
                             {(product.sold || 0).toLocaleString()} sold
                           </div>

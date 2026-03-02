@@ -20,8 +20,15 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useOrderStore, useAuthStore, SellerOrder } from "@/stores/sellerStore";
-import { useChatStore } from "@/stores/chatStore";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { useOrderStore, useAuthStore, useProductStore, SellerOrder } from "@/stores/sellerStore"; import { useChatStore } from "@/stores/chatStore";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 
 interface OrderDetailsModalProps {
@@ -41,6 +48,8 @@ export function OrderDetailsModal({
         markOrderAsDelivered,
     } = useOrderStore();
 
+    const { products } = useProductStore();
+
     const [trackingModal, setTrackingModal] = useState<{
         isOpen: boolean;
         orderId: string | null;
@@ -56,6 +65,27 @@ export function OrderDetailsModal({
     const [showStatusOverride, setShowStatusOverride] = useState(false);
     const [overrideStatus, setOverrideStatus] = useState<SellerOrder["status"]>("pending");
     const [isOverriding, setIsOverriding] = useState(false);
+
+    // --- NEW MODAL STATES ---
+    const [alertModal, setAlertModal] = useState({
+        isOpen: false,
+        title: "",
+        message: "",
+        isError: false,
+    });
+
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        action: () => void;
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        action: () => { },
+    });
+    // ------------------------
 
     if (!isOpen || !order) return null;
 
@@ -80,13 +110,13 @@ export function OrderDetailsModal({
             }
         } catch (error) {
             console.error("Failed to update order status:", error);
-            alert("Failed to update order status.");
+            setAlertModal({ isOpen: true, title: "Error", message: "Failed to update order status.", isError: true });
         }
     };
 
     const handleMarkAsShipped = async () => {
         if (!trackingModal.trackingNumber.trim()) {
-            alert("Please enter a tracking number");
+            setAlertModal({ isOpen: true, title: "Required", message: "Please enter a tracking number.", isError: true });
             return;
         }
 
@@ -115,39 +145,52 @@ export function OrderDetailsModal({
                 isOpen: false,
                 trackingNumber: "",
             }));
+
+            setAlertModal({ isOpen: true, title: "Success", message: "Order marked as shipped!", isError: false });
         } catch (error) {
             console.error("Error marking order as shipped:", error);
-            alert("An error occurred.");
+            setAlertModal({ isOpen: true, title: "Error", message: "An error occurred marking the order as shipped.", isError: true });
         } finally {
             setTrackingModal((prev) => ({ ...prev, isLoading: false }));
         }
     };
 
-    const handleMarkAsDelivered = async () => {
-        if (!window.confirm("Mark this order as delivered?")) return;
-
-        try {
-            await markOrderAsDelivered(order.id);
-        } catch (error) {
-            console.error("Error marking delivered:", error);
-            alert("Failed to mark as delivered.");
-        }
+    const handleMarkAsDelivered = () => {
+        setConfirmModal({
+            isOpen: true,
+            title: "Confirm Delivered",
+            message: "Are you sure you want to mark this order as delivered? Payout will be processed.",
+            action: async () => {
+                try {
+                    await markOrderAsDelivered(order.id);
+                    setAlertModal({ isOpen: true, title: "Success", message: "Order marked as delivered successfully!", isError: false });
+                } catch (error) {
+                    console.error("Error marking delivered:", error);
+                    setAlertModal({ isOpen: true, title: "Error", message: "Failed to mark as delivered.", isError: true });
+                }
+            }
+        });
     };
 
-    const handleOverrideStatus = async () => {
-        if (!window.confirm(`Force change order status to ${overrideStatus}?`)) return;
-
-        setIsOverriding(true);
-        try {
-            await updateOrderStatus(order.id, overrideStatus);
-            setShowStatusOverride(false);
-            alert("Order status changed successfully!");
-        } catch (error) {
-            console.error("Failed to override status:", error);
-            alert("Failed to change status.");
-        } finally {
-            setIsOverriding(false);
-        }
+    const handleOverrideStatus = () => {
+        setConfirmModal({
+            isOpen: true,
+            title: "Force Status Change",
+            message: `Are you sure you want to force change the order status to ${overrideStatus}?`,
+            action: async () => {
+                setIsOverriding(true);
+                try {
+                    await updateOrderStatus(order.id, overrideStatus);
+                    setShowStatusOverride(false);
+                    setAlertModal({ isOpen: true, title: "Success", message: "Order status changed successfully!", isError: false });
+                } catch (error) {
+                    console.error("Failed to override status:", error);
+                    setAlertModal({ isOpen: true, title: "Error", message: "Failed to change status.", isError: true });
+                } finally {
+                    setIsOverriding(false);
+                }
+            }
+        });
     };
 
     const getStatusBadge = (status: string) => {
@@ -282,49 +325,44 @@ export function OrderDetailsModal({
                                     </AccordionTrigger>
                                     <AccordionContent className="px-4 pb-4">
                                         <div className="space-y-6">
-                                            {order.items.map((item, idx) => (
-                                                <div
-                                                    key={idx}
-                                                    className="flex gap-4"
-                                                >
-                                                    <div className="h-14 w-14 rounded-md bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
-                                                        <img
-                                                            src={item.image}
-                                                            alt={
-                                                                item.productName
-                                                            }
-                                                            className="h-full w-full object-cover"
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                                        <h4 className="font-medium text-gray-900 text-sm truncate">
-                                                            {item.productName}
-                                                        </h4>
-                                                        {(item.selectedVariantLabel2 ||
-                                                            item.selectedVariantLabel1) && (
-                                                                <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                                                    {
-                                                                        item.selectedVariantLabel1
-                                                                    }{" "}
-                                                                    {item.selectedVariantLabel2
-                                                                        ? `• ${item.selectedVariantLabel2}`
-                                                                        : ""}
+                                            {order.items.map((item, idx) => {
+                                                // 🕵️‍♂️ RECOVERY LOGIC: Find the base product in the store
+                                                const baseProduct = products.find(p => p.id === item.productId);
+
+                                                // Detect if the name is just a variant name or "Default"
+                                                const isVariantNameUsed = item.productName === "Default" ||
+                                                    item.productName === item.selectedVariantLabel1 ||
+                                                    item.productName === item.selectedVariantLabel2;
+
+                                                const displayName = (isVariantNameUsed && baseProduct)
+                                                    ? baseProduct.name
+                                                    : item.productName;
+
+                                                return (
+                                                    <div key={idx} className="flex gap-4">
+                                                        <div className="h-14 w-14 rounded-md bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
+                                                            <img src={item.image} alt={displayName} className="h-full w-full object-cover" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                            {/* Display recovered base name */}
+                                                            <h4 className="font-bold text-gray-900 text-sm truncate">{displayName}</h4>
+
+                                                            {/* Display variants underneath if they exist */}
+                                                            {(item.selectedVariantLabel2 || item.selectedVariantLabel1) && (
+                                                                <p className="text-[11px] font-semibold text-[var(--brand-primary)] mt-0.5 truncate uppercase tracking-tight">
+                                                                    {[item.selectedVariantLabel1, item.selectedVariantLabel2]
+                                                                        .filter(val => val && val !== "Default")
+                                                                        .join(" • ")}
                                                                 </p>
                                                             )}
+                                                        </div>
+                                                        <div className="text-right flex flex-col justify-center">
+                                                            <p className="text-sm font-medium text-gray-900">{item.quantity} item{item.quantity > 1 ? "s" : ""}</p>
+                                                            <p className="text-sm text-gray-500">₱{item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-right flex flex-col justify-center">
-                                                        <p className="text-sm font-medium text-gray-900">
-                                                            {item.quantity} item
-                                                            {item.quantity > 1
-                                                                ? "s"
-                                                                : ""}
-                                                        </p>
-                                                        <p className="text-sm text-gray-500">
-                                                            ₱{item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
 
                                             <div className="pt-4 border-t border-gray-100 space-y-2">
                                                 <div className="flex justify-between text-sm">
@@ -401,9 +439,11 @@ export function OrderDetailsModal({
                                             const currentSellerId = useAuthStore.getState().seller?.id || '';
                                             useChatStore.getState().openChat({
                                                 sellerId: currentSellerId,
-                                                sellerName: useAuthStore.getState().seller?.store_name || 'My Store',
+                                                // FIX 1: Changed store_name to storeName
+                                                sellerName: useAuthStore.getState().seller?.storeName || 'My Store',
                                                 sellerAvatar: '',
-                                                buyerId: order.buyerId || '',
+                                                // FIX 2: Changed buyerId to buyer_id
+                                                buyerId: order.buyer_id || '',
                                                 buyerName: order.buyerName || 'Buyer',
                                                 orderId: order.id,
                                                 productName: `Order #${order.id?.slice(0, 8).toUpperCase()}`,
@@ -439,9 +479,9 @@ export function OrderDetailsModal({
                                                 <Star
                                                     key={star}
                                                     className={`w-4 h-4 ${star <=
-                                                            latestReview.rating
-                                                            ? "fill-yellow-400 text-yellow-400"
-                                                            : "text-gray-300"
+                                                        latestReview.rating
+                                                        ? "fill-yellow-400 text-yellow-400"
+                                                        : "text-gray-300"
                                                         }`}
                                                 />
                                             ))}
@@ -820,6 +860,52 @@ export function OrderDetailsModal({
                     </motion.div>
                 </div>
             )}
+
+            {/* --- NEW: Universal Alert Modal --- */}
+            <Dialog open={alertModal.isOpen} onOpenChange={(isOpen) => setAlertModal(prev => ({ ...prev, isOpen }))}>
+                <DialogContent className="sm:max-w-[400px] z-[300]">
+                    <DialogHeader>
+                        <DialogTitle className={alertModal.isError ? "text-red-600" : "text-green-600"}>
+                            {alertModal.title}
+                        </DialogTitle>
+                        <DialogDescription className="text-gray-700 mt-2 font-medium">
+                            {alertModal.message}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="mt-4">
+                        <Button onClick={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}>
+                            OK
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* --- NEW: Universal Confirm Modal --- */}
+            <Dialog open={confirmModal.isOpen} onOpenChange={(isOpen) => setConfirmModal(prev => ({ ...prev, isOpen }))}>
+                <DialogContent className="sm:max-w-[425px] z-[300]">
+                    <DialogHeader>
+                        <DialogTitle>{confirmModal.title}</DialogTitle>
+                        <DialogDescription className="text-gray-700 mt-2 font-medium">
+                            {confirmModal.message}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant={confirmModal.title.includes("Force") ? "destructive" : "default"}
+                            className={!confirmModal.title.includes("Force") ? "bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white" : ""}
+                            onClick={() => {
+                                confirmModal.action();
+                                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                            }}
+                        >
+                            Confirm Action
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </AnimatePresence>
     );
 }

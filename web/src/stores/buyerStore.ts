@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cartService } from '@/services/cartService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
+import { AddressService } from '@/services/addressService';
 
 export interface Message {
   id: string;
@@ -329,6 +330,9 @@ interface BuyerStore {
   logout: () => void;
   initializeCart: () => Promise<void>;
 
+  notifications: any[];
+  syncAddressesWithService: () => Promise<void>;
+
   // Address Book
   addresses: Address[];
   setAddresses: (addresses: Address[]) => void;
@@ -515,6 +519,22 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       // Users can add their own payment methods if needed
       set({ profile });
     },
+    
+    notifications: [],
+    syncAddressesWithService: async () => {
+      const { profile } = get();
+      if (!profile?.id) return;
+
+      try {
+        const addressService = AddressService.getInstance();
+        const remoteAddresses = await addressService.getUserAddresses(profile.id);
+        
+        set({ addresses: remoteAddresses });
+      } catch (error) {
+        console.error('Failed to sync addresses:', error);
+        throw error;
+      }
+    },
 
     // --- Update this inside useBuyerStore definition ---
     updateProfile: async (updates) => {
@@ -563,7 +583,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
     },
 
-    logout: () => set({ profile: null, cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
+    logout: () => set({ profile: null, addresses: [], notifications: [], cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
 
     // Address Book
     addresses: [],

@@ -160,9 +160,23 @@ export class ProductService {
                 query = query.eq("approval_status", filters.approvalStatus);
             }
             if (filters?.searchQuery) {
-                query = query.or(
-                    `name.ilike.%${filters.searchQuery}%,description.ilike.%${filters.searchQuery}%`,
-                );
+                // Remove chars that might break the PostgREST syntax
+                const safeQuery = filters.searchQuery.replace(/[,()]/g, ''); 
+                
+                // 1. First, find any stores that match this search query
+                const { data: matchingSellers } = await supabase
+                    .from('sellers')
+                    .select('id')
+                    .ilike('store_name', `%${safeQuery}%`);
+                
+                const sellerIds = matchingSellers?.map(s => s.id) || [];
+                
+                // 2. Build the OR query to include products from those matching stores
+                if (sellerIds.length > 0) {
+                    query = query.or(`name.ilike.%${safeQuery}%,description.ilike.%${safeQuery}%,seller_id.in.(${sellerIds.join(',')})`);
+                } else {
+                    query = query.or(`name.ilike.%${safeQuery}%,description.ilike.%${safeQuery}%`);
+                }
             }
             if (filters?.limit) {
                 query = query.limit(filters.limit);
