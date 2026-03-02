@@ -9,7 +9,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import {
   Menu,
   Bell,
@@ -22,18 +23,31 @@ import {
   CheckCircle,
   UserCheck,
   Package,
+  Headphones,
 } from 'lucide-react-native';
 import { useAdminStats, useAdminSellers, useAdminProductQA } from '../../../src/stores/adminStore';
 import AdminDrawer from '../../../src/components/AdminDrawer';
 import { COLORS } from '../../../src/constants/theme';
+import { TicketService } from '../../../services/TicketService';
+import type { AdminStackParamList } from '../AdminStack';
 
 export default function AdminDashboardScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [openTicketCount, setOpenTicketCount] = useState(0);
   const { stats, isLoading, loadDashboardData } = useAdminStats();
   const { pendingSellers } = useAdminSellers();
   const { pendingDigitalReview, inQualityReview, loadProducts } = useAdminProductQA();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<StackNavigationProp<AdminStackParamList>>();
+
+  useEffect(() => {
+    TicketService.getAllTickets()
+      .then((tickets) => {
+        setOpenTicketCount(tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length);
+      })
+      .catch(() => {});
+  }, []);
 
   const notifications = [
     {
@@ -286,6 +300,30 @@ export default function AdminDashboardScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Support Tickets Card */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Customer Support</Text>
+              <Pressable
+                style={({ pressed }) => [styles.supportCard, pressed && { opacity: 0.85 }]}
+                onPress={() => navigation.navigate('SupportTickets')}
+              >
+                <View style={styles.supportCardLeft}>
+                  <View style={styles.supportIcon}>
+                    <Headphones size={24} color="#7C3AED" />
+                  </View>
+                  <View>
+                    <Text style={styles.supportTitle}>Support Tickets</Text>
+                    <Text style={styles.supportSub}>View and reply to customer chats</Text>
+                  </View>
+                </View>
+                {openTicketCount > 0 && (
+                  <View style={styles.supportBadge}>
+                    <Text style={styles.supportBadgeText}>{openTicketCount}</Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
           </>
         )}
       </ScrollView>
@@ -485,5 +523,57 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#E5E7EB',
+  },
+  supportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#7C3AED',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  supportCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  supportIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#EDE9FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supportTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  supportSub: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  supportBadge: {
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  supportBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFF',
   },
 });

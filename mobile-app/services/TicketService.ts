@@ -481,5 +481,141 @@ export const TicketService = {
     }
 
     return count || 0;
-  }
+  },
+
+  /**
+   * Admin: Get all tickets across all users (no user filter)
+   */
+  async getAllTickets(): Promise<Ticket[]> {
+    if (!isSupabaseConfigured()) {
+      return MOCK_TICKETS;
+    }
+
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .select(`
+        *,
+        category:ticket_categories!support_tickets_category_id_fkey (
+          id,
+          name
+        ),
+        seller:sellers (
+          id,
+          store_name
+        ),
+        messages:ticket_messages (
+          id,
+          ticket_id,
+          sender_id,
+          sender_type,
+          message,
+          is_internal_note,
+          created_at,
+          sender:profiles!ticket_messages_sender_id_fkey (
+            first_name,
+            last_name
+          )
+        )
+      `)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching all tickets (admin):', error);
+      throw error;
+    }
+
+    return (data || []).map((t: any) => mapDbTicketToTicket(t as DbTicket));
+  },
+
+  /**
+   * Admin: Send a reply as a support agent
+   */
+  async sendAdminMessage(ticketId: string, adminId: string, message: string): Promise<TicketMessage | null> {
+    if (!isSupabaseConfigured()) {
+      const msg: TicketMessage = {
+        id: `msg-${Math.random()}`,
+        ticketId,
+        senderId: adminId,
+        senderType: 'admin',
+        senderName: 'Support Agent',
+        message,
+        createdAt: new Date().toISOString(),
+      };
+      const ticket = MOCK_TICKETS.find((t) => t.id === ticketId);
+      if (ticket) ticket.messages.push(msg);
+      return msg;
+    }
+
+    const { data, error } = await supabase
+      .from('ticket_messages')
+      .insert({
+        ticket_id: ticketId,
+        sender_id: adminId,
+        sender_type: 'admin',
+        message,
+        is_internal: false,
+      })
+      .select(`
+        *,
+        sender:profiles!ticket_messages_sender_id_fkey (
+          first_name,
+          last_name
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error sending admin message:', error);
+      throw error;
+    }
+
+    // Mark ticket as in_progress when admin first replies and update timestamp
+    await supabase
+      .from('support_tickets')
+      .update({ status: 'in_progress', updated_at: new Date().toISOString() })
+      .eq('id', ticketId)
+      .eq('status', 'open');
+
+    await supabase
+      .from('support_tickets')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', ticketId);
+
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      ticketId: data.ticket_id,
+      senderId: data.sender_id,
+      senderType: 'admin',
+      senderName: 'Support Agent',
+      message: data.message,
+      isInternal: false,
+      createdAt: data.created_at,
+    };
+  },
+
+  /**
+   * Admin: Update ticket status
+   */
+  async updateTicketStatus(ticketId: string, status: TicketStatus): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      const ticket = MOCK_TICKETS.find((t) => t.id === ticketId);
+      if (ticket) {
+        ticket.status = status;
+        ticket.updatedAt = new Date().toISOString();
+      }
+      return;
+    }
+
+    const { error } = await supabase
+      .from('support_tickets')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', ticketId);
+
+    if (error) {
+      console.error('Error updating ticket status:', error);
+      throw error;
+    }
+  },
 };

@@ -19,6 +19,7 @@ import {
   LogOut,
   X,
   Shield,
+  Headphones,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -53,6 +54,7 @@ export default function AdminDrawer({ visible, onClose }: AdminDrawerProps) {
     { label: 'Vouchers', icon: <Ticket size={22} color="#6B7280" />, route: 'Vouchers' },
     { label: 'Reviews', icon: <Star size={22} color="#6B7280" />, route: 'Reviews' },
     { label: 'Analytics', icon: <BarChart3 size={22} color="#6B7280" />, route: 'Analytics' },
+    { label: 'Support Tickets', icon: <Headphones size={22} color="#7C3AED" />, route: 'SupportTickets' },
     { label: 'Profile', icon: <User size={22} color="#6B7280" />, route: 'Profile' },
   ];
 

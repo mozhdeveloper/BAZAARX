@@ -10,12 +10,16 @@ import {
   Platform,
   ActivityIndicator,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Send, Bot, User, Ticket } from 'lucide-react-native';
+import { ChevronLeft, Send, Bot, User, Headphones } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
+import { TicketService } from '../services/TicketService';
+import { useAuthStore } from '../src/stores/authStore';
+import { supabase } from '../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChatSupport'>;
 
@@ -215,8 +219,10 @@ function formatText(text: string): React.ReactNode {
 export default function ChatSupportScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
+  const { user } = useAuthStore();
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [escalating, setEscalating] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -269,13 +275,62 @@ export default function ChatSupportScreen({ navigation }: Props) {
     addUserMessage(text);
   }, [inputText, addUserMessage]);
 
+  const escalateToAgent = useCallback(async () => {
+    setEscalating(true);
+    try {
+      let userId = user?.id;
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id;
+      }
+      if (!userId) {
+        Alert.alert('Sign in required', 'Please sign in to talk to a support agent.');
+        return;
+      }
+
+      // Build transcript from conversation
+      const transcript = messages
+        .filter((m) => m.sender === 'user' || m.sender === 'bot')
+        .map((m) => `[${m.sender === 'user' ? 'You' : 'Baz Bot'}] ${m.text}`)
+        .join('\n\n');
+
+      const description =
+        `**Chat transcript from Baz Support Bot:**\n\n${transcript}\n\n---\nEscalated to human agent from in-app chat.`;
+
+      const ticket = await TicketService.createTicket(userId, {
+        subject: 'Live Chat — Escalated to Agent',
+        description,
+        priority: 'normal',
+        categoryId: null,
+      });
+
+      // Bot confirms escalation
+      const confirmMsg: Message = {
+        id: (Date.now() + 2).toString(),
+        sender: 'bot',
+        text: '✅ You\'ve been connected to a support agent! Your chat history has been shared with them. An agent will respond to your ticket shortly.\n\nOpening your ticket now…',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, confirmMsg]);
+
+      setTimeout(() => {
+        navigation.navigate('TicketDetail', { ticketId: ticket.id });
+      }, 1800);
+    } catch (err) {
+      console.error('Escalation error:', err);
+      Alert.alert('Error', 'Could not connect to an agent. Please try submitting a support ticket manually.');
+    } finally {
+      setEscalating(false);
+    }
+  }, [messages, user, navigation]);
+
   const handleQuickReply = useCallback((reply: string) => {
     if (reply === 'Talk to an Agent 🎫') {
-      navigation.navigate('CreateTicket');
+      escalateToAgent();
       return;
     }
     addUserMessage(reply);
-  }, [addUserMessage, navigation]);
+  }, [addUserMessage, escalateToAgent]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -297,10 +352,13 @@ export default function ChatSupportScreen({ navigation }: Props) {
         </View>
         <Pressable
           style={styles.ticketBtn}
-          onPress={() => navigation.navigate('CreateTicket')}
+          onPress={escalateToAgent}
           hitSlop={8}
+          disabled={escalating}
         >
-          <Ticket size={20} color="#FFF" />
+          {escalating
+            ? <ActivityIndicator size="small" color="#FFF" />
+            : <Headphones size={20} color="#FFF" />}
         </Pressable>
       </View>
 
@@ -396,6 +454,22 @@ export default function ChatSupportScreen({ navigation }: Props) {
             </View>
           )}
         </ScrollView>
+
+        {/* Talk to Agent Banner */}
+        <Pressable
+          style={[styles.agentBanner, escalating && styles.agentBannerDisabled]}
+          onPress={escalateToAgent}
+          disabled={escalating}
+        >
+          {escalating ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Headphones size={16} color="#FFF" />
+          )}
+          <Text style={styles.agentBannerText}>
+            {escalating ? 'Connecting to agent…' : 'Talk to an Agent'}
+          </Text>
+        </Pressable>
 
         {/* Input Bar */}
         <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
@@ -600,5 +674,21 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: '#D1D5DB',
+  },
+  agentBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#7C3AED',
+    paddingVertical: 10,
+  },
+  agentBannerDisabled: {
+    backgroundColor: '#A78BFA',
+  },
+  agentBannerText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

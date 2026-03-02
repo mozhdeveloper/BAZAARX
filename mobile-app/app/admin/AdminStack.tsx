@@ -13,6 +13,8 @@ import AdminVouchersScreen from './(pages)/vouchers';
 import AdminReviewsScreen from './(pages)/reviews';
 import AdminAnalyticsScreen from './(pages)/analytics';
 import AdminProfileScreen from './(pages)/profile';
+import AdminSupportScreen from './(pages)/support';
+import AdminSupportTicketDetail from './(pages)/support-ticket-detail';
 
 export type AdminStackParamList = {
   AdminLogin: undefined;
@@ -26,6 +28,8 @@ export type AdminStackParamList = {
   Reviews: undefined;
   Analytics: undefined;
   Profile: undefined;
+  SupportTickets: undefined;
+  SupportTicketDetail: { ticketId: string };
 };
 
 const Stack = createStackNavigator<AdminStackParamList>();
@@ -49,6 +53,8 @@ export default function AdminStack() {
       <Stack.Screen name="Reviews" component={AdminReviewsScreen} />
       <Stack.Screen name="Analytics" component={AdminAnalyticsScreen} />
       <Stack.Screen name="Profile" component={AdminProfileScreen} />
+      <Stack.Screen name="SupportTickets" component={AdminSupportScreen} />
+      <Stack.Screen name="SupportTicketDetail" component={AdminSupportTicketDetail} />
     </Stack.Navigator>
   );
 }
