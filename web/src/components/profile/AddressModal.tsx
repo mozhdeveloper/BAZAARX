@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, MapPin } from "lucide-react";
-import {
+import { Loader2, Map as MapIcon, LocateFixed, Check, ArrowLeft } from "lucide-react"; import {
   Select,
   SelectContent,
   SelectItem,
@@ -76,7 +75,7 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [isOtherLabel, setIsOtherLabel] = useState(false);
   const [newAddress, setNewAddress] = useState({
-    label: "Home", firstName: "", lastName: "", phone: "", street: "", barangay: "",
+    label: "", firstName: "", lastName: "", phone: "", street: "", barangay: "",
     city: "", province: "", region: "", postalCode: "", country: "Philippines",
     isDefault: false, landmark: "", deliveryInstructions: "", coordinates: { lat: 0, lng: 0 },
   });
@@ -90,7 +89,7 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
     if (isOpen) {
       if (address) {
         setEditingId(address.id);
-        const addrLabel = address.label || "Home";
+        const addrLabel = address.label || "";
         setNewAddress({
           ...address,
           label: addrLabel,
@@ -99,7 +98,7 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
           deliveryInstructions: address.deliveryInstructions || "",
           coordinates: address.coordinates || { lat: 0, lng: 0 },
         });
-        setIsOtherLabel(!["Home", "Office"].includes(addrLabel));
+        setIsOtherLabel(!!addrLabel && !["Home", "Office"].includes(addrLabel));
         hydrateAddressLists(address);
       } else {
         setEditingId(null);
@@ -116,7 +115,7 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
     setProvinceList([]); setCityList([]); setBarangayList([]); setErrors({});
     setIsOtherLabel(false);
     setNewAddress({
-      label: "Home", firstName: "", lastName: "", phone: "", street: "", barangay: "",
+      label: "", firstName: "", lastName: "", phone: "", street: "", barangay: "",
       city: "", province: "", region: "", postalCode: "", country: "Philippines",
       isDefault: false, landmark: "", deliveryInstructions: "", coordinates: { lat: 0, lng: 0 },
     });
@@ -323,14 +322,23 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto border-0 shadow-2xl rounded-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-[var(--text-headline)]">
+      {/* FLEX COL & OVERFLOW-HIDDEN: This makes the modal a rigid box 
+        so the middle section scrolls while the header and footer stick.
+      */}
+      <DialogContent className="sm:max-w-[550px] p-0 max-h-[90vh] flex flex-col overflow-hidden border-0 shadow-2xl rounded-2xl bg-white">
+
+        {/* HEADER: Locked at the top */}
+        <DialogHeader className="px-6 pt-5 pb-4 shrink-0 border-b border-gray-100 flex flex-row items-center gap-3 space-y-0">
+          <button onClick={onClose} className="text-gray-600 hover:text-gray-900 transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <DialogTitle className="text-xl font-bold text-gray-900 tracking-tight">
             {editingId ? "Edit Address" : "Add Address"}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-5 py-4">
+        {/* BODY: Scrollable area */}
+        <div className="px-6 overflow-y-auto flex-1 grid gap-5 py-5">
           {isMapOpen && (
             <MapPicker
               onConfirm={handleMapConfirm}
@@ -339,53 +347,76 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
             />
           )}
 
-          <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 mb-2">
+          {/* Pick from Map Section */}
+          <div className="bg-[#FFFDF9] border border-[#FDECC8] rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[var(--brand-primary)] rounded-full flex items-center justify-center text-white">
-                  <MapPin className="w-5 h-5" />
+                <div className="w-10 h-10 bg-[#F97316] rounded-full flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <MapIcon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-sm text-[var(--text-headline)]">Pick from Map</h4>
-                  {newAddress.coordinates.lat !== 0 ? (
-                    <p className="text-[10px] font-mono text-green-600 font-bold mt-1">
-                      LOCATION SELECTED: {newAddress.coordinates.lat.toFixed(4)}, {newAddress.coordinates.lng.toFixed(4)}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-[var(--text-muted)]">Use GPS or search for your location</p>
-                  )}
+                  <h4 className="font-bold text-[15px] text-gray-900 leading-tight">Pick from Map</h4>
+                  <p className="text-[13px] text-gray-500 mt-0.5">Use GPS or search for your location</p>
                 </div>
               </div>
-              <Button variant="outline" onClick={() => setIsMapOpen(true)} className="border-[var(--brand-primary)] text-[var(--brand-primary)]">
+              <Button
+                variant="outline"
+                onClick={() => setIsMapOpen(true)}
+                className="border-[#F97316] text-[#F97316] hover:bg-orange-50 h-9 px-4 shrink-0 rounded-lg font-medium shadow-sm"
+              >
+                <LocateFixed className="w-4 h-4 mr-2" />
                 {newAddress.coordinates.lat !== 0 ? "Change Pin" : "Open Map"}
               </Button>
             </div>
+
+            {newAddress.coordinates.lat !== 0 && (
+              <>
+                <hr className="my-3 border-[#FDECC8]" />
+                <div className="flex items-center gap-1.5 text-[#10B981]">
+                  <Check className="w-4 h-4" />
+                  <span className="text-[13px] font-medium tracking-wide">
+                    Location selected: {newAddress.coordinates.lat.toFixed(4)}, {newAddress.coordinates.lng.toFixed(4)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">First Name <span className="text-red-500 font-bold">*</span></Label>
-              <Input value={newAddress.firstName} onChange={(e) => updateField("firstName", e.target.value)} className="border-gray-200" />
+              <Label className="text-[13px] font-medium text-gray-700">First Name</Label>
+              <Input
+                value={newAddress.firstName}
+                onChange={(e) => updateField("firstName", e.target.value)}
+                className="border-gray-200 h-11 rounded-lg focus-visible:ring-1 focus-visible:ring-[#F97316] focus-visible:border-[#F97316]"
+              />
               {errors.firstName && <p className="text-xs text-red-500 font-medium">{errors.firstName}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Last Name <span className="text-red-500 font-bold">*</span></Label>
-              <Input value={newAddress.lastName} onChange={(e) => updateField("lastName", e.target.value)} className="border-gray-200" />
+              <Label className="text-[13px] font-medium text-gray-700">Last Name</Label>
+              <Input
+                value={newAddress.lastName}
+                onChange={(e) => updateField("lastName", e.target.value)}
+                className="border-gray-200 h-11 rounded-lg focus-visible:ring-1 focus-visible:ring-[#F97316] focus-visible:border-[#F97316]"
+              />
               {errors.lastName && <p className="text-xs text-red-500 font-medium">{errors.lastName}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Phone Number <span className="text-red-500 font-bold">*</span></Label>
-              <Input value={newAddress.phone} onChange={(e) => updateField("phone", e.target.value)} className="border-gray-200" />
+              <Label className="text-[13px] font-medium text-gray-700">Phone Number</Label>
+              <Input
+                value={newAddress.phone}
+                onChange={(e) => updateField("phone", e.target.value)}
+                className="border-gray-200 h-11 rounded-lg focus-visible:ring-1 focus-visible:ring-[#F97316] focus-visible:border-[#F97316]"
+              />
               {errors.phone && <p className="text-xs text-red-500 font-medium">{errors.phone}</p>}
             </div>
 
-            {/* UPDATED DYNAMIC ADDRESS LABEL SELECTOR */}
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Address Label</Label>
-              <div className="flex gap-2 h-10 w-full">
+              <Label className="text-[13px] font-medium text-gray-700">Address Label</Label>
+              <div className="flex gap-2 h-11 w-full">
                 {!isOtherLabel ? (
                   <>
                     <Button
@@ -395,9 +426,9 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
                         setIsOtherLabel(false);
                         updateField("label", "Home");
                       }}
-                      className={`flex-1 rounded-xl h-full px-0 transition-all ${!isOtherLabel && newAddress.label === "Home"
-                        ? "bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white shadow-md shadow-amber-600/20"
-                        : "bg-white border-gray-200 text-gray-500 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                      className={`flex-1 rounded-lg h-full px-0 transition-all ${!isOtherLabel && newAddress.label === "Home"
+                        ? "bg-[#F97316] border-[#F97316] text-white shadow-sm"
+                        : "bg-white border-gray-200 text-gray-500 hover:border-[#F97316] hover:text-[#F97316]"
                         }`}
                     >
                       Home
@@ -409,9 +440,9 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
                         setIsOtherLabel(false);
                         updateField("label", "Office");
                       }}
-                      className={`flex-1 rounded-xl h-full px-0 transition-all ${!isOtherLabel && newAddress.label === "Office"
-                        ? "bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white shadow-md shadow-amber-600/20"
-                        : "bg-white border-gray-200 text-gray-500 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                      className={`flex-1 rounded-lg h-full px-0 transition-all ${!isOtherLabel && newAddress.label === "Office"
+                        ? "bg-[#F97316] border-[#F97316] text-white shadow-sm"
+                        : "bg-white border-gray-200 text-gray-500 hover:border-[#F97316] hover:text-[#F97316]"
                         }`}
                     >
                       Office
@@ -422,7 +453,7 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
                     placeholder="e.g. School, Gym"
                     value={newAddress.label}
                     onChange={(e) => updateField("label", e.target.value)}
-                    className="flex-1 h-full rounded-xl border-gray-200 px-3 text-sm focus-visible:ring-0 focus-visible:border-[var(--brand-primary)] transition-all animate-in fade-in zoom-in-95"
+                    className="flex-1 h-full rounded-lg border-gray-200 px-3 text-[13px] focus-visible:ring-1 focus-visible:ring-[#F97316] focus-visible:border-[#F97316] transition-all animate-in fade-in zoom-in-95"
                     autoFocus
                   />
                 )}
@@ -433,7 +464,7 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
                   onClick={() => {
                     if (isOtherLabel) {
                       setIsOtherLabel(false);
-                      updateField("label", "Home"); // Revert to Home when canceling custom
+                      updateField("label", ""); // Clear selection instead of forcing "Home"
                     } else {
                       setIsOtherLabel(true);
                       if (["Home", "Office"].includes(newAddress.label)) {
@@ -441,9 +472,9 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
                       }
                     }
                   }}
-                  className={`px-3 shrink-0 rounded-xl h-full transition-all ${isOtherLabel
-                    ? "bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white shadow-md shadow-amber-600/20"
-                    : "bg-white border-gray-200 text-gray-500 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                  className={`px-3 shrink-0 rounded-lg h-full transition-all ${isOtherLabel
+                    ? "bg-[#F97316] border-[#F97316] text-white shadow-sm"
+                    : "bg-white border-gray-200 text-gray-500 hover:border-[#F97316] hover:text-[#F97316]"
                     }`}
                 >
                   {isOtherLabel ? "Cancel" : "Other"}
@@ -453,42 +484,53 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-semibold text-[var(--text-secondary)]">Street Name, House No. <span className="text-red-500 font-bold">*</span></Label>
-            <Input value={newAddress.street} onChange={(e) => updateField("street", e.target.value)} className="border-gray-200" />
+            <Label className="text-[13px] font-medium text-gray-700">Street Name, House No.</Label>
+            <Input
+              value={newAddress.street}
+              onChange={(e) => updateField("street", e.target.value)}
+              className="border-gray-200 h-11 rounded-lg focus-visible:ring-1 focus-visible:ring-[#F97316] focus-visible:border-[#F97316]"
+            />
             {errors.street && <p className="text-xs text-red-500 font-medium">{errors.street}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Region <span className="text-red-500 font-bold">*</span></Label>
-              <Select value={regionList.find((r) => r.region_name === newAddress.region)?.region_code || ""} onValueChange={onRegionChange}>
-                <SelectTrigger className="border-gray-200"><SelectValue placeholder="Select Region" /></SelectTrigger>
-                <SelectContent className="rounded-xl border-gray-100 shadow-xl">
-                  {regionList.map((r) => (
-                    <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Province <span className="text-red-500 font-bold">*</span></Label>
-              <Select value={provinceList.find((p) => p.province_name === newAddress.province)?.province_code || ""} onValueChange={onProvinceChange} disabled={!provinceList.length}>
-                <SelectTrigger className="border-gray-200"><SelectValue placeholder="Select Province" /></SelectTrigger>
-                <SelectContent className="rounded-xl border-gray-100 shadow-xl">
-                  {provinceList.map((p) => (
-                    <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Full Width Region */}
+          <div className="space-y-1.5">
+            <Label className="text-[13px] font-medium text-gray-700">Region</Label>
+            <Select value={regionList.find((r) => r.region_name === newAddress.region)?.region_code || ""} onValueChange={onRegionChange}>
+              <SelectTrigger className="border-gray-200 h-11 rounded-lg focus:ring-1 focus:ring-[#F97316]">
+                <SelectValue placeholder="Select Region" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-gray-100 shadow-xl max-h-60">
+                {regionList.map((r) => (
+                  <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Full Width Province */}
+          <div className="space-y-1.5">
+            <Label className="text-[13px] font-medium text-gray-700">Province</Label>
+            <Select value={provinceList.find((p) => p.province_name === newAddress.province)?.province_code || ""} onValueChange={onProvinceChange} disabled={!provinceList.length}>
+              <SelectTrigger className="border-gray-200 h-11 rounded-lg focus:ring-1 focus:ring-[#F97316]">
+                <SelectValue placeholder="Select Province" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-gray-100 shadow-xl max-h-60">
+                {provinceList.map((p) => (
+                  <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">City / Municipality <span className="text-red-500 font-bold">*</span></Label>
+              <Label className="text-[13px] font-medium text-gray-700">City / Municipality</Label>
               <Select value={cityList.find((c) => c.city_name === newAddress.city)?.city_code || ""} onValueChange={onCityChange} disabled={!cityList.length}>
-                <SelectTrigger className="border-gray-200"><SelectValue placeholder="Select City" /></SelectTrigger>
-                <SelectContent className="rounded-xl border-gray-100 shadow-xl">
+                <SelectTrigger className="border-gray-200 h-11 rounded-lg focus:ring-1 focus:ring-[#F97316]">
+                  <SelectValue placeholder="Select City" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-gray-100 shadow-xl max-h-60">
                   {cityList.map((c) => (
                     <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>
                   ))}
@@ -496,10 +538,12 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Barangay</Label>
+              <Label className="text-[13px] font-medium text-gray-700">Barangay</Label>
               <Select disabled={!barangayList.length} value={newAddress.barangay || ""} onValueChange={(val) => updateField("barangay", val)}>
-                <SelectTrigger className="border-gray-200"><SelectValue placeholder="Select Barangay" /></SelectTrigger>
-                <SelectContent className="rounded-xl border-gray-100 shadow-xl">
+                <SelectTrigger className="border-gray-200 h-11 rounded-lg focus:ring-1 focus:ring-[#F97316]">
+                  <SelectValue placeholder="Select Barangay" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-gray-100 shadow-xl max-h-60">
                   {barangayList.map((b) => (
                     <SelectItem key={b.brgy_code || b.brgy_name} value={b.brgy_name}>{b.brgy_name}</SelectItem>
                   ))}
@@ -510,35 +554,43 @@ export const AddressModal = ({ isOpen, onClose, address, onAddressAdded, onAddre
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Postal Code <span className="text-red-500 font-bold">*</span></Label>
-              <Input value={newAddress.postalCode} onChange={(e) => updateField("postalCode", e.target.value)} className="border-gray-200" />
+              <Label className="text-[13px] font-medium text-gray-700">Postal Code</Label>
+              <Input
+                value={newAddress.postalCode}
+                onChange={(e) => updateField("postalCode", e.target.value)}
+                className="border-gray-200 h-11 rounded-lg focus-visible:ring-1 focus-visible:ring-[#F97316] focus-visible:border-[#F97316]"
+              />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Country <span className="text-red-500 font-bold">*</span></Label>
-              <Input value={newAddress.country} disabled className="bg-gray-50 border-gray-200 text-gray-400" />
+              <Label className="text-[13px] font-medium text-gray-700">Country</Label>
+              <Input
+                value={newAddress.country}
+                disabled
+                className="bg-gray-50 border-gray-200 h-11 rounded-lg text-gray-400"
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Landmark <span className="text-gray-400 font-normal">(Optional)</span></Label>
-              <Input value={newAddress.landmark} onChange={(e) => updateField("landmark", e.target.value)} className="border-gray-200" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-[var(--text-secondary)]">Delivery Instructions <span className="text-gray-400 font-normal">(Optional)</span></Label>
-              <textarea value={newAddress.deliveryInstructions} onChange={(e) => updateField("deliveryInstructions", e.target.value)} className="flex min-h-[80px] w-full rounded-md border border-gray-200 px-3 py-2 text-sm" />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 pt-4">
-            <Switch id="default-addr" checked={newAddress.isDefault} onCheckedChange={(c) => setNewAddress({ ...newAddress, isDefault: c })} className="data-[state=checked]:bg-[var(--brand-primary)]" />
-            <Label htmlFor="default-addr" className="font-semibold text-gray-700 cursor-pointer">Set as Default</Label>
+          <div className="flex items-center gap-3 pt-2 pb-2">
+            <Switch id="default-addr" checked={newAddress.isDefault} onCheckedChange={(c) => setNewAddress({ ...newAddress, isDefault: c })} className="data-[state=checked]:bg-[#E87A15]" />
+            <Label htmlFor="default-addr" className="font-medium text-gray-700 cursor-pointer">Set as Default Address</Label>
           </div>
         </div>
 
-        <DialogFooter className="mt-6 pb-2">
-          <Button variant="ghost" onClick={onClose} className="text-gray-500">Cancel</Button>
-          <Button onClick={handleSaveAddress} disabled={isSaving} className="bg-[var(--brand-primary)] text-white">
+        {/* STICKY FOOTER: Locked at the bottom */}
+        <DialogFooter className="px-6 py-4 shrink-0 bg-white border-t border-gray-100 flex flex-row w-full rounded-b-2xl gap-4">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="flex-1 text-gray-900 text-[15px] font-medium hover:bg-gray-100 h-11"
+          >
+            Back
+          </Button>
+          <Button
+            onClick={handleSaveAddress}
+            disabled={isSaving}
+            className="flex-1 bg-[#E87A15] hover:bg-[#D96B0E] text-white text-[15px] h-11 rounded-lg font-semibold shadow-sm transition-all"
+          >
             {isSaving && <Loader2 className="animate-spin w-4 h-4 mr-2" />}
             {editingId ? "Update Address" : "Save Address"}
           </Button>
