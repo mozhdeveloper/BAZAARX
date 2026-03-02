@@ -7,6 +7,7 @@ import { orderMutationService } from "../services/orders/orderMutationService";
 import { supabase } from "../lib/supabase";
 import { validateImageFile } from "../utils/storage";
 import { cn } from "@/lib/utils";
+import { useToast } from "../hooks/use-toast";
 
 interface ReviewModalProps {
   isOpen: boolean;
@@ -58,7 +59,8 @@ export function ReviewModal({
   const [submittedItems, setSubmittedItems] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
 
-  const { addReview } = useBuyerStore();
+  const { addReview, profile } = useBuyerStore();
+  const { toast } = useToast();
   const isAnySubmitting = Object.values(submittingItems).some(Boolean);
 
   const resetForm = () => {
@@ -89,7 +91,7 @@ export function ReviewModal({
   const handleSubmitItem = async (itemId: string) => {
     const rating = ratings[itemId] || 0;
     if (rating === 0) {
-      alert("Please select a rating for this item.");
+      toast({ title: "Rating Required", description: "Please select a star rating for this item.", variant: "destructive" });
       return;
     }
 
@@ -97,10 +99,10 @@ export function ReviewModal({
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const buyerId = session?.user?.id;
+      const buyerId = session?.user?.id || profile?.id;
 
       if (!buyerId) {
-        alert("You must be logged in to submit a review");
+        toast({ title: "Not Logged In", description: "You must be logged in to submit a review.", variant: "destructive" });
         setSubmittingItems(prev => ({ ...prev, [itemId]: false }));
         return;
       }
@@ -122,7 +124,7 @@ export function ReviewModal({
       });
 
       if (!success) {
-        alert("Failed to submit review. It may have already been reviewed.");
+        toast({ title: "Review Failed", description: "Failed to submit review. This item may have already been reviewed.", variant: "destructive" });
         setSubmittingItems(prev => ({ ...prev, [itemId]: false }));
         return;
       }
@@ -132,13 +134,16 @@ export function ReviewModal({
         productId: itemId,
         sellerId: sellerId || "seller-1",
         buyerId: buyerId,
-        buyerName: session?.user?.user_metadata?.full_name || "Anonymous",
-        buyerAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${buyerId}`,
+        buyerName: session?.user?.user_metadata?.full_name || profile?.name || "Anonymous",
+        buyerAvatar: profile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${buyerId}`,
         rating,
         comment: reviewTexts[itemId] || "Great product!",
         images: cleanedImages,
         verified: true,
       });
+
+      // Dispatch global event so ProductReviews components can refresh in real-time
+      window.dispatchEvent(new CustomEvent('review-submitted', { detail: { productId: itemId } }));
 
       onSubmitted?.();
 
@@ -166,7 +171,7 @@ export function ReviewModal({
 
     } catch (error: any) {
       console.error("Error submitting review:", error);
-      alert(error.message || "An error occurred. Please try again.");
+      toast({ title: "Error", description: error.message || "An error occurred. Please try again.", variant: "destructive" });
     } finally {
       setSubmittingItems(prev => ({ ...prev, [itemId]: false }));
     }
@@ -197,7 +202,7 @@ export function ReviewModal({
       acceptedFiles.push(file);
     });
 
-    if (validationErrors.length > 0) alert(validationErrors.join("\n"));
+    if (validationErrors.length > 0) toast({ title: "Invalid Images", description: validationErrors.join(" "), variant: "destructive" });
 
     if (acceptedFiles.length > 0) {
       const previewUrls = acceptedFiles.map((file) => URL.createObjectURL(file));

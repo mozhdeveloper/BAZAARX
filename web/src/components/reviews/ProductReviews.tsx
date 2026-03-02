@@ -47,6 +47,7 @@ export function ProductReviews({
   const [withPhotoFilter, setWithPhotoFilter] = useState(false);
   const [filteringVariantId, setFilteringVariantId] = useState<string | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'helpful' | 'recent'>('recent');
+  const [refreshKey, setRefreshKey] = useState(0);
   const reviewsRef = useRef<HTMLDivElement>(null);
 
   const handleScrollToTop = () => {
@@ -55,7 +56,21 @@ export function ProductReviews({
 
   useEffect(() => {
     void fetchReviews();
-  }, [productId, page, selectedRatingFilter, withPhotoFilter, filteringVariantId, sortBy]);
+  }, [productId, page, selectedRatingFilter, withPhotoFilter, filteringVariantId, sortBy, refreshKey]);
+
+  // Listen for review-submitted events to refresh reviews in real-time
+  useEffect(() => {
+    const handleReviewSubmitted = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      // Refresh if the review is for this product, or always refresh if no productId specified
+      if (!detail?.productId || detail.productId === productId) {
+        setPage(1);
+        setRefreshKey((k) => k + 1);
+      }
+    };
+    window.addEventListener('review-submitted', handleReviewSubmitted);
+    return () => window.removeEventListener('review-submitted', handleReviewSubmitted);
+  }, [productId]);
 
   const fetchReviews = async () => {
     setLoading(true);
