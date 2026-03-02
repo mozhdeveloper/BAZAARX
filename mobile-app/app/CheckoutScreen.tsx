@@ -1565,46 +1565,61 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </View>
 
               <Pressable
-                onPress={() => setPaymentMethod('gcash')}
-                style={[styles.paymentOption, paymentMethod === 'gcash' && styles.paymentOptionActive]}
+                onPress={() => {}}
+                style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
               >
                 <View style={styles.radio}>
                   {paymentMethod === 'gcash' && <View style={styles.radioInner} />}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.paymentText}>GCash</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.paymentText, { color: '#9CA3AF' }]}>GCash</Text>
+                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
+                    </View>
+                  </View>
                   <Text style={styles.paymentSubtext}>Instantly paid online</Text>
                 </View>
-                <Shield size={16} color="#10B981" />
+                <Shield size={16} color="#9CA3AF" />
               </Pressable>
 
               <Pressable
-                onPress={() => setPaymentMethod('paymongo')}
-                style={[styles.paymentOption, paymentMethod === 'paymongo' && styles.paymentOptionActive]}
+                onPress={() => {}}
+                style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
               >
                 <View style={styles.radio}>
                   {paymentMethod === 'paymongo' && <View style={styles.radioInner} />}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.paymentText}>PayMongo</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.paymentText, { color: '#9CA3AF' }]}>PayMongo</Text>
+                    <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
+                    </View>
+                  </View>
                   <Text style={styles.paymentSubtext}>Instantly paid online</Text>
                 </View>
-                <Shield size={16} color="#10B981" />
+                <Shield size={16} color="#9CA3AF" />
               </Pressable>
 
               <View>
                 <Pressable
-                  onPress={() => setPaymentMethod('card')}
-                  style={[styles.paymentOption, paymentMethod === 'card' && styles.paymentOptionActive]}
+                  onPress={() => {}}
+                  style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
                 >
                   <View style={styles.radio}>
                     {paymentMethod === 'card' && <View style={styles.radioInner} />}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.paymentText}>Credit/Debit Card</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={[styles.paymentText, { color: '#9CA3AF' }]}>Credit/Debit Card</Text>
+                      <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>COMING SOON</Text>
+                      </View>
+                    </View>
                     <Text style={styles.paymentSubtext}>Instantly paid online</Text>
                   </View>
-                  <CreditCard size={16} color="#10B981" />
+                  <CreditCard size={16} color="#9CA3AF" />
                 </Pressable>
 
                 {/* Saved Cards List */}

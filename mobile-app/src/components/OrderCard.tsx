@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
-import { Calendar, MapPin, Eye, Copy, MessageCircle } from 'lucide-react-native';
+import { Calendar, MapPin, Eye, Copy, MessageCircle, Star } from 'lucide-react-native';
 import { Order } from '../types';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../constants/theme';
 
 interface OrderCardProps {
-  order: Order;
+  order: Order & { review?: any };
   onPress: () => void;
   onTrack?: () => void;
   onCancel?: () => void;
@@ -228,14 +228,19 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
         {order.status === 'delivered' && (
           <>
-            {onReview && (
-              <Pressable style={styles.outlineButton} onPress={onReview}>
-                <Text style={styles.outlineButtonText}>Review</Text>
+            <Pressable 
+              style={styles.outlineButton} 
+              onPress={buyerUiStatus === 'reviewed' ? onPress : onReview}
+            >
+              <Text style={styles.outlineButtonText}>
+                {buyerUiStatus === 'reviewed' ? 'View Details' : 'Review'}
+              </Text>
+            </Pressable>
+            {buyerUiStatus !== 'reviewed' && (
+              <Pressable style={styles.solidButton} onPress={onPress}>
+                <Text style={styles.solidButtonText}>View Details</Text>
               </Pressable>
             )}
-            <Pressable style={styles.solidButton} onPress={onPress}>
-              <Text style={styles.solidButtonText}>View Details</Text>
-            </Pressable>
           </>
         )}
 
@@ -245,6 +250,29 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </Pressable>
         )}
       </View>
+
+      {/* Review Section */}
+      {buyerUiStatus === 'reviewed' && order.review && (
+        <View style={styles.reviewSection}>
+          <View style={styles.reviewHeader}>
+            <MessageCircle size={16} color={COLORS.primary} />
+            <Text style={styles.reviewTitle}>Your Review</Text>
+          </View>
+          <View style={styles.ratingStars}>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star
+                key={star}
+                size={14}
+                color={star <= (order.review?.rating || 5) ? '#F59E0B' : '#E5E7EB'}
+                fill={star <= (order.review?.rating || 5) ? '#F59E0B' : 'transparent'}
+              />
+            ))}
+          </View>
+          {order.review.comment ? (
+            <Text style={styles.reviewComment}>"{order.review.comment}"</Text>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 };
@@ -402,5 +430,33 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontSize: 12,
     fontWeight: '500',
+  },
+  reviewSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  reviewTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginLeft: 6,
+  },
+  reviewComment: {
+    fontSize: 13,
+    color: '#4B5563',
+    fontStyle: 'italic',
+    lineHeight: 18,
+    marginTop: 8,
+  },
+  ratingStars: {
+    flexDirection: 'row',
+    gap: 2,
   },
 });

@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
   storesSection: { marginTop: 5 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: '900', color: '#D97706' }, // Amber standard
+  sectionTitle: { fontSize: 18, fontWeight: '900', color: COLORS.textPrimary }, // Amber standard -> TextPrimary
   storesScroll: { paddingHorizontal: 20, paddingVertical: 15, gap: 15 },
   storeCard: { width: 260, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },

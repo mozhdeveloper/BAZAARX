@@ -173,7 +173,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             )
           ),
           reviews (
-            id
+            *
           ),
           cancellations:order_cancellations (
             id
@@ -380,7 +380,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
           createdAt: order.created_at,
           buyerUiStatus,
           isReviewed,
-        } as Order;
+          review: order.reviews && order.reviews.length > 0 ? order.reviews[0] : null,
+        } as Order & { review?: any };
       });
       setDbOrders(mapped);
     } catch (e) {
@@ -547,6 +548,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       }
 
       await loadOrders();
+      setActiveTab('reviewed');
       Alert.alert('Success', 'Your review has been submitted.');
     } catch (error: any) {
       console.error('[OrdersScreen] Error submitting review:', error);
