@@ -210,7 +210,6 @@ export function SellerReturns() {
                           <TableCell>
                             <div className="flex flex-col">
                               <span className="font-medium">{req.buyerName}</span>
-                              <span className="text-xs text-gray-500">{req.buyerEmail}</span>
                             </div>
                           </TableCell>
                           <TableCell>
