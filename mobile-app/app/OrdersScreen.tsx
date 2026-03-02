@@ -805,7 +805,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['all', 'pending', 'confirmed', 'shipped', 'delivered', 'reviewed', 'returned', 'cancelled'] as const).map((tab) => {
+          {(['all', 'pending', 'confirmed', 'shipped', 'delivered', 'returned', 'cancelled', 'reviewed'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
               all: 'All Orders',
               pending: 'Pending',
