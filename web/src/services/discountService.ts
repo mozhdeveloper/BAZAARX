@@ -370,7 +370,7 @@ export class DiscountService {
             price,
             seller_id,
             images:product_images (image_url, is_primary, sort_order),
-            variants:product_variants (stock),
+            variants:product_variants (stock, price),
             seller:sellers!products_seller_id_fkey (id, store_name, verified_at),
             category:categories!products_category_id_fkey (name)
           )
@@ -383,20 +383,34 @@ export class DiscountService {
       return (productDiscounts || []).map(pd => {
         const p = pd.product as any;
         const c = pd.campaign as any;
-        
+
+        let basePrice = p.price;
+        if (p.variants && p.variants.length > 0) {
+          const variantPrices = p.variants
+            .map((v: any) => Number(v.price))
+            .filter((vp: number) => !isNaN(vp) && vp > 0);
+          if (variantPrices.length > 0) {
+            basePrice = Math.min(basePrice, ...variantPrices);
+          }
+        }
+
         // Calculate discounted price
-        let discountedPrice = p.price;
+        let discountedPrice = basePrice;
         const dType = pd.discount_type || c.discount_type;
         const dValue = pd.discount_value || c.discount_value;
+        let discountBadgePercent = undefined;
+        let discountBadgeTooltip = undefined;
 
-        if (dType === 'percentage') {
-          discountedPrice = p.price * (1 - (dValue / 100));
+        if (dType === "percentage") {
+          discountedPrice = basePrice * (1 - dValue / 100);
+          discountBadgePercent = Math.round(Number(dValue));
           if (c.max_discount_amount) {
             const maxD = parseFloat(c.max_discount_amount);
-            discountedPrice = Math.max(discountedPrice, p.price - maxD);
+            discountedPrice = Math.max(discountedPrice, basePrice - maxD);
+            discountBadgeTooltip = `Up to ₱${Number(maxD).toLocaleString()} off`;
           }
-        } else if (dType === 'fixed_amount') {
-          discountedPrice = Math.max(0, p.price - dValue);
+        } else if (dType === "fixed_amount") {
+          discountedPrice = Math.max(0, basePrice - dValue);
         }
 
         // Get primary image
@@ -410,7 +424,7 @@ export class DiscountService {
           id: p.id,
           name: p.name,
           price: discountedPrice,
-          originalPrice: p.price,
+          originalPrice: basePrice,
           image: primaryImg,
           images: images.map((i: any) => i.image_url),
           seller: p.seller?.store_name || 'Generic Store',
@@ -422,6 +436,8 @@ export class DiscountService {
           campaignBadge: c.badge_text,
           campaignBadgeColor: c.badge_color,
           campaignEndsAt: c.ends_at,
+          discountBadgePercent,
+          discountBadgeTooltip,
         };
       });
     } catch (error) {

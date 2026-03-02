@@ -161,16 +161,16 @@ export class ProductService {
             }
             if (filters?.searchQuery) {
                 // Remove chars that might break the PostgREST syntax
-                const safeQuery = filters.searchQuery.replace(/[,()]/g, ''); 
-                
+                const safeQuery = filters.searchQuery.replace(/[,()]/g, '');
+
                 // 1. First, find any stores that match this search query
                 const { data: matchingSellers } = await supabase
                     .from('sellers')
                     .select('id')
                     .ilike('store_name', `%${safeQuery}%`);
-                
+
                 const sellerIds = matchingSellers?.map(s => s.id) || [];
-                
+
                 // 2. Build the OR query to include products from those matching stores
                 if (sellerIds.length > 0) {
                     query = query.or(`name.ilike.%${safeQuery}%,description.ilike.%${safeQuery}%,seller_id.in.(${sellerIds.join(',')})`);
@@ -199,7 +199,7 @@ export class ProductService {
             // Fetch sold counts for all products in a single query
             // Count only COMPLETED orders (paid + delivered)
             const productIds = data.map(p => p.id);
-            
+
             const { data: soldCountsData, error: soldCountsError } = await supabase
                 .from('order_items')
                 .select('product_id, quantity, order:orders!inner(payment_status, shipment_status, order_type)')
@@ -256,25 +256,41 @@ export class ProductService {
         const campaignEndsAt = activeDiscount?.campaign?.ends_at;
         const campaignSoldCount = activeDiscount?.sold_count;
 
+        // Compute base price as lowest among product and valid variants
+        let basePrice = product.price;
+        if (product.variants && product.variants.length > 0) {
+            const variantPrices = product.variants
+                .map((v: any) => Number(v.price))
+                .filter((vp: number) => !isNaN(vp) && vp > 0);
+            if (variantPrices.length > 0) {
+                basePrice = Math.min(basePrice, ...variantPrices);
+            }
+        }
+
         // Calculate discounted price if campaign is active
-        let price = product.price;
+        let price = basePrice;
         let originalPrice = product.original_price;
+
+        let discountBadgePercent = undefined;
+        let discountBadgeTooltip = undefined;
 
         if (activeDiscount) {
             const campaign = activeDiscount.campaign;
             const dType = activeDiscount.discount_type || campaign.discount_type;
             const dValue = activeDiscount.discount_value || campaign.discount_value;
 
-            if (dType === 'percentage') {
-                price = product.price * (1 - (dValue / 100));
+            if (dType === "percentage") {
+                price = basePrice * (1 - dValue / 100);
+                discountBadgePercent = Math.round(Number(dValue));
                 if (campaign.max_discount_amount) {
                     const maxD = parseFloat(String(campaign.max_discount_amount));
-                    price = Math.max(price, product.price - maxD);
+                    price = Math.max(price, basePrice - maxD);
+                    discountBadgeTooltip = `Up to ₱${Number(maxD).toLocaleString()} off`;
                 }
-            } else if (dType === 'fixed_amount') {
-                price = Math.max(0, product.price - dValue);
+            } else if (dType === "fixed_amount") {
+                price = Math.max(0, basePrice - dValue);
             }
-            originalPrice = product.price; // Set original price to the regular price before discount
+            originalPrice = basePrice; // Set original price to the regular price before discount
         }
 
         // Calculate average rating from reviews
@@ -283,9 +299,9 @@ export class ProductService {
         const averageRating =
             totalRatings > 0
                 ? reviews.reduce(
-                      (sum: number, r: any) => sum + (r.rating || 0),
-                      0,
-                  ) / totalRatings
+                    (sum: number, r: any) => sum + (r.rating || 0),
+                    0,
+                ) / totalRatings
                 : 0;
 
         return {
@@ -303,6 +319,8 @@ export class ProductService {
             // Rating from reviews
             rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
             reviewCount: totalRatings,
+            // Lifetime sold count from completed orders
+            lifetimeSold: soldCount,
             // Sold count from the campaign if active, otherwise lifetime sold count from completed orders
             sold: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
             sales: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
@@ -314,9 +332,17 @@ export class ProductService {
             campaignBadge,
             campaignBadgeColor,
             campaignEndsAt,
+            // Campaign discount info for variants calculation in modals
+            campaignDiscount: activeDiscount ? {
+                discountType: activeDiscount.discount_type || activeDiscount.campaign?.discount_type,
+                discountValue: activeDiscount.discount_value || activeDiscount.campaign?.discount_value,
+                maxDiscountAmount: activeDiscount.campaign?.max_discount_amount
+            } : null,
             // Prices
             price: price,
             originalPrice: originalPrice,
+            discountBadgePercent,
+            discountBadgeTooltip,
         };
     }
 
@@ -434,7 +460,7 @@ export class ProductService {
                 .single();
 
             if (error) throw error;
-            
+
             if (!data) return null;
 
             // Fetch sold count for this product
@@ -1029,7 +1055,7 @@ export class ProductService {
             // Enrich matches for ALL detected objects
             const enrichedObjects = await Promise.all(detectedObjects.map(async (obj: any) => {
                 const productIds = obj.matches.map((m: any) => m.id);
-                
+
                 if (productIds.length === 0) {
                     return { object_label: obj.object_label, bbox: obj.bbox, matches: [] };
                 }
@@ -1082,8 +1108,8 @@ export class ProductService {
                     canvas.width = img.width;
                     canvas.height = img.height;
                     const ctx = canvas.getContext('2d');
-                    if (!ctx) return resolve((e.target?.result as string).split(',')[1]); 
-                    
+                    if (!ctx) return resolve((e.target?.result as string).split(',')[1]);
+
                     ctx.drawImage(img, 0, 0);
                     // Force strictly to JPEG format to prevent Deno backend crashes!
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
@@ -1120,7 +1146,7 @@ export class ProductService {
             // Enrich matches for ALL detected objects
             const enrichedObjects = await Promise.all(detectedObjects.map(async (obj: any) => {
                 const productIds = obj.matches.map((m: any) => m.id);
-                
+
                 if (productIds.length === 0) {
                     return { object_label: obj.object_label, bbox: obj.bbox, matches: [] };
                 }

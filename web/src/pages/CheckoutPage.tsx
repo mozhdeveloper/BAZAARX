@@ -111,10 +111,12 @@ export default function CheckoutPage() {
     addAddress,
     updateAddress,
     deleteAddress,
-    updateRegistryItem, // Destructure this
+    updateRegistryItem,
     buyAgainItems,
     clearBuyAgainItems,
     validateVoucherDetailed,
+    campaignDiscountCache,
+    updateCampaignDiscountCache,
   } = useBuyerStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [addressView, setAddressView] = useState<'list' | 'add' | 'edit'>('list');
@@ -258,7 +260,9 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<Partial<CheckoutFormData>>({});
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
-  const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, ActiveDiscount>>({});
+  const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, ActiveDiscount>>(
+    () => campaignDiscountCache // seeded from cache — no loading flash
+  );
 
   const getOriginalUnitPrice = (item: typeof checkoutItems[number]) =>
     Number((item.selectedVariant as any)?.originalPrice || item.originalPrice || item.price || 0);
@@ -282,7 +286,8 @@ export default function CheckoutPage() {
       try {
         const discounts = await discountService.getActiveDiscountsForProducts(productIds);
         if (isMounted) {
-          setActiveCampaignDiscounts(discounts);
+          setActiveCampaignDiscounts(prev => ({ ...prev, ...discounts }));
+          updateCampaignDiscountCache(discounts); // keep cache fresh
         }
       } catch (error) {
         console.error("Failed to load active campaign discounts:", error);

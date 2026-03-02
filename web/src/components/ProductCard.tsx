@@ -60,11 +60,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
 
       <div className="p-4 flex flex-col justify-between flex-1">
         <div>
-          <h3 className="product-title-premium text-[15px] font-bold mb-1.5 line-clamp-2 text-[#1f2937]">
+          <h3 className="product-title-premium text-[15px] font-bold mb-1.5 line-clamp-2 text-[#1f2937] h-[40px] leading-tight">
             {product.name}
           </h3>
 
-          <div className="flex items-center mb-4">
+          <div className="flex items-center mb-3 h-[20px]">
             <div className="flex text-[#F59E0B] text-[11px] mr-1.5">
               {[...Array(5)].map((_, i) => (
                 <span
@@ -84,37 +84,39 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
             </span>
           </div>
 
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className={hasDiscount ? "text-[22px] font-black text-[#DC2626] leading-none" : "text-[22px] font-black text-[#D97706] leading-none"}>
-              ₱{product.price.toLocaleString()}
-            </span>
+          <div className="flex flex-col justify-end min-h-[48px] mb-3">
             {hasDiscount && (
-              <span className="text-[14px] text-gray-400 line-through font-medium leading-none">
+              <span className="text-[11px] sm:text-[13px] text-gray-400 line-through font-medium leading-none mb-[3px]">
                 ₱{product.originalPrice!.toLocaleString()}
               </span>
             )}
+            <span className={hasDiscount ? "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#DC2626] leading-none" : "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#D97706] leading-none"}>
+              ₱{product.price.toLocaleString()}
+            </span>
           </div>
 
-          {hasDiscount && isFlash ? (
-            <div className="mb-4">
-              <div className="w-full h-[6px] bg-[#FEE2E2] rounded-full mb-1.5 border border-[#FCA5A5]/30 overflow-hidden">
-                <div
-                  className="h-full bg-[#DC2626] rounded-full"
-                  style={{ width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 1)) * 100))}%` }}
-                />
+          <div className="min-h-[50px]">
+            {hasDiscount && isFlash ? (
+              <div className="mb-2">
+                <div className="w-full h-[6px] bg-[#FEE2E2] rounded-full mb-1.5 border border-[#FCA5A5]/30 overflow-hidden">
+                  <div
+                    className="h-full bg-[#DC2626] rounded-full"
+                    style={{ width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 1)) * 100))}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-[#DC2626] fill-[#DC2626]" />
+                  <span className="text-[11px] text-[#DC2626] font-bold uppercase tracking-widest flex items-center gap-1">
+                    {(product.sold || 0).toLocaleString()} SOLD
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Flame className="w-4 h-4 text-[#DC2626] fill-[#DC2626]" />
-                <span className="text-[11px] text-[#DC2626] font-bold uppercase tracking-widest flex items-center gap-1">
-                  {(product.sold || 0).toLocaleString()} SOLD
-                </span>
+            ) : (
+              <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2">
+                {((product.lifetimeSold !== undefined ? product.lifetimeSold : product.sold) || 0).toLocaleString()} sold
               </div>
-            </div>
-          ) : (
-            <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-4">
-              {(product.sold || 0).toLocaleString()} sold
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="pt-4 border-t border-[var(--brand-accent-light)]/50">

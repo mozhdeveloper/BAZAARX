@@ -126,8 +126,8 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
     // Handle images from product_images relation
     const images = Array.isArray(p.images)
         ? p.images.map((img: any) =>
-              typeof img === "string" ? img : img.image_url,
-          )
+            typeof img === "string" ? img : img.image_url,
+        )
         : [];
 
     // Handle variants
@@ -178,7 +178,7 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         name: p.name || "",
         description: p.description || "",
         price: Number(p.price ?? 0),
-        originalPrice: undefined,
+        originalPrice: p.originalPrice || undefined,
         stock: totalStock || p.stock || 0,
         category: categoryName,
         images: images,
@@ -189,6 +189,7 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         createdAt: p.created_at || "",
         updatedAt: p.updated_at || "",
         sales: p.sales || p.sold || p.sold_count || 0, // Preserve sold count from transformProduct
+        lifetimeSold: p.lifetimeSold || p.sales || p.sold || 0, // Preserve lifetime sold count independently of campaign sales
         rating: avgRating || p.rating || 0,
         reviews: reviewCount || p.reviewCount || 0,
         approvalStatus:
@@ -202,7 +203,13 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         variantLabel1: p.variant_label_1 || undefined,
         variantLabel2: p.variant_label_2 || undefined,
         variants: variants,
-    };
+        campaignBadge: p.campaignBadge || undefined,
+        campaignBadgeColor: p.campaignBadgeColor || undefined,
+        campaignEndsAt: p.campaignEndsAt || undefined,
+        discountBadgePercent: p.discountBadgePercent || undefined,
+        discountBadgeTooltip: p.discountBadgeTooltip || undefined,
+        campaignDiscount: p.campaignDiscount || undefined,
+    } as any;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -343,7 +350,7 @@ export const mapDbProductToNormalized = (
         name: p.name,
         description: p.description || "",
         price: Number(p.price ?? 0),
-        originalPrice: p.original_price ?? undefined,
+        originalPrice: (p as any).originalPrice ?? p.original_price ?? undefined,
         image: primaryImage,
         images: images.length > 0 ? images : [primaryImage],
         category:
@@ -443,10 +450,10 @@ export const mapSellerProductToNormalized = (
         label2Options.length > 0
             ? label2Options
             : (p.variantLabel2Values || []).map((name) => ({
-                  name,
-                  value: name,
-                  image: primaryImage,
-              }));
+                name,
+                value: name,
+                image: primaryImage,
+            }));
 
     return {
         id: p.id,
@@ -492,8 +499,8 @@ export const mapBuyerProductToNormalized = (
     const images = Array.isArray(p.images)
         ? p.images.filter(Boolean)
         : p.image
-          ? [p.image]
-          : [];
+            ? [p.image]
+            : [];
     const primaryImage = images[0] || PLACEHOLDER_IMG;
 
     const rawVariants = Array.isArray(p.variants) ? p.variants : [];
@@ -548,6 +555,7 @@ export const mapNormalizedToBuyerProduct = (
         name: product.name,
         price: product.price,
         originalPrice: product.originalPrice,
+        stock: product.stock,
         image: product.image,
         images: product.images,
         seller: seller,

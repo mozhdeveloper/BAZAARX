@@ -55,11 +55,11 @@ interface Seller {
     // Status
     isVerified: boolean;
     approvalStatus:
-        | "pending"
-        | "approved"
-        | "verified"
-        | "rejected"
-        | "needs_resubmission";
+    | "pending"
+    | "approved"
+    | "verified"
+    | "rejected"
+    | "needs_resubmission";
     rating: number;
     totalSales: number;
     joinDate: string;
@@ -103,6 +103,11 @@ export interface SellerProduct {
         image?: string;
         sku?: string;
     }[];
+    campaignDiscount?: {
+        discountType: string;
+        discountValue: number;
+        maxDiscountAmount?: number;
+    } | null;
 }
 
 export interface SellerOrder {
@@ -164,21 +169,21 @@ interface InventoryLedgerEntry {
     productId: string;
     productName: string;
     changeType:
-        | "DEDUCTION"
-        | "ADDITION"
-        | "ADJUSTMENT"
-        | "RESERVATION"
-        | "RELEASE";
+    | "DEDUCTION"
+    | "ADDITION"
+    | "ADJUSTMENT"
+    | "RESERVATION"
+    | "RELEASE";
     quantityBefore: number;
     quantityChange: number;
     quantityAfter: number;
     reason:
-        | "ONLINE_SALE"
-        | "OFFLINE_SALE"
-        | "MANUAL_ADJUSTMENT"
-        | "STOCK_REPLENISHMENT"
-        | "ORDER_CANCELLATION"
-        | "RESERVATION";
+    | "ONLINE_SALE"
+    | "OFFLINE_SALE"
+    | "MANUAL_ADJUSTMENT"
+    | "STOCK_REPLENISHMENT"
+    | "ORDER_CANCELLATION"
+    | "RESERVATION";
     referenceId: string; // Order ID or adjustment ID
     userId: string; // Seller ID or 'SYSTEM'
     notes?: string;
@@ -423,7 +428,7 @@ const mapDbSellerToSeller = (s: any): Seller => {
         name: resolvedOwnerName,
         ownerName: resolvedOwnerName,
         email: profile.email || "",
-        phone: s.store_contact_number ||  "",
+        phone: s.store_contact_number || "",
         businessName: resolvedOwnerName,
         storeName: s.store_name || "",
         storeDescription: s.store_description || "",
@@ -971,7 +976,7 @@ export const useProductStore = create<ProductStore>()(
             },
 
             subscribeToProducts: (filters) => {
-                if (!isSupabaseConfigured()) return () => {};
+                if (!isSupabaseConfigured()) return () => { };
 
                 console.log("Subscribing to product changes...", filters);
 
@@ -1481,7 +1486,7 @@ export const useProductStore = create<ProductStore>()(
             ) => {
                 try {
                     console.log(`[deductStock] Starting - Product: ${productId}, Quantity: ${quantity}, Reason: ${reason}`);
-                    
+
                     const product = get().products.find(
                         (p) => p.id === productId,
                     );
@@ -1517,7 +1522,7 @@ export const useProductStore = create<ProductStore>()(
                             sellerId: authStoreForStock.seller?.id,
                         });
                         console.log(`[deductStock] Products refetched. New product count: ${get().products.length}`);
-                        
+
                         // Verify the stock was updated
                         const updatedProduct = get().products.find((p) => p.id === productId);
                         console.log(`[deductStock] Verified stock after refetch: ${updatedProduct?.stock}`);
@@ -1527,10 +1532,10 @@ export const useProductStore = create<ProductStore>()(
                             products: state.products.map((p) =>
                                 p.id === productId
                                     ? {
-                                          ...p,
-                                          stock: newStock,
-                                          sales: p.sales + quantity,
-                                      }
+                                        ...p,
+                                        stock: newStock,
+                                        sales: p.sales + quantity,
+                                    }
                                     : p,
                             ),
                         }));
@@ -1927,10 +1932,10 @@ export const useOrderStore = create<OrderStore>()(
 
                 try {
                     // Pass the startDate and endDate to the read service
-                    const dbOrders = await orderReadService.getSellerOrders({ 
-                        sellerId, 
-                        startDate, 
-                        endDate 
+                    const dbOrders = await orderReadService.getSellerOrders({
+                        sellerId,
+                        startDate,
+                        endDate
                     });
                     const sellerOrders = dbOrders as SellerOrder[];
 
@@ -2017,13 +2022,13 @@ export const useOrderStore = create<OrderStore>()(
 
                     // Map seller status to database status
                     const statusToDbMap: Record<SellerOrder["status"], string> =
-                        {
-                            pending: "pending_payment",
-                            confirmed: "processing",
-                            shipped: "shipped",
-                            delivered: "delivered",
-                            cancelled: "cancelled",
-                        };
+                    {
+                        pending: "pending_payment",
+                        confirmed: "processing",
+                        shipped: "shipped",
+                        delivered: "delivered",
+                        cancelled: "cancelled",
+                    };
 
                     const dbStatus = statusToDbMap[status] || status;
                     console.log(
@@ -2119,12 +2124,12 @@ export const useOrderStore = create<OrderStore>()(
                                         status,
                                         message,
                                     })
-                        .catch((refreshError) => {
-                            console.error(
-                                "Failed to refresh orders after status update:",
-                                refreshError,
-                            );
-                        });
+                                    .catch((refreshError) => {
+                                        console.error(
+                                            "Failed to refresh orders after status update:",
+                                            refreshError,
+                                        );
+                                    });
                             },
                         );
                     } else {
@@ -2190,11 +2195,11 @@ export const useOrderStore = create<OrderStore>()(
                         orders: state.orders.map((order) =>
                             order.id === id
                                 ? {
-                                      ...order,
-                                      trackingNumber: trackingNumber
-                                          .trim()
-                                          .toUpperCase(),
-                                  }
+                                    ...order,
+                                    trackingNumber: trackingNumber
+                                        .trim()
+                                        .toUpperCase(),
+                                }
                                 : order,
                         ),
                     }));
@@ -2230,17 +2235,17 @@ export const useOrderStore = create<OrderStore>()(
                 // OPTIMISTIC UPDATE: Update UI immediately
                 const previousStatus = order.status;
                 const previousTracking = order.trackingNumber;
-                
+
                 set((state) => ({
                     orders: state.orders.map((existing) =>
                         existing.id === id
                             ? {
-                                  ...existing,
-                                  status: "shipped",
-                                  trackingNumber: sanitizedTrackingNumber,
-                                  shipmentStatusRaw: "shipped",
-                                  shippedAt: new Date().toISOString(),
-                              }
+                                ...existing,
+                                status: "shipped",
+                                trackingNumber: sanitizedTrackingNumber,
+                                shipmentStatusRaw: "shipped",
+                                shippedAt: new Date().toISOString(),
+                            }
                             : existing,
                     ),
                 }));
@@ -2262,10 +2267,10 @@ export const useOrderStore = create<OrderStore>()(
                         orders: state.orders.map((existing) =>
                             existing.id === id
                                 ? {
-                                      ...existing,
-                                      status: previousStatus,
-                                      trackingNumber: previousTracking,
-                                  }
+                                    ...existing,
+                                    status: previousStatus,
+                                    trackingNumber: previousTracking,
+                                }
                                 : existing,
                         ),
                     }));
@@ -2294,16 +2299,16 @@ export const useOrderStore = create<OrderStore>()(
                 // OPTIMISTIC UPDATE: Update UI immediately
                 const previousStatus = order.status;
                 const previousShipmentStatus = order.shipmentStatusRaw;
-                
+
                 set((state) => ({
                     orders: state.orders.map((existing) =>
                         existing.id === id
                             ? {
-                                  ...existing,
-                                  status: "delivered",
-                                  shipmentStatusRaw: "delivered",
-                                  deliveredAt: new Date().toISOString(),
-                              }
+                                ...existing,
+                                status: "delivered",
+                                shipmentStatusRaw: "delivered",
+                                deliveredAt: new Date().toISOString(),
+                            }
                             : existing,
                     ),
                 }));
@@ -2324,11 +2329,11 @@ export const useOrderStore = create<OrderStore>()(
                         orders: state.orders.map((existing) =>
                             existing.id === id
                                 ? {
-                                      ...existing,
-                                      status: previousStatus,
-                                      shipmentStatusRaw: previousShipmentStatus,
-                                      deliveredAt: undefined,
-                                  }
+                                    ...existing,
+                                    status: previousStatus,
+                                    shipmentStatusRaw: previousShipmentStatus,
+                                    deliveredAt: undefined,
+                                }
                                 : existing,
                         ),
                     }));
@@ -2367,14 +2372,14 @@ export const useOrderStore = create<OrderStore>()(
                         orders: state.orders.map((order) =>
                             order.id === id
                                 ? {
-                                      ...order,
-                                      rating,
-                                      reviewComment: comment,
-                                      reviewImages: images,
-                                      reviewDate: new Date().toISOString(),
-                                      status: "delivered", // Ensure delivered when rated
-                                      paymentStatus: "paid", // Mark as paid after successful delivery
-                                  }
+                                    ...order,
+                                    rating,
+                                    reviewComment: comment,
+                                    reviewImages: images,
+                                    reviewDate: new Date().toISOString(),
+                                    status: "delivered", // Ensure delivered when rated
+                                    paymentStatus: "paid", // Mark as paid after successful delivery
+                                }
                                 : order,
                         ),
                     }));
@@ -2523,9 +2528,9 @@ export const useStatsStore = create<StatsStore>()((set) => ({
         const avgRating =
             ordersWithRatings.length > 0
                 ? ordersWithRatings.reduce(
-                      (sum, order) => sum + (order.rating || 0),
-                      0,
-                  ) / ordersWithRatings.length
+                    (sum, order) => sum + (order.rating || 0),
+                    0,
+                ) / ordersWithRatings.length
                 : 0;
 
         // Calculate monthly revenue (last 12 months)
