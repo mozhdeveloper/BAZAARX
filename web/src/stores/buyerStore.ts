@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { cartService } from '@/services/cartService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
 import { AddressService } from '@/services/addressService';
+import type { ActiveDiscount } from '@/types/discount';
 
 export interface Message {
   id: string;
@@ -363,6 +364,10 @@ interface BuyerStore {
   getTotalCartItems: () => number;
   groupCartBySeller: () => void;
 
+  // Campaign Discount Cache — persists across navigations for instant display
+  campaignDiscountCache: Record<string, ActiveDiscount>;
+  updateCampaignDiscountCache: (updates: Record<string, ActiveDiscount>) => void;
+
   // Quick Order (Buy Now)
   quickOrder: CartItem | null;
   setQuickOrder: (product: Product, quantity?: number, variant?: ProductVariant, registryId?: string) => void;
@@ -519,7 +524,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       // Users can add their own payment methods if needed
       set({ profile });
     },
-    
+
     notifications: [],
     syncAddressesWithService: async () => {
       const { profile } = get();
@@ -528,7 +533,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       try {
         const addressService = AddressService.getInstance();
         const remoteAddresses = await addressService.getUserAddresses(profile.id);
-        
+
         set({ addresses: remoteAddresses });
       } catch (error) {
         console.error('Failed to sync addresses:', error);
@@ -857,6 +862,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     // Enhanced Cart
     cartItems: [],
     groupedCart: {},
+
+    // Campaign Discount Cache
+    campaignDiscountCache: {},
+    updateCampaignDiscountCache: (updates) => set((state) => ({
+      campaignDiscountCache: { ...state.campaignDiscountCache, ...updates }
+    })),
 
     // Quick Order (Buy Now)
     quickOrder: null,

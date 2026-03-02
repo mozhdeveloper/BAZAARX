@@ -72,9 +72,9 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
               alt={product.name}
               className="w-full h-full object-contain p-4"
             />
-            {product.originalPrice && product.originalPrice > currentPrice && (
+            {((selectedVariant as any)?.originalPrice || product.originalPrice) && ((selectedVariant as any)?.originalPrice || product.originalPrice) > currentPrice && (
               <div className="absolute top-4 left-4 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
-                {Math.round(((product.originalPrice - currentPrice) / product.originalPrice) * 100)}% OFF
+                {Math.round((((selectedVariant as any)?.originalPrice || product.originalPrice!) - currentPrice) / ((selectedVariant as any)?.originalPrice || product.originalPrice!) * 100)}% OFF
               </div>
             )}
           </div>
@@ -85,14 +85,18 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
           <div>
             <h3 className="text-lg font-bold text-gray-900 line-clamp-2">{product.name}</h3>
             <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-2xl font-bold text-orange-500">
+              <span className={`text-2xl font-bold ${((selectedVariant as any)?.originalPrice && (selectedVariant as any).originalPrice > currentPrice) || (product.originalPrice && product.originalPrice > currentPrice) ? "text-[#DC2626]" : "text-[#D97706]"}`}>
                 ₱{currentPrice.toLocaleString()}
               </span>
-              {product.originalPrice && product.originalPrice > currentPrice && (
+              {(selectedVariant as any)?.originalPrice && (selectedVariant as any).originalPrice > currentPrice ? (
+                <span className="text-sm text-gray-400 line-through">
+                  ₱{(selectedVariant as any).originalPrice.toLocaleString()}
+                </span>
+              ) : product.originalPrice && product.originalPrice > currentPrice && !selectedVariant ? (
                 <span className="text-sm text-gray-400 line-through">
                   ₱{product.originalPrice.toLocaleString()}
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -205,7 +209,7 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
           <div className="pt-2 border-t border-gray-100">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm text-gray-600">Total:</span>
-              <span className="text-xl font-bold text-orange-500">
+              <span className={`text-xl font-bold ${((selectedVariant as any)?.originalPrice && (selectedVariant as any).originalPrice > currentPrice) || (product.originalPrice && product.originalPrice > currentPrice) ? "text-[#DC2626]" : "text-[#D97706]"}`}>
                 ₱{(currentPrice * quantity).toLocaleString()}
               </span>
             </div>

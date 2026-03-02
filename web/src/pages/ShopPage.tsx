@@ -247,6 +247,7 @@ export default function ShopPage() {
         variantLabel1Values: p.variantLabel1Values || [],
         stock: p.stock || 99,
         variants: p.variants || [],
+        lifetimeSold: (p as any).lifetimeSold || p.sales || 0,
       }));
 
     return dbProducts;
@@ -286,6 +287,28 @@ export default function ShopPage() {
       const activeDiscount = activeCampaignDiscounts[product.id] || null;
       if (!activeDiscount) return product;
 
+      // Check if ProductService already handled this discount
+      const alreadyDiscounted = product.originalPrice && product.originalPrice > product.price;
+
+      if (alreadyDiscounted) {
+        return {
+          ...product,
+          discountBadgePercent: activeDiscount.discountType === 'percentage'
+            ? Math.round(activeDiscount.discountValue)
+            : undefined,
+          discountBadgeTooltip:
+            activeDiscount.discountType === 'percentage' && typeof activeDiscount.maxDiscountAmount === 'number'
+              ? `Up to ₱${activeDiscount.maxDiscountAmount.toLocaleString()} off`
+              : undefined,
+          campaignDiscount: {
+            discountType: activeDiscount.discountType,
+            discountValue: activeDiscount.discountValue,
+            maxDiscountAmount: activeDiscount.maxDiscountAmount
+          },
+        };
+      }
+
+      // If not already discounted, apply it now
       const calculation = discountService.calculateLineDiscount(product.price, 1, activeDiscount);
       if (calculation.discountPerUnit <= 0) return product;
 
@@ -603,7 +626,7 @@ export default function ShopPage() {
                           {/* Sold count and Stock indicator */}
                           <div className="flex items-center justify-between mb-2">
                             <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                              {soldCount.toLocaleString()} sold
+                              {((product as any).lifetimeSold !== undefined ? (product as any).lifetimeSold : soldCount).toLocaleString()} sold
                             </div>
                             <div className={`text-[10px] font-bold ${totalStock < 10 ? 'text-red-500' : 'text-green-600'}`}>
                               {totalStock > 0 ? `${totalStock} in stock` : 'Out of stock'}
@@ -992,15 +1015,15 @@ export default function ShopPage() {
                       </div>
 
                       <div className="p-3 flex-1 flex flex-col">
-                        <h3 className="font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors duration-200 line-clamp-2 h-10 text-sm leading-snug">
+                        <h3 className="font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors duration-200 line-clamp-2 h-[40px] text-sm leading-tight">
                           {product.name}
                         </h3>
 
-                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap h-[20px]">
                           <div className="flex items-center">
                             <Star className="w-3.5 h-3.5 text-yellow-500 fill-current" />
                             <span className="text-xs text-[var(--text-muted)] font-medium ml-1">
-                              {product.rating} ({(product.sold || 0).toLocaleString()})
+                              {product.rating} ({(((product as any).lifetimeSold !== undefined ? (product as any).lifetimeSold : product.sold) || 0).toLocaleString()})
                             </span>
                           </div>
                           {product.isVerified && (
@@ -1014,20 +1037,20 @@ export default function ShopPage() {
                           )}
                         </div>
 
-                        <div className="mt-1.5 mb-2">
-                          <div className="flex items-baseline gap-2 mb-2">
-                            <span className={product.originalPrice ? "text-[22px] font-black text-[#DC2626] leading-none" : "text-[22px] font-black text-[#D97706] leading-none"}>
-                              ₱{product.price.toLocaleString()}
-                            </span>
+                        <div className="mt-2 mb-2">
+                          <div className="flex flex-col justify-end min-h-[48px] mb-2">
                             {product.originalPrice && (
-                              <span className="text-[13px] text-gray-400 line-through font-medium leading-none">
+                              <span className="text-[11px] sm:text-[13px] text-gray-400 line-through font-medium leading-none mb-[3px]">
                                 ₱{product.originalPrice.toLocaleString()}
                               </span>
                             )}
+                            <span className={product.originalPrice ? "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#DC2626] leading-none" : "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#D97706] leading-none"}>
+                              ₱{product.price.toLocaleString()}
+                            </span>
                           </div>
 
-                          <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2 mt-1">
-                            {(product.sold || 0).toLocaleString()} sold
+                          <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-1 mt-1 h-[14px]">
+                            {(((product as any).lifetimeSold !== undefined ? (product as any).lifetimeSold : product.sold) || 0).toLocaleString()} sold
                           </div>
                         </div>
 

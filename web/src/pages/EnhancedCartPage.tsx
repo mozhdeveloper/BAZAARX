@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBuyerStore } from "../stores/buyerStore";
+import { discountService } from "@/services/discountService";
 import Header from "../components/Header";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -13,15 +14,11 @@ import {
   ShoppingBag,
   Tag,
   Store,
-  Heart,
-  Star,
-  Shield,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { VariantSelectionModal } from "../components/ui/variant-selection-modal";
 import {
   Dialog,
@@ -31,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { ActiveDiscount } from "@/types/discount";
 
 export default function EnhancedCartPage() {
   const navigate = useNavigate();
@@ -57,11 +55,58 @@ export default function EnhancedCartPage() {
     getSelectedCount,
     removeSelectedItems,
     updateItemVariant,
+    campaignDiscountCache,
+    updateCampaignDiscountCache,
   } = useBuyerStore();
 
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherError, setVoucherError] = useState("");
   const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
+
+  // Campaign discounts — seeded immediately from Zustand cache, updated in background
+  const [activeCampaignDiscounts, setActiveCampaignDiscounts] = useState<Record<string, ActiveDiscount>>(
+    () => campaignDiscountCache // instant — no loading flash
+  );
+
+  // Collect unique product IDs from cart
+  const cartProductIdsKey = useMemo(() => {
+    const ids = [...new Set(cartItems.map(item => item.id).filter(Boolean))];
+    ids.sort();
+    return ids.join("|");
+  }, [cartItems]);
+
+  // Background refresh — updates local state AND the persistent cache
+  useEffect(() => {
+    let isMounted = true;
+    const loadDiscounts = async () => {
+      const productIds = cartProductIdsKey ? cartProductIdsKey.split("|") : [];
+      if (productIds.length === 0) return;
+      try {
+        const discounts = await discountService.getActiveDiscountsForProducts(productIds);
+        if (isMounted) {
+          setActiveCampaignDiscounts(prev => ({ ...prev, ...discounts }));
+          updateCampaignDiscountCache(discounts); // persist for next visit
+        }
+      } catch {
+        // keep whatever we already have from cache
+      }
+    };
+    loadDiscounts();
+    return () => { isMounted = false; };
+  }, [cartProductIdsKey]);
+
+  // Helper: get effective (discounted) unit price for a cart item
+  const getEffectivePrice = (item: any): number => {
+    const basePrice = item.selectedVariant?.price ?? item.price;
+    const activeDiscount = activeCampaignDiscounts[item.id] ?? null;
+    const { discountedUnitPrice } = discountService.calculateLineDiscount(basePrice, 1, activeDiscount);
+    return discountedUnitPrice;
+  };
+
+  // Helper: get original unit price for a cart item (before campaign discount)
+  const getOriginalPrice = (item: any): number => {
+    return item.selectedVariant?.price ?? item.price;
+  };
 
   // Edit Variant State
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -123,7 +168,15 @@ export default function EnhancedCartPage() {
 
   const totalItems = getCartItemCount();
   const selectedCount = getSelectedCount();
-  const selectedTotal = getSelectedTotal();
+
+  // Compute selected total using discounted prices
+  const selectedTotal = useMemo(() => {
+    return cartItems
+      .filter(i => i.selected)
+      .reduce((sum, item) => sum + getEffectivePrice(item) * item.quantity, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartItems, activeCampaignDiscounts]);
+
   const totalAmount = selectedTotal; // Use selected total for display
 
   // Calculate "Select All" state
@@ -412,14 +465,23 @@ export default function EnhancedCartPage() {
 
                                 {/* Quantity Controls */}
                                 <div className="flex items-center gap-4 mt-2">
-                                  <span className="text-sm font-bold text-[var(--brand-primary)]">
-                                    ₱{item.price.toLocaleString()}
-                                  </span>
-                                  {item.originalPrice && (
-                                    <span className="text-xs text-gray-400 line-through">
-                                      ₱{item.originalPrice.toLocaleString()}
-                                    </span>
-                                  )}
+                                  {(() => {
+                                    const effectivePrice = getEffectivePrice(item);
+                                    const originalPrice = getOriginalPrice(item);
+                                    const hasDiscount = effectivePrice < originalPrice;
+                                    return (
+                                      <>
+                                        <span className={`text-sm font-bold ${hasDiscount ? 'text-[#DC2626]' : 'text-[var(--brand-primary)]'}`}>
+                                          ₱{effectivePrice.toLocaleString()}
+                                        </span>
+                                        {hasDiscount && (
+                                          <span className="text-xs text-gray-400 line-through">
+                                            ₱{originalPrice.toLocaleString()}
+                                          </span>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
 
                                   <div className="flex items-center gap-2 border border-gray-200 rounded-md bg-white">
                                     <Button
@@ -537,9 +599,10 @@ export default function EnhancedCartPage() {
                   <span>Selected ({selectedCount})</span>
                   <span>
                     ₱
-                    {/* Only sum selected items subtotal */}
-                    {Object.values(groupedCart)
-                      .reduce((sum, group) => sum + group.items.filter(i => i.selected).reduce((is, i) => is + (i.selectedVariant?.price || i.price) * i.quantity, 0), 0)
+                    {/* Only sum selected items subtotal with discounted prices */}
+                    {cartItems
+                      .filter(i => i.selected)
+                      .reduce((sum, item) => sum + getEffectivePrice(item) * item.quantity, 0)
                       .toLocaleString()}
                   </span>
                 </div>

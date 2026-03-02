@@ -232,14 +232,16 @@ export function VariantSelectionModal({
                 </DialogTitle>
                 {/* Product Image - Compact at top */}
                 <div className="w-full h-64 bg-gray-50 relative flex-shrink-0">
-
-
                     <img
                         src={currentImage}
                         alt={product.name}
                         className="w-full h-full object-contain"
                     />
-
+                    {currentOriginalPrice && currentOriginalPrice > currentPrice && (
+                        <div className="absolute top-4 left-4 bg-[var(--price-flash)] hover:bg-[var(--price-flash)]/90 text-white text-[14px] font-black px-2 py-1 rounded-lg shadow-md z-10 border-0">
+                            {Math.round(((currentOriginalPrice - currentPrice) / currentOriginalPrice) * 100)}% OFF
+                        </div>
+                    )}
                 </div>
 
                 {/* Content - Scrollable */}
@@ -250,9 +252,16 @@ export function VariantSelectionModal({
                             {product.name}
                         </h3>
                         <div className="flex items-baseline justify-between mt-1">
-                            <p className="text-xl font-bold text-[var(--brand-accent)]">
-                                ₱{currentPrice.toLocaleString()}
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <p className={`text-xl font-bold ${currentOriginalPrice && currentOriginalPrice > currentPrice ? "text-[#DC2626]" : "text-[var(--brand-accent)]"}`}>
+                                    ₱{currentPrice.toLocaleString()}
+                                </p>
+                                {currentOriginalPrice && currentOriginalPrice > currentPrice && (
+                                    <p className="text-sm text-gray-400 line-through">
+                                        ₱{currentOriginalPrice.toLocaleString()}
+                                    </p>
+                                )}
+                            </div>
                             {hasVariants && currentStock > 0 && (
                                 <p className="text-sm text-green-600">
                                     {currentStock} pieces available
@@ -357,7 +366,7 @@ export function VariantSelectionModal({
                             </button>
                         </div>
                         <div className="flex items-baseline gap-2">
-                            <span className="text-xl font-bold text-[var(--price-standard)]">
+                            <span className={`text-xl font-bold ${currentOriginalPrice && currentOriginalPrice > currentPrice ? "text-[#DC2626]" : "text-[var(--price-standard)]"}`}>
                                 ₱{(currentPrice * quantity).toLocaleString()}
                             </span>
                         </div>

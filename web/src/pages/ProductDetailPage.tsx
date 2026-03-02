@@ -82,6 +82,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         unfollowShop,
         isFollowing,
         loadFollowedShops,
+        campaignDiscountCache,
+        updateCampaignDiscountCache,
     } = useBuyerStore();
     const { products: sellerProducts } = useProductStore();
 
@@ -99,7 +101,11 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [activeTab, setActiveTab] = useState("Description");
     const [dbProduct, setDbProduct] = useState<ProductWithSeller | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(null);
+
+    // Seed campaign discount instantly if we already have it cached
+    const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(
+        () => (id ? campaignDiscountCache[id] : null) || null
+    );
 
     // Modal states for Add to Cart and Buy Now
     const [showCartModal, setShowCartModal] = useState(false);
@@ -170,21 +176,19 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         let isMounted = true;
 
         const loadActiveDiscount = async () => {
-            if (!normalizedProduct?.id) {
-                if (isMounted) setActiveCampaignDiscount(null);
-                return;
-            }
+            if (!normalizedProduct?.id) return;
 
             try {
                 const discount = await discountService.getActiveProductDiscount(normalizedProduct.id);
-                if (isMounted) {
+                if (isMounted && discount) {
                     setActiveCampaignDiscount(discount);
+                    // Persist to cache so cart/checkout are also instantaneous
+                    updateCampaignDiscountCache({ [normalizedProduct.id]: discount });
+                } else if (isMounted && !discount) {
+                    setActiveCampaignDiscount(null);
                 }
             } catch (error) {
                 console.error("Failed to fetch active campaign discount for product detail:", error);
-                if (isMounted) {
-                    setActiveCampaignDiscount(null);
-                }
             }
         };
 
@@ -639,8 +643,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             />
                             {(() => {
                                 const basePrice = productData.price;
+                                const originalPrice = activeCampaignDiscount ? basePrice : (productData.originalPrice || basePrice);
                                 const discountedPrice = getCampaignAdjustedPrice(basePrice);
-                                const originalPrice = productData.originalPrice || basePrice;
                                 if (originalPrice <= discountedPrice) return null;
                                 const percentOff = activeCampaignDiscount?.discountType === 'percentage'
                                     ? Math.round(activeCampaignDiscount.discountValue)
@@ -651,7 +655,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         ? `Up to ₱${activeCampaignDiscount.maxDiscountAmount.toLocaleString()} off`
                                         : undefined;
                                 return (
-                                    <Badge title={discountTooltip} className="absolute top-4 left-4 bg-[var(--price-flash)] hover:bg-[var(--price-flash)]/90 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl shadow-md z-10 border-0">
+                                    <Badge title={discountTooltip} className="absolute top-4 left-4 bg-[var(--price-flash)] hover:bg-[var(--price-flash)]/90 text-white text-[14px] font-black px-2 py-1 rounded-bl-xl shadow-md z-10 border-0">
                                         {percentOff}% OFF
                                     </Badge>
                                 );
@@ -764,28 +768,27 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 <div className="flex items-center gap-4">
                                     {(() => {
                                         const currentVariant = getSelectedVariant();
-                                        const basePrice = currentVariant?.price || productData.price;
+                                        const basePrice = currentVariant?.price || productData.originalPrice || productData.price;
                                         const discountedPrice = getCampaignAdjustedPrice(basePrice);
-                                        const originalPrice = productData.originalPrice || basePrice;
+                                        const originalPrice = activeCampaignDiscount
+                                            ? basePrice
+                                            : (productData.originalPrice && productData.originalPrice > basePrice ? productData.originalPrice : basePrice);
                                         const hasDiscount = originalPrice > discountedPrice;
 
                                         return (
                                             <div className="flex items-center gap-4">
                                                 <span className={cn(
                                                     "text-4xl font-black",
-                                                    hasDiscount ? "text-[#DC2626]" : "text-[var(--text-headline)]"
+                                                    hasDiscount ? "text-[#DC2626]" : "text-[var(--brand-primary)]"
                                                 )}>
                                                     ₱{discountedPrice.toLocaleString()}
                                                 </span>
-                                                
+
                                                 {hasDiscount && (
                                                     <div className="flex flex-col">
                                                         <span className="text-base text-[var(--text-muted)] line-through font-bold">
                                                             ₱{originalPrice.toLocaleString()}
                                                         </span>
-                                                        <Badge className="bg-[#DC2626] hover:bg-[#DC2626]/90 text-white text-[10px] font-black px-2 py-0.5 rounded-sm border-0 uppercase tracking-wider">
-                                                            {Math.round(((originalPrice - discountedPrice) / originalPrice) * 100)}% OFF
-                                                        </Badge>
                                                     </div>
                                                 )}
                                             </div>
