@@ -95,7 +95,7 @@ interface DbTicketMessage {
   sender_type: 'user' | 'admin';
   sender_name: string;
   message: string;
-  is_internal: boolean | null;
+  is_internal_note?: boolean | null;
   created_at: string;
 }
 
@@ -142,7 +142,6 @@ function mapDbTicketToTicket(dbTicket: DbTicket, currentUserId?: string): Ticket
     updatedAt: dbTicket.updated_at,
     resolvedAt: dbTicket.resolved_at,
     messages: (dbTicket.messages || [])
-      .filter(m => !m.is_internal) // Don't show internal notes to users
       .map(m => ({
         id: m.id,
         ticketId: m.ticket_id,
@@ -152,7 +151,6 @@ function mapDbTicketToTicket(dbTicket: DbTicket, currentUserId?: string): Ticket
           ? 'You' 
           : m.sender_name || 'Support Agent',
         message: m.message,
-        isInternal: m.is_internal ?? undefined,
         createdAt: m.created_at,
       }))
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
@@ -187,7 +185,6 @@ export const TicketService = {
           sender_id,
           sender_type,
           message,
-          is_internal_note,
           created_at,
           sender:profiles!ticket_messages_sender_id_fkey (
             first_name,
@@ -232,7 +229,6 @@ export const TicketService = {
           sender_id,
           sender_type,
           message,
-          is_internal_note,
           created_at,
           sender:profiles!ticket_messages_sender_id_fkey (
             first_name,
@@ -329,7 +325,6 @@ export const TicketService = {
         sender_id: senderId,
         sender_type: 'user',
         message: message,
-        is_internal: false
       })
       .select(`
         *,
@@ -360,7 +355,6 @@ export const TicketService = {
       senderType: data.sender_type,
       senderName: 'You',
       message: data.message,
-      isInternal: data.is_internal,
       createdAt: data.created_at,
     };
   },
@@ -442,7 +436,6 @@ export const TicketService = {
           sender_id,
           sender_type,
           message,
-          is_internal_note,
           created_at,
           sender:profiles!ticket_messages_sender_id_fkey (
             first_name,
@@ -509,7 +502,6 @@ export const TicketService = {
           sender_id,
           sender_type,
           message,
-          is_internal_note,
           created_at,
           sender:profiles!ticket_messages_sender_id_fkey (
             first_name,
@@ -553,7 +545,6 @@ export const TicketService = {
         sender_id: adminId,
         sender_type: 'admin',
         message,
-        is_internal: false,
       })
       .select(`
         *,
