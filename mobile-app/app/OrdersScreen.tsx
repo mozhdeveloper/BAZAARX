@@ -28,6 +28,7 @@ import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { OrderCard } from '../src/components/OrderCard';
 import ReviewModal from '../src/components/ReviewModal';
 import { orderService } from '../src/services/orderService';
+import { orderMutationService } from '../src/services/orders/orderMutationService';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -184,7 +185,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
           )
         `)
         .eq('buyer_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(30);
 
       if (error) {
         console.error('[OrdersScreen] Error loading orders:', error);
@@ -572,7 +574,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const handleCancelOrder = (order: Order) => {
     Alert.alert(
       'Cancel Order',
-      'Are you sure you want to cancel? Don/t worry, you have not been charged for this order. You can easily buy these items again later.',
+      "Are you sure you want to cancel? You won't be charged. You can buy these items again later.",
       [
         { text: 'Keep Order', style: 'cancel' },
         {
@@ -580,31 +582,20 @@ export default function OrdersScreen({ navigation, route }: Props) {
           style: 'destructive',
           onPress: async () => {
             try {
-              // 1. Update Supabase
-              const { error } = await supabase
-                .from('orders')
-                .update({ status: 'cancelled' })
-                .eq('id', order.id);
+              await orderMutationService.cancelOrder({
+                orderId: order.id,
+                reason: 'Cancelled by buyer',
+                cancelledBy: user?.id,
+              });
 
-              if (error) throw error;
-
-              // 2. Update Local Store
-              updateOrderStatus(order.id, 'cancelled');
-
-              // 3. Update Local State (dbOrders) to reflect change immediately
-              setDbOrders(prev => prev.map(o =>
-                o.id === order.id ? { ...o, status: 'cancelled' } : o
-              ));
-
-              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list.');
-            } catch (e) {
-              console.log('Error canceling order:', e);
-              // Fallback for demo/offline: just update local state
               updateOrderStatus(order.id, 'cancelled');
               setDbOrders(prev => prev.map(o =>
-                o.id === order.id ? { ...o, status: 'cancelled' } : o
+                o.id === order.id ? { ...o, shipment_status: 'returned' } : o
               ));
-              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list (Offline Mode).');
+              Alert.alert('Order Cancelled', 'Your order has been cancelled.');
+            } catch (e: any) {
+              console.error('Error cancelling order:', e);
+              Alert.alert('Error', e?.message || 'Failed to cancel order. Please try again.');
             }
           }
         }
@@ -620,6 +611,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       onCancel={() => handleCancelOrder(order)}
       onReceive={() => handleOrderReceived(order)}
       onReview={order.buyerUiStatus === 'delivered' ? () => handleReview(order) : undefined}
+      onReturn={order.buyerUiStatus === 'delivered' ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
       onShopPress={(shopId) => {
         const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;
         const sellerInfo = dbOrders.find(o => o.id === targetOrder.id)?.sellerInfo || {};

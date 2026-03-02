@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
-import { Calendar, MapPin, Eye, Copy, MessageCircle, Star } from 'lucide-react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
+import { Calendar, MapPin, Eye, Copy, MessageCircle, Star, RotateCcw } from 'lucide-react-native';
 import { Order } from '../types';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../constants/theme';
@@ -12,16 +13,18 @@ interface OrderCardProps {
   onCancel?: () => void;
   onReceive?: () => void;
   onReview?: () => void;
+  onReturn?: () => void;
   onShopPress?: (shopId: string) => void;
 }
 
-export const OrderCard: React.FC<OrderCardProps> = ({
+export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   order,
   onPress,
   onTrack,
   onCancel,
   onReceive,
   onReview,
+  onReturn,
   onShopPress
 }) => {
   const buyerUiStatus = order.buyerUiStatus || (
@@ -134,6 +137,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <Image
               source={{ uri: firstItem.image || 'https://via.placeholder.com/80' }}
               style={styles.productImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={200}
             />
             {/* Second Image (Offset) if multiple items */}
             {itemCount > 1 && order.items[1] && (
@@ -141,6 +147,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 <Image
                   source={{ uri: order.items[1].image || 'https://via.placeholder.com/80' }}
                   style={[styles.productImage, { opacity: 0.5 }]}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={200}
                 />
                 <View style={styles.moreItemsOverlay}>
                   <Text style={styles.moreItemsText}>+{itemCount - 1}</Text>
@@ -227,21 +236,31 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         )}
 
         {order.status === 'delivered' && (
-          <>
-            <Pressable 
-              style={styles.outlineButton} 
-              onPress={buyerUiStatus === 'reviewed' ? onPress : onReview}
-            >
-              <Text style={styles.outlineButtonText}>
-                {buyerUiStatus === 'reviewed' ? 'View Details' : 'Review'}
-              </Text>
-            </Pressable>
-            {buyerUiStatus !== 'reviewed' && (
-              <Pressable style={styles.solidButton} onPress={onPress}>
-                <Text style={styles.solidButtonText}>View Details</Text>
+          <View style={{ flex: 1, gap: 8 }}>
+            {/* Primary action row: Review / View Details */}
+            <View style={styles.buttonRow}>
+              <Pressable
+                style={[styles.outlineButton, { flex: 1 }]}
+                onPress={buyerUiStatus === 'reviewed' ? onPress : onReview}
+              >
+                <Text style={styles.outlineButtonText}>
+                  {buyerUiStatus === 'reviewed' ? 'View Details' : 'Review'}
+                </Text>
+              </Pressable>
+              {buyerUiStatus !== 'reviewed' && (
+                <Pressable style={[styles.solidButton, { flex: 1.2 }]} onPress={onPress}>
+                  <Text style={styles.solidButtonText}>View Details</Text>
+                </Pressable>
+              )}
+            </View>
+            {/* Return/Refund row — only for non-reviewed delivered orders */}
+            {buyerUiStatus !== 'reviewed' && onReturn && (
+              <Pressable style={styles.returnButton} onPress={onReturn}>
+                <RotateCcw size={13} color="#B45309" strokeWidth={2.5} />
+                <Text style={styles.returnButtonText}>Return / Refund</Text>
               </Pressable>
             )}
-          </>
+          </View>
         )}
 
         {order.status === 'cancelled' && (
@@ -275,7 +294,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       )}
     </View>
   );
-};
+});
+
+OrderCard.displayName = 'OrderCard';
 
 const styles = StyleSheet.create({
   container: {
@@ -406,6 +427,29 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
+    alignItems: 'flex-start',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
+  returnButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: '#D97706',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 4,
+  },
+  returnButtonText: {
+    color: '#B45309',
+    fontSize: 12,
+    fontWeight: '500',
   },
   solidButton: {
     backgroundColor: COLORS.primary, // Primary Color

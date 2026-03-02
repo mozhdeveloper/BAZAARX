@@ -635,19 +635,19 @@ export default function OrdersPage() {
                     {/* Order Footer */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 border-t border-gray-100/50">
                       <div>
-                        {/* Return/Refund - Left side, lower prominence (Ghost button) */}
-                        {isWithinReturnWindow(order) && (
+                        {/* Return/Refund - only for delivered orders within the 7-day return window, and only if no return request has been submitted yet */}
+                        {isWithinReturnWindow(order) && !(order as any).returnRequest && (
                           <Button
                             onClick={() => {
                               setOrderToReturn(order);
                               setReturnModalOpen(true);
                             }}
                             size="sm"
-                            variant="ghost"
-                            className="text-gray-400 hover:text-red-700 hover:bg-base text-xs font-normal px-2"
+                            variant="outline"
+                            className="border-amber-500 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-600 text-xs font-medium px-3"
                           >
-                            <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                            Return or Refund
+                            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                            Return / Refund
                           </Button>
                         )}
                       </div>
