@@ -634,7 +634,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             phone_number: address.phone,
             landmark: address.landmark,
             delivery_instructions: address.deliveryInstructions,
-            coordinates: address.coordinates || { lat: 14.5995, lng: 120.9842 },
+            coordinates: address.coordinates,
             is_default: address.isDefault || false,
             address_type: 'residential'
           })
