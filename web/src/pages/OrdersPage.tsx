@@ -72,6 +72,7 @@ export default function OrdersPage() {
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [orderToReturn, setOrderToReturn] = useState<any>(null);
   const [viewReturnDetails, setViewReturnDetails] = useState<any>(null);
+  const [reviewWarningModalOpen, setReviewWarningModalOpen] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [orderToReview, setOrderToReview] = useState<any>(null);
   const [viewImage, setViewImage] = useState<string | null>(null);
@@ -678,10 +679,8 @@ export default function OrdersPage() {
                               {order.status === "delivered" && (
                                 <Button
                                   onClick={() => {
-                                    if (window.confirm("Writing a review will mark this order as completed and you may not be able to return/refund. Continue?")) {
-                                      setOrderToReview(order);
-                                      setReviewModalOpen(true);
-                                    }
+                                    setOrderToReview(order);
+                                    setReviewWarningModalOpen(true);
                                   }}
                                   size="sm"
                                   variant="outline"
@@ -1151,6 +1150,54 @@ export default function OrdersPage() {
           </motion.div>
         </motion.div>
       )}
+
+      <AnimatePresence>
+        {reviewWarningModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setReviewWarningModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="bg-white rounded-xl shadow-xl max-w-sm w-full overflow-hidden p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center mb-4">
+                  <Star className="w-6 h-6 text-[var(--brand-primary)]" fill="currentColor" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Write a Review</h3>
+                <p className="text-gray-600 mb-6 text-sm">
+                  Writing a review will mark this order as completed and you may not be able to return/refund. Continue?
+                </p>
+                <div className="flex gap-3 w-full">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setReviewWarningModalOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
+                    onClick={() => {
+                      setReviewWarningModalOpen(false);
+                      setReviewModalOpen(true);
+                    }}
+                  >
+                    Continue
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {orderToReview && (
         <ReviewModal
