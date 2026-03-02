@@ -17,6 +17,7 @@ import { COLORS } from '../../../src/constants/theme';
 import { TicketService } from '../../../services/TicketService';
 import { useAuthStore } from '../../../src/stores/authStore';
 import { supabase } from '../../../src/lib/supabase';
+import { notificationService } from '../../../src/services/notificationService';
 import type { Ticket, TicketMessage, TicketStatus } from '../../types/ticketTypes';
 
 type Props = {
@@ -81,6 +82,18 @@ export default function AdminSupportTicketDetail({ route, navigation }: Props) {
           status: ticket.status === 'open' ? 'in_progress' : ticket.status,
           messages: [...ticket.messages, msg],
         });
+
+        // Notify the buyer that an agent replied
+        try {
+          await notificationService.notifyBuyerTicketReply({
+            buyerId: ticket.userId,
+            ticketId: ticket.id,
+            ticketSubject: ticket.subject,
+            replyPreview: replyText.trim(),
+          });
+        } catch (notifErr) {
+          console.error('[AdminTicket] Buyer notification error:', notifErr);
+        }
       }
       setReplyText('');
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);

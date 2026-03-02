@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Switch, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,21 +8,18 @@ import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NotificationSettings'>;
 
 export default function NotificationSettingsScreen({ navigation }: Props) {
-  const { isGuest } = useAuthStore();
+  const { isGuest, user } = useAuthStore();
   const [showGuestModal, setShowGuestModal] = useState(false);
   const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    if (isGuest) {
-      setShowGuestModal(true);
-    }
-  }, [isGuest]);
+  const STORAGE_KEY = `notification_settings_${user?.id || 'anon'}`;
 
-  const [notifications, setNotifications] = useState({
+  const defaultSettings = {
     email: {
       orderUpdates: true,
       promotions: true,
@@ -39,7 +36,47 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
       messages: true,
       flashSales: false,
     },
-  });
+  };
+
+  useEffect(() => {
+    if (isGuest) {
+      setShowGuestModal(true);
+    }
+  }, [isGuest]);
+
+  const [notifications, setNotifications] = useState(defaultSettings);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  // Load saved settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setNotifications({ ...defaultSettings, ...parsed });
+        }
+      } catch (e) {
+        console.error('[NotificationSettings] Load error:', e);
+      } finally {
+        setSettingsLoaded(true);
+      }
+    };
+    loadSettings();
+  }, [STORAGE_KEY]);
+
+  // Persist settings whenever they change (after initial load)
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    const saveSettings = async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+      } catch (e) {
+        console.error('[NotificationSettings] Save error:', e);
+      }
+    };
+    saveSettings();
+  }, [notifications, settingsLoaded, STORAGE_KEY]);
 
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 

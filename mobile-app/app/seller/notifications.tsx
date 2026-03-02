@@ -72,7 +72,39 @@ export default function SellerNotificationsScreen() {
     }
   }, [seller?.id]);
 
-  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
+  useEffect(() => {
+    fetchNotifications();
+
+    // Real-time subscription for live seller notification updates
+    let unsubRealtime: (() => void) | undefined;
+    if (seller?.id) {
+      unsubRealtime = notificationService.subscribeToNotifications(
+        seller.id,
+        'seller',
+        (newNotif) => {
+          // Prepend the new notification to the list
+          setNotifications((prev) => [{
+            id: newNotif.id,
+            user_id: seller.id!,
+            user_type: 'seller' as const,
+            type: newNotif.type,
+            title: newNotif.title,
+            message: newNotif.message,
+            action_url: newNotif.action_url,
+            action_data: newNotif.action_data,
+            is_read: false,
+            read_at: undefined,
+            priority: newNotif.priority,
+            created_at: newNotif.created_at,
+          }, ...prev]);
+        }
+      );
+    }
+
+    return () => {
+      unsubRealtime?.();
+    };
+  }, [fetchNotifications, seller?.id]);
 
   const onRefresh = () => {
     setRefreshing(true);

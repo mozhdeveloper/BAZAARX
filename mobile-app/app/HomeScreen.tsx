@@ -315,12 +315,29 @@ export default function HomeScreen({ navigation }: Props) {
 
   useEffect(() => {
     // Refresh count on focus
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubFocus = navigation.addListener('focus', () => {
       loadNotifications();
     });
     loadNotifications();
-    return unsubscribe;
-  }, [navigation, loadNotifications]);
+
+    // Real-time subscription for live badge updates
+    let unsubRealtime: (() => void) | undefined;
+    if (user?.id && !isGuest) {
+      unsubRealtime = notificationService.subscribeToNotifications(
+        user.id,
+        'buyer',
+        () => {
+          setUnreadCount((prev) => prev + 1);
+          loadNotifications();
+        }
+      );
+    }
+
+    return () => {
+      unsubFocus();
+      unsubRealtime?.();
+    };
+  }, [navigation, loadNotifications, user?.id, isGuest]);
 
   // ... (Location logic skipped for brevity, keeping existing) ...
   useEffect(() => {

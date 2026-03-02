@@ -453,8 +453,23 @@ class ChatService {
             messagePreview: content,
           });
         }
+      } else if (senderType === 'seller' && conv?.buyer_id) {
+        // Seller sent message → notify buyer
+        const { data: seller } = await supabase
+          .from('sellers')
+          .select('store_name')
+          .eq('id', senderId)
+          .single();
+
+        const sellerName = seller?.store_name || 'A seller';
+
+        await notificationService.notifyBuyerNewMessage({
+          buyerId: conv.buyer_id,
+          sellerName,
+          conversationId,
+          messagePreview: content,
+        });
       }
-      // Note: For seller → buyer notifications, add similar logic if needed
     } catch (notifError) {
       console.error('[ChatService] Error sending notification:', notifError);
       // Don't fail the message send if notification fails

@@ -349,9 +349,27 @@ export default function ShopScreen({ navigation, route }: Props) {
         console.error('[ShopScreen] Error loading notifications:', error);
       }
     };
-    const unsubscribe = navigation.addListener('focus', loadNotifications);
+    const unsubFocus = navigation.addListener('focus', loadNotifications);
     loadNotifications();
-    return unsubscribe;
+
+    // Real-time subscription for live badge updates
+    let unsubRealtime: (() => void) | undefined;
+    if (user?.id && !isGuest) {
+      unsubRealtime = notificationService.subscribeToNotifications(
+        user.id,
+        'buyer',
+        () => {
+          // Increment count immediately, then refresh from DB
+          setUnreadCount((prev) => prev + 1);
+          loadNotifications();
+        }
+      );
+    }
+
+    return () => {
+      unsubFocus();
+      unsubRealtime?.();
+    };
   }, [navigation, user?.id, isGuest]);
 
   useEffect(() => {
