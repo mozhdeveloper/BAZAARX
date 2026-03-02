@@ -9,7 +9,7 @@ import {
   StatusBar,
   RefreshControl
 } from 'react-native';
-import { ArrowLeft, Bell, Truck, CheckCircle2, XCircle, Package, Settings } from 'lucide-react-native';
+import { ArrowLeft, Bell, Truck, CheckCircle2, XCircle, Package, Settings, MessageSquare, Headphones, RotateCcw } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
@@ -41,11 +41,23 @@ const getStyles = (type: string) => {
   if (t.includes('confirmed') || t.includes('placed')) {
     return { Icon: CheckCircle2, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
   }
-  if (t.includes('cancelled') || t.includes('returned') || t.includes('rejected')) {
+  if (t.includes('cancelled') || t.includes('rejected') || t.includes('return_rejected')) {
     return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
   }
   if (t.includes('processing')) {
     return { Icon: Package, color: '#2563EB', bg: '#DBEAFE', border: '#BFDBFE' };
+  }
+  if (t.includes('message') || t.includes('buyer_new_message')) {
+    return { Icon: MessageSquare, color: '#7C3AED', bg: '#EDE9FE', border: '#DDD6FE' };
+  }
+  if (t.includes('ticket') || t.includes('support')) {
+    return { Icon: Headphones, color: '#9333EA', bg: '#F3E8FF', border: '#E9D5FF' };
+  }
+  if (t.includes('return_approved') || t.includes('refund')) {
+    return { Icon: RotateCcw, color: '#059669', bg: '#D1FAE5', border: '#A7F3D0' };
+  }
+  if (t.includes('return')) {
+    return { Icon: RotateCcw, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
   }
   return { Icon: Bell, color: '#4B5563', bg: '#F3F4F6', border: '#E5E7EB' };
 };
@@ -75,7 +87,19 @@ export default function NotificationsScreen({ navigation }: Props) {
 
   useEffect(() => {
     loadNotifications();
-  }, [loadNotifications]);
+
+    // Real-time: auto-refresh when a new notification arrives
+    let unsubRealtime: (() => void) | undefined;
+    if (user?.id) {
+      unsubRealtime = notificationService.subscribeToNotifications(
+        user.id,
+        'buyer',
+        () => { loadNotifications(); }
+      );
+    }
+
+    return () => { unsubRealtime?.(); };
+  }, [loadNotifications, user?.id]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -94,6 +118,20 @@ export default function NotificationsScreen({ navigation }: Props) {
       notificationService.markAsRead(n.id);
     }
 
+    // Handle ticket/support notifications — navigate to TicketDetail
+    if (n.type.includes('ticket') && n.action_data?.ticketId) {
+      navigation.navigate('TicketDetail', { ticketId: n.action_data.ticketId });
+      return;
+    }
+
+    // Handle chat message notifications — navigate to Messages/Conversations
+    if (n.type.includes('message') && n.action_data?.conversationId) {
+      // Navigate to orders (chat is accessed through order detail)
+      navigation.navigate('Orders' as any);
+      return;
+    }
+
+    // Handle order-related notifications
     const orderId = n.action_data?.orderId || n.action_data?.orderNumber;
     if (orderId) {
       setProcessingId(n.id);

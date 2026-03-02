@@ -419,6 +419,239 @@ class NotificationService {
       priority: 'high'
     });
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  BUYER — Chat & Support Notifications
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Notify buyer when seller sends a chat message
+   */
+  async notifyBuyerNewMessage(params: {
+    buyerId: string;
+    sellerName: string;
+    conversationId: string;
+    messagePreview: string;
+  }): Promise<Notification | null> {
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: 'buyer_new_message',
+      title: 'New Message',
+      message: `${params.sellerName}: ${params.messagePreview.substring(0, 100)}${params.messagePreview.length > 100 ? '...' : ''}`,
+      icon: 'MessageSquare',
+      iconBg: 'bg-blue-500',
+      actionUrl: '/messages',
+      actionData: { conversationId: params.conversationId },
+      priority: 'normal'
+    });
+  }
+
+  /**
+   * Notify buyer when an admin/agent replies to their support ticket
+   */
+  async notifyBuyerTicketReply(params: {
+    buyerId: string;
+    ticketId: string;
+    ticketSubject: string;
+    replyPreview: string;
+  }): Promise<Notification | null> {
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: 'ticket_reply',
+      title: 'Support Agent Replied',
+      message: `Re: ${params.ticketSubject} — "${params.replyPreview.substring(0, 80)}${params.replyPreview.length > 80 ? '...' : ''}"`,
+      icon: 'Headphones',
+      iconBg: 'bg-purple-500',
+      actionUrl: `/tickets/${params.ticketId}`,
+      actionData: { ticketId: params.ticketId },
+      priority: 'high'
+    });
+  }
+
+  /**
+   * Notify buyer when their return request status changes
+   */
+  async notifyBuyerReturnStatus(params: {
+    buyerId: string;
+    orderId: string;
+    orderNumber: string;
+    status: 'approved' | 'rejected' | 'refunded';
+    message?: string;
+  }): Promise<Notification | null> {
+    const titleMap: Record<string, string> = {
+      approved: 'Return Approved',
+      rejected: 'Return Rejected',
+      refunded: 'Refund Processed',
+    };
+    const iconMap: Record<string, { icon: string; bg: string }> = {
+      approved: { icon: 'CheckCircle', bg: 'bg-green-500' },
+      rejected: { icon: 'XCircle', bg: 'bg-red-500' },
+      refunded: { icon: 'DollarSign', bg: 'bg-green-500' },
+    };
+    const defaultMsg: Record<string, string> = {
+      approved: `Your return for order #${params.orderNumber} has been approved. Please ship the item back.`,
+      rejected: `Your return for order #${params.orderNumber} was not approved. Contact support for more info.`,
+      refunded: `Your refund for order #${params.orderNumber} has been processed. It will appear in 5–7 business days.`,
+    };
+
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: `return_${params.status}`,
+      title: titleMap[params.status] || 'Return Update',
+      message: params.message || defaultMsg[params.status] || `Return status updated to ${params.status}`,
+      icon: iconMap[params.status]?.icon || 'Package',
+      iconBg: iconMap[params.status]?.bg || 'bg-gray-500',
+      actionUrl: `/order/${params.orderNumber}`,
+      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
+      priority: 'high'
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  SELLER — Review & Return Notifications
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Notify seller when a buyer posts a new review on their product
+   */
+  async notifySellerNewReview(params: {
+    sellerId: string;
+    productId: string;
+    productName: string;
+    rating: number;
+    buyerName: string;
+  }): Promise<Notification | null> {
+    const stars = '★'.repeat(Math.round(params.rating)) + '☆'.repeat(5 - Math.round(params.rating));
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_new_review',
+      title: 'New Review',
+      message: `${params.buyerName} rated "${params.productName}" ${stars} (${params.rating}/5)`,
+      icon: 'Star',
+      iconBg: params.rating >= 4 ? 'bg-green-500' : params.rating >= 3 ? 'bg-yellow-500' : 'bg-red-500',
+      actionUrl: '/seller/reviews',
+      actionData: { productId: params.productId },
+      priority: 'normal'
+    });
+  }
+
+  /**
+   * Notify seller when a buyer submits a return request
+   */
+  async notifySellerReturnRequest(params: {
+    sellerId: string;
+    orderId: string;
+    orderNumber: string;
+    buyerName: string;
+    reason: string;
+  }): Promise<Notification | null> {
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_return_request',
+      title: 'Return Request',
+      message: `${params.buyerName} requested a return for order #${params.orderNumber}. Reason: ${params.reason}`,
+      icon: 'RotateCcw',
+      iconBg: 'bg-orange-500',
+      actionUrl: '/seller/returns',
+      actionData: { orderId: params.orderId },
+      priority: 'high'
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  ADMIN — Support & Moderation Notifications
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Notify all admins when a buyer escalates to a support agent
+   */
+  async notifyAdminNewTicket(params: {
+    adminId: string;
+    ticketId: string;
+    ticketSubject: string;
+    buyerName: string;
+  }): Promise<Notification | null> {
+    return this.createNotification({
+      userId: params.adminId,
+      userType: 'admin',
+      type: 'admin_new_ticket',
+      title: 'New Support Ticket',
+      message: `${params.buyerName} opened: "${params.ticketSubject}"`,
+      icon: 'Headphones',
+      iconBg: 'bg-red-500',
+      actionUrl: `/admin/support/${params.ticketId}`,
+      actionData: { ticketId: params.ticketId },
+      priority: 'high'
+    });
+  }
+
+  /**
+   * Notify admin when a new seller application is submitted
+   */
+  async notifyAdminNewSeller(params: {
+    adminId: string;
+    sellerId: string;
+    storeName: string;
+  }): Promise<Notification | null> {
+    return this.createNotification({
+      userId: params.adminId,
+      userType: 'admin',
+      type: 'admin_new_seller',
+      title: 'New Seller Application',
+      message: `"${params.storeName}" submitted a seller application for review.`,
+      icon: 'Store',
+      iconBg: 'bg-blue-500',
+      actionUrl: '/admin/sellers',
+      actionData: { sellerId: params.sellerId },
+      priority: 'normal'
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Real-time Subscription for Live Badge Updates
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Subscribe to real-time notifications for live badge count updates.
+   * Returns an unsubscribe function.
+   */
+  subscribeToNotifications(
+    userId: string,
+    userType: 'buyer' | 'seller' | 'admin',
+    onNewNotification: (notification: any) => void
+  ): () => void {
+    if (!isSupabaseConfigured()) return () => {};
+
+    const table = getNotificationTable(userType);
+    const userIdColumn = getUserIdColumn(userType);
+    const channelName = `${table}_${userId}`;
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: table,
+          filter: `${userIdColumn}=eq.${userId}`,
+        },
+        (payload) => {
+          console.log(`[NotificationService] Real-time ${userType} notification:`, payload.new?.type);
+          onNewNotification(payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }
 }
 
 export const notificationService = new NotificationService();

@@ -5,6 +5,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
+import { notificationService } from './notificationService';
 
 export interface Review {
   id: string;
@@ -404,19 +405,60 @@ export class ReviewService {
       });
 
       if (!review || imageUris.length === 0) {
+          // Still notify seller even if no images
+          this._notifySellerAboutReview(review, reviewData).catch(() => {});
           return review;
       }
 
       const uploadedUrls = await this.uploadReviewImages(review.id, imageUris);
       if (uploadedUrls.length === 0) {
+          this._notifySellerAboutReview(review, reviewData).catch(() => {});
           return review;
       }
 
       await this.attachImagesToReview(review.id, uploadedUrls);
+
+      // Notify seller about the new review
+      this._notifySellerAboutReview(review, reviewData).catch(() => {});
+
       return {
           ...review,
           images: uploadedUrls,
       };
+  }
+
+  /**
+   * Internal: Notify the product seller about a new review
+   */
+  private async _notifySellerAboutReview(review: Review | null, reviewData: ReviewInsert): Promise<void> {
+    if (!review || !isSupabaseConfigured()) return;
+    try {
+      const { data: product } = await supabase
+        .from('products')
+        .select('seller_id, name')
+        .eq('id', review.product_id)
+        .single();
+
+      if (!product?.seller_id) return;
+
+      const { data: buyer } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', review.buyer_id)
+        .single();
+
+      const buyerName = buyer ? `${buyer.first_name || ''} ${buyer.last_name || ''}`.trim() || 'A buyer' : 'A buyer';
+
+      await notificationService.notifySellerNewReview({
+        sellerId: product.seller_id,
+        productId: review.product_id,
+        productName: product.name || 'a product',
+        rating: review.rating,
+        buyerName,
+      });
+    } catch (err) {
+      console.error('[ReviewService] Failed to notify seller about review:', err);
+    }
   }
 
   /**

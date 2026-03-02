@@ -20,6 +20,7 @@ import { COLORS } from '../src/constants/theme';
 import { TicketService } from '../services/TicketService';
 import { useAuthStore } from '../src/stores/authStore';
 import { supabase } from '../src/lib/supabase';
+import { notificationService } from '../src/services/notificationService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChatSupport'>;
 
@@ -303,6 +304,36 @@ export default function ChatSupportScreen({ navigation }: Props) {
         priority: 'normal',
         categoryId: null,
       });
+
+      // Notify all admins about the new support ticket
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', userId)
+          .single();
+        const buyerName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'A buyer' : 'A buyer';
+
+        const { data: admins } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'admin');
+
+        if (admins?.length) {
+          await Promise.allSettled(
+            admins.map((admin: { id: string }) =>
+              notificationService.notifyAdminNewTicket({
+                adminId: admin.id,
+                ticketId: ticket.id,
+                ticketSubject: 'Live Chat — Escalated to Agent',
+                buyerName,
+              })
+            )
+          );
+        }
+      } catch (adminNotifErr) {
+        console.error('[ChatSupport] Admin notification error:', adminNotifErr);
+      }
 
       // Bot confirms escalation
       const confirmMsg: Message = {

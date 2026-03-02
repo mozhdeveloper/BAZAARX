@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { ReturnRequest, ReturnStatus, ReturnReason, ReturnType } from '../types';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { notificationService } from '../services/notificationService';
 
 interface ReturnStore {
   returnRequests: ReturnRequest[];
@@ -68,9 +69,21 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
     set((state) => ({
       returnRequests: [newRequest, ...state.returnRequests],
     }));
+
+    // Notify seller about the return request (fire-and-forget)
+    if (request.sellerId) {
+      notificationService.notifySellerReturnRequest({
+        sellerId: request.sellerId,
+        orderId: request.orderId,
+        orderNumber: request.orderId,
+        buyerName: 'A buyer',
+        reason: request.description || request.reason || 'Return requested',
+      }).catch(() => {});
+    }
   },
 
   updateReturnStatus: (id, status, note, by = 'seller') => {
+    const request = get().returnRequests.find((req) => req.id === id);
     set((state) => ({
       returnRequests: state.returnRequests.map((req) => {
         if (req.id === id) {
@@ -92,6 +105,17 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
         return req;
       }),
     }));
+
+    // Notify buyer about return status change (approved/rejected/refunded)
+    if (request && ['approved', 'rejected', 'refunded'].includes(status)) {
+      notificationService.notifyBuyerReturnStatus({
+        buyerId: request.userId,
+        orderId: request.orderId,
+        orderNumber: request.orderId,
+        status: status as 'approved' | 'rejected' | 'refunded',
+        message: note,
+      }).catch(() => {});
+    }
   },
 
   getReturnRequestsByOrder: (orderId) => {
