@@ -198,8 +198,7 @@ export function SellerOrders() {
   const baseFilteredOrders = orders.filter((order) => {
     const matchesSearch =
       order.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.buyerEmail.toLowerCase().includes(searchQuery.toLowerCase());
+      order.id.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesFilter =
       filterStatus === "all" || order.status === filterStatus;

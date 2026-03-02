@@ -567,11 +567,7 @@ export function OrderDetailsModal({
                                                             <div className="flex items-center gap-1.5 mt-2">
                                                                 <Phone className="w-3 h-3 text-gray-400" />
                                                                 <span className="text-sm text-gray-600 font-medium">
-                                                                    {
-                                                                        order
-                                                                            .shippingAddress
-                                                                            .phone
-                                                                    }
+                                                                    {order.shippingAddress.phone.slice(-4).padStart(order.shippingAddress.phone.length, '*')}
                                                                 </span>
                                                             </div>
                                                         )}
