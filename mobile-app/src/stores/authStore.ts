@@ -179,12 +179,15 @@ export const useAuthStore = create<AuthState>()(
         try {
           const sessionResult = await authService.getSession();
           if (sessionResult?.user) {
-            const profile = await authService.getUserProfile(sessionResult.user.id);
-            const roles = await authService.getUserRoles(sessionResult.user.id);
+            // Fetch profile, roles, and buyer data in parallel to reduce latency
+            const [profile, roles, buyer] = await Promise.all([
+              authService.getUserProfile(sessionResult.user.id).catch(() => null),
+              authService.getUserRoles(sessionResult.user.id).catch(() => [] as string[]),
+              authService.getBuyerProfile(sessionResult.user.id).catch(() => null),
+            ]);
             const firstName = profile?.first_name || '';
             const lastName = profile?.last_name || '';
             const fullName = `${firstName} ${lastName}`.trim() || sessionResult.user.email?.split('@')[0] || 'User';
-            const buyer = await authService.getBuyerProfile(sessionResult.user.id).catch(() => null);
             const user: User = {
               id: sessionResult.user.id,
               email: sessionResult.user.email || '',

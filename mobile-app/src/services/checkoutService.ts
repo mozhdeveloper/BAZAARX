@@ -213,6 +213,8 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 addressData = newAddr;
             }
 
+            if (!addressData) throw new Error('Failed to resolve shipping address');
+
             // Create order with multiple fallback strategies for robustness
             let orderData: { id: string; order_number: string; buyer_id: string } | null = null;
             

@@ -38,10 +38,14 @@ export default function SplashScreen({ navigation }: Props) {
       await new Promise(resolve => setTimeout(resolve, 2500));
 
       try {
-        // PERMANENT FIX: Use the store's checkSession which fetches fresh Profile/Roles from DB
-        // This ensures local state is perfectly synced with Supabase on every launch.
-        await useAuthStore.getState().checkSession();
-        
+        // Race checkSession against an 8-second timeout so Expo Go never hangs
+        await Promise.race([
+          useAuthStore.getState().checkSession(),
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error('checkSession timed out')), 8_000)
+          ),
+        ]);
+
         // Get fresh state after checkSession finishes (it updates the store internally)
         const { isAuthenticated: isAuth, hasCompletedOnboarding: hasOnboarding } = useAuthStore.getState();
 
@@ -52,11 +56,18 @@ export default function SplashScreen({ navigation }: Props) {
         } else {
           navigation.replace('Onboarding');
         }
-      } catch (e) {
-        console.error('Splash checks failed', e);
-        // If checkSession throws (e.g. strict validation), ensure we clean up
-        logout();
-        navigation.replace('Login');
+      } catch (e: any) {
+        const isTimeout = e?.message?.includes('timed out') || e?.name === 'AbortError';
+        console.error(isTimeout ? 'Splash: network timeout, proceeding offline' : 'Splash checks failed', e);
+        // On timeout or any failure: navigate based on locally cached auth state
+        const { isAuthenticated: isAuth, hasCompletedOnboarding: hasOnboarding } = useAuthStore.getState();
+        if (isAuth) {
+          navigation.replace('MainTabs', { screen: 'Home' });
+        } else if (hasOnboarding) {
+          navigation.replace('Login');
+        } else {
+          navigation.replace('Onboarding');
+        }
       }
     };
 

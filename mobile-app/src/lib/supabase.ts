@@ -5,6 +5,13 @@ const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_KEY || '';
 
+// Custom fetch with 10-second timeout to prevent Expo Go from hanging indefinitely
+const fetchWithTimeout = (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
         storage: AsyncStorage,
@@ -13,6 +20,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         detectSessionInUrl: false,
         // Handle refresh token errors gracefully
         storageKey: 'supabase.auth.token',
+    },
+    global: {
+        fetch: fetchWithTimeout,
     },
 });
 
@@ -57,6 +67,9 @@ export const supabaseAdmin = supabaseServiceKey
         auth: {
           persistSession: false,
           autoRefreshToken: false,
+        },
+        global: {
+          fetch: fetchWithTimeout,
         },
       }
     )

@@ -17,7 +17,6 @@ export interface FeaturedProductMobile {
     id: string;
     name: string;
     price: number;
-
     seller_id: string;
     approval_status: string;
     disabled_at: string | null;
