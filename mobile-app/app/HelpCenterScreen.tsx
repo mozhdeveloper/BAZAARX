@@ -144,7 +144,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
       title: 'Chat Support',
       subtitle: 'Chat with our support team',
       color: '#8B5CF6',
-      onPress: () => console.log('Open live chat'),
+      onPress: () => navigation.navigate('ChatSupport'),
     },
     {
       icon: Ticket,

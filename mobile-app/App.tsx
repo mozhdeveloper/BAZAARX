@@ -36,6 +36,7 @@ import NotificationsScreen from './app/NotificationsScreen';
 import NotificationSettingsScreen from './app/NotificationSettingsScreen';
 import PaymentMethodsScreen from './app/PaymentMethodsScreen';
 import HelpCenterScreen from './app/HelpCenterScreen';
+import ChatSupportScreen from './app/ChatSupportScreen';
 import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
 import SellerSignupScreen from './app/seller/signup';
@@ -117,6 +118,7 @@ export type RootStackParamList = {
   NotificationSettings: undefined;
   PaymentMethods: undefined;
   HelpSupport: { activeTab?: 'tickets' | 'faq' } | undefined;
+  ChatSupport: undefined;
   PrivacyPolicy: undefined;
   AllStores: { title?: string };
   StoreDetail: { store: any };
@@ -346,6 +348,7 @@ export default function App() {
             <Stack.Screen name="History" component={HistoryScreen} />
             <Stack.Screen name="MyRequests" component={MyRequestsScreen} />
             <Stack.Screen name="HelpSupport" component={HelpCenterScreen} />
+            <Stack.Screen name="ChatSupport" component={ChatSupportScreen} options={{ headerShown: false }} />
             <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
             <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
             <Stack.Screen name="Messages" component={MessagesScreen} />
