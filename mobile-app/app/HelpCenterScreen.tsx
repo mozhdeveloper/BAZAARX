@@ -318,6 +318,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
                   styles.resourceCard,
                   pressed && styles.resourceCardPressed,
                 ]}
+                onPress={() => navigation.navigate('UserGuide')}
               >
                 <FileText size={20} color="#F59E0B" />
                 <View style={styles.resourceInfo}>
@@ -332,6 +333,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
                   styles.resourceCard,
                   pressed && styles.resourceCardPressed,
                 ]}
+                onPress={() => navigation.navigate('TermsOfService')}
               >
                 <FileText size={20} color="#F59E0B" />
                 <View style={styles.resourceInfo}>

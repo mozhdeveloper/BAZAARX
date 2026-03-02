@@ -59,6 +59,8 @@ import CreateTicketScreen from './app/tickets/CreateTicketScreen';
 import TicketDetailScreen from './app/tickets/TicketDetailScreen';
 import MessagesScreen from './app/MessagesScreen';
 import ChatScreen from './src/components/ChatScreen';
+import UserGuideScreen from './app/UserGuideScreen';
+import TermsOfServiceScreen from './app/TermsOfServiceScreen';
 
 // Onboarding Screens
 import TermsScreen from './app/onboarding/TermsScreen';
@@ -120,6 +122,8 @@ export type RootStackParamList = {
   HelpSupport: { activeTab?: 'tickets' | 'faq' } | undefined;
   ChatSupport: undefined;
   PrivacyPolicy: undefined;
+  UserGuide: undefined;
+  TermsOfService: undefined;
   AllStores: { title?: string };
   StoreDetail: { store: any };
   ReturnRequest: { order: Order };
@@ -353,6 +357,8 @@ export default function App() {
             <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
             <Stack.Screen name="Messages" component={MessagesScreen} />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+            <Stack.Screen name="UserGuide" component={UserGuideScreen} />
+            <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
             <Stack.Screen name="AddProduct" component={AddProductScreen} />
             <Stack.Screen name="Chat" component={ChatScreen} />
           </Stack.Navigator>
