@@ -50,7 +50,7 @@ export default function OrdersPage() {
   const location = useLocation();
   const { orders, updateOrderStatus, updateOrderWithReturnRequest, hydrateBuyerOrders } =
     useCartStore();
-  const { addToCart, profile, initializeCart } = useBuyerStore();
+  const { profile, initializeCart } = useBuyerStore();
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -798,9 +798,9 @@ export default function OrdersPage() {
                                 </Button>
                               )}
 
-                              {/* Buy Again */}
+                              {/* Buy Again - Opens first product's detail page */}
                               <Button
-                                onClick={async () => {
+                                onClick={() => {
                                   if (!order.items || order.items.length === 0) {
                                     toast({
                                       title: "Cannot buy again",
@@ -810,76 +810,25 @@ export default function OrdersPage() {
                                     return;
                                   }
 
-                                  setIsLoading(true);
-                                  toast({
-                                    title: "Adding to Cart",
-                                    description: "Preparing your items for repurchase...",
-                                  });
-
-                                  try {
-                                    const productIds: string[] = [];
-                                    let addedCount = 0;
-
-                                    // Add each item to the cart
-                                    for (const item of order.items) {
-                                      // Use productId if available, fallback to item.id
-                                      const productId = (item as any).productId || item.id;
-                                      
-                                      if (!productId) {
-                                        console.warn("Buy Again: Skipping item with no product ID", item);
-                                        continue;
-                                      }
-
-                                      // Reconstruct product object for addToCart
-                                      const product = {
-                                        id: productId,
-                                        name: item.name,
-                                        price: item.price,
-                                        image: item.image,
-                                        seller_id: (item as any).sellerId || (order as any).sellerId
-                                      };
-
-                                      await addToCart(product as any, 1, item.variant as any);
-                                      productIds.push(productId);
-                                      addedCount++;
-                                    }
-
-                                    if (addedCount === 0) {
-                                      throw new Error("No items could be re-added. The products may no longer be available.");
-                                    }
-
-                                    if (addedCount < order.items.length) {
-                                      toast({
-                                        title: "Some items could not be re-added",
-                                        description: "Some products from this order are no longer available.",
-                                        variant: "destructive"
-                                      });
-                                    }
-
-                                    // Navigate to enhanced-cart with selection state
-                                    navigate("/enhanced-cart", {
-                                      state: { selectedItems: productIds }
-                                    });
-                                  } catch (error: any) {
-                                    console.error("Buy again error:", error);
+                                  // Navigate to the first product's detail page
+                                  const firstItem = order.items[0];
+                                  const productId = (firstItem as any).productId || firstItem.id;
+                                  
+                                  if (!productId) {
                                     toast({
-                                      title: "Repurchase failed",
-                                      description: error.message || "Could not add items to cart. Please try again.",
+                                      title: "Cannot buy again",
+                                      description: "Product information unavailable.",
                                       variant: "destructive"
                                     });
-                                  } finally {
-                                    setIsLoading(false);
+                                    return;
                                   }
+
+                                  navigate(`/product/${productId}`);
                                 }}
                                 size="sm"
-                                disabled={isLoading}
                                 className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md shadow-orange-500/20"
                               >
-                                {isLoading ? (
-                                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  "Buy Again"
-                                )}
+                                Buy Again
                               </Button>
                             </>
                           ) : order.status === "cancelled" ? (
