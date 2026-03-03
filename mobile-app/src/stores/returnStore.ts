@@ -20,7 +20,7 @@ const dummyReturnRequests: ReturnRequest[] = [
     id: 'ret_1',
     orderId: '1',
     userId: 'user_1',
-    sellerId: 'TechStore Official',
+    sellerId: 'dummy_seller_1',
     items: [
       {
         itemId: '1',
