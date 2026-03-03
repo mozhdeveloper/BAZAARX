@@ -75,7 +75,30 @@ class FeaturedProductService {
 
       // Filter out expired features
       const now = new Date().toISOString();
-      return (data || []).filter((fp: any) => !fp.expires_at || fp.expires_at > now);
+      const filtered = (data || []).filter((fp: any) => !fp.expires_at || fp.expires_at > now);
+
+      if (filtered.length === 0) return filtered;
+
+      // Fetch real sold counts from the product_sold_counts view (computed from completed orders)
+      const productIds = filtered.map((fp: any) => fp.product?.id).filter(Boolean);
+      const { data: soldCountsData } = await supabase
+        .from('product_sold_counts')
+        .select('product_id, sold_count')
+        .in('product_id', productIds);
+
+      const soldCountsMap = new Map<string, number>();
+      (soldCountsData || []).forEach((row: any) => {
+        soldCountsMap.set(row.product_id, row.sold_count || 0);
+      });
+
+      // Attach sold_count to each product object
+      return filtered.map((fp: any) => ({
+        ...fp,
+        product: {
+          ...fp.product,
+          sold_count: soldCountsMap.get(fp.product?.id) || 0,
+        },
+      }));
     } catch (err) {
       console.error('[FeaturedProductService] getFeaturedProducts exception:', err);
       return [];

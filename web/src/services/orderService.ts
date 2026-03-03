@@ -62,9 +62,12 @@ export interface OrderTrackingSnapshot {
 }
 
 // Legacy status mapping to new payment_status + shipment_status
+// NOTE: Payment status is now decoupled from shipment status. 
+// Only explicit payment-related status changes should update payment_status.
+// Shipment status changes (shipped, delivered, etc.) should NOT auto-update payment_status.
 const LEGACY_STATUS_MAP: Record<
     string,
-    { payment_status: PaymentStatus; shipment_status: ShipmentStatus }
+    { payment_status: PaymentStatus | null; shipment_status: ShipmentStatus }
 > = {
     pending_payment: {
         payment_status: "pending_payment",
@@ -75,21 +78,21 @@ const LEGACY_STATUS_MAP: Record<
         shipment_status: "waiting_for_seller",
     },
     paid: { payment_status: "paid", shipment_status: "processing" },
-    processing: { payment_status: "paid", shipment_status: "processing" },
-    ready_to_ship: { payment_status: "paid", shipment_status: "ready_to_ship" },
-    shipped: { payment_status: "paid", shipment_status: "shipped" },
+    processing: { payment_status: null, shipment_status: "processing" },
+    ready_to_ship: { payment_status: null, shipment_status: "ready_to_ship" },
+    shipped: { payment_status: null, shipment_status: "shipped" },
     out_for_delivery: {
-        payment_status: "paid",
+        payment_status: null,
         shipment_status: "out_for_delivery",
     },
-    delivered: { payment_status: "paid", shipment_status: "delivered" },
+    delivered: { payment_status: null, shipment_status: "delivered" },
     failed_delivery: {
-        payment_status: "paid",
+        payment_status: null,
         shipment_status: "failed_to_deliver",
     },
     cancelled: { payment_status: "refunded", shipment_status: "returned" },
     refunded: { payment_status: "refunded", shipment_status: "returned" },
-    completed: { payment_status: "paid", shipment_status: "received" },
+    completed: { payment_status: null, shipment_status: "received" },
 };
 
 const DEFAULT_LEGACY_STATUS = LEGACY_STATUS_MAP.pending_payment;
@@ -1489,13 +1492,20 @@ export class OrderService {
 
             const newStatuses = LEGACY_STATUS_MAP[status] || DEFAULT_LEGACY_STATUS;
 
+            // Build update payload - only include payment_status if it's explicitly set
+            const updatePayload: Record<string, unknown> = {
+                shipment_status: newStatuses.shipment_status,
+                updated_at: new Date().toISOString(),
+            };
+            
+            // Only update payment_status if it's explicitly provided (not null)
+            if (newStatuses.payment_status !== null) {
+                updatePayload.payment_status = newStatuses.payment_status;
+            }
+
             const { error: orderError } = await supabase
                 .from("orders")
-                .update({
-                    payment_status: newStatuses.payment_status,
-                    shipment_status: newStatuses.shipment_status,
-                    updated_at: new Date().toISOString(),
-                })
+                .update(updatePayload)
                 .eq("id", orderId);
 
             if (orderError) throw orderError;
@@ -1849,6 +1859,77 @@ export class OrderService {
         } catch (error) {
             console.error("Error marking order as delivered:", error);
             throw new Error("Failed to mark order as delivered");
+        }
+    }
+
+    /**
+     * Confirm order received by buyer
+     * Transitions shipment_status from "delivered" to "received"
+     * This is the final confirmation that the buyer has received the package
+     */
+    async confirmOrderReceived(
+        orderId: string,
+        buyerId: string,
+    ): Promise<boolean> {
+        if (!isSupabaseConfigured()) {
+            const order = this.mockOrders.find((o) => o.id === orderId && o.buyer_id === buyerId);
+            if (order) {
+                order.status = "completed";
+                order.completed_at = new Date().toISOString();
+                return true;
+            }
+            return false;
+        }
+
+        try {
+            const { data: order, error: fetchError } = await supabase
+                .from("orders")
+                .select(`
+                    id,
+                    buyer_id,
+                    order_number,
+                    shipment_status
+                `)
+                .eq("id", orderId)
+                .single();
+
+            if (fetchError || !order) {
+                throw new Error("Order not found");
+            }
+
+            if (order.buyer_id !== buyerId) {
+                throw new Error("Access denied: You can only confirm receipt of your own orders");
+            }
+
+            if (order.shipment_status !== "delivered") {
+                throw new Error(
+                    `Cannot confirm receipt. Order must be in "delivered" status. Current status: ${order.shipment_status}`
+                );
+            }
+
+            const { error: updateError } = await supabase
+                .from("orders")
+                .update({
+                    shipment_status: "received",
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", orderId);
+
+            if (updateError) throw updateError;
+
+            await supabase.from("order_status_history").insert({
+                order_id: orderId,
+                status: "received",
+                note: "Buyer confirmed receipt of order",
+                changed_by: buyerId,
+                changed_by_role: "buyer",
+                metadata: { confirmed_received_at: new Date().toISOString() },
+            });
+
+            return true;
+        } catch (error) {
+            console.error("Error confirming order received:", error);
+            throw new Error("Failed to confirm order receipt");
         }
     }
 

@@ -196,9 +196,13 @@ export function SellerOrders() {
   };
 
   const baseFilteredOrders = orders.filter((order) => {
+    const normalizedSearch = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      order.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.id.toLowerCase().includes(searchQuery.toLowerCase());
+      !normalizedSearch ||
+      order.buyerName.toLowerCase().includes(normalizedSearch) ||
+      order.id.toLowerCase().includes(normalizedSearch) ||
+      (order.orderNumber && order.orderNumber.toLowerCase().includes(normalizedSearch)) ||
+      (order.buyerEmail && order.buyerEmail.toLowerCase().includes(normalizedSearch));
 
     const matchesFilter =
       filterStatus === "all" || order.status === filterStatus;
@@ -418,7 +422,7 @@ export function SellerOrders() {
                     <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors h-5 w-5" />
                     <Input
                       type="text"
-                      placeholder="Search by Order ID, Customer name, or Email..."
+                      placeholder="Search by Order #, Customer name, or Email..."
                       value={searchQuery}
                       onChange={(e) =>
                         handleSearchChange(e.target.value)

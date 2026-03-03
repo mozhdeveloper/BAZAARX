@@ -5,6 +5,7 @@ export type OrderUiStatus =
   | "confirmed"
   | "shipped"
   | "delivered"
+  | "received"
   | "cancelled"
   | "returned"
   | "reviewed";
