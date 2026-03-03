@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
+﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -377,10 +377,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Menu State
   const [showMenu, setShowMenu] = useState(false);
 
-  // Use product images if available, otherwise mock an array with the main image
-  // product.images from Supabase is an array of objects { id, image_url, alt_text, ... }
-  // We normalize these to plain strings for rendering
-  const productImages: string[] = (() => {
+  // Memoize product images to avoid sorting + mapping every render
+  const productImages: string[] = useMemo(() => {
     const raw = product.images;
     if (!raw || !Array.isArray(raw) || raw.length === 0) {
       // Fallback: use the main image string
@@ -393,7 +391,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       if (typeof img === 'string') return img;
       return img.image_url || img.url || img.uri || product.image || '';
     }).filter(Boolean) as string[];
-  })();
+  }, [product.images, product.image]);
 
   // Stores
   const addItem = useCartStore((state) => state.addItem);
@@ -646,7 +644,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setQuantity(newQuantity);
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = useCallback(() => {
     if (hasVariants) {
       openVariantModal('cart');
       return;
@@ -687,9 +685,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       image: productImages[0] || product.image || ''
     });
     setShowAddedToCartModal(true);
-  };
+  }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, productImages, addItem]);
 
-  const handleBuyNow = () => {
+  const handleBuyNow = useCallback(() => {
     // Bypass variant modal if variants are already selected
     if (hasVariants) {
       openVariantModal('buy');
@@ -710,7 +708,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     // Set quick order with variant info
     setQuickOrder({ ...product, price: discountedPrice, selectedVariant }, quantity);
     navigation.navigate('Checkout', {});
-  };
+  }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, selectedColor, selectedSize, navigation, setQuickOrder]);
 
   // NEW Handle Confirm from Shared Modal
 
@@ -810,9 +808,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleWishlistAction = () => {
-    const { isGuest } = useAuthStore.getState();
-    if (isGuest) {
+  const handleWishlistAction = useCallback(() => {
+    const { isGuest: guestCheck } = useAuthStore.getState();
+    if (guestCheck) {
       setGuestModalMessage("Sign up to create wishlists.");
       setShowGuestModal(true);
       return;
@@ -823,7 +821,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     } else {
       setShowWishlistModal(true);
     }
-  };
+  }, [isFavorite, product.id, removeFromWishlist]);
 
   const handleMarkReviewHelpful = async (reviewId: string) => {
     if (helpfulReviewIds[reviewId]) {

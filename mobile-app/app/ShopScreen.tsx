@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -451,12 +451,22 @@ export default function ShopScreen({ navigation, route }: Props) {
     return filtered;
   }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults, minPrice, maxPrice, categoryChips]);
 
+  // Pre-index products by seller_id for O(n+m) verified stores computation
+  const productsBySeller = useMemo(() => {
+    const map = new Map<string, typeof dbProducts>();
+    dbProducts.forEach(product => {
+      const sellerId = product.seller_id || product.sellerId;
+      if (!sellerId) return;
+      if (!map.has(sellerId)) map.set(sellerId, []);
+      map.get(sellerId)!.push(product);
+    });
+    return map;
+  }, [dbProducts]);
+
   const verifiedStores = useMemo(() => {
     return (sellers || [])
       .map((seller) => {
-        const storeProducts = dbProducts
-          .filter((product) => product.seller_id === seller.id || product.sellerId === seller.id)
-          .slice(0, 2);
+        const storeProducts = (productsBySeller.get(seller.id) || []).slice(0, 2);
 
         const productRatings = storeProducts.map((product) => toNumber(product.rating, 0)).filter((rating) => rating > 0);
         const computedRating =
@@ -475,7 +485,31 @@ export default function ShopScreen({ navigation, route }: Props) {
         };
       })
       .filter(s => s.products.length > 0);
-  }, [sellers, dbProducts]);
+  }, [sellers, productsBySeller]);
+
+  // Memoized FlatList callbacks to prevent re-creating functions on each render
+  const handleProductPress = useCallback((product: Product) => {
+    navigation.navigate('ProductDetail', { product });
+  }, [navigation]);
+
+  const keyExtractor = useCallback((item: Product) => item.id, []);
+
+  const renderProductItem = useCallback(({ item: product }: { item: Product }) => (
+    <View style={styles.cardWrapper}>
+      <ProductCard product={product} onPress={() => handleProductPress(product)} />
+    </View>
+  ), [handleProductPress]);
+
+  const emptyComponent = useMemo(() => (
+    !isLoading ? (
+      <View style={[styles.productsSection, { marginTop: 20 }]}>
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyTitle}>No products found</Text>
+          <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
+        </View>
+      </View>
+    ) : null
+  ), [isLoading]);
 
   return (
     <View
@@ -606,29 +640,17 @@ export default function ShopScreen({ navigation, route }: Props) {
             <View style={styles.productsSection}>
               <FlatList
                 data={filteredProducts}
-                keyExtractor={(item) => item.id}
+                keyExtractor={keyExtractor}
                 numColumns={2}
-                initialNumToRender={10}
-                maxToRenderPerBatch={6}
-                windowSize={5}
+                initialNumToRender={8}
+                maxToRenderPerBatch={10}
+                windowSize={7}
                 removeClippedSubviews={true}
                 scrollEnabled={false}
+                updateCellsBatchingPeriod={100}
                 columnWrapperStyle={styles.productsGrid}
-                renderItem={({ item: product }) => (
-                  <View style={styles.cardWrapper}>
-                    <ProductCard product={product} onPress={() => navigation.navigate('ProductDetail', { product })} />
-                  </View>
-                )}
-                ListEmptyComponent={
-                  !isLoading ? (
-                    <View style={[styles.productsSection, { marginTop: 20 }]}>
-                      <View style={styles.emptyBox}>
-                        <Text style={styles.emptyTitle}>No products found</Text>
-                        <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
-                      </View>
-                    </View>
-                  ) : null
-                }
+                renderItem={renderProductItem}
+                ListEmptyComponent={emptyComponent}
               />
             </View>
           </>

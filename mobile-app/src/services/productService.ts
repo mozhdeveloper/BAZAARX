@@ -18,6 +18,10 @@ type ProductUpdate = Database['public']['Tables']['products']['Update'];
 
 export class ProductService {
   private static instance: ProductService;
+  
+  // Query result cache with TTL
+  private queryCache = new Map<string, { data: any[]; timestamp: number }>();
+  private readonly CACHE_TTL = 60000; // 1 minute
 
   private constructor() {
     if (ProductService.instance) {
@@ -30,6 +34,37 @@ export class ProductService {
       ProductService.instance = new ProductService();
     }
     return ProductService.instance;
+  }
+
+  /**
+   * Clear all cached query results.
+   * Call after product mutations (create, update, delete).
+   */
+  public clearCache(): void {
+    this.queryCache.clear();
+  }
+
+  /**
+   * Invalidate a specific cache entry by filter key.
+   */
+  public invalidateCache(filters?: Record<string, any>): void {
+    const key = JSON.stringify(filters || {});
+    this.queryCache.delete(key);
+  }
+
+  private getCached<T>(cacheKey: string): T[] | null {
+    const cached = this.queryCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.data as T[];
+    }
+    if (cached) {
+      this.queryCache.delete(cacheKey); // Expired
+    }
+    return null;
+  }
+
+  private setCache(cacheKey: string, data: any[]): void {
+    this.queryCache.set(cacheKey, { data, timestamp: Date.now() });
   }
 
   private async ensureCategoryId(
@@ -89,6 +124,11 @@ export class ProductService {
       console.warn('Supabase not configured - cannot fetch products');
       return [];
     }
+
+    // Check cache first
+    const cacheKey = `getProducts:${JSON.stringify(filters || {})}`;
+    const cached = this.getCached<ProductWithSeller>(cacheKey);
+    if (cached) return cached;
 
     try {
       // New normalized query with proper joins
@@ -236,7 +276,12 @@ export class ProductService {
       });
 
       // Transform to add legacy compatibility fields
-      return data.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+      const result = data.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+      
+      // Store in cache
+      this.setCache(cacheKey, result);
+      
+      return result;
     } catch (error) {
       console.error('Error fetching products:', error);
       throw new Error('Failed to fetch products. Please try again later.');
@@ -489,6 +534,7 @@ export class ProductService {
       if (error) throw error;
       if (!data) throw new Error('No data returned upon product creation');
 
+      this.clearCache(); // Invalidate query cache after mutation
       return data;
     } catch (error) {
       console.error('Error creating product:', error);
@@ -544,6 +590,7 @@ export class ProductService {
       if (error) throw error;
       if (!data) throw new Error('Product not found or update failed');
 
+      this.clearCache(); // Invalidate query cache after mutation
       return data;
     } catch (error) {
       console.error('Error updating product:', error);
@@ -567,6 +614,7 @@ export class ProductService {
         .eq('id', id);
 
       if (error) throw error;
+      this.clearCache(); // Invalidate query cache after mutation
     } catch (error) {
       console.error('Error deleting product:', error);
       throw new Error('Failed to delete product.');

@@ -70,7 +70,7 @@ const categories: { id: string; name: string; icon: keyof typeof MaterialCommuni
 
 const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5; // 5 columns, 20px padding each side, 10px gaps
 
-const CategoryItem = ({ label, iconName }: { label: string; iconName: keyof typeof MaterialCommunityIcons.glyphMap }) => (
+const CategoryItem = React.memo(({ label, iconName }: { label: string; iconName: keyof typeof MaterialCommunityIcons.glyphMap }) => (
   <View style={styles.categoryItm}>
     <View style={[styles.categoryIconBox, { 
       backgroundColor: '#FFFBF5', // Lighter Parchment
@@ -86,7 +86,7 @@ const CategoryItem = ({ label, iconName }: { label: string; iconName: keyof type
     </View>
     <Text style={styles.categoryLabel}>{label}</Text>
   </View>
-);
+));
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -117,11 +117,19 @@ export default function HomeScreen({ navigation }: Props) {
   const [activeSlide, setActiveSlide] = useState(0);
   const [flashSaleProducts, setFlashSaleProducts] = useState<any[]>([]);
   const [flashTimer, setFlashTimer] = useState('00:00:00');
+  const [flashCountdown, setFlashCountdown] = useState('00:00:00');
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const scrollAnchor = useRef(0);
   const [showLocationRow, setShowLocationRow] = useState(true);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Debounce search input to avoid re-filtering on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const promoSlides = [
     {
@@ -162,16 +170,20 @@ export default function HomeScreen({ navigation }: Props) {
   // Display name logic
   const username = user?.name ? user.name.split(' ')[0] : 'Guest';
 
-  const filteredProducts = searchQuery.trim()
-    ? dbProducts.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
-    : [];
+  const filteredProducts = useMemo(() => {
+    if (!debouncedSearchQuery.trim()) return [];
+    const q = debouncedSearchQuery.toLowerCase();
+    return dbProducts.filter(p => (p.name || '').toLowerCase().includes(q));
+  }, [dbProducts, debouncedSearchQuery]);
 
-  const filteredStores = searchQuery.trim()
-    ? (sellers || []).filter((s: any) =>
-      (s.store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.business_name || '').toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    : [];
+  const filteredStores = useMemo(() => {
+    if (!debouncedSearchQuery.trim()) return [];
+    const q = debouncedSearchQuery.toLowerCase();
+    return (sellers || []).filter((s: any) =>
+      (s.store_name || '').toLowerCase().includes(q) ||
+      (s.business_name || '').toLowerCase().includes(q)
+    );
+  }, [sellers, debouncedSearchQuery]);
 
   // === PARALLEL DATA LOADING — all independent fetches in one shot ===
   useEffect(() => {
@@ -251,36 +263,56 @@ export default function HomeScreen({ navigation }: Props) {
     loadAllData();
   }, []);
 
-  // Flash sale countdown timer
+  // Consolidated flash sale countdown timer — single interval handles both campaign timer and block countdown
   useEffect(() => {
-    if (flashSaleProducts.length === 0) return;
+    // Pre-compute the rolling 3-hour block end time (static for lifecycle of this effect)
+    const getBlockEnd = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const nextBlock = Math.ceil((hours + 1) / 3) * 3;
+      const end = new Date(now);
+      end.setHours(nextBlock, 0, 0, 0);
+      if (end.getTime() <= now.getTime()) end.setHours(end.getHours() + 3);
+      return end.getTime();
+    };
+    const blockEndTime = getBlockEnd();
 
-    const updateTimer = () => {
-      // Find the soonest ending campaign
-      const now = new Date().getTime();
-      const endTiems = flashSaleProducts
-        .map(p => new Date(p.campaignEndsAt).getTime())
-        .filter(t => t > now)
-        .sort((a, b) => a - b);
+    const tick = () => {
+      const now = Date.now();
 
-      if (endTiems.length === 0) {
-        setFlashTimer('00:00:00');
-        return;
+      // 1. Flash sale campaign timer
+      if (flashSaleProducts.length > 0) {
+        const endTimes = flashSaleProducts
+          .map(p => new Date(p.campaignEndsAt).getTime())
+          .filter(t => t > now)
+          .sort((a, b) => a - b);
+
+        if (endTimes.length === 0) {
+          setFlashTimer('00:00:00');
+        } else {
+          const diff = endTimes[0] - now;
+          const h = Math.floor(diff / (1000 * 60 * 60));
+          const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const s = Math.floor((diff % (1000 * 60)) / 1000);
+          setFlashTimer(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        }
       }
 
-      const diff = endTiems[0] - now;
-      const h = Math.floor(diff / (1000 * 60 * 60));
-      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setFlashTimer(
-        `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-      );
+      // 2. Rolling 3-hour block countdown
+      const blockDiff = blockEndTime - now;
+      if (blockDiff <= 0) {
+        setFlashCountdown('00:00:00');
+      } else {
+        const h = Math.floor(blockDiff / (1000 * 60 * 60));
+        const m = Math.floor((blockDiff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((blockDiff % (1000 * 60)) / 1000);
+        setFlashCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+      }
     };
 
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
   }, [flashSaleProducts]);
 
   // --- FETCH NOTIFICATIONS ---
@@ -322,10 +354,15 @@ export default function HomeScreen({ navigation }: Props) {
 
   // ... (Location logic skipped for brevity, keeping existing) ...
   useEffect(() => {
+    let isMounted = true;
     const loadSavedLocation = async () => {
       try {
-        const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
-        const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
+        // Parallel AsyncStorage reads instead of sequential
+        const [savedAddress, savedCoords] = await Promise.all([
+          AsyncStorage.getItem('currentDeliveryAddress'),
+          AsyncStorage.getItem('currentDeliveryCoordinates'),
+        ]);
+        if (!isMounted) return;
         if (savedAddress) setDeliveryAddress(savedAddress);
         if (savedCoords) setDeliveryCoordinates(JSON.parse(savedCoords));
       } catch (e) { console.error(e); }
@@ -333,6 +370,7 @@ export default function HomeScreen({ navigation }: Props) {
       if (user?.id) {
         try {
           const savedLocation = await addressService.getCurrentDeliveryLocation(user.id);
+          if (!isMounted) return;
           if (savedLocation) {
             const formatted = savedLocation.city ? `${savedLocation.street}, ${savedLocation.city}` : savedLocation.street;
             setDeliveryAddress(formatted);
@@ -342,6 +380,7 @@ export default function HomeScreen({ navigation }: Props) {
       }
     };
     loadSavedLocation();
+    return () => { isMounted = false; };
   }, [user]);
 
   const handleSelectLocation = async (address: string, coords?: any, details?: any) => {
@@ -368,12 +407,68 @@ export default function HomeScreen({ navigation }: Props) {
     return [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8);
   }, [dbProducts]);
 
+  // Memoized merge of boosted + featured products (was an IIFE in JSX)
+  const mergedFeaturedProducts = useMemo(() => {
+    const seenIds = new Set<string>();
+    const allItems: { key: string; mapped: any }[] = [];
+
+    for (const bp of boostedProducts) {
+      const product = bp.product;
+      if (!product || seenIds.has(product.id)) continue;
+      seenIds.add(product.id);
+      const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
+      const reviews = product.reviews || [];
+      const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
+      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+      allItems.push({ key: `boost-${bp.id}`, mapped: {
+        id: product.id, name: product.name, price: product.price,
+        originalPrice: (product as any).original_price, original_price: (product as any).original_price,
+        primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+        images: product.images?.map((img: any) => img.image_url) || [],
+        category: product.category?.name, seller: product.seller,
+        rating: avgRating, review_count: reviews.length, stock: totalStock,
+        is_active: !product.disabled_at,
+      }});
+    }
+
+    for (const fp of featuredProducts) {
+      const product = (fp as any).product;
+      if (!product || seenIds.has(product.id)) continue;
+      seenIds.add(product.id);
+      const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
+      const reviews = product.reviews || [];
+      const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
+      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+      allItems.push({ key: `feat-${(fp as any).id}`, mapped: {
+        id: product.id, name: product.name, price: product.price,
+        originalPrice: product.original_price, original_price: product.original_price,
+        primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+        images: product.images?.map((img: any) => img.image_url) || [],
+        category: product.category?.name, seller: product.seller,
+        rating: avgRating, review_count: reviews.length, stock: totalStock,
+        is_active: !product.disabled_at,
+      }});
+    }
+
+    return allItems.slice(0, 10);
+  }, [boostedProducts, featuredProducts]);
+
+  // Pre-index products by seller_id for O(n+m) verified stores computation
+  const productsBySeller = useMemo(() => {
+    const map = new Map<string, Product[]>();
+    dbProducts.forEach(product => {
+      const sellerId = product.seller_id || product.sellerId;
+      if (!sellerId) return;
+      if (!map.has(sellerId)) map.set(sellerId, []);
+      map.get(sellerId)!.push(product);
+    });
+    return map;
+  }, [dbProducts]);
+
   const verifiedStores = useMemo(() => {
     return (sellers || [])
       .map((seller) => {
-        const storeProducts = dbProducts
-          .filter((product) => product.seller_id === seller.id || product.sellerId === seller.id)
-          .slice(0, 2);
+        const storeProducts = (productsBySeller.get(seller.id) || []).slice(0, 2);
 
         const productRatings = storeProducts.map((product) => Number(product.rating || 0)).filter((rating) => rating > 0);
         const computedRating = productRatings.length > 0
@@ -391,39 +486,25 @@ export default function HomeScreen({ navigation }: Props) {
       })
       .filter(s => s.products.length > 0)
       .slice(0, 8);
-  }, [sellers, dbProducts]);
+  }, [sellers, productsBySeller]);
 
-  // Flash sale live countdown — rolling 3-hour window
-  const [flashCountdown, setFlashCountdown] = useState('00:00:00');
-  useEffect(() => {
-    const getEndTime = () => {
-      const now = new Date();
-      const hours = now.getHours();
-      const nextBlock = Math.ceil((hours + 1) / 3) * 3;
-      const end = new Date(now);
-      end.setHours(nextBlock, 0, 0, 0);
-      if (end.getTime() <= now.getTime()) end.setHours(end.getHours() + 3);
-      return end.getTime();
-    };
-    const endTime = getEndTime();
-    const tick = () => {
-      const diff = endTime - Date.now();
-      if (diff <= 0) { setFlashCountdown('00:00:00'); return; }
-      const h = Math.floor(diff / (1000 * 60 * 60));
-      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((diff % (1000 * 60)) / 1000);
-      setFlashCountdown(
-        `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-      );
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, []);
+  // flashCountdown state is declared above with other state (before the consolidated timer)
 
-  const handleProductPress = (product: Product) => {
+  const handleProductPress = useCallback((product: Product) => {
     navigation.navigate('ProductDetail', { product });
-  };
+  }, [navigation]);
+
+  // Memoized scroll handler — avoids re-creating the function on every render
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    if (y > scrollAnchor.current + 15 && y > 50) {
+      setShowLocationRow(false);
+      scrollAnchor.current = y;
+    } else if (y < scrollAnchor.current - 15) {
+      setShowLocationRow(true);
+      scrollAnchor.current = y;
+    }
+  }, []);
 
   return (
     <LinearGradient
@@ -498,20 +579,7 @@ export default function HomeScreen({ navigation }: Props) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
         scrollEventThrottle={16}
-        onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-          const y = e.nativeEvent.contentOffset.y;
-          if (y > scrollAnchor.current + 15 && y > 50) {
-            if (showLocationRow) {
-              setShowLocationRow(false);
-              scrollAnchor.current = y;
-            }
-          } else if (y < scrollAnchor.current - 15) {
-            if (!showLocationRow) {
-              setShowLocationRow(true);
-              scrollAnchor.current = y;
-            }
-          }
-        }}
+        onScroll={handleScroll}
       >
         {isSearchFocused ? (
           <View style={styles.searchDiscovery}>
@@ -769,55 +837,11 @@ export default function HomeScreen({ navigation }: Props) {
                   </Pressable>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
-                  {/* Merge boosted + featured, dedupe by product ID, boosted first */}
-                  {(() => {
-                    const seenIds = new Set<string>();
-                    const allItems: { key: string; product: any }[] = [];
-
-                    // Boosted products first (paid ads priority)
-                    for (const bp of boostedProducts) {
-                      const product = bp.product;
-                      if (!product || seenIds.has(product.id)) continue;
-                      seenIds.add(product.id);
-                      allItems.push({ key: `boost-${bp.id}`, product });
-                    }
-
-                    // Then seller-featured
-                    for (const fp of featuredProducts) {
-                      const product = (fp as any).product;
-                      if (!product || seenIds.has(product.id)) continue;
-                      seenIds.add(product.id);
-                      allItems.push({ key: `feat-${(fp as any).id}`, product });
-                    }
-
-                    return allItems.slice(0, 10).map(({ key, product }) => {
-                      const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
-                      const reviews = product.reviews || [];
-                      const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
-                      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-                      const mapped = {
-                        id: product.id,
-                        name: product.name,
-                        price: product.price,
-                        originalPrice: product.original_price,
-                        original_price: product.original_price,
-                        primary_image_url: primaryImg?.image_url,
-                        primary_image: primaryImg?.image_url,
-                        images: product.images?.map((img: any) => img.image_url) || [],
-                        category: product.category?.name,
-                        seller: product.seller,
-                        rating: avgRating,
-                        review_count: reviews.length,
-                        stock: totalStock,
-                        is_active: !product.disabled_at,
-                      };
-                      return (
-                        <View key={key} style={{ width: 150 }}>
-                          <ProductCard product={mapped as any} onPress={() => handleProductPress(mapped as any)} />
-                        </View>
-                      );
-                    });
-                  })()}
+                  {mergedFeaturedProducts.map(({ key, mapped }) => (
+                    <View key={key} style={{ width: 150 }}>
+                      <ProductCard product={mapped as any} onPress={() => handleProductPress(mapped as any)} />
+                    </View>
+                  ))}
                 </ScrollView>
               </View>
             )}

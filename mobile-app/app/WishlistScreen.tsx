@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Share, Alert, Pressable, Modal, TextInput, Image, Switch, KeyboardAvoidingView, Platform, Animated, Keyboard } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -374,11 +374,11 @@ export default function WishlistScreen() {
         }
     }, [isGuest]);
 
-    const handleProductPress = (product: any) => {
+    const handleProductPress = useCallback((product: any) => {
         navigation.navigate('ProductDetail', { product });
-    };
+    }, [navigation]);
 
-    const handleShare = async () => {
+    const handleShare = useCallback(async () => {
         try {
             // Share current category or default
             const catId = selectedCategoryId || 'default';
@@ -390,19 +390,21 @@ export default function WishlistScreen() {
         } catch (error) {
             Alert.alert('Error', 'Failed to share wishlist');
         }
-    };
+    }, [selectedCategoryId, shareWishlist]);
 
-    const currentCategoryName = categories.find(c => c.id === selectedCategoryId)?.name || 'My Wishlists';
+    const currentCategoryName = useMemo(() => 
+        categories.find(c => c.id === selectedCategoryId)?.name || 'My Wishlists',
+    [categories, selectedCategoryId]);
 
-    const handleCreateList = (name: string, privacy: 'private' | 'shared', occasion?: string) => {
+    const handleCreateList = useCallback((name: string, privacy: 'private' | 'shared', occasion?: string) => {
         createCategory(name, privacy, occasion);
-    };
+    }, [createCategory]);
 
     // List of predefined occasion IDs for filtering
-    const predefinedIds = OCCASIONS.filter(o => o.id !== 'other').map(o => o.id);
+    const predefinedIds = useMemo(() => OCCASIONS.filter(o => o.id !== 'other').map(o => o.id), []);
 
     // Filter categories based on active occasion
-    const filteredCategories = categories.filter(c => {
+    const filteredCategories = useMemo(() => categories.filter(c => {
         if (activeOccasion === 'all') return true;
 
         // If exact match
@@ -414,14 +416,15 @@ export default function WishlistScreen() {
         }
 
         return false;
-    });
+    }), [categories, activeOccasion, predefinedIds]);
 
-    const displayedCategories = selectedCategoryId ? [] : filteredCategories;
+    const displayedCategories = useMemo(() => selectedCategoryId ? [] : filteredCategories, [selectedCategoryId, filteredCategories]);
 
     // Filter items based on selected category
-    const displayedItems = selectedCategoryId
+    const displayedItems = useMemo(() => selectedCategoryId
         ? items.filter(item => item.categoryId === selectedCategoryId || (selectedCategoryId === 'default' && !item.categoryId))
-        : items;
+        : items,
+    [items, selectedCategoryId]);
 
     return (
         <View style={styles.container}>

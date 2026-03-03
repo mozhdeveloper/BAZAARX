@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -405,61 +405,62 @@ export default function OrdersScreen({ navigation, route }: Props) {
     loadOrders();
   }, [user?.id]);
 
-  const filteredOrders = useMemo(() => {
-    let baseOrders: Order[] = [];
+  // Pre-index orders by buyerUiStatus for O(1) tab lookups  
+  const ordersByUiStatus = useMemo(() => {
+    const index = new Map<string, Order[]>();
+    dbOrders.forEach(order => {
+      const status = order.buyerUiStatus || 'pending';
+      if (!index.has(status)) index.set(status, []);
+      index.get(status)!.push(order);
+    });
+    return index;
+  }, [dbOrders]);
 
-    switch (activeTab) {
-      case 'all':
-        baseOrders = dbOrders;
-        break;
-      case 'pending':
-        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'pending');
-        break;
-      case 'confirmed':
-        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'confirmed');
-        break;
-      case 'shipped':
-        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'shipped');
-        break;
-      case 'delivered':
-        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'delivered');
-        break;
-      case 'reviewed':
-        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'reviewed');
-        break;
-      case 'returned':
-        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'returned');
-        break;
-      case 'cancelled':
-        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'cancelled');
-        break;
-      default:
-        baseOrders = [];
+  const filteredOrders = useMemo(() => {
+    // Use indexed lookup instead of filtering all orders per tab
+    const baseOrders = activeTab === 'all' 
+      ? dbOrders 
+      : (ordersByUiStatus.get(activeTab) || []);
+
+    // Early exit — no secondary filters
+    if (selectedStatus === 'all' && !searchQuery.trim()) {
+      return [...baseOrders].sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        if (dateA !== dateB) {
+          return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
+        }
+        return sortOrder === 'latest' 
+          ? b.transactionId.localeCompare(a.transactionId) 
+          : a.transactionId.localeCompare(b.transactionId);
+      });
     }
 
-    if (selectedStatus !== 'all') baseOrders = baseOrders.filter(order => order.status === selectedStatus);
+    let result = baseOrders;
+
+    if (selectedStatus !== 'all') {
+      result = result.filter(order => order.status === selectedStatus);
+    }
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      baseOrders = baseOrders.filter(order =>
+      result = result.filter(order =>
         order.transactionId.toLowerCase().includes(query) ||
         order.items.some(item => item.name?.toLowerCase().includes(query))
       );
     }
 
-    return [...baseOrders].sort((a, b) => {
+    return [...result].sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
-      // Primary sort by date, secondary sort by transaction ID for deterministic order
       if (dateA !== dateB) {
         return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
       }
-      // If same date, sort by transaction ID descending (higher number = more recent)
       return sortOrder === 'latest' 
         ? b.transactionId.localeCompare(a.transactionId) 
         : a.transactionId.localeCompare(b.transactionId);
     });
-  }, [activeTab, dbOrders, selectedStatus, searchQuery, sortOrder]);
+  }, [activeTab, dbOrders, ordersByUiStatus, selectedStatus, searchQuery, sortOrder]);
 
   const handleBuyAgain = (order: Order) => {
     if (order.items.length > 0) {

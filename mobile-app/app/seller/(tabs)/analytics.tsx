@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -27,20 +27,20 @@ export default function SellerAnalyticsScreen() {
   const insets = useSafeAreaInsets();
   const [selectedRange, setSelectedRange] = useState<TimeRange>('7d');
 
-  const chartData = revenueData.map((item) => ({
+  const chartData = useMemo(() => revenueData.map((item) => ({
     value: (item.value ?? 0) / 1000,
     label: (item.date ?? '').split(' ')[1] || '',
-  }));
+  })), [revenueData]);
 
-  const pieData = categorySales.map((item, index) => ({
+  const pieData = useMemo(() => categorySales.map((item, index) => ({
     value: item.value ?? 0,
     color: item.color ?? '#D97706',
     text: `${item.value ?? 0}%`,
-  }));
+  })), [categorySales]);
 
-  const topProducts = products
-    .sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0))
-    .slice(0, 5);
+  const topProducts = useMemo(() => 
+    [...products].sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0)).slice(0, 5),
+  [products]);
 
   // Null guard for seller
   if (!seller) {

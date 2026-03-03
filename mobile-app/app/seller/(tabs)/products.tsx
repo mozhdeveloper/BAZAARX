@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -128,6 +128,8 @@ export default function SellerProductsScreen() {
 
   // NEW STATE: Store the generated variants
   const [variants, setVariants] = useState<Variant[]>([]);
+  const [displayCount, setDisplayCount] = useState(20);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -649,11 +651,30 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
     );
   };
 
-  const filteredProducts = products.filter((product) => {
-    const productName = asText(product.name);
-    const matchesSeller = !seller?.id || product.sellerId === seller.id;
-    return matchesSeller && productName.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const filteredProducts = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return products.filter((product) => {
+      const productName = asText(product.name);
+      const matchesSeller = !seller?.id || product.sellerId === seller.id;
+      return matchesSeller && productName.toLowerCase().includes(query);
+    });
+  }, [products, searchQuery, seller?.id]);
+
+  // Reset display count when filter changes
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [searchQuery]);
+
+  const paginatedProducts = useMemo(
+    () => filteredProducts.slice(0, displayCount),
+    [filteredProducts, displayCount]
+  );
+
+  const handleLoadMore = useCallback(() => {
+    if (displayCount < filteredProducts.length) {
+      setDisplayCount(prev => Math.min(prev + PAGE_SIZE, filteredProducts.length));
+    }
+  }, [displayCount, filteredProducts.length]);
 
   const renderProductCard = ({ item }: { item: SellerProduct }) => (
     <View style={styles.productCard}>
@@ -820,11 +841,23 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
         </View>
       ) : (
         <FlatList
-          data={filteredProducts}
+          data={paginatedProducts}
           renderItem={renderProductCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.productsList}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            displayCount < filteredProducts.length ? (
+              <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                <Text style={{ color: '#9CA3AF', fontSize: 13 }}>Loading more products...</Text>
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <PackageIcon size={64} color="#D1D5DB" strokeWidth={1.5} />

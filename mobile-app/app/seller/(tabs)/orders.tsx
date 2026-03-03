@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   Pressable,
   Image,
   TextInput,
@@ -107,7 +108,7 @@ export default function SellerOrdersScreen() {
   }, [orders, filters.status, filters.channel, searchQuery]);
 
   // Handle Export
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     if (filteredOrders.length === 0) {
       Alert.alert("No Data", "There are no orders to export.");
       return;
@@ -138,7 +139,7 @@ export default function SellerOrdersScreen() {
         }
       ]
     );
-  };
+  }, [filteredOrders, seller?.store_name, filters.dateLabel]);
 
   const applyDatePreset = (label: DateFilterLabel) => {
     const end = new Date();
@@ -203,7 +204,7 @@ export default function SellerOrdersScreen() {
     return configs[status] || { color: '#6B7280', label: status.toUpperCase(), action: null };
   };
 
-  const handleQuickAction = (orderId: string, currentStatus: DBStatus) => {
+  const handleQuickAction = useCallback((orderId: string, currentStatus: DBStatus) => {
     if (currentStatus === 'pending') {
       Alert.alert('Confirm Order', 'Mark this order as confirmed and ready to ship?', [
         { text: 'Cancel', style: 'cancel' },
@@ -251,9 +252,9 @@ export default function SellerOrdersScreen() {
         },
       ]);
     }
-  };
+  }, [updateOrderStatus, markOrderAsDelivered, seller?.id, fetchOrders]);
 
-  const handleTrackingSubmit = async () => {
+  const handleTrackingSubmit = useCallback(async () => {
     const nextTracking = trackingNumber.trim();
     if (!trackingOrderId || !nextTracking) {
       Alert.alert('Error', 'Please enter a tracking number.');
@@ -271,7 +272,7 @@ export default function SellerOrdersScreen() {
     } finally {
       setIsUpdating(false);
     }
-  };
+  }, [trackingNumber, trackingOrderId, markOrderAsShipped, seller?.id, fetchOrders]);
 
   const activeFilterCount = [
     filters.status !== 'all',
@@ -359,65 +360,69 @@ export default function SellerOrdersScreen() {
       )}
 
       {/* Orders List */}
-      <ScrollView
+      <FlatList
+        data={filteredOrders}
+        keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl refreshing={refreshing || ordersLoading} onRefresh={onRefresh} colors={['#D97706']} />
         }
         contentContainerStyle={styles.scrollViewContent}
-      >
-        {filteredOrders.length === 0 ? (
+        initialNumToRender={8}
+        maxToRenderPerBatch={6}
+        windowSize={5}
+        removeClippedSubviews={true}
+        ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No orders found matching your filters.</Text>
           </View>
-        ) : (
-          <View style={styles.ordersList}>
-            {filteredOrders.map((order) => {
-              const config = getStatusConfig(order.status);
-              const isWalkIn = order.type === 'OFFLINE';
-              return (
-                <Pressable key={order.id} style={styles.orderCard} onPress={() => navigation.navigate('SellerOrderDetail', { orderId: order.id })}>
-                  <View style={[styles.channelBar, { backgroundColor: isWalkIn ? '#8B5CF6' : '#3B82F6' }]} />
-                  <View style={styles.cardContent}>
-                    <View style={styles.cardHeader}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.orderId} numberOfLines={1}>#{String(order.orderNumber || order.id).slice(0, 10).toUpperCase()}</Text>
-                        <View style={styles.infoRow}>
-                          <Text style={styles.customerName} numberOfLines={1}>{order.buyerName || 'Walk-in'}</Text>
-                          <Text style={styles.orderDate}> • {new Date(order.orderDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+        }
+        renderItem={({ item: order }) => {
+          const config = getStatusConfig(order.status);
+          const isWalkIn = order.type === 'OFFLINE';
+          return (
+            <View style={styles.ordersList}>
+              <Pressable style={styles.orderCard} onPress={() => navigation.navigate('SellerOrderDetail', { orderId: order.id })}>
+                <View style={[styles.channelBar, { backgroundColor: isWalkIn ? '#8B5CF6' : '#3B82F6' }]} />
+                <View style={styles.cardContent}>
+                  <View style={styles.cardHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.orderId} numberOfLines={1}>#{String(order.orderNumber || order.id).slice(0, 10).toUpperCase()}</Text>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.customerName} numberOfLines={1}>{order.buyerName || 'Walk-in'}</Text>
+                        <Text style={styles.orderDate}> • {new Date(order.orderDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.statusWord, { color: config.color }]}>{config.label}</Text>
+                  </View>
+                  <View style={styles.cardBody}>
+                    <View style={styles.thumbnailStack}>
+                      {order.items.slice(0, 2).map((item: any, i: number) => (
+                        <View key={i} style={styles.thumbWrapper}>
+                          <Image source={{ uri: safeImageUri(item.image) }} style={styles.thumbnail} />
+                          <View style={styles.qtyBadge}><Text style={styles.qtyText}>x{item.quantity}</Text></View>
                         </View>
-                      </View>
-                      <Text style={[styles.statusWord, { color: config.color }]}>{config.label}</Text>
+                      ))}
+                      {order.items.length > 2 && <View style={styles.moreItemsBox}><Text style={styles.moreItemsText}>+{order.items.length - 2}</Text></View>}
                     </View>
-                    <View style={styles.cardBody}>
-                      <View style={styles.thumbnailStack}>
-                        {order.items.slice(0, 2).map((item: any, i: number) => (
-                          <View key={i} style={styles.thumbWrapper}>
-                            <Image source={{ uri: safeImageUri(item.image) }} style={styles.thumbnail} />
-                            <View style={styles.qtyBadge}><Text style={styles.qtyText}>x{item.quantity}</Text></View>
-                          </View>
-                        ))}
-                        {order.items.length > 2 && <View style={styles.moreItemsBox}><Text style={styles.moreItemsText}>+{order.items.length - 2}</Text></View>}
-                      </View>
-                      <View style={styles.priceGroup}>
-                        <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
-                        <Text style={styles.totalLabel}>Total</Text>
-                      </View>
+                    <View style={styles.priceGroup}>
+                      <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
+                      <Text style={styles.totalLabel}>Total</Text>
                     </View>
-                    <View style={styles.cardFooter}>
-                      <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
-                      {config.action && (
-                        <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, order.status as DBStatus)}>
-                          <Text style={styles.actionBtnText}>{config.action}</Text>
-                        </Pressable>
-                      )}
                   </View>
+                  <View style={styles.cardFooter}>
+                    <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
+                    {config.action && (
+                      <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, order.status as DBStatus)}>
+                        <Text style={styles.actionBtnText}>{config.action}</Text>
+                      </Pressable>
+                    )}
                   </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
+                </View>
+              </Pressable>
+            </View>
+          );
+        }}
+      />
 
       {/* FILTER MODAL */}
       <Modal visible={showFilterModal} transparent animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
