@@ -764,9 +764,8 @@ export default function OrdersPage() {
                           order.status ===
                           "shipped" ? /* In Progress - Track Order */
                           null : order.status === "delivered" ? (
-                            /* Delivered - Confirm Received, Review, or Buy Again */
+                            /* Delivered - Confirm Received only */
                             <>
-                              {/* Confirm Received - Primary Action for newly delivered orders */}
                               {order.status === "delivered" && (
                                 <Button
                                   onClick={() => {
@@ -780,9 +779,12 @@ export default function OrdersPage() {
                                   Confirm Received
                                 </Button>
                               )}
-
-                              {/* Review Action - Secondary */}
-                              {order.status === "delivered" && (
+                            </>
+                          ) : order.status === "received" || order.status === "reviewed" ? (
+                            /* Received/Reviewed - Write Review and Buy Again */
+                            <>
+                              {/* Write Review */}
+                              {(order.status === "received" || order.status === "reviewed") && (
                                 <Button
                                   onClick={() => {
                                     setOrderToReview(order);
@@ -796,7 +798,7 @@ export default function OrdersPage() {
                                 </Button>
                               )}
 
-                              { /* Buy Again - Primary Action */}
+                              {/* Buy Again */}
                               <Button
                                 onClick={async () => {
                                   if (!order.items || order.items.length === 0) {
@@ -816,12 +818,21 @@ export default function OrdersPage() {
 
                                   try {
                                     const productIds: string[] = [];
+                                    let addedCount = 0;
 
                                     // Add each item to the cart
                                     for (const item of order.items) {
+                                      // Use productId if available, fallback to item.id
+                                      const productId = (item as any).productId || item.id;
+                                      
+                                      if (!productId) {
+                                        console.warn("Buy Again: Skipping item with no product ID", item);
+                                        continue;
+                                      }
+
                                       // Reconstruct product object for addToCart
                                       const product = {
-                                        id: item.id,
+                                        id: productId,
                                         name: item.name,
                                         price: item.price,
                                         image: item.image,
@@ -829,18 +840,31 @@ export default function OrdersPage() {
                                       };
 
                                       await addToCart(product as any, 1, item.variant as any);
-                                      productIds.push(item.id);
+                                      productIds.push(productId);
+                                      addedCount++;
+                                    }
+
+                                    if (addedCount === 0) {
+                                      throw new Error("No items could be re-added. The products may no longer be available.");
+                                    }
+
+                                    if (addedCount < order.items.length) {
+                                      toast({
+                                        title: "Some items could not be re-added",
+                                        description: "Some products from this order are no longer available.",
+                                        variant: "destructive"
+                                      });
                                     }
 
                                     // Navigate to enhanced-cart with selection state
                                     navigate("/enhanced-cart", {
                                       state: { selectedItems: productIds }
                                     });
-                                  } catch (error) {
+                                  } catch (error: any) {
                                     console.error("Buy again error:", error);
                                     toast({
                                       title: "Repurchase failed",
-                                      description: "Could not add items to cart. Please try again.",
+                                      description: error.message || "Could not add items to cart. Please try again.",
                                       variant: "destructive"
                                     });
                                   } finally {
