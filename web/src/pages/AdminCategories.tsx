@@ -48,6 +48,7 @@ const AdminCategories: React.FC = () => {
     addCategory,
     updateCategory,
     deleteCategory,
+    toggleCategoryStatus,
     selectCategory
   } = useAdminCategories();
 
@@ -107,6 +108,10 @@ const AdminCategories: React.FC = () => {
 
   const handleSwitchChange = (checked: boolean) => {
     setFormData(prev => ({ ...prev, isActive: checked }));
+  };
+
+  const handleToggleStatus = async (id: string, checked: boolean) => {
+    await toggleCategoryStatus(id, checked);
   };
 
   const resetForm = () => {
@@ -267,16 +272,16 @@ const AdminCategories: React.FC = () => {
                         alt={category.name}
                         className="w-full h-48 object-cover"
                       />
-                      <div className="absolute top-3 right-3">
-                        <Badge
-                          variant={category.isActive ? 'default' : 'secondary'}
-                          className={category.isActive
-                            ? 'bg-green-500 text-white'
-                            : 'bg-gray-500 text-white'
-                          }
-                        >
+                      <div className="absolute top-3 right-3 bg-white/90 px-3 py-1.5 rounded-full shadow-sm flex items-center space-x-2">
+                        <Switch
+                          checked={category.isActive}
+                          onCheckedChange={(checked) => handleToggleStatus(category.id, checked)}
+                          disabled={isLoading}
+                          className="data-[state=checked]:bg-green-500"
+                        />
+                        <span className={`text-xs font-semibold ${category.isActive ? 'text-green-600' : 'text-gray-500'}`}>
                           {category.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
+                        </span>
                       </div>
                     </div>
 
