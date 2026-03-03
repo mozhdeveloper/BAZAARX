@@ -634,8 +634,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             province: address.province,
             region: address.region || 'Metro Manila',
             postal_code: address.postalCode,
-            landmark: address.landmark || '',
-            delivery_instructions: JSON.stringify(meta),
+            first_name: address.firstName,
+            last_name: address.lastName,
+            phone_number: address.phone,
+            landmark: address.landmark,
+            delivery_instructions: address.deliveryInstructions,
+            coordinates: address.coordinates,
             is_default: address.isDefault || false,
             address_type: 'residential'
           })
@@ -651,7 +655,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         } as Address;
 
         // Only update UI if DB insert succeeds
-        set({ addresses: [...updatedAddresses, finalAddress] });
+        set({ addresses: [...state.addresses, { ...address, id: newAddr.id, fullName: `${address.firstName} ${address.lastName}` }] });
         return true;
       } catch (err) {
         console.error('Error saving address:', err);
@@ -683,7 +687,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         };
 
         const dbUpdate: Record<string, any> = {
-          delivery_instructions: JSON.stringify(meta)
+          first_name: updatedAddress.firstName,
+          last_name: updatedAddress.lastName,
+          phone_number: updatedAddress.phone,
+          landmark: updatedAddress.landmark,
+          delivery_instructions: updatedAddress.deliveryInstructions,
+          coordinates: updatedAddress.coordinates,
         };
 
         if (updatedAddress.street !== undefined) dbUpdate.address_line_1 = updatedAddress.street;

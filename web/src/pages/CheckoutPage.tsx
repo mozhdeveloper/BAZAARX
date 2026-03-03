@@ -40,11 +40,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { regions, provinces, cities, barangays } from "select-philippines-address";
-import { AddressPicker } from "@/components/ui/address-picker";
-import type { ActiveDiscount } from "@/types/discount";
+import { AddressModal } from "@/components/profile/AddressModal"; import type { ActiveDiscount } from "@/types/discount";
 
 interface CheckoutFormData {
   fullName: string;
@@ -119,70 +115,13 @@ export default function CheckoutPage() {
     updateCampaignDiscountCache,
   } = useBuyerStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-  const [addressView, setAddressView] = useState<'list' | 'add' | 'edit'>('list');
-  const [view, setView] = useState<'list' | 'add'>('list');
+
+  const [isEditorModalOpen, setIsEditorModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  // Selection tracking
-  const [tempSelected, setTempSelected] = useState<Address | null>(
-    addresses.find(a => a.isDefault) || addresses[0] || null
-  );
-  const [selectedAddress, setSelectedAddress] = useState<Address | null>(
-    addresses.find(a => a.isDefault) || addresses[0] || null
-  );
-  const [confirmedAddress, setConfirmedAddress] = useState<Address | null>(
-    addresses.find(a => a.isDefault) || addresses[0] || null
-  );
-
-  // Form state for new address
-  const [isSaving, setIsSaving] = useState(false);
-  const [regionList, setRegionList] = useState<any[]>([]);
-  const [provinceList, setProvinceList] = useState<any[]>([]);
-  const [cityList, setCityList] = useState<any[]>([]);
-  const [barangayList, setBarangayList] = useState<any[]>([]);
-
-  const [newAddr, setNewAddr] = useState({
-    label: 'Home',
-    firstName: profile?.firstName || '',
-    lastName: profile?.lastName || '',
-    phone: profile?.phone || '',
-    street: '',
-    barangay: '',
-    city: '',
-    province: '',
-    region: '', // Added region
-    postalCode: '',
-    isDefault: false,
-    coordinates: null as { lat: number; lng: number } | null,
-    landmark: '',
-    deliveryInstructions: '',
-  });
-
-  // Map picker state
-  const [showMapPicker, setShowMapPicker] = useState(false);
-
-  useEffect(() => {
-    regions().then(res => setRegionList(res));
-  }, []);
-
-  const onRegionChange = (code: string) => {
-    const name = regionList.find(i => i.region_code === code)?.region_name;
-    setNewAddr({ ...newAddr, region: name, province: '', city: '', barangay: '' });
-    provinces(code).then(res => setProvinceList(res));
-  };
-
-  const onProvinceChange = (code: string) => {
-    const name = provinceList.find(i => i.province_code === code)?.province_name;
-    setNewAddr({ ...newAddr, province: name, city: '', barangay: '' });
-    cities(code).then(res => setCityList(res));
-  };
-
-  const onCityChange = (code: string) => {
-    const name = cityList.find(i => i.city_code === code)?.city_name;
-    setNewAddr({ ...newAddr, city: name, barangay: '' });
-    barangays(code).then(res => setBarangayList(res));
-  };
+  const [tempSelected, setTempSelected] = useState<Address | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const [confirmedAddress, setConfirmedAddress] = useState<Address | null>(null);
 
   useEffect(() => {
     if (addresses.length > 0) {
@@ -1402,650 +1341,149 @@ export default function CheckoutPage() {
       </div>
       <BazaarFooter />
 
-      <Dialog open={isAddressModalOpen} onOpenChange={(open) => {
-        setIsAddressModalOpen(open);
-        if (!open) setAddressView('list'); // Reset view when closed
-      }}>
+      <Dialog open={isAddressModalOpen} onOpenChange={setIsAddressModalOpen}>
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden flex flex-col max-h-[90vh]">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="text-xl font-bold">Select Delivery Address</DialogTitle>
+          </DialogHeader>
 
-          {addressView === 'list' ? (
-            <>
-              <DialogHeader className="p-6 pb-2">
-                <DialogTitle className="text-xl font-bold">Select Delivery Address</DialogTitle>
-              </DialogHeader>
-
-              <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-3">
-                {addresses.map((addr) => (
-                  <div
-                    key={addr.id}
-                    onClick={() => setTempSelected(addr)}
-                    className={cn(
-                      "p-4 border-2 rounded-xl cursor-pointer transition-all",
-                      tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-orange-50/50" : "border-gray-100"
-                    )}
-                  >
-                    {/* Delete Confirmation */}
-                    {deleteConfirmId === addr.id ? (
-                      <div className="flex flex-col gap-3">
-                        <p className="text-sm text-gray-700">Delete this address?</p>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="flex-1"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                const { addressService } = await import('../services/addressService');
-                                await addressService.deleteAddress(addr.id);
-                                deleteAddress(addr.id);
-                                setDeleteConfirmId(null);
-                                if (selectedAddress?.id === addr.id) {
-                                  setSelectedAddress(addresses.find(a => a.id !== addr.id) || null);
-                                }
-                                if (tempSelected?.id === addr.id) {
-                                  setTempSelected(addresses.find(a => a.id !== addr.id) || null);
-                                }
-                                toast({ title: "Address deleted", description: "The address has been removed." });
-                              } catch (error: any) {
-                                console.error("Error deleting address:", error);
-                                toast({ title: "Error", description: "Failed to delete address", variant: "destructive" });
-                              }
-                            }}
-                          >
-                            <Trash2 className="w-3 h-3 mr-1" /> Delete
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteConfirmId(null);
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3">
-                        <div className={cn(
-                          "mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-                          tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"
-                        )}>
-                          {tempSelected?.id === addr.id && <Check className="w-3 h-3 text-white stroke-[3px]" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-gray-900">{addr.firstName} {addr.lastName}</span>
-                            <Badge variant="outline" className="text-[10px] h-4 px-1.5 uppercase font-bold border-gray-300">{addr.label}</Badge>
-                            {addr.isDefault && (
-                              <Badge className="text-[10px] h-4 px-1.5 bg-green-100 text-green-700 border-0">Default</Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 font-medium">{addr.phone}</p>
-                          <p className="text-xs text-gray-600 mt-1 line-clamp-1">{addr.street}, {addr.barangay}, {addr.city}</p>
-                        </div>
-                        {/* Edit & Delete Buttons */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingAddress(addr);
-                              setNewAddr({
-                                label: addr.label || 'Home',
-                                firstName: addr.firstName || '',
-                                lastName: addr.lastName || '',
-                                phone: addr.phone || '',
-                                street: addr.street || '',
-                                barangay: addr.barangay || '',
-                                city: addr.city || '',
-                                province: addr.province || '',
-                                region: addr.region || '',
-                                postalCode: addr.postalCode || '',
-                                isDefault: addr.isDefault || false,
-                                coordinates: addr.coordinates || null,
-                                landmark: addr.landmark || '',
-                                deliveryInstructions: addr.deliveryInstructions || '',
-                              });
-                              setAddressView('edit');
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                            title="Edit address"
-                          >
-                            <Pencil className="w-4 h-4 text-gray-500" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteConfirmId(addr.id);
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                            title="Delete address"
-                          >
-                            <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-500" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                <Button
-                  variant="outline"
-                  className="w-full border-dashed border-2 py-8 text-gray-500 hover:text-white"
-                  onClick={() => setAddressView('add')}
-                >
-                  <Plus className="w-4 h-4 mr-2" /> Add New Address
-                </Button>
-              </div>
-
-              <div className="p-4 bg-gray-50 border-t flex gap-3">
-                <Button variant="ghost" className="flex-1" onClick={() => setIsAddressModalOpen(false)}>Cancel</Button>
-                <Button
-                  className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
-                  disabled={!tempSelected}
-                  onClick={() => {
-                    setSelectedAddress(tempSelected);
-                    setIsAddressModalOpen(false);
-                  }}
-                >
-                  Confirm Selection
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <DialogHeader className="p-6 pb-2">
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                    setAddressView('list');
-                    setShowMapPicker(false);
-                    setEditingAddress(null);
-                    // Reset form
-                    setNewAddr({
-                      label: 'Home',
-                      firstName: profile?.firstName || '',
-                      lastName: profile?.lastName || '',
-                      phone: profile?.phone || '',
-                      street: '',
-                      barangay: '',
-                      city: '',
-                      province: '',
-                      region: '',
-                      postalCode: '',
-                      isDefault: false,
-                      coordinates: null,
-                      landmark: '',
-                      deliveryInstructions: '',
-                    });
-                  }}>
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <DialogTitle className="text-xl font-bold">
-                    {addressView === 'edit' ? 'Edit Address' : 'New Shipping Address'}
-                  </DialogTitle>
-                </div>
-              </DialogHeader>
-
-              {/* Map Picker View */}
-              {showMapPicker ? (
-                <div className="flex-1 overflow-hidden" style={{ height: '500px' }}>
-                  <AddressPicker
-                    initialCoordinates={newAddr.coordinates || undefined}
-                    onLocationSelect={async (location) => {
-                      // Update form with map data
-                      const updatedAddr = {
-                        ...newAddr,
-                        street: location.street || newAddr.street,
-                        barangay: location.barangay || newAddr.barangay,
-                        city: location.city || newAddr.city,
-                        province: location.province || newAddr.province,
-                        region: location.region || newAddr.region,
-                        postalCode: location.postalCode || newAddr.postalCode,
-                        coordinates: location.coordinates,
-                      };
-
-                      // Try to auto-select dropdowns based on map data
-                      // Match region (handle Metro Manila / NCR specially)
-                      const regionToMatch = location.region || location.province || '';
-                      const isMetroManila = regionToMatch.toLowerCase().includes('metro manila') ||
-                        regionToMatch.toLowerCase().includes('ncr') ||
-                        regionToMatch.toLowerCase() === 'manila' ||
-                        ['makati', 'quezon city', 'pasig', 'taguig', 'mandaluyong', 'paranaque', 'pasay', 'marikina', 'muntinlupa', 'las pinas', 'valenzuela', 'caloocan', 'malabon', 'navotas', 'san juan', 'pateros'].some(city =>
-                          location.city?.toLowerCase().includes(city)
-                        );
-
-                      if (regionToMatch || isMetroManila) {
-                        let matchedRegion = regionList.find(r =>
-                          r.region_name?.toLowerCase().includes(regionToMatch?.toLowerCase()) ||
-                          regionToMatch?.toLowerCase().includes(r.region_name?.toLowerCase())
-                        );
-
-                        // If Metro Manila area, force match to NCR
-                        if (!matchedRegion && isMetroManila) {
-                          matchedRegion = regionList.find(r =>
-                            r.region_name?.toLowerCase().includes('ncr') ||
-                            r.region_name?.toLowerCase().includes('national capital')
-                          );
-                        }
-
-                        if (matchedRegion) {
-                          updatedAddr.region = matchedRegion.region_name;
-                          // Load provinces for this region
-                          const provs = await provinces(matchedRegion.region_code);
-                          setProvinceList(provs);
-
-                          // For Metro Manila/NCR, load ALL cities from all districts
-                          if (isMetroManila) {
-                            let allCities: any[] = [];
-                            for (const prov of provs) {
-                              const provCities = await cities(prov.province_code);
-                              allCities = [...allCities, ...provCities];
-                            }
-                            setCityList(allCities);
-
-                            // Match city
-                            if (location.city) {
-                              const matchedCity = allCities.find((c: any) =>
-                                c.city_name?.toLowerCase().includes(location.city?.toLowerCase()) ||
-                                location.city?.toLowerCase().includes(c.city_name?.toLowerCase().replace('city of ', ''))
-                              );
-
-                              if (matchedCity) {
-                                updatedAddr.city = matchedCity.city_name;
-                                // Load barangays for this city
-                                const brgys = await barangays(matchedCity.city_code);
-                                setBarangayList(brgys);
-
-                                // Match barangay
-                                if (location.barangay) {
-                                  const matchedBarangay = brgys.find((b: any) =>
-                                    b.brgy_name?.toLowerCase().includes(location.barangay?.toLowerCase()) ||
-                                    location.barangay?.toLowerCase().includes(b.brgy_name?.toLowerCase())
-                                  );
-                                  if (matchedBarangay) {
-                                    updatedAddr.barangay = matchedBarangay.brgy_name;
-                                  }
-                                }
-                              }
-                            }
-                          } else {
-                            // Non-Metro Manila: Match province first
-                            const provinceToMatch = location.province || '';
-                            let matchedProvince = null;
-
-                            if (provinceToMatch) {
-                              matchedProvince = provs.find((p: any) =>
-                                p.province_name?.toLowerCase().includes(provinceToMatch?.toLowerCase()) ||
-                                provinceToMatch?.toLowerCase().includes(p.province_name?.toLowerCase())
-                              );
-
-                              if (matchedProvince) {
-                                updatedAddr.province = matchedProvince.province_name;
-                                // Load cities for this province
-                                const cts = await cities(matchedProvince.province_code);
-                                setCityList(cts);
-
-                                // Match city
-                                const cityToMatch = location.city || '';
-                                if (cityToMatch) {
-                                  const matchedCity = cts.find((c: any) =>
-                                    c.city_name?.toLowerCase().includes(cityToMatch?.toLowerCase()) ||
-                                    cityToMatch?.toLowerCase().includes(c.city_name?.toLowerCase())
-                                  );
-
-                                  if (matchedCity) {
-                                    updatedAddr.city = matchedCity.city_name;
-                                    // Load barangays for this city
-                                    const brgys = await barangays(matchedCity.city_code);
-                                    setBarangayList(brgys);
-
-                                    // Match barangay
-                                    if (location.barangay) {
-                                      const matchedBarangay = brgys.find((b: any) =>
-                                        b.brgy_name?.toLowerCase().includes(location.barangay?.toLowerCase()) ||
-                                        location.barangay?.toLowerCase().includes(b.brgy_name?.toLowerCase())
-                                      );
-                                      if (matchedBarangay) {
-                                        updatedAddr.barangay = matchedBarangay.brgy_name;
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-
-                      // Autofill name and phone from profile if not already set
-                      if (!updatedAddr.firstName && profile?.firstName) {
-                        updatedAddr.firstName = profile.firstName;
-                      }
-                      if (!updatedAddr.lastName && profile?.lastName) {
-                        updatedAddr.lastName = profile.lastName;
-                      }
-                      if (!updatedAddr.phone && profile?.phone) {
-                        updatedAddr.phone = profile.phone;
-                      }
-
-                      setNewAddr(updatedAddr);
-                      setShowMapPicker(false);
-
-                      // Show toast with autofill summary
-                      const filledFields = [];
-                      if (updatedAddr.firstName || updatedAddr.lastName) filledFields.push('Name');
-                      if (updatedAddr.phone) filledFields.push('Phone');
-                      if (updatedAddr.region) filledFields.push('Region');
-                      if (updatedAddr.province) filledFields.push('Province');
-                      if (updatedAddr.city) filledFields.push('City');
-                      if (updatedAddr.barangay) filledFields.push('Barangay');
-                      if (updatedAddr.street) filledFields.push('Street');
-                      if (updatedAddr.postalCode) filledFields.push('Postal Code');
-
-                      if (filledFields.length > 0) {
-                        toast({
-                          title: "📍 Location Selected",
-                          description: `Auto-filled: ${filledFields.join(', ')}. Please verify the details.`,
-                        });
-                      }
-                    }}
-                    onClose={() => setShowMapPicker(false)}
-                  />
-                </div>
-              ) : (
-                /* Address Form View */
-                <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-4">
-                  {/* Quick Location Picker Button */}
-                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-orange-500 rounded-full p-2">
-                          <Map className="w-4 h-4 text-white" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900 text-sm">Pick from Map</p>
-                          <p className="text-xs text-gray-500">Use GPS or search for your location</p>
-                        </div>
-                      </div>
+          <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-3">
+            {addresses.map((addr) => (
+              <div
+                key={addr.id}
+                onClick={() => setTempSelected(addr)}
+                className={cn(
+                  "p-4 border-2 rounded-xl cursor-pointer transition-all",
+                  tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-orange-50/50" : "border-gray-100"
+                )}
+              >
+                {deleteConfirmId === addr.id ? (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm text-gray-700">Delete this address?</p>
+                    <div className="flex gap-2">
                       <Button
-                        variant="outline"
                         size="sm"
-                        onClick={() => setShowMapPicker(true)}
-                        className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                        variant="destructive"
+                        className="flex-1"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const { addressService } = await import('../services/addressService');
+                            await addressService.deleteAddress(addr.id);
+                            deleteAddress(addr.id);
+                            setDeleteConfirmId(null);
+                            if (selectedAddress?.id === addr.id) {
+                              setSelectedAddress(addresses.find(a => a.id !== addr.id) || null);
+                            }
+                            if (tempSelected?.id === addr.id) {
+                              setTempSelected(addresses.find(a => a.id !== addr.id) || null);
+                            }
+                            toast({ title: "Address deleted", description: "The address has been removed." });
+                          } catch (error: any) {
+                            console.error("Error deleting address:", error);
+                            toast({ title: "Error", description: "Failed to delete address", variant: "destructive" });
+                          }
+                        }}
                       >
-                        <LocateFixed className="w-4 h-4 mr-1" />
-                        Open Map
+                        <Trash2 className="w-3 h-3 mr-1" /> Delete
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmId(null);
+                        }}
+                      >
+                        Cancel
                       </Button>
                     </div>
-                    {newAddr.coordinates && (
-                      <div className="mt-3 pt-3 border-t border-orange-200">
-                        <p className="text-xs text-green-600 flex items-center gap-1">
-                          <Check className="w-3 h-3" />
-                          Location selected: {newAddr.coordinates.lat.toFixed(4)}, {newAddr.coordinates.lng.toFixed(4)}
-                        </p>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                      tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"
+                    )}>
+                      {tempSelected?.id === addr.id && <Check className="w-3 h-3 text-white stroke-[3px]" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-gray-900">{addr.firstName} {addr.lastName}</span>
+                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 uppercase font-bold border-gray-300">{addr.label}</Badge>
+                        {addr.isDefault && (
+                          <Badge className="text-[10px] h-4 px-1.5 bg-green-100 text-green-700 border-0">Default</Badge>
+                        )}
                       </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">First Name</Label>
-                      <Input placeholder="John" value={newAddr.firstName} onChange={e => setNewAddr({ ...newAddr, firstName: e.target.value })} />
+                      <p className="text-xs text-gray-500 font-medium">{addr.phone}</p>
+                      <p className="text-xs text-gray-600 mt-1 line-clamp-1">{addr.street}, {addr.barangay}, {addr.city}</p>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Last Name</Label>
-                      <Input placeholder="Doe" value={newAddr.lastName} onChange={e => setNewAddr({ ...newAddr, lastName: e.target.value })} />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Phone Number</Label>
-                      <Input placeholder="09123456789" value={newAddr.phone} onChange={e => setNewAddr({ ...newAddr, phone: e.target.value })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Label (e.g. Home, Office)</Label>
-                      <Input placeholder="Home" value={newAddr.label} onChange={e => setNewAddr({ ...newAddr, label: e.target.value })} />
-                    </div>
-                  </div>
-
-                  {/* Region Select */}
-                  <div className="space-y-1">
-                    <Label className="text-xs">Region</Label>
-                    <Select
-                      value={regionList.find(r => r.region_name === newAddr.region)?.region_code}
-                      onValueChange={onRegionChange}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select Region" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {regionList.map((r) => (
-                          <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Province Select */}
-                  <div className="space-y-1">
-                    <Label className="text-xs">Province</Label>
-                    <Select
-                      value={provinceList.find(p => p.province_name === newAddr.province)?.province_code}
-                      onValueChange={onProvinceChange}
-                      disabled={!newAddr.region}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select Province" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {provinceList.map((p) => (
-                          <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* City Select */}
-                    <div className="space-y-1">
-                      <Label className="text-xs">City / Municipality</Label>
-                      <Select
-                        value={cityList.find(c => c.city_name === newAddr.city)?.city_code}
-                        onValueChange={onCityChange}
-                        disabled={!newAddr.province}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingAddress(addr);
+                          setIsEditorModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                        title="Edit address"
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select City" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {cityList.map((c) => (
-                            <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Barangay Select */}
-                    <div className="space-y-1">
-                      <Label className="text-xs">Barangay</Label>
-                      <Select
-                        value={barangayList.find(b => b.brgy_name === newAddr.barangay)?.brgy_code}
-                        onValueChange={(v) => setNewAddr({ ...newAddr, barangay: barangayList.find(b => b.brgy_code === v)?.brgy_name })}
-                        disabled={!newAddr.city}
+                        <Pencil className="w-4 h-4 text-gray-500" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmId(addr.id);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Delete address"
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select Barangay" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {barangayList.map((b) => (
-                            <SelectItem key={b.brgy_code} value={b.brgy_code}>{b.brgy_name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-500" />
+                      </button>
                     </div>
                   </div>
+                )}
+              </div>
+            ))}
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Street Address</Label>
-                    <Input placeholder="House No., Street Name" value={newAddr.street} onChange={e => setNewAddr({ ...newAddr, street: e.target.value })} />
-                  </div>
+            <Button
+              variant="outline"
+              className="w-full border-dashed border-2 py-8 text-gray-500 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-orange-50/50 transition-all"
+              onClick={() => {
+                setEditingAddress(null);
+                setIsEditorModalOpen(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" /> Add New Address
+            </Button>
+          </div>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Landmark (Optional)</Label>
-                    <Input placeholder="Near SM Mall, In front of church, etc." value={newAddr.landmark} onChange={e => setNewAddr({ ...newAddr, landmark: e.target.value })} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 items-center">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Postal Code</Label>
-                      <Input placeholder="1234" value={newAddr.postalCode} onChange={e => setNewAddr({ ...newAddr, postalCode: e.target.value })} />
-                    </div>
-                    <div className="flex items-center space-x-2 pt-5">
-                      <Switch checked={newAddr.isDefault} onCheckedChange={checked => setNewAddr({ ...newAddr, isDefault: checked })} />
-                      <Label className="text-sm cursor-pointer">Set as default</Label>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs">Delivery Instructions (Optional)</Label>
-                    <Input
-                      placeholder="Gate code, leave at door, call upon arrival, etc."
-                      value={newAddr.deliveryInstructions}
-                      onChange={e => setNewAddr({ ...newAddr, deliveryInstructions: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {!showMapPicker && (
-                <div className="p-4 bg-gray-50 border-t flex gap-3">
-                  <Button variant="ghost" className="flex-1" onClick={() => {
-                    setAddressView('list');
-                    setEditingAddress(null);
-                    // Reset form
-                    setNewAddr({
-                      label: 'Home',
-                      firstName: profile?.firstName || '',
-                      lastName: profile?.lastName || '',
-                      phone: profile?.phone || '',
-                      street: '',
-                      barangay: '',
-                      city: '',
-                      province: '',
-                      region: '',
-                      postalCode: '',
-                      isDefault: false,
-                      coordinates: null,
-                      landmark: '',
-                      deliveryInstructions: '',
-                    });
-                  }}>Back</Button>
-                  <Button
-                    className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
-                    disabled={isSaving || !newAddr.firstName || !newAddr.phone}
-                    onClick={async () => {
-                      if (!profile) return;
-                      setIsSaving(true);
-                      try {
-                        const { addressService } = await import('../services/addressService');
-
-                        // Map to shipping_addresses table columns
-                        const addressPayload: any = {
-                          user_id: profile.id,
-                          label: newAddr.label,
-                          address_line_1: `${newAddr.firstName} ${newAddr.lastName}, ${newAddr.phone}, ${newAddr.street}`,
-                          address_line_2: newAddr.landmark || null,
-                          barangay: newAddr.barangay,
-                          city: newAddr.city,
-                          province: newAddr.province,
-                          region: newAddr.region,
-                          postal_code: newAddr.postalCode,
-                          is_default: newAddr.isDefault,
-                          delivery_instructions: newAddr.deliveryInstructions || null,
-                          address_type: 'residential',
-                        };
-
-                        // Include coordinates if available
-                        if (newAddr.coordinates) {
-                          addressPayload.coordinates = newAddr.coordinates;
-                        }
-
-                        let savedAddress: Address;
-
-                        if (addressView === 'edit' && editingAddress) {
-                          // UPDATE existing address
-                          const dbAddress = await addressService.updateAddress(editingAddress.id, addressPayload);
-                          // Merge with user input since DB doesn't store name/phone
-                          savedAddress = {
-                            ...dbAddress,
-                            firstName: newAddr.firstName,
-                            lastName: newAddr.lastName,
-                            fullName: `${newAddr.firstName} ${newAddr.lastName}`.trim(),
-                            phone: newAddr.phone,
-                            street: newAddr.street,
-                          };
-                          updateAddress(editingAddress.id, savedAddress);
-                          toast({ title: "Address updated", description: "Your address has been updated successfully." });
-                        } else {
-                          // CREATE new address
-                          const dbAddress = await addressService.createAddress(addressPayload);
-                          // Merge with user input since DB doesn't store name/phone
-                          savedAddress = {
-                            ...dbAddress,
-                            firstName: newAddr.firstName,
-                            lastName: newAddr.lastName,
-                            fullName: `${newAddr.firstName} ${newAddr.lastName}`.trim(),
-                            phone: newAddr.phone,
-                            street: newAddr.street,
-                          };
-                          addAddress(savedAddress);
-                          toast({ title: "Address saved", description: "Your new address has been added." });
-                        }
-
-                        setSelectedAddress(savedAddress);
-                        setTempSelected(savedAddress);
-                        setConfirmedAddress(savedAddress);
-                        setIsAddressModalOpen(false);
-                        setAddressView('list');
-                        setShowMapPicker(false);
-                        setEditingAddress(null);
-                        // Reset form
-                        setNewAddr({
-                          label: 'Home',
-                          firstName: profile?.firstName || '',
-                          lastName: profile?.lastName || '',
-                          phone: profile?.phone || '',
-                          street: '',
-                          barangay: '',
-                          city: '',
-                          province: '',
-                          region: '',
-                          postalCode: '',
-                          isDefault: false,
-                          coordinates: null,
-                          landmark: '',
-                          deliveryInstructions: '',
-                        });
-                      } catch (error: any) {
-                        console.error("Error saving address:", error);
-                        toast({ title: "Error", description: error.message || "Failed to save address", variant: "destructive" });
-                      } finally {
-                        setIsSaving(false);
-                      }
-                    }}
-                  >
-                    {isSaving ? "Saving..." : (addressView === 'edit' ? "Update Address" : "Save and Use")}
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+          <div className="p-4 bg-gray-50 border-t flex gap-3">
+            <Button variant="ghost" className="flex-1" onClick={() => setIsAddressModalOpen(false)}>Cancel</Button>
+            <Button
+              className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
+              disabled={!tempSelected}
+              onClick={() => {
+                setSelectedAddress(tempSelected);
+                setConfirmedAddress(tempSelected);
+                setIsAddressModalOpen(false);
+              }}
+            >
+              Confirm Selection
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
+
+      {/* The Universal Address Form Modal */}
+      <AddressModal
+        isOpen={isEditorModalOpen}
+        onClose={() => setIsEditorModalOpen(false)}
+        address={editingAddress || undefined}
+        onAddressAdded={addAddress}
+        onAddressUpdated={updateAddress}
+      />
     </div>
   );
 }
