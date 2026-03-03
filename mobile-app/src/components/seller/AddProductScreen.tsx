@@ -90,7 +90,7 @@ export default function AddProductScreen() {
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.images,
+        mediaTypes: 'images',
         allowsMultipleSelection: true,
         selectionLimit: 10,
         quality: 0.8,

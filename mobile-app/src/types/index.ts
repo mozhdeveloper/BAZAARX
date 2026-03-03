@@ -151,7 +151,7 @@ export interface Order {
     campaignName: string;
     discountAmount: number;
   }[];
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
   isPaid: boolean;
   scheduledDate: string;
   deliveryDate?: string;
