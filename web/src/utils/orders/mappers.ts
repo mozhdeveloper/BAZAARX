@@ -42,6 +42,7 @@ const mapOrderItems = (orderItems: any[], fallbackStoreName: string, fallbackSel
 
     return {
       id: item.product_id || item.id,
+      productId: item.product_id || item.id,
       orderItemId: item.id,
       name: item.product?.name || item.product_name,
       image: variantData?.thumbnail_url || item.primary_image_url || "https://placehold.co/100?text=Product",

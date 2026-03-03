@@ -21,6 +21,7 @@ export interface NormalizedShippingAddress {
 
 export interface BuyerOrderItemSnapshot {
   id: string;
+  productId?: string;
   orderItemId?: string;
   name: string;
   image: string;
