@@ -101,9 +101,42 @@ const AdminCategories: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const toTitleCase = (str: string) => {
+    return str.replace(
+      /\w\S*/g,
+      (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
+    );
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+
+    setFormData(prev => {
+      // Handle numeric input
+      if (name === 'sortOrder') {
+        return { ...prev, sortOrder: parseInt(value) || 1 };
+      }
+
+      const newData = { ...prev, [name]: value };
+
+      // Auto-generate a safe slug when typing the name
+      if (name === 'name') {
+        newData.slug = value
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, '-') // Replace invalid chars with hyphens
+          .replace(/-+/g, '-')         // Remove consecutive hyphens
+          .replace(/^-|-$/g, '');      // Trim hyphens from start/end
+      }
+      // Ensure manual slug input remains safe
+      else if (name === 'slug') {
+        newData.slug = value
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, '-')
+          .replace(/-+/g, '-');
+      }
+
+      return newData;
+    });
   };
 
   const handleSwitchChange = (checked: boolean) => {
@@ -126,8 +159,18 @@ const AdminCategories: React.FC = () => {
   };
 
   const handleAddCategory = async () => {
+    if (!formData.name.trim() || !formData.slug.trim()) {
+      alert("Name and URL Slug are required.");
+      return;
+    }
+
+    const formattedData = {
+      ...formData,
+      name: toTitleCase(formData.name.trim())
+    };
+
     try {
-      await addCategory(formData);
+      await addCategory(formattedData);
       setShowAddDialog(false);
       resetForm();
     } catch (error) {
@@ -138,8 +181,18 @@ const AdminCategories: React.FC = () => {
   const handleEditCategory = async () => {
     if (!selectedCategory) return;
 
+    if (!formData.name.trim() || !formData.slug.trim()) {
+      alert("Name and URL Slug are required.");
+      return;
+    }
+
+    const formattedData = {
+      ...formData,
+      name: toTitleCase(formData.name.trim())
+    };
+
     try {
-      await updateCategory(selectedCategory.id, formData);
+      await updateCategory(selectedCategory.id, formattedData);
       setShowEditDialog(false);
       selectCategory(null);
       resetForm();

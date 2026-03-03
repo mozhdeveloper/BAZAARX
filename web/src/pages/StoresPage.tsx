@@ -28,6 +28,8 @@ import {
 } from "../components/ui/select";
 import { featuredStores } from '../data/stores';
 import { sellerService, type SellerData } from '../services/sellerService';
+import { categoryService } from '../services/categoryService'; //
+import type { Category } from '@/types/database.types'; //
 
 // Extended type for stores with product count
 interface StoreWithProducts extends SellerData {
@@ -45,6 +47,21 @@ const StoresPage: React.FC = () => {
   // Real stores state
   const [realStores, setRealStores] = useState<StoreWithProducts[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Categories state
+  const [dbCategories, setDbCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await categoryService.getActiveCategories(); //
+        setDbCategories(data);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // Fetch real stores from Supabase
   useEffect(() => {
@@ -77,7 +94,6 @@ const StoresPage: React.FC = () => {
     }
   }, [location.search]);
 
-  const categories = ['All', 'Electronics', 'Fashion', 'Food & Beverages', 'Home & Living', 'Filipino Crafts', 'Beauty & Personal Care'];
   const locations = ['All', 'Metro Manila', 'Luzon', 'Visayas', 'Mindanao'];
 
   // Combine real stores with mock data as fallback
@@ -109,7 +125,10 @@ const StoresPage: React.FC = () => {
   const filteredStores = displayStores.filter(store => {
     const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       store.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || store.categories.includes(selectedCategory);
+    const matchesCategory = selectedCategory === 'All' ||
+      (Array.isArray(store.categories)
+        ? store.categories.includes(selectedCategory)
+        : store.categories === selectedCategory);
     const matchesLocation = selectedLocation === 'All' || store.location.includes(selectedLocation);
 
     return matchesSearch && matchesCategory && matchesLocation;
@@ -205,77 +224,56 @@ const StoresPage: React.FC = () => {
           className="mb-8"
         >
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-            {/* Category Filter */}
-            <div className="flex-1">
-              <div className="flex flex-wrap gap-1 md:gap-1">
-                {categories.map((cat) => {
-                  const isActive = selectedCategory === cat;
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border
-                        ${isActive
-                          ? "bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white shadow-sm scale-105"
-                          : "bg-white border-gray-100 text-gray-500 hover:border-[var(--brand-primary)]/30 hover:text-[var(--brand-primary)]"
-                        }`}
-                    >
-                      {cat}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Unified Filter Bar */}
+            <div className="flex flex-wrap items-center gap-3 lg:justify-end w-full">
 
-            {/* Quick Filters Row */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-gray-400">
-                <Filter className="w-4 h-4" />
-              </div>
+              {/* 1. Category Dropdown */}
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-[180px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-0 hover:shadow-md transition-all px-4 font-medium">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-3.5 h-3.5 text-gray-400" />
+                    <SelectValue placeholder="Category" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-[var(--brand-primary)]/10 shadow-xl bg-white">
+                  <SelectItem value="All">All Categories</SelectItem>
+                  {dbCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-              <div className="flex items-center gap-2">
-                {/* Location Filter */}
-                <div className="flex items-center gap-3">
-                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-0 hover:shadow-md transition-all px-4 font-medium">
-                      <SelectValue placeholder="Location" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-[var(--brand-primary)]/10 shadow-xl bg-white">
-                      <SelectItem value="All">
-                        All Locations
-                      </SelectItem>
-                      {locations.filter(l => l !== 'All').map(loc => (
-                        <SelectItem key={loc} value={loc}>
-                          {loc}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* 2. Location Dropdown */}
+              <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-0 hover:shadow-md transition-all px-4 font-medium">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                    <SelectValue placeholder="Location" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-[var(--brand-primary)]/10 shadow-xl bg-white">
+                  <SelectItem value="All">All Locations</SelectItem>
+                  {locations.filter(l => l !== 'All').map(loc => (
+                    <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-                {/* Sort By Filter */}
-                <div className="flex items-center gap-3">
-                  <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'featured' | 'rating' | 'newest' | 'popular')}>
-                    <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-0 hover:shadow-md transition-all px-4 font-medium">
-                      <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-[var(--brand-primary)]/10 shadow-xl bg-white">
-                      <SelectItem value="featured">
-                        Featured Stores
-                      </SelectItem>
-                      <SelectItem value="rating">
-                        Highest Rated
-                      </SelectItem>
-                      <SelectItem value="newest">
-                        Newest Joiners
-                      </SelectItem>
-                      <SelectItem value="popular">
-                        Most Popular
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              {/* 3. Sort By Dropdown */}
+              <Select value={sortBy} onValueChange={(value) => setSortBy(value as any)}>
+                <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-0 hover:shadow-md transition-all px-4 font-medium">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-3.5 h-3.5 text-gray-400" />
+                    <SelectValue placeholder="Sort by" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-[var(--brand-primary)]/10 shadow-xl bg-white">
+                  <SelectItem value="featured">Featured</SelectItem>
+                  <SelectItem value="rating">Highest Rated</SelectItem>
+                  <SelectItem value="newest">Newest</SelectItem>
+                  <SelectItem value="popular">Popular</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
