@@ -105,7 +105,7 @@ export default function EnhancedCartPage() {
 
   // Helper: get original unit price for a cart item (before campaign discount)
   const getOriginalPrice = (item: any): number => {
-    return item.selectedVariant?.price ?? item.price;
+    return Number(item.selectedVariant?.originalPrice ?? item.selectedVariant?.price ?? item.originalPrice ?? item.price ?? 0);
   };
 
   // Edit Variant State
@@ -177,7 +177,22 @@ export default function EnhancedCartPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartItems, activeCampaignDiscounts]);
 
-  const totalAmount = selectedTotal; // Use selected total for display
+  // Compute shipping total based only on selected items (accounting for discounts)
+  const shippingTotal = useMemo(() => {
+    return Object.values(groupedCart).reduce((sum, group) => {
+      const selectedItems = group.items.filter(i => i.selected);
+      if (selectedItems.length === 0) return sum;
+
+      const subtotal = selectedItems.reduce((s, item) => s + getEffectivePrice(item) * item.quantity, 0);
+      const hasFreeShipping = selectedItems.some(i => i.isFreeShipping);
+      const isEligible = hasFreeShipping || subtotal >= 1000;
+
+      return sum + (isEligible ? 0 : 100);
+    }, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupedCart, activeCampaignDiscounts]);
+
+  const totalAmount = selectedTotal + shippingTotal; // Use selected total + shipping for display
 
   // Calculate "Select All" state
   const allSelected = cartItems.length > 0 && cartItems.every(item => item.selected);
@@ -530,18 +545,38 @@ export default function EnhancedCartPage() {
                         ))}
                       </div>
 
-                      {/* Seller Total */}
-                      <div className="flex justify-end items-center pt-2 border-t border-gray-50 mt-2">
-                        <span className="text-sm text-gray-500 mr-2">
-                          Seller Total:
-                        </span>
-                        <span className="text-lg font-bold text-[var(--brand-primary)]">
-                          ₱
-                          {(
-                            group.subtotal + group.shippingFee
-                          ).toLocaleString()}
-                        </span>
-                      </div>
+                      {/* Seller Total - only show if items are selected */}
+                      {group.items.some(i => i.selected) && (
+                        <div className="flex justify-end items-center pt-2 border-t border-gray-50 mt-2">
+                          <span className="text-sm text-gray-500 mr-2">
+                            Seller Total:
+                          </span>
+                          <span className="text-lg font-bold text-[var(--brand-primary)]">
+                            ₱
+                            {(() => {
+                              const sellerSelectedSubtotal = group.items
+                                .filter((i) => i.selected)
+                                .reduce(
+                                  (sum, item) =>
+                                    sum + getEffectivePrice(item) * item.quantity,
+                                  0
+                                );
+                              const hasFreeShipping = group.items
+                                .filter((i) => i.selected)
+                                .some((item) => item.isFreeShipping);
+                              const subtotalThreshold = 1000;
+                              const effectiveShipping =
+                                hasFreeShipping ||
+                                  sellerSelectedSubtotal >= subtotalThreshold
+                                  ? 0
+                                  : 100;
+                              return (
+                                sellerSelectedSubtotal + effectiveShipping
+                              ).toLocaleString();
+                            })()}
+                          </span>
+                        </div>
+                      )}
                     </motion.div>
                   )
                 )}
@@ -609,14 +644,7 @@ export default function EnhancedCartPage() {
                 <div className="flex justify-between text-sm">
                   <span>Shipping</span>
                   <span>
-                    ₱
-                    {/* Only sum shipping for groups with selected items */}
-                    {Object.values(groupedCart)
-                      .reduce((sum, group) => {
-                        const hasSelected = group.items.some(i => i.selected);
-                        return sum + (hasSelected ? group.shippingFee : 0);
-                      }, 0)
-                      .toLocaleString()}
+                    ₱{shippingTotal.toLocaleString()}
                   </span>
                 </div>
                 <div className="border-t pt-3 flex justify-between font-semibold text-lg">
@@ -631,7 +659,7 @@ export default function EnhancedCartPage() {
                 onClick={() => navigate("/checkout")}
                 size="lg"
                 disabled={selectedCount === 0}
-                className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed"
+                className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed"
               >
                 Proceed to Checkout ({selectedCount})
               </Button>
@@ -656,6 +684,7 @@ export default function EnhancedCartPage() {
           }}
           initialSelectedVariant={editingItem.selectedVariant}
           initialQuantity={editingItem.quantity}
+          activeDiscount={activeCampaignDiscounts[editingItem.id]}
           buttonText="Confirm Changes"
           onConfirm={handleUpdateVariant}
         />
