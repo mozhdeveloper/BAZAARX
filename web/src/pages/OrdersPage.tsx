@@ -601,23 +601,23 @@ export default function OrdersPage() {
                     <div className="flex items-center gap-1.5 text-xs text-gray-400 -mt-1 mb-1">
                       <Clock className="w-3 h-3 shrink-0 text-gray-300" />
                       <span>
-                        {order.status === "pending" && `Placed ${formatDate(order.createdAt)}`}
+                        {order.status === "pending" && `Placed ${formatDateTime(order.createdAt)}`}
                         {order.status === "confirmed" && (order.confirmedAt
-                          ? `Confirmed ${formatDate(order.confirmedAt)}`
-                          : `Placed ${formatDate(order.createdAt)}`)}
+                          ? `Confirmed ${formatDateTime(order.confirmedAt)}`
+                          : `Placed ${formatDateTime(order.createdAt)}`)}
                         {order.status === "shipped" && (order.shippedAt
-                          ? `Shipped ${formatDate(order.shippedAt)}`
-                          : `Placed ${formatDate(order.createdAt)}`)}
+                          ? `Shipped ${formatDateTime(order.shippedAt)}`
+                          : `Placed ${formatDateTime(order.createdAt)}`)}
                         {order.status === "delivered" && (order.deliveredAt
-                          ? `Delivered ${formatDate(order.deliveredAt)}`
-                          : order.shippedAt ? `Shipped ${formatDate(order.shippedAt)}` : `Placed ${formatDate(order.createdAt)}`)}
+                          ? `Delivered ${formatDateTime(order.deliveredAt)}`
+                          : order.shippedAt ? `Shipped ${formatDateTime(order.shippedAt)}` : `Placed ${formatDateTime(order.createdAt)}`)}
                         {order.status === "reviewed" && (order.deliveredAt
-                          ? `Delivered ${formatDate(order.deliveredAt)}`
-                          : `Placed ${formatDate(order.createdAt)}`)}
-                        {order.status === "returned" && `Placed ${formatDate(order.createdAt)}`}
+                          ? `Delivered ${formatDateTime(order.deliveredAt)}`
+                          : `Placed ${formatDateTime(order.createdAt)}`)}
+                        {order.status === "returned" && `Placed ${formatDateTime(order.createdAt)}`}
                         {order.status === "cancelled" && (order.cancelledAt
-                          ? `Cancelled ${formatDate(order.cancelledAt)}`
-                          : `Placed ${formatDate(order.createdAt)}`)}
+                          ? `Cancelled ${formatDateTime(order.cancelledAt)}`
+                          : `Placed ${formatDateTime(order.createdAt)}`)}
                       </span>
                     </div>
                     <div
