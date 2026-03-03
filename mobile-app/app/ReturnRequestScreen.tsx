@@ -97,7 +97,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaType.images,
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.5,

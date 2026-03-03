@@ -1,0 +1,803 @@
+/**
+ * Return & Refund Service v2 (Mobile)
+ * Full redesign: per-item returns, evidence, smart resolution paths,
+ * counter-offers, seller deadlines, escalation, return shipping.
+ */
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+
+const RETURN_WINDOW_DAYS = 7;
+const SELLER_DEADLINE_HOURS = 48;
+const INSTANT_REFUND_THRESHOLD = 500; // ₱500
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export type ReturnStatus =
+  | 'pending'
+  | 'seller_review'
+  | 'counter_offered'
+  | 'approved'
+  | 'rejected'
+  | 'escalated'
+  | 'return_in_transit'
+  | 'return_received'
+  | 'refunded';
+
+export type ReturnType = 'return_refund' | 'refund_only' | 'replacement';
+
+export type ResolutionPath = 'instant' | 'seller_review' | 'return_required';
+
+export type ReturnReason =
+  | 'damaged'
+  | 'wrong_item'
+  | 'not_as_described'
+  | 'defective'
+  | 'missing_parts'
+  | 'changed_mind'
+  | 'duplicate_order'
+  | 'other';
+
+export const EVIDENCE_REQUIRED_REASONS: ReturnReason[] = [
+  'damaged',
+  'wrong_item',
+  'not_as_described',
+  'defective',
+  'missing_parts',
+];
+
+export interface ReturnItem {
+  orderItemId: string;
+  productName: string;
+  quantity: number;
+  returnQuantity: number;
+  price: number;
+  image: string | null;
+  variantLabel?: string;
+}
+
+export interface MobileReturnRequest {
+  id: string;
+  orderId: string;
+  orderNumber?: string;
+  isReturnable: boolean;
+  returnWindowDays: number;
+  returnReason: string | null;
+  refundAmount: number | null;
+  refundDate: string | null;
+  createdAt: string;
+  status: ReturnStatus;
+  returnType: ReturnType;
+  resolutionPath: ResolutionPath;
+  description: string | null;
+  evidenceUrls: string[];
+  itemsJson: ReturnItem[] | null;
+  sellerNote: string | null;
+  rejectedReason: string | null;
+  counterOfferAmount: number | null;
+  sellerDeadline: string | null;
+  escalatedAt: string | null;
+  resolvedAt: string | null;
+  returnLabelUrl: string | null;
+  returnTrackingNumber: string | null;
+  buyerShippedAt: string | null;
+  returnReceivedAt: string | null;
+  // Joined fields
+  orderStatus?: string;
+  paymentStatus?: string;
+  buyerName?: string;
+  buyerEmail?: string;
+  items?: Array<{ productName: string; quantity: number; price: number; image: string | null }>;
+}
+
+export interface SubmitReturnParams {
+  orderDbId: string;
+  reason: ReturnReason;
+  returnType: ReturnType;
+  description?: string;
+  refundAmount?: number;
+  items: ReturnItem[];
+  evidenceUrls?: string[];
+}
+
+// ─── Resolution Path Calculator ──────────────────────────────────────────────
+
+export function computeResolutionPath(
+  reason: ReturnReason,
+  totalAmount: number,
+  hasEvidence: boolean,
+): ResolutionPath {
+  const instantReasons: ReturnReason[] = ['wrong_item', 'not_as_described', 'missing_parts'];
+  if (totalAmount < INSTANT_REFUND_THRESHOLD && instantReasons.includes(reason) && hasEvidence) {
+    return 'instant';
+  }
+  if (totalAmount >= 2000) {
+    return 'return_required';
+  }
+  return 'seller_review';
+}
+
+export function getEstimatedResolutionDate(path: ResolutionPath): Date {
+  const now = new Date();
+  switch (path) {
+    case 'instant':
+      now.setHours(now.getHours() + 2);
+      return now;
+    case 'seller_review':
+      now.setHours(now.getHours() + SELLER_DEADLINE_HOURS);
+      return now;
+    case 'return_required':
+      now.setDate(now.getDate() + 7);
+      return now;
+  }
+}
+
+export function getStatusLabel(status: ReturnStatus): string {
+  const labels: Record<ReturnStatus, string> = {
+    pending: 'Pending',
+    seller_review: 'Seller Reviewing',
+    counter_offered: 'Counter Offer',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    escalated: 'Escalated to Admin',
+    return_in_transit: 'Return Shipping',
+    return_received: 'Return Received',
+    refunded: 'Refunded',
+  };
+  return labels[status] || status;
+}
+
+export function getStatusColor(status: ReturnStatus): string {
+  const colors: Record<ReturnStatus, string> = {
+    pending: '#D97706',
+    seller_review: '#D97706',
+    counter_offered: '#7C3AED',
+    approved: '#10B981',
+    rejected: '#DC2626',
+    escalated: '#DC2626',
+    return_in_transit: '#3B82F6',
+    return_received: '#3B82F6',
+    refunded: '#10B981',
+  };
+  return colors[status] || '#6B7280';
+}
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+class ReturnService {
+  // ──────────────────────────────────────────────────────────────────────────
+  // BUYER: Upload evidence photos to Supabase Storage
+  // ──────────────────────────────────────────────────────────────────────────
+  async uploadEvidence(orderId: string, localUris: string[]): Promise<string[]> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    const urls: string[] = [];
+
+    for (let i = 0; i < localUris.length; i++) {
+      const uri = localUris[i];
+      const ext = uri.split('.').pop() || 'jpg';
+      const fileName = `returns/${orderId}/${Date.now()}_${i}.${ext}`;
+
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+
+        const { data, error } = await supabase.storage
+          .from('return-evidence')
+          .upload(fileName, blob, { contentType: `image/${ext}`, upsert: false });
+
+        if (error) {
+          console.warn(`[ReturnService] Failed to upload evidence ${i}:`, error.message);
+          continue;
+        }
+
+        const { data: publicUrl } = supabase.storage
+          .from('return-evidence')
+          .getPublicUrl(data.path);
+
+        urls.push(publicUrl.publicUrl);
+      } catch (err) {
+        console.warn(`[ReturnService] Upload error ${i}:`, err);
+      }
+    }
+
+    return urls;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // BUYER: Submit a return request (v2 — per-item, evidence, smart path)
+  // ──────────────────────────────────────────────────────────────────────────
+  async submitReturnRequest(params: SubmitReturnParams): Promise<MobileReturnRequest> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { orderDbId, reason, returnType, description, refundAmount, items, evidenceUrls } = params;
+
+    // 1. Verify order is delivered / received
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, shipment_status, payment_status, created_at, order_shipments(delivered_at, created_at)')
+      .eq('id', orderDbId)
+      .single();
+
+    if (orderError || !order) throw new Error('Order not found. Please refresh and try again.');
+
+    if (order.shipment_status !== 'delivered' && order.shipment_status !== 'received') {
+      throw new Error('Only delivered or received orders can be returned.');
+    }
+
+    // 2. Check return window
+    const shipments: Array<{ delivered_at?: string | null; created_at?: string | null }> =
+      (order as any).order_shipments ?? [];
+    const deliveredAt = shipments
+      .map((s) => s.delivered_at)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0];
+    const baseline = new Date(deliveredAt || order.created_at);
+    const deadline = new Date(baseline);
+    deadline.setDate(deadline.getDate() + RETURN_WINDOW_DAYS);
+
+    if (new Date() > deadline) throw new Error('Return window has expired (7 days from delivery).');
+
+    // 3. Prevent duplicates
+    const { data: existing } = await supabase
+      .from('refund_return_periods')
+      .select('id')
+      .eq('order_id', orderDbId)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      throw new Error('A return request already exists for this order.');
+    }
+
+    // 4. Compute resolution path
+    const totalAmount = refundAmount ?? items.reduce((sum, i) => sum + i.price * i.returnQuantity, 0);
+    const hasEvidence = (evidenceUrls?.length ?? 0) > 0;
+    const resolutionPath = computeResolutionPath(reason, totalAmount, hasEvidence);
+
+    // 5. Initial status
+    const initialStatus: ReturnStatus = resolutionPath === 'instant' ? 'approved' : 'seller_review';
+
+    // 6. Seller deadline (48h)
+    const sellerDeadline = new Date();
+    sellerDeadline.setHours(sellerDeadline.getHours() + SELLER_DEADLINE_HOURS);
+
+    // 7. Insert
+    const { data: returnData, error: returnError } = await supabase
+      .from('refund_return_periods')
+      .insert({
+        order_id: orderDbId,
+        is_returnable: true,
+        return_window_days: RETURN_WINDOW_DAYS,
+        return_reason: reason,
+        refund_amount: totalAmount,
+        status: initialStatus,
+        return_type: returnType,
+        resolution_path: resolutionPath,
+        items_json: items,
+        evidence_urls: evidenceUrls ?? [],
+        description: description || null,
+        seller_deadline: resolutionPath !== 'instant' ? sellerDeadline.toISOString() : null,
+        refund_date: resolutionPath === 'instant' ? new Date().toISOString() : null,
+      })
+      .select()
+      .single();
+
+    if (returnError) throw returnError;
+
+    // 8. Update order
+    await supabase
+      .from('orders')
+      .update({ shipment_status: 'returned', updated_at: new Date().toISOString() })
+      .eq('id', orderDbId);
+
+    if (resolutionPath === 'instant') {
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'refunded', updated_at: new Date().toISOString() })
+        .eq('id', orderDbId);
+    }
+
+    // 9. History
+    await supabase.from('order_status_history').insert({
+      order_id: orderDbId,
+      status: resolutionPath === 'instant' ? 'instant_refund_approved' : 'return_requested',
+      note: `${reason}${description ? ': ' + description : ''}`,
+      changed_by_role: 'buyer',
+      metadata: { resolution_path: resolutionPath, return_type: returnType },
+    });
+
+    return this.transform(returnData);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // BUYER: Fetch all return requests
+  // ──────────────────────────────────────────────────────────────────────────
+  async getReturnRequestsByBuyer(buyerId: string): Promise<MobileReturnRequest[]> {
+    if (!isSupabaseConfigured()) return [];
+
+    const { data, error } = await supabase
+      .from('refund_return_periods')
+      .select(`
+        *,
+        order:orders!inner(
+          id, order_number, buyer_id, shipment_status, payment_status,
+          order_items(product_name, quantity, price, primary_image_url)
+        )
+      `)
+      .eq('order.buyer_id', buyerId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[ReturnService] getReturnRequestsByBuyer error:', error);
+      return [];
+    }
+
+    return (data ?? []).map((row: any) => ({
+      ...this.transform(row),
+      orderNumber: row.order?.order_number,
+      orderStatus: row.order?.shipment_status,
+      paymentStatus: row.order?.payment_status,
+      items: (row.order?.order_items ?? []).map((i: any) => ({
+        productName: i.product_name,
+        quantity: i.quantity,
+        price: parseFloat(i.price),
+        image: i.primary_image_url ?? null,
+      })),
+    }));
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Fetch a single return request by ID
+  // ──────────────────────────────────────────────────────────────────────────
+  async getReturnRequestById(id: string): Promise<MobileReturnRequest | null> {
+    if (!isSupabaseConfigured()) return null;
+
+    const { data, error } = await supabase
+      .from('refund_return_periods')
+      .select(`
+        *,
+        order:orders!inner(
+          id, order_number, buyer_id, shipment_status, payment_status,
+          order_items(product_name, quantity, price, primary_image_url)
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+
+    return {
+      ...this.transform(data),
+      orderNumber: (data as any).order?.order_number,
+      orderStatus: (data as any).order?.shipment_status,
+      paymentStatus: (data as any).order?.payment_status,
+      items: ((data as any).order?.order_items ?? []).map((i: any) => ({
+        productName: i.product_name,
+        quantity: i.quantity,
+        price: parseFloat(i.price),
+        image: i.primary_image_url ?? null,
+      })),
+    };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Fetch return for a specific order (seller view)
+  // ──────────────────────────────────────────────────────────────────────────
+  async getReturnForOrder(orderId: string): Promise<MobileReturnRequest | null> {
+    if (!isSupabaseConfigured()) return null;
+
+    const { data, error } = await supabase
+      .from('refund_return_periods')
+      .select(`
+        *,
+        order:orders!inner(
+          id, order_number, buyer_id, shipment_status, payment_status,
+          order_items(product_name, quantity, price, primary_image_url)
+        )
+      `)
+      .eq('order_id', orderId)
+      .limit(1);
+
+    if (error || !data || data.length === 0) return null;
+
+    const row = data[0] as any;
+    return {
+      ...this.transform(row),
+      orderNumber: row.order?.order_number,
+      orderStatus: row.order?.shipment_status,
+      paymentStatus: row.order?.payment_status,
+      items: (row.order?.order_items ?? []).map((i: any) => ({
+        productName: i.product_name,
+        quantity: i.quantity,
+        price: parseFloat(i.price),
+        image: i.primary_image_url ?? null,
+      })),
+    };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // SELLER: Get all return requests for their store
+  // ──────────────────────────────────────────────────────────────────────────
+  async getReturnRequestsBySeller(sellerId: string): Promise<MobileReturnRequest[]> {
+    if (!isSupabaseConfigured()) return [];
+
+    const { data, error } = await supabase
+      .from('refund_return_periods')
+      .select(`
+        *,
+        order:orders!inner(
+          id, order_number, buyer_id, shipment_status, payment_status,
+          buyer:buyers(id, profiles:profiles(first_name, last_name, email)),
+          order_items!inner(product_name, quantity, price, primary_image_url, product:products(seller_id))
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[ReturnService] getReturnRequestsBySeller error:', error);
+      return [];
+    }
+
+    return (data ?? [])
+      .filter((row: any) => {
+        const items = row.order?.order_items ?? [];
+        return items.some((item: any) => item.product?.seller_id === sellerId);
+      })
+      .map((row: any) => {
+        const buyerProfile = row.order?.buyer?.profiles;
+        const buyerName = buyerProfile
+          ? `${buyerProfile.first_name || ''} ${buyerProfile.last_name || ''}`.trim()
+          : 'Unknown';
+        return {
+          ...this.transform(row),
+          orderNumber: row.order?.order_number,
+          orderStatus: row.order?.shipment_status,
+          paymentStatus: row.order?.payment_status,
+          buyerName,
+          buyerEmail: buyerProfile?.email || '',
+          items: (row.order?.order_items ?? []).map((i: any) => ({
+            productName: i.product_name,
+            quantity: i.quantity,
+            price: parseFloat(i.price),
+            image: i.primary_image_url ?? null,
+          })),
+        };
+      });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // SELLER: Approve return (full refund)
+  // ──────────────────────────────────────────────────────────────────────────
+  async approveReturn(returnId: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { data: ret } = await supabase
+      .from('refund_return_periods')
+      .select('id, order_id')
+      .eq('id', returnId)
+      .single();
+
+    const { error } = await supabase
+      .from('refund_return_periods')
+      .update({ status: 'approved', refund_date: new Date().toISOString() })
+      .eq('id', returnId);
+
+    if (error) throw error;
+
+    if (ret?.order_id) {
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'refunded', updated_at: new Date().toISOString() })
+        .eq('id', ret.order_id);
+      await supabase.from('order_status_history').insert({
+        order_id: ret.order_id,
+        status: 'refund_approved',
+        note: 'Return approved and refund processed by seller',
+        changed_by_role: 'seller',
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // SELLER: Reject return
+  // ──────────────────────────────────────────────────────────────────────────
+  async rejectReturn(returnId: string, reason?: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { data: ret } = await supabase
+      .from('refund_return_periods')
+      .select('id, order_id')
+      .eq('id', returnId)
+      .single();
+
+    const { error } = await supabase
+      .from('refund_return_periods')
+      .update({
+        status: 'rejected',
+        is_returnable: false,
+        rejected_reason: reason || 'Rejected by seller',
+      })
+      .eq('id', returnId);
+
+    if (error) throw error;
+
+    if (ret?.order_id) {
+      await supabase
+        .from('orders')
+        .update({ shipment_status: 'delivered', updated_at: new Date().toISOString() })
+        .eq('id', ret.order_id);
+      await supabase.from('order_status_history').insert({
+        order_id: ret.order_id,
+        status: 'return_rejected',
+        note: reason || 'Return request rejected by seller',
+        changed_by_role: 'seller',
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // SELLER: Counter-offer (partial refund)
+  // ──────────────────────────────────────────────────────────────────────────
+  async counterOfferReturn(returnId: string, amount: number, note: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { data: ret } = await supabase
+      .from('refund_return_periods')
+      .select('id, order_id')
+      .eq('id', returnId)
+      .single();
+
+    const { error } = await supabase
+      .from('refund_return_periods')
+      .update({ status: 'counter_offered', counter_offer_amount: amount, seller_note: note })
+      .eq('id', returnId);
+
+    if (error) throw error;
+
+    if (ret?.order_id) {
+      await supabase.from('order_status_history').insert({
+        order_id: ret.order_id,
+        status: 'counter_offer_sent',
+        note: `Counter-offer: ₱${amount.toLocaleString()} — ${note}`,
+        changed_by_role: 'seller',
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // BUYER: Accept counter-offer
+  // ──────────────────────────────────────────────────────────────────────────
+  async acceptCounterOffer(returnId: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { data: ret } = await supabase
+      .from('refund_return_periods')
+      .select('id, order_id, counter_offer_amount')
+      .eq('id', returnId)
+      .single();
+
+    const { error } = await supabase
+      .from('refund_return_periods')
+      .update({
+        status: 'approved',
+        refund_amount: ret?.counter_offer_amount,
+        refund_date: new Date().toISOString(),
+      })
+      .eq('id', returnId);
+
+    if (error) throw error;
+
+    if (ret?.order_id) {
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'partially_refunded', updated_at: new Date().toISOString() })
+        .eq('id', ret.order_id);
+      await supabase.from('order_status_history').insert({
+        order_id: ret.order_id,
+        status: 'counter_offer_accepted',
+        note: `Buyer accepted counter-offer of ₱${ret.counter_offer_amount}`,
+        changed_by_role: 'buyer',
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // BUYER: Decline counter-offer → escalate
+  // ──────────────────────────────────────────────────────────────────────────
+  async declineCounterOffer(returnId: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { data: ret } = await supabase
+      .from('refund_return_periods')
+      .select('id, order_id')
+      .eq('id', returnId)
+      .single();
+
+    const { error } = await supabase
+      .from('refund_return_periods')
+      .update({ status: 'escalated', escalated_at: new Date().toISOString() })
+      .eq('id', returnId);
+
+    if (error) throw error;
+
+    if (ret?.order_id) {
+      await supabase.from('order_status_history').insert({
+        order_id: ret.order_id,
+        status: 'escalated_to_admin',
+        note: 'Buyer declined counter-offer — escalated to BAZAAR admin',
+        changed_by_role: 'buyer',
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // BUYER: Escalate a rejected return
+  // ──────────────────────────────────────────────────────────────────────────
+  async escalateReturn(returnId: string, reason: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { data: ret } = await supabase
+      .from('refund_return_periods')
+      .select('id, order_id')
+      .eq('id', returnId)
+      .single();
+
+    const { error } = await supabase
+      .from('refund_return_periods')
+      .update({ status: 'escalated', escalated_at: new Date().toISOString() })
+      .eq('id', returnId);
+
+    if (error) throw error;
+
+    if (ret?.order_id) {
+      await supabase.from('order_status_history').insert({
+        order_id: ret.order_id,
+        status: 'escalated_to_admin',
+        note: reason,
+        changed_by_role: 'buyer',
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // SELLER: Request item back
+  // ──────────────────────────────────────────────────────────────────────────
+  async requestItemBack(returnId: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { data: ret } = await supabase
+      .from('refund_return_periods')
+      .select('id, order_id')
+      .eq('id', returnId)
+      .single();
+
+    const mockLabelUrl = `https://bazaar.ph/returns/${returnId}/label.pdf`;
+    const mockTrackingNumber = `RTN-${Date.now().toString(36).toUpperCase()}`;
+
+    const { error } = await supabase
+      .from('refund_return_periods')
+      .update({
+        status: 'return_in_transit',
+        resolution_path: 'return_required',
+        return_label_url: mockLabelUrl,
+        return_tracking_number: mockTrackingNumber,
+      })
+      .eq('id', returnId);
+
+    if (error) throw error;
+
+    if (ret?.order_id) {
+      await supabase.from('order_status_history').insert({
+        order_id: ret.order_id,
+        status: 'return_label_generated',
+        note: `Return label generated. Tracking: ${mockTrackingNumber}`,
+        changed_by_role: 'seller',
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // BUYER: Confirm return shipment
+  // ──────────────────────────────────────────────────────────────────────────
+  async confirmReturnShipment(returnId: string, trackingNumber: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { error } = await supabase
+      .from('refund_return_periods')
+      .update({ buyer_shipped_at: new Date().toISOString(), return_tracking_number: trackingNumber })
+      .eq('id', returnId);
+
+    if (error) throw error;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // SELLER: Confirm return received → auto-refund
+  // ──────────────────────────────────────────────────────────────────────────
+  async confirmReturnReceived(returnId: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    const { data: ret } = await supabase
+      .from('refund_return_periods')
+      .select('id, order_id')
+      .eq('id', returnId)
+      .single();
+
+    const { error } = await supabase
+      .from('refund_return_periods')
+      .update({
+        status: 'refunded',
+        return_received_at: new Date().toISOString(),
+        refund_date: new Date().toISOString(),
+      })
+      .eq('id', returnId);
+
+    if (error) throw error;
+
+    if (ret?.order_id) {
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'refunded', updated_at: new Date().toISOString() })
+        .eq('id', ret.order_id);
+      await supabase.from('order_status_history').insert({
+        order_id: ret.order_id,
+        status: 'return_received_refunded',
+        note: 'Return received. Refund processed.',
+        changed_by_role: 'seller',
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Deadline helpers
+  // ──────────────────────────────────────────────────────────────────────────
+  getDeadlineRemainingMs(sellerDeadline: string | null): number {
+    if (!sellerDeadline) return 0;
+    return Math.max(0, new Date(sellerDeadline).getTime() - Date.now());
+  }
+
+  formatDeadlineRemaining(sellerDeadline: string | null): string {
+    const ms = this.getDeadlineRemainingMs(sellerDeadline);
+    if (ms <= 0) return 'Expired';
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours > 0) return `${hours}h ${minutes}m remaining`;
+    return `${minutes}m remaining`;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Transform DB row → MobileReturnRequest
+  // ──────────────────────────────────────────────────────────────────────────
+  private transform(row: any): MobileReturnRequest {
+    let status: ReturnStatus = row.status || 'pending';
+    if (!row.status || row.status === 'pending') {
+      if (row.refund_date) status = 'refunded';
+      else if (row.is_returnable === false) status = 'rejected';
+    }
+
+    return {
+      id: row.id,
+      orderId: row.order_id,
+      isReturnable: row.is_returnable ?? true,
+      returnWindowDays: row.return_window_days ?? RETURN_WINDOW_DAYS,
+      returnReason: row.return_reason ?? null,
+      refundAmount: row.refund_amount ? parseFloat(String(row.refund_amount)) : null,
+      refundDate: row.refund_date ?? null,
+      createdAt: row.created_at,
+      status,
+      returnType: row.return_type || 'return_refund',
+      resolutionPath: row.resolution_path || 'seller_review',
+      description: row.description ?? null,
+      evidenceUrls: row.evidence_urls ?? [],
+      itemsJson: row.items_json ?? null,
+      sellerNote: row.seller_note ?? null,
+      rejectedReason: row.rejected_reason ?? null,
+      counterOfferAmount: row.counter_offer_amount ? parseFloat(String(row.counter_offer_amount)) : null,
+      sellerDeadline: row.seller_deadline ?? null,
+      escalatedAt: row.escalated_at ?? null,
+      resolvedAt: row.resolved_at ?? null,
+      returnLabelUrl: row.return_label_url ?? null,
+      returnTrackingNumber: row.return_tracking_number ?? null,
+      buyerShippedAt: row.buyer_shipped_at ?? null,
+      returnReceivedAt: row.return_received_at ?? null,
+    };
+  }
+}
+
+export const returnService = new ReturnService();

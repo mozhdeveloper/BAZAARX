@@ -115,11 +115,19 @@ export default function OrdersPage() {
     }
 
     try {
+      // Upload evidence files if any
+      let evidenceUrls: string[] = [];
+      if (data.files && data.files.length > 0 && data.orderDbId) {
+        evidenceUrls = await returnService.uploadEvidence(data.orderDbId, data.files);
+      }
+
       await returnService.submitReturnRequest({
         orderDbId: data.orderDbId,
-        reason: data.reason || 'Return requested',
-        description: data.comments || data.solution || '',
+        reason: (data.reason || 'other') as any,
+        returnType: (data.solution || 'return_refund') as any,
+        description: data.comments || '',
         refundAmount: data.refundAmount,
+        evidenceUrls,
       });
 
       // Also update local Zustand state so UI reflects immediately
@@ -589,7 +597,29 @@ export default function OrdersPage() {
                         <span className="text-sm text-gray-500 font-mono hidden sm:inline">{order.orderNumber || order.id}</span>
                       </div>
                     </div>
-
+                    {/* Status timestamp */}
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400 -mt-1 mb-1">
+                      <Clock className="w-3 h-3 shrink-0 text-gray-300" />
+                      <span>
+                        {order.status === "pending" && `Placed ${formatDate(order.createdAt)}`}
+                        {order.status === "confirmed" && (order.confirmedAt
+                          ? `Confirmed ${formatDate(order.confirmedAt)}`
+                          : `Placed ${formatDate(order.createdAt)}`)}
+                        {order.status === "shipped" && (order.shippedAt
+                          ? `Shipped ${formatDate(order.shippedAt)}`
+                          : `Placed ${formatDate(order.createdAt)}`)}
+                        {order.status === "delivered" && (order.deliveredAt
+                          ? `Delivered ${formatDate(order.deliveredAt)}`
+                          : order.shippedAt ? `Shipped ${formatDate(order.shippedAt)}` : `Placed ${formatDate(order.createdAt)}`)}
+                        {order.status === "reviewed" && (order.deliveredAt
+                          ? `Delivered ${formatDate(order.deliveredAt)}`
+                          : `Placed ${formatDate(order.createdAt)}`)}
+                        {order.status === "returned" && `Placed ${formatDate(order.createdAt)}`}
+                        {order.status === "cancelled" && (order.cancelledAt
+                          ? `Cancelled ${formatDate(order.cancelledAt)}`
+                          : `Placed ${formatDate(order.createdAt)}`)}
+                      </span>
+                    </div>
                     <div
                       className="space-y-0 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors"
                       onClick={() =>

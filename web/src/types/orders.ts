@@ -86,9 +86,11 @@ export interface BuyerOrderSnapshot {
   shipmentStatus?: ShipmentStatus | null;
   total: number;
   estimatedDelivery: Date;
+  confirmedAt?: Date;
   shippedAt?: Date;
   deliveredAt?: Date;
   deliveryDate?: Date;
+  cancelledAt?: Date;
   items: BuyerOrderItemSnapshot[];
   shippingAddress: NormalizedShippingAddress;
   paymentMethod: {

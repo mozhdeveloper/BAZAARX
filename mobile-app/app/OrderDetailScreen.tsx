@@ -23,6 +23,7 @@ import { useOrderStore } from '../src/stores/orderStore';
 import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
 import { orderService } from '../src/services/orderService';
+import { orderMutationService } from '../src/services/orders/orderMutationService';
 import { useAuthStore } from '../src/stores/authStore';
 import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
@@ -282,10 +283,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const { user } = useAuthStore();
+
   const handleCancelOrder = () => {
     Alert.alert(
       'Cancel Order',
-      'Are you sure you want to cancel? Don\'t worry, you have not been charged for this order. You can easily buy these items again later.',
+      "Are you sure you want to cancel? You won't be charged. You can buy these items again later.",
       [
         { text: 'Keep Order', style: 'cancel' },
         {
@@ -293,27 +296,19 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           style: 'destructive',
           onPress: async () => {
             try {
-              // 1. Update Supabase
-              const { error } = await supabase
-                .from('orders')
-                .update({ status: 'cancelled' })
-                .eq('id', order.id);
+              await orderMutationService.cancelOrder({
+                orderId: order.id,
+                reason: 'Cancelled by buyer',
+                cancelledBy: user?.id,
+              });
 
-              if (error) throw error;
-
-              // 2. Update Local Store
               updateOrderStatus(order.id, 'cancelled');
-
-              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list.', [
+              Alert.alert('Order Cancelled', 'Your order has been cancelled.', [
                 { text: 'OK', onPress: () => navigation.goBack() }
               ]);
-            } catch (e) {
-              console.log('Error canceling order:', e);
-              // Fallback
-              updateOrderStatus(order.id, 'cancelled');
-              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list (Offline Mode).', [
-                { text: 'OK', onPress: () => navigation.goBack() }
-              ]);
+            } catch (e: any) {
+              console.error('Error cancelling order:', e);
+              Alert.alert('Error', e?.message || 'Failed to cancel order. Please try again.');
             }
           }
         }
@@ -327,6 +322,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       case 'processing': return COLORS.primary;
       case 'shipped': return '#8B5CF6';
       case 'delivered': return '#22C55E';
+      case 'returned': return '#D97706';
+      case 'cancelled': return '#EF4444';
       default: return '#6B7280';
     }
   };
@@ -337,6 +334,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       case 'processing': return 'Being Prepared';
       case 'shipped': return 'In Transit';
       case 'delivered': return 'Delivered';
+      case 'returned': return 'Return/Refund Requested';
+      case 'cancelled': return 'Cancelled';
       default: return order.status;
     }
   };
@@ -347,6 +346,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       case 'processing': return Package;
       case 'shipped': return Truck;
       case 'delivered': return CheckCircle2;
+      case 'returned': return RotateCcw;
+      case 'cancelled': return X;
       default: return Package;
     }
   };
@@ -391,6 +392,72 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             </View>
           </View>
         </Pressable>
+
+        {/* Status Timeline Card */}
+        {(() => {
+          const uiStatus = order.buyerUiStatus || order.status;
+          const isCancelled = uiStatus === 'cancelled';
+          const isShipped = ['shipped', 'delivered', 'returned', 'reviewed'].includes(uiStatus);
+          const isDelivered = ['delivered', 'returned', 'reviewed'].includes(uiStatus);
+          const isReturned = uiStatus === 'returned';
+
+          const formatTs = (ts?: string | null) => {
+            if (!ts) return null;
+            const d = new Date(ts);
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          };
+
+          const steps = isCancelled
+            ? [
+                { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
+                { label: 'Cancelled', ts: formatTs(order.cancelledAt) || 'Pending', done: true, icon: X, red: true },
+              ]
+            : [
+                { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
+                { label: 'Confirmed', ts: formatTs(order.confirmedAt), done: uiStatus !== 'pending', icon: CheckCircle2 },
+                { label: 'Shipped', ts: formatTs(order.shippedAt), done: isShipped, icon: Truck },
+                { label: 'Delivered', ts: formatTs(order.deliveredAt), done: isDelivered, icon: CheckCircle2 },
+                ...(isReturned ? [{ label: 'Return Requested', ts: null, done: true, icon: RotateCcw, amber: true }] : []),
+              ];
+
+          return (
+            <View style={{ backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 12, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8 }}>
+                <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' }}>
+                  <Clock size={16} color={COLORS.primary} />
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1a1a1a' }}>Order Timeline</Text>
+              </View>
+              {steps.map((step, idx) => {
+                const StepIcon = step.icon;
+                const dotColor = !step.done ? '#d1d5db' : (step as any).red ? '#ef4444' : (step as any).amber ? COLORS.primary : COLORS.primary;
+                const labelColor = !step.done ? '#9ca3af' : (step as any).red ? '#ef4444' : '#1a1a1a';
+                return (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                    {/* Dot column */}
+                    <View style={{ width: 24, alignItems: 'center' }}>
+                      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: step.done ? dotColor : '#f3f4f6', justifyContent: 'center', alignItems: 'center', borderWidth: step.done ? 0 : 1.5, borderColor: '#e5e7eb' }}>
+                        <StepIcon size={11} color={step.done ? '#fff' : '#9ca3af'} strokeWidth={2.5} />
+                      </View>
+                      {idx < steps.length - 1 && (
+                        <View style={{ width: 2, height: 24, backgroundColor: step.done ? COLORS.primary + '60' : '#e5e7eb', marginTop: 2 }} />
+                      )}
+                    </View>
+                    {/* Label column */}
+                    <View style={{ flex: 1, paddingLeft: 10, paddingBottom: idx < steps.length - 1 ? 4 : 0 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: labelColor }}>{step.label}</Text>
+                      {step.ts ? (
+                        <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{step.ts}</Text>
+                      ) : !step.done ? (
+                        <Text style={{ fontSize: 11, color: '#d1d5db', marginTop: 1 }}>Pending</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
 
         {/* Order Items Card */}
         <View style={styles.card}>

@@ -148,8 +148,10 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const recipient = order.recipient || {};
   const shippingAddressJoin = order.shipping_address || order.address || {};
   const createdAt = new Date(order.created_at);
+  const confirmedAt = order.paid_at ? new Date(order.paid_at) : undefined;
   const shippedAt = order.shipped_at ? new Date(order.shipped_at) : undefined;
   const deliveredAt = order.delivered_at ? new Date(order.delivered_at) : undefined;
+  const cancelledAt = order.cancelled_at ? new Date(order.cancelled_at) : undefined;
 
   const rawItems = Array.isArray(order.order_items) ? order.order_items : [];
   const fallbackStoreName =
@@ -241,9 +243,11 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
       (shippedAt
         ? new Date(shippedAt.getTime() + 2 * 24 * 60 * 60 * 1000)
         : new Date(createdAt.getTime() + 3 * 24 * 60 * 60 * 1000)),
+    confirmedAt,
     shippedAt,
     deliveredAt,
     deliveryDate: deliveredAt,
+    cancelledAt,
     items,
     shippingAddress: {
       fullName:

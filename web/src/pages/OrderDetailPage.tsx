@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Store,
   X,
+  RotateCcw,
 } from "lucide-react";
 import { useCartStore, Order } from "../stores/cartStore";
 import { useBuyerStore } from "../stores/buyerStore";
@@ -287,6 +288,10 @@ export default function OrderDetailPage() {
         return <Truck className="w-5 h-5 text-purple-500" />;
       case "delivered":
         return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case "returned":
+        return <RotateCcw className="w-5 h-5 text-amber-500" />;
+      case "cancelled":
+        return <X className="w-5 h-5 text-red-500" />;
       default:
         return <Package className="w-5 h-5 text-gray-500" />;
     }
@@ -302,12 +307,19 @@ export default function OrderDetailPage() {
         return "bg-purple-50 text-purple-700 border-purple-200";
       case "delivered":
         return "bg-green-50 text-green-700 border-green-200";
+      case "returned":
+        return "bg-amber-50 text-amber-700 border-amber-200";
       case "cancelled":
         return "bg-red-50 text-red-700 border-red-200";
       default:
         return "bg-gray-50 text-gray-700 border-gray-200";
     }
   };
+
+  const isReturned = order.status === "returned";
+  const isCancelled = order.status === "cancelled";
+  const isDeliveredOrBeyond = order.status === "delivered" || order.status === "reviewed" || isReturned;
+  const isShippedOrBeyond = order.status === "shipped" || isDeliveredOrBeyond;
 
   const statusTimeline = [
     {
@@ -318,33 +330,45 @@ export default function OrderDetailPage() {
     },
     {
       status: "confirmed",
-      label: "Confirmed",
-      completed: order.status !== "pending",
-      date: order.createdAt,
+      label: "Order Confirmed",
+      completed:
+        isShippedOrBeyond ||
+        order.status === "confirmed" ||
+        (isCancelled && !!order.confirmedAt),
+      date: order.confirmedAt || null,
     },
     {
       status: "shipped",
       label: "Shipped",
-      completed:
-        order.status === "shipped" ||
-        order.status === "delivered" ||
-        order.status === "reviewed",
-      date:
-        order.status === "shipped" ||
-          order.status === "delivered" ||
-          order.status === "reviewed"
-          ? order.createdAt
-          : null,
+      completed: isShippedOrBeyond,
+      date: isShippedOrBeyond ? (order.shippedAt || null) : null,
     },
     {
       status: "delivered",
       label: "Delivered",
-      completed: order.status === "delivered" || order.status === "reviewed",
-      date:
-        order.status === "delivered" || order.status === "reviewed"
-          ? order.estimatedDelivery
-          : null,
+      completed: isDeliveredOrBeyond,
+      date: isDeliveredOrBeyond ? (order.deliveredAt || null) : null,
     },
+    ...(isReturned
+      ? [
+          {
+            status: "returned",
+            label: "Return/Refund Requested",
+            completed: true,
+            date: order.returnRequest?.submittedAt || null,
+          },
+        ]
+      : []),
+    ...(isCancelled
+      ? [
+          {
+            status: "cancelled",
+            label: "Order Cancelled",
+            completed: true,
+            date: order.cancelledAt || null,
+          },
+        ]
+      : []),
   ];
 
   const subtotalAmount =
@@ -909,12 +933,20 @@ export default function OrderDetailPage() {
                             <div
                               className={cn(
                                 "w-6 h-6 rounded-full flex items-center justify-center transition-all duration-500",
-                                item.completed
-                                  ? "bg-green-500 border-green-500 text-white shadow-lg shadow-green-100 scale-100"
-                                  : "bg-white border-gray-200 text-gray-300 scale-90",
+                                item.status === "cancelled" && item.completed
+                                  ? "bg-red-500 border-red-500 text-white shadow-lg shadow-red-100 scale-100"
+                                  : item.status === "returned" && item.completed
+                                    ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-100 scale-100"
+                                    : item.completed
+                                      ? "bg-green-500 border-green-500 text-white shadow-lg shadow-green-100 scale-100"
+                                      : "bg-white border-gray-200 text-gray-300 scale-90",
                               )}
                             >
-                              {item.completed ? (
+                              {item.status === "cancelled" && item.completed ? (
+                                <X className="w-3.5 h-3.5" />
+                              ) : item.status === "returned" && item.completed ? (
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              ) : item.completed ? (
                                 <CheckCircle className="w-4 h-4" />
                               ) : (
                                 <Clock className="w-4 h-4" />
@@ -924,7 +956,11 @@ export default function OrderDetailPage() {
                               <div
                                 className={cn(
                                   "w-0.5 h-14 my-1 transition-colors duration-500",
-                                  item.completed ? "bg-green-500" : "bg-gray-100",
+                                  item.completed && statusTimeline[index + 1]?.status === "cancelled"
+                                    ? "bg-red-400"
+                                    : item.completed && statusTimeline[index + 1]?.status === "returned"
+                                      ? "bg-amber-400"
+                                      : item.completed ? "bg-green-500" : "bg-gray-100",
                                 )}
                               />
                             )}
@@ -962,7 +998,7 @@ export default function OrderDetailPage() {
                                 </button>
                               </div>
                             )}
-                            {!item.completed && (
+                            {!item.completed && !isCancelled && (
                               <p className="text-xs text-gray-300 mt-1">Pending update...</p>
                             )}
                           </div>

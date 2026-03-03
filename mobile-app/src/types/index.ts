@@ -158,6 +158,10 @@ export interface Order {
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   createdAt: string;
+  confirmedAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  cancelledAt?: string;
   buyerUiStatus?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed';
   isReviewed?: boolean;
   isGift?: boolean;

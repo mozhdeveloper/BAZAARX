@@ -534,7 +534,9 @@ export class OrderService {
           order_vouchers(
             *,
             voucher:vouchers(code, title, voucher_type)
-          )
+          ),
+          order_shipments(id, status, tracking_number, shipped_at, delivered_at, created_at),
+          order_cancellations(id, reason, cancelled_at, created_at)
         `)
         .eq('buyer_id', buyerId)
         .order('created_at', { ascending: false });
@@ -557,6 +559,18 @@ export class OrderService {
       };
 
       return (data || []).map(order => {
+        // Get shipment timestamps
+        const shipments = [...(order.order_shipments || [])].sort((a: any, b: any) =>
+          new Date(b.delivered_at || b.shipped_at || b.created_at || 0).getTime() -
+          new Date(a.delivered_at || a.shipped_at || a.created_at || 0).getTime()
+        );
+        const latestShipment = shipments[0];
+        const cancellations = [...(order.order_cancellations || [])].sort((a: any, b: any) =>
+          new Date(b.cancelled_at || b.created_at || 0).getTime() -
+          new Date(a.cancelled_at || a.created_at || 0).getTime()
+        );
+        const latestCancellation = cancellations[0];
+
         // Get voucher info if any
         const orderVouchers = order.order_vouchers || [];
         const voucherInfo = orderVouchers.length > 0 ? {
@@ -609,6 +623,10 @@ export class OrderService {
           },
           paymentMethod: order.payment_method || 'Cash on Delivery',
           createdAt: order.created_at,
+          confirmedAt: order.paid_at || null,
+          shippedAt: latestShipment?.shipped_at || null,
+          deliveredAt: latestShipment?.delivered_at || null,
+          cancelledAt: latestCancellation?.cancelled_at || null,
         };
       });
     } catch (error) {
@@ -958,8 +976,6 @@ export class OrderService {
     if (!isSupabaseConfigured()) {
       const order = this.mockOrders.find(o => o.id === orderId);
       if (order) {
-        if (details.buyer_name) order.buyer_name = details.buyer_name;
-        if (details.buyer_email) order.buyer_email = details.buyer_email;
         if (details.notes !== undefined) (order as any).notes = details.notes;
         order.updated_at = new Date().toISOString();
         return true;
@@ -968,21 +984,70 @@ export class OrderService {
     }
 
     try {
-      const updateData: any = {
+      const updateOrderData: any = {
         updated_at: new Date().toISOString(),
       };
 
-      if (details.buyer_name !== undefined) updateData.buyer_name = details.buyer_name;
-      if (details.buyer_email !== undefined) updateData.buyer_email = details.buyer_email;
-      if (details.notes !== undefined) updateData.notes = details.notes;
+      // Notes live directly on the orders table — update inline
+      if (details.notes !== undefined) updateOrderData.notes = details.notes;
+
+      // Name/email must go through order_recipients (orders has no buyer_name/buyer_email columns)
+      if (details.buyer_name !== undefined || details.buyer_email !== undefined) {
+        const { data: orderRow, error: fetchError } = await supabase
+          .from('orders')
+          .select('recipient_id')
+          .eq('id', orderId)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        const nameParts = (details.buyer_name || '').trim().split(/\s+/).filter(Boolean);
+        const firstName = nameParts[0] || 'Walk-in';
+        const lastName = nameParts.slice(1).join(' ') || 'Customer';
+
+        if (orderRow?.recipient_id) {
+          // Update the existing recipient row
+          const recipientUpdate: any = {};
+          if (details.buyer_name !== undefined) {
+            recipientUpdate.first_name = firstName;
+            recipientUpdate.last_name = lastName;
+          }
+          if (details.buyer_email !== undefined) {
+            recipientUpdate.email = details.buyer_email || null;
+          }
+
+          if (Object.keys(recipientUpdate).length > 0) {
+            const { error: recipientError } = await supabase
+              .from('order_recipients')
+              .update(recipientUpdate)
+              .eq('id', orderRow.recipient_id);
+            if (recipientError) throw recipientError;
+          }
+        } else {
+          // Insert a new recipient and link it to the order
+          const { data: newRecipient, error: insertError } = await supabase
+            .from('order_recipients')
+            .insert({
+              first_name: firstName,
+              last_name: lastName,
+              email: details.buyer_email || null,
+              phone: null,
+            })
+            .select('id')
+            .single();
+
+          if (insertError) throw insertError;
+          if (newRecipient) updateOrderData.recipient_id = newRecipient.id;
+        }
+      }
 
       const { error } = await supabase
         .from('orders')
-        .update(updateData)
+        .update(updateOrderData)
         .eq('id', orderId);
 
       if (error) throw error;
-      
+
       return true;
     } catch (error) {
       console.error('Error updating order details:', error);
