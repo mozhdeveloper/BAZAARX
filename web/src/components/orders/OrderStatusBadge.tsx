@@ -1,4 +1,4 @@
-import { Clock, Package, Truck, CheckCircle, XCircle, RotateCcw, Star } from "lucide-react";
+import { Clock, Package, Truck, CheckCircle, XCircle, RotateCcw, Star, PackageCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrderUiStatus } from "@/types/orders";
 
@@ -33,6 +33,12 @@ const getStatusConfig = (status: string) => {
         icon: CheckCircle,
         label: "Delivered",
         className: "text-green-700 bg-green-100 border-green-200",
+      };
+    case "received":
+      return {
+        icon: PackageCheck,
+        label: "Received",
+        className: "text-teal-700 bg-teal-100 border-teal-200",
       };
     case "cancelled":
       return {
