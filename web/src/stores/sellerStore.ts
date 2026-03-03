@@ -8,6 +8,7 @@ import { orderService } from "@/services/orderService";
 import { orderReadService } from "@/services/orders/orderReadService";
 import { orderMutationService } from "@/services/orders/orderMutationService";
 import { mapDbProductToSellerProduct } from "@/utils/productMapper";
+import { getSafeImageUrl } from "@/utils/imageUtils";
 import type {
     Database,
     PaymentStatus,
@@ -452,7 +453,7 @@ const mapDbSellerToSeller = (s: any): Seller => {
             s.verified_at ||
             s.created_at ||
             new Date().toISOString().split("T")[0],
-        avatar: s.avatar_url,
+        avatar: getSafeImageUrl(s.avatar_url),
     };
 };
 
@@ -932,6 +933,10 @@ export const useAuthStore = create<AuthStore>()(
 );
 
 // Product Store
+// Module-level singleton: prevents React 18 Strict Mode double-mount from
+// creating duplicate realtime channels.
+const _productChannels = new Map<string, ReturnType<typeof supabase.channel>>();
+
 export const useProductStore = create<ProductStore>()(
     persist(
         (set, get) => ({
@@ -978,34 +983,39 @@ export const useProductStore = create<ProductStore>()(
             subscribeToProducts: (filters) => {
                 if (!isSupabaseConfigured()) return () => { };
 
-                console.log("Subscribing to product changes...", filters);
+                const channelKey = `public:products:${filters?.sellerId || 'all'}`;
+
+                // If a channel with this key already exists, reuse it
+                if (_productChannels.has(channelKey)) {
+                    return () => {
+                        const ch = _productChannels.get(channelKey);
+                        if (ch) {
+                            supabase.removeChannel(ch);
+                            _productChannels.delete(channelKey);
+                        }
+                    };
+                }
 
                 const channel = supabase
-                    .channel("public:products")
+                    .channel(channelKey)
                     .on(
                         "postgres_changes",
                         {
                             event: "*",
                             schema: "public",
                             table: "products",
-                            // Note: Supabase JS client handles basic equality filters on some versions,
-                            // but for complex stuff we might need to refetch or filter client-side.
-                            // For now, we'll refetch to ensure data consistency with relations (sellers).
                         },
-                        async (payload) => {
-                            console.log("Product change received:", payload);
-                            // Refetch products to get updated list with joined seller data
-                            // This is safer than manually patching the state because of relations
+                        async () => {
                             await get().fetchProducts(filters);
                         },
                     )
-                    .subscribe((status) => {
-                        console.log("Product subscription status:", status);
-                    });
+                    .subscribe();
+
+                _productChannels.set(channelKey, channel);
 
                 return () => {
-                    console.log("Unsubscribing from products...");
                     supabase.removeChannel(channel);
+                    _productChannels.delete(channelKey);
                 };
             },
 

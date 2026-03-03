@@ -43,6 +43,7 @@ import { adBoostService, type AdBoostWithProduct } from "@/services/adBoostServi
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import ProductCard from "../components/ProductCard";
+import { getSafeImageUrl } from "../utils/imageUtils";
 // import { useProductQAStore } from "../stores/productQAStore";
 import { ShopProduct } from "../types/shop";
 import type { ActiveDiscount } from "@/types/discount";
@@ -578,7 +579,7 @@ export default function ShopPage() {
 
                   return allItems.slice(0, 6).map(({ key, product, isBoosted }, idx) => {
                     const primaryImage = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
-                    const imageUrl = primaryImage?.image_url || 'https://placehold.co/400x400?text=No+Image';
+                    const imageUrl = getSafeImageUrl(primaryImage?.image_url);
                     const reviews = product.reviews || [];
                     const avgRating = reviews.length > 0
                       ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10
@@ -1017,6 +1018,9 @@ export default function ShopPage() {
                           src={product.image}
                           alt={product.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
+                          }}
                         />
                         {product.originalPrice && (
                           <div

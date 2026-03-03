@@ -11,6 +11,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { getSafeImageUrl } from "@/utils/imageUtils";
 import type {
     Product,
     ProductWithSeller,
@@ -235,6 +236,14 @@ export class ProductService {
         const primaryImage =
             product.images?.find((img: ProductImage) => img.is_primary) ||
             product.images?.[0];
+        const safeImageUrl = getSafeImageUrl(primaryImage?.image_url);
+        // Sanitize all product images
+        if (Array.isArray(product.images)) {
+            product.images = product.images.map((img: ProductImage) => ({
+                ...img,
+                image_url: getSafeImageUrl(img.image_url),
+            }));
+        }
         const totalStock =
             product.variants?.reduce(
                 (sum: number, v: ProductVariant) => sum + (v.stock || 0),
@@ -310,7 +319,8 @@ export class ProductService {
             is_active: !product.disabled_at,
             stock: totalStock,
             // Primary image as main image
-            primary_image_url: primaryImage?.image_url,
+            primary_image_url: safeImageUrl,
+            image: safeImageUrl,
             // Category name for legacy code
             category: product.category?.name,
             // Variant labels

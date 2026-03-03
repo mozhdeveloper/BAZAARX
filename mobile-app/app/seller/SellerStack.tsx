@@ -1,21 +1,8 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SellerTabs from './SellerTabs';
-import SellerAnalyticsScreen from './(tabs)/analytics';
-import SellerStoreProfileScreen from './store-profile';
-import SellerEarningsScreen from './earnings';
-import SellerPOSScreen from './pos';
-import SellerDiscountsScreen from './discounts';
-import BoostProductScreen from './boost-product';
-import SellerMessagesScreen from './messages';
-import SellerReviewsScreen from './reviews';
-import SellerNotificationsScreen from './notifications';
-import SellerReturnDetailScreen from './ReturnDetailScreen';
-import SellerOrderDetailScreen from './OrderDetailScreen';
-import TicketListScreen from '../tickets/TicketListScreen';
-import SellerHelpCenterScreen from './SellerHelpCenterScreen';
-import SellerCreateTicketScreen from './SellerCreateTicketScreen';
-import TicketDetailScreen from '../tickets/TicketDetailScreen';
+
+// All other screens use getComponent for deferred loading
 
 export type SellerStackParamList = {
   SellerTabs: { screen?: string } | undefined;
@@ -48,21 +35,21 @@ export default function SellerStack() {
       }}
     >
       <Stack.Screen name="SellerTabs" component={SellerTabs} />
-      <Stack.Screen name="Analytics" component={SellerAnalyticsScreen} />
-      <Stack.Screen name="StoreProfile" component={SellerStoreProfileScreen} />
-      <Stack.Screen name="Earnings" component={SellerEarningsScreen} />
-      <Stack.Screen name="POS" component={SellerPOSScreen} />
-      <Stack.Screen name="Discounts" component={SellerDiscountsScreen} />
-      <Stack.Screen name="BoostProduct" component={BoostProductScreen} />
-      <Stack.Screen name="Messages" component={SellerMessagesScreen} />
-      <Stack.Screen name="Reviews" component={SellerReviewsScreen} />
-      <Stack.Screen name="Notifications" component={SellerNotificationsScreen} />
-      <Stack.Screen name="ReturnDetail" component={SellerReturnDetailScreen} />
-      <Stack.Screen name="SellerOrderDetail" component={SellerOrderDetailScreen} />
-      <Stack.Screen name="TicketList" component={TicketListScreen} />
-      <Stack.Screen name="SellerHelpCenter" component={SellerHelpCenterScreen} />
-      <Stack.Screen name="SellerCreateTicket" component={SellerCreateTicketScreen} />
-      <Stack.Screen name="SellerTicketDetail" component={TicketDetailScreen} />
+      <Stack.Screen name="Analytics" getComponent={() => require('./(tabs)/analytics').default} />
+      <Stack.Screen name="StoreProfile" getComponent={() => require('./store-profile').default} />
+      <Stack.Screen name="Earnings" getComponent={() => require('./earnings').default} />
+      <Stack.Screen name="POS" getComponent={() => require('./pos').default} />
+      <Stack.Screen name="Discounts" getComponent={() => require('./discounts').default} />
+      <Stack.Screen name="BoostProduct" getComponent={() => require('./boost-product').default} />
+      <Stack.Screen name="Messages" getComponent={() => require('./messages').default} />
+      <Stack.Screen name="Reviews" getComponent={() => require('./reviews').default} />
+      <Stack.Screen name="Notifications" getComponent={() => require('./notifications').default} />
+      <Stack.Screen name="ReturnDetail" getComponent={() => require('./ReturnDetailScreen').default} />
+      <Stack.Screen name="SellerOrderDetail" getComponent={() => require('./OrderDetailScreen').default} />
+      <Stack.Screen name="TicketList" getComponent={() => require('../tickets/TicketListScreen').default} />
+      <Stack.Screen name="SellerHelpCenter" getComponent={() => require('./SellerHelpCenterScreen').default} />
+      <Stack.Screen name="SellerCreateTicket" getComponent={() => require('./SellerCreateTicketScreen').default} />
+      <Stack.Screen name="SellerTicketDetail" getComponent={() => require('../tickets/TicketDetailScreen').default} />
     </Stack.Navigator>
   );
 }

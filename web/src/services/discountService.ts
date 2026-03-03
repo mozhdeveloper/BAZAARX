@@ -428,7 +428,13 @@ export class DiscountService {
 
         // Get primary image
         const images = p.images || [];
-        const primaryImg = images.find((i: any) => i.is_primary)?.image_url || images[0]?.image_url || '';
+        const rawImg = images.find((i: any) => i.is_primary)?.image_url || images[0]?.image_url || '';
+        const BLOCKED = ['fbcdn.net', 'facebook.com', 'instagram.com', 'cdninstagram.com', 'scontent.'];
+        const isSafe = (url: string) => {
+            try { const h = new URL(url).hostname; return !BLOCKED.some(d => h.includes(d)); }
+            catch { return false; }
+        };
+        const primaryImg = rawImg && isSafe(rawImg) ? rawImg : 'https://placehold.co/400x400?text=No+Image';
 
         const totalStock = (p.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
         const soldCount = soldCountsMap.get(p.id) || (pd.sold_count as number) || 0;

@@ -3,18 +3,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import AdminTabsNavigator from './AdminTabs';
 import AdminLoginScreen from './login';
 
-// Standalone admin pages
-import AdminCategoriesScreen from './(pages)/categories';
-import AdminProductRequestsScreen from './(pages)/product-requests';
-import AdminFlashSalesScreen from './(pages)/flash-sales';
-import AdminBuyersScreen from './(pages)/buyers';
-import AdminPayoutsScreen from './(pages)/payouts';
-import AdminVouchersScreen from './(pages)/vouchers';
-import AdminReviewsScreen from './(pages)/reviews';
-import AdminAnalyticsScreen from './(pages)/analytics';
-import AdminProfileScreen from './(pages)/profile';
-import AdminSupportScreen from './(pages)/support';
-import AdminSupportTicketDetail from './(pages)/support-ticket-detail';
+// All other admin pages use getComponent for deferred loading
 
 export type AdminStackParamList = {
   AdminLogin: undefined;
@@ -44,17 +33,17 @@ export default function AdminStack() {
     >
       <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
       <Stack.Screen name="AdminTabs" component={AdminTabsNavigator} />
-      <Stack.Screen name="Categories" component={AdminCategoriesScreen} />
-      <Stack.Screen name="ProductRequests" component={AdminProductRequestsScreen} />
-      <Stack.Screen name="FlashSales" component={AdminFlashSalesScreen} />
-      <Stack.Screen name="Buyers" component={AdminBuyersScreen} />
-      <Stack.Screen name="Payouts" component={AdminPayoutsScreen} />
-      <Stack.Screen name="Vouchers" component={AdminVouchersScreen} />
-      <Stack.Screen name="Reviews" component={AdminReviewsScreen} />
-      <Stack.Screen name="Analytics" component={AdminAnalyticsScreen} />
-      <Stack.Screen name="Profile" component={AdminProfileScreen} />
-      <Stack.Screen name="SupportTickets" component={AdminSupportScreen} />
-      <Stack.Screen name="SupportTicketDetail" component={AdminSupportTicketDetail} />
+      <Stack.Screen name="Categories" getComponent={() => require('./(pages)/categories').default} />
+      <Stack.Screen name="ProductRequests" getComponent={() => require('./(pages)/product-requests').default} />
+      <Stack.Screen name="FlashSales" getComponent={() => require('./(pages)/flash-sales').default} />
+      <Stack.Screen name="Buyers" getComponent={() => require('./(pages)/buyers').default} />
+      <Stack.Screen name="Payouts" getComponent={() => require('./(pages)/payouts').default} />
+      <Stack.Screen name="Vouchers" getComponent={() => require('./(pages)/vouchers').default} />
+      <Stack.Screen name="Reviews" getComponent={() => require('./(pages)/reviews').default} />
+      <Stack.Screen name="Analytics" getComponent={() => require('./(pages)/analytics').default} />
+      <Stack.Screen name="Profile" getComponent={() => require('./(pages)/profile').default} />
+      <Stack.Screen name="SupportTickets" getComponent={() => require('./(pages)/support').default} />
+      <Stack.Screen name="SupportTicketDetail" getComponent={() => require('./(pages)/support-ticket-detail').default} />
     </Stack.Navigator>
   );
 }

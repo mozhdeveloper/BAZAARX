@@ -58,6 +58,9 @@ export const supabaseAdmin = supabaseServiceKey
         auth: {
           persistSession: false,
           autoRefreshToken: false,
+          // Use a separate storage key so it doesn't conflict with the anon client
+          // (prevents "Multiple GoTrueClient instances" warning)
+          storageKey: 'sb-admin-auth-token',
         },
         global: {
           headers: { 'X-Client-Info': 'bazaarx-web-admin' },

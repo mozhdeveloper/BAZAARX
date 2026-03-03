@@ -18,6 +18,7 @@ import type {
     Product as BuyerProduct,
     Seller as BuyerSeller,
 } from "@/stores/buyerStore";
+import { getSafeImageUrl, PLACEHOLDER_IMAGE } from "@/utils/imageUtils";
 
 // ─── Variant Shape ────────────────────────────────────────────────────────────
 
@@ -267,13 +268,13 @@ export interface NormalizedProductDetail {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const PLACEHOLDER_IMG = "https://placehold.co/400?text=Product";
+const PLACEHOLDER_IMG = PLACEHOLDER_IMAGE;
 
 /** Extract a flat string[] of image URLs from DB ProductImage[] or plain string[]. */
 const extractImages = (raw: any[] | undefined): string[] => {
     if (!Array.isArray(raw) || raw.length === 0) return [];
     return raw
-        .map((img: any) => (typeof img === "string" ? img : img?.image_url))
+        .map((img: any) => getSafeImageUrl(typeof img === "string" ? img : img?.image_url))
         .filter(Boolean) as string[];
 };
 
@@ -330,11 +331,11 @@ export const mapDbProductToNormalized = (
 ): NormalizedProductDetail => {
     const rawVariants: any[] = Array.isArray(p.variants) ? p.variants : [];
     const images = extractImages(p.images);
-    const primaryImage =
+    const primaryImage = getSafeImageUrl(
         (p.images as ProductImage[] | undefined)?.find((i) => i.is_primary)
             ?.image_url ||
-        images[0] ||
-        PLACEHOLDER_IMG;
+        images[0]
+    );
 
     const totalStock = rawVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
 

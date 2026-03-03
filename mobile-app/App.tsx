@@ -9,63 +9,27 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { Home, Store, ShoppingCart, MessageCircle, User } from 'lucide-react-native';
 import type { CartItem } from './src/types';
 
-// Import screens
+// ---------------------------------------------------------------------------
+// Eager imports — critical-path screens loaded at startup
+// ---------------------------------------------------------------------------
 import SplashScreen from './app/SplashScreen';
 import OnboardingScreen from './app/OnboardingScreen';
 import LoginScreen from './app/LoginScreen';
 import SignupScreen from './app/SignupScreen';
 import HomeScreen from './app/HomeScreen';
 import ShopScreen from './app/ShopScreen';
-import ProductDetailScreen from './app/ProductDetailScreen';
 import CartScreen from './app/CartScreen';
-import CheckoutScreen from './app/CheckoutScreen';
-import PaymentGatewayScreen from './app/PaymentGatewayScreen';
-import OrderConfirmationScreen from './app/OrderConfirmation';
-import OrdersScreen from './app/OrdersScreen';
-import OrderDetailScreen from './app/OrderDetailScreen';
-import DeliveryTrackingScreen from './app/DeliveryTrackingScreen';
-import FlashSaleScreen from './app/FlashSaleScreen';
 import ProfileScreen from './app/ProfileScreen';
-import FollowingShopsScreen from './app/FollowingShopsScreen';
-import WishlistScreen from './app/WishlistScreen';
-import SharedWishlistScreen from './app/SharedWishlistScreen';
-import FindRegistryScreen from './app/FindRegistryScreen';
-import AddressesScreen from './app/AddressesScreen';
-import SettingsScreen from './app/SettingsScreen';
-import NotificationsScreen from './app/NotificationsScreen';
-import NotificationSettingsScreen from './app/NotificationSettingsScreen';
-import PaymentMethodsScreen from './app/PaymentMethodsScreen';
-import HelpCenterScreen from './app/HelpCenterScreen';
-import ChatSupportScreen from './app/ChatSupportScreen';
-import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
-import SellerLoginScreen from './app/seller/login';
-import SellerSignupScreen from './app/seller/signup';
-import SellerAuthChoiceScreen from './app/seller/auth';
-import BecomeSellerScreen from './app/seller/BecomeSellerScreen';
-import SellerStack from './app/seller/SellerStack';
-import AdminStack from './app/admin/AdminStack';
-import AllStoresScreen from './app/AllStoresScreen';
-import StoreDetailScreen from './app/StoreDetailScreen';
-import ReturnRequestScreen from './app/ReturnRequestScreen';
-import ReturnDetailScreen from './app/ReturnDetailScreen';
-import ReturnOrdersScreen from './app/ReturnOrdersScreen';
-import HistoryScreen from './app/HistoryScreen';
-import MyRequestsScreen from './app/MyRequestsScreen';
-import AddProductScreen from '@/components/seller/AddProductScreen';
-import SellerOrderDetailScreen from './app/seller/OrderDetailScreen';
-
-// Ticketing Module
-import CreateTicketScreen from './app/tickets/CreateTicketScreen';
-import TicketDetailScreen from './app/tickets/TicketDetailScreen';
 import MessagesScreen from './app/MessagesScreen';
-import ChatScreen from './src/components/ChatScreen';
-import UserGuideScreen from './app/UserGuideScreen';
-import TermsOfServiceScreen from './app/TermsOfServiceScreen';
 
-// Onboarding Screens
+// Onboarding flow (shown right after signup — keep eager)
 import TermsScreen from './app/onboarding/TermsScreen';
 import CategoryPreferenceScreen from './app/onboarding/CategoryPreferenceScreen';
 import AddressSetupScreen from './app/onboarding/AddressSetupScreen';
+
+// ---------------------------------------------------------------------------
+// ALL other screens use getComponent — loaded only when navigated to
+// ---------------------------------------------------------------------------
 
 // Import types
 import type { Product, Order } from './src/types';
@@ -295,72 +259,71 @@ export default function App() {
             />
             <Stack.Screen
               name="SellerLogin"
-              component={SellerLoginScreen}
+              getComponent={() => require('./app/seller/login').default}
               options={{ animation: 'slide_from_bottom' }}
             />
             <Stack.Screen
               name="SellerSignup"
-              component={SellerSignupScreen}
+              getComponent={() => require('./app/seller/signup').default}
               options={{ animation: 'slide_from_bottom' }}
             />
             <Stack.Screen
               name="SellerAuthChoice"
-              component={SellerAuthChoiceScreen}
+              getComponent={() => require('./app/seller/auth').default}
               options={{ animation: 'fade' }}
             />
             <Stack.Screen
               name="BecomeSeller"
-              component={BecomeSellerScreen}
+              getComponent={() => require('./app/seller/BecomeSellerScreen').default}
               options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
             />
             <Stack.Screen
               name="SellerStack"
-              component={SellerStack}
+              getComponent={() => require('./app/seller/SellerStack').default}
               options={{ headerShown: false }}
             />
 
             <Stack.Screen name="MainTabs" component={MainTabs} />
-            <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
-            <Stack.Screen name="Checkout" component={CheckoutScreen} />
-            <Stack.Screen name="PaymentGateway" component={PaymentGatewayScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
-            <Stack.Screen name="Orders" component={OrdersScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+            <Stack.Screen name="ProductDetail" getComponent={() => require('./app/ProductDetailScreen').default} />
+            <Stack.Screen name="Checkout" getComponent={() => require('./app/CheckoutScreen').default} />
+            <Stack.Screen name="PaymentGateway" getComponent={() => require('./app/PaymentGatewayScreen').default} options={{ headerShown: false }} />
+            <Stack.Screen name="OrderConfirmation" getComponent={() => require('./app/OrderConfirmation').default} />
+            <Stack.Screen name="Orders" getComponent={() => require('./app/OrdersScreen').default} options={{ headerShown: false }} />
+            <Stack.Screen name="OrderDetail" getComponent={() => require('./app/OrderDetailScreen').default} />
             <Stack.Screen
               name="SellerOrderDetail"
-              component={SellerOrderDetailScreen}
-              options={{
-                headerShown: false,
-              }}
+              getComponent={() => require('./app/seller/OrderDetailScreen').default}
+              options={{ headerShown: false }}
             />
-            <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
-            <Stack.Screen name="FlashSale" component={FlashSaleScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="FollowingShops" component={FollowingShopsScreen} />
-            <Stack.Screen name="Wishlist" component={WishlistScreen} />
-            <Stack.Screen name="SharedWishlist" component={SharedWishlistScreen} />
-            <Stack.Screen name="FindRegistry" component={FindRegistryScreen} />
-            <Stack.Screen name="Addresses" component={AddressesScreen} />
-            <Stack.Screen name="Settings" component={SettingsScreen} />
-            <Stack.Screen name="Notifications" component={NotificationsScreen} />
-            <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
-            <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
-            <Stack.Screen name="AllStores" component={AllStoresScreen} />
-            <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
-            <Stack.Screen name="ReturnRequest" component={ReturnRequestScreen} />
-            <Stack.Screen name="ReturnDetail" component={ReturnDetailScreen} />
-            <Stack.Screen name="ReturnOrders" component={ReturnOrdersScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="History" component={HistoryScreen} />
-            <Stack.Screen name="MyRequests" component={MyRequestsScreen} />
-            <Stack.Screen name="HelpSupport" component={HelpCenterScreen} />
-            <Stack.Screen name="ChatSupport" component={ChatSupportScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
-            <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
-            <Stack.Screen name="Messages" component={MessagesScreen} />
-            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-            <Stack.Screen name="UserGuide" component={UserGuideScreen} />
-            <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
-            <Stack.Screen name="AddProduct" component={AddProductScreen} />
-            <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="DeliveryTracking" getComponent={() => require('./app/DeliveryTrackingScreen').default} />
+            <Stack.Screen name="FlashSale" getComponent={() => require('./app/FlashSaleScreen').default} options={{ headerShown: false }} />
+            <Stack.Screen name="FollowingShops" getComponent={() => require('./app/FollowingShopsScreen').default} />
+            <Stack.Screen name="Wishlist" getComponent={() => require('./app/WishlistScreen').default} />
+            <Stack.Screen name="SharedWishlist" getComponent={() => require('./app/SharedWishlistScreen').default} />
+            <Stack.Screen name="FindRegistry" getComponent={() => require('./app/FindRegistryScreen').default} />
+            <Stack.Screen name="Addresses" getComponent={() => require('./app/AddressesScreen').default} />
+            <Stack.Screen name="Settings" getComponent={() => require('./app/SettingsScreen').default} />
+            <Stack.Screen name="Notifications" getComponent={() => require('./app/NotificationsScreen').default} />
+            <Stack.Screen name="NotificationSettings" getComponent={() => require('./app/NotificationSettingsScreen').default} />
+            <Stack.Screen name="PaymentMethods" getComponent={() => require('./app/PaymentMethodsScreen').default} />
+            <Stack.Screen name="AllStores" getComponent={() => require('./app/AllStoresScreen').default} />
+            <Stack.Screen name="StoreDetail" getComponent={() => require('./app/StoreDetailScreen').default} />
+            <Stack.Screen name="ReturnRequest" getComponent={() => require('./app/ReturnRequestScreen').default} />
+            <Stack.Screen name="ReturnDetail" getComponent={() => require('./app/ReturnDetailScreen').default} />
+            <Stack.Screen name="ReturnOrders" getComponent={() => require('./app/ReturnOrdersScreen').default} options={{ headerShown: false }} />
+            <Stack.Screen name="History" getComponent={() => require('./app/HistoryScreen').default} />
+            <Stack.Screen name="MyRequests" getComponent={() => require('./app/MyRequestsScreen').default} />
+            <Stack.Screen name="HelpSupport" getComponent={() => require('./app/HelpCenterScreen').default} />
+            <Stack.Screen name="ChatSupport" getComponent={() => require('./app/ChatSupportScreen').default} options={{ headerShown: false }} />
+            <Stack.Screen name="CreateTicket" getComponent={() => require('./app/tickets/CreateTicketScreen').default} />
+            <Stack.Screen name="TicketDetail" getComponent={() => require('./app/tickets/TicketDetailScreen').default} />
+            <Stack.Screen name="Messages" getComponent={() => require('./app/MessagesScreen').default} />
+            <Stack.Screen name="PrivacyPolicy" getComponent={() => require('./app/PrivacyPolicyScreen').default} />
+            <Stack.Screen name="UserGuide" getComponent={() => require('./app/UserGuideScreen').default} />
+            <Stack.Screen name="TermsOfService" getComponent={() => require('./app/TermsOfServiceScreen').default} />
+            <Stack.Screen name="AddProduct" getComponent={() => require('./src/components/seller/AddProductScreen').default} />
+            <Stack.Screen name="Chat" getComponent={() => require('./src/components/ChatScreen').default} />
+            <Stack.Screen name="AdminStack" getComponent={() => require('./app/admin/AdminStack').default} options={{ headerShown: false }} />
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>

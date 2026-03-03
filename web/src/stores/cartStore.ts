@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { notificationService } from '@/services/notificationService';
 import type { PaymentStatus, ShipmentStatus } from '@/types/database.types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 
 // Unified Product interface for cart system
 export interface Product {
@@ -387,7 +388,7 @@ export const useCartStore = create<CartStore>()(
             const productImages = product.images || [];
             const primaryImg = productImages.find((img: any) => img.is_primary);
             const firstImg = [...productImages].sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))[0];
-            const imageUrl = variant?.thumbnail_url || primaryImg?.image_url || firstImg?.image_url || '';
+            const imageUrl = getSafeImageUrl(variant?.thumbnail_url || primaryImg?.image_url || firstImg?.image_url || '');;
             const price = (variant?.price != null && variant.price > 0) ? variant.price : (product.price || 0);
             const seller = product.seller || {};
 

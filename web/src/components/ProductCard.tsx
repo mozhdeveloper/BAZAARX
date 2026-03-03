@@ -38,6 +38,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
           src={product.image}
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
+          }}
         />
         {/* Discount Badge */}
         {hasDiscount && (

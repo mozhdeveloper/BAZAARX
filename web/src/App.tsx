@@ -1,89 +1,109 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import "./styles/globals.css";
 import { Toaster } from "./components/ui/toaster";
 import ScrollToTop from "./components/ScrollToTop";
-// import { OrderNotificationModal } from './components/OrderNotificationModal'; // Disabled for testing
-import HomePage from "./pages/HomePage";
-import SellerLandingPage from "./pages/SellerLandingPage";
-import ShopPage from "./pages/ShopPage";
-import SearchPage from "./pages/SearchPage";
-import CollectionsPage from "./pages/CollectionsPage";
-import StoresPage from "./pages/StoresPage";
-import FlashSalesPage from "./pages/FlashSalesPage";
-import ProductDetailPage from "./pages/ProductDetailPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import OrderConfirmationPage from "./pages/OrderConfirmationPage";
-import OrdersPage from "./pages/OrdersPage";
-import OrderDetailPage from "./pages/OrderDetailPage";
-import DeliveryTrackingPage from "./pages/DeliveryTrackingPage";
-import RegistryAndGiftingPage from "./pages/RegistryAndGiftingPage";
-import SharedRegistryPage from "./pages/SharedRegistryPage";
-
-// Enhanced Buyer Pages
-import EnhancedCartPage from "./pages/EnhancedCartPage";
-import BuyerProfilePage from "./pages/BuyerProfilePage";
-import ProfileComponentsTest from "./pages/ProfileComponentsTest";
-import SellerStorefrontPage from "./pages/SellerStorefrontPage";
-import ReviewsPage from "./pages/ReviewsPage";
-import BuyerReviewsPage from "./pages/BuyerReviewsPage";
-import BuyerFollowingPage from "./pages/BuyerFollowingPage";
-import BuyerSettingsPage from "./pages/BuyerSettingsPage"; import BuyerProductRequestsPage from './pages/BuyerProductRequestsPage'; import BuyerLoginPage from "./pages/BuyerLoginPage";
-import BuyerSignupPage from "./pages/BuyerSignupPage";
-import { BuyerSupport } from "./pages/BuyerSupport";
-import MyTickets from "./pages/MyTickets";
-import BuyerOnboardingPage from "@/pages/BuyerOnboardingPage";
-import MessagesPage from "./pages/MessagesPage";
-// import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
-import TrackingForm from "./components/TrackingForm";
-
-// Seller Pages
-import { SellerLogin, SellerRegister } from "./pages/SellerAuth";
-import { SellerAuthChoice } from "./pages/SellerAuthChoice";
-import { SellerOnboarding } from "./pages/SellerOnboarding";
-import { UnverifiedSellerPortal } from "./pages/UnverifiedSellerPortal";
-import { SellerDashboard } from "./pages/SellerDashboard";
-import { SellerStoreProfile } from "./pages/SellerStoreProfile";
-import { SellerEarnings } from "./pages/SellerEarnings";
-import { SellerProducts, AddProduct } from "./pages/SellerProducts";
-import { SellerOrders } from "./pages/SellerOrders";
-import SellerNotifications from "./pages/SellerNotifications";
-import { SellerReturns } from "./pages/SellerReturns";
-import { SellerReviews } from "./pages/SellerReviews";
-import { SellerAnalytics } from "./pages/SellerAnalytics";
-import { SellerSettings } from "./pages/SellerSettings";
-import SellerDiscounts from "./pages/SellerDiscounts";
-import SellerBoostProduct from "./pages/SellerBoostProduct";
-import SellerMessages from "./pages/SellerMessages";
-import SellerProductStatus from "./pages/SellerProductStatus";
-import SellerPOS from "./pages/SellerPOS";
-import SellerPOSSettings from "./pages/SellerPOSSettings";
-import SellerHelpCenter from "./pages/SellerHelpCenter";
-import SellerMyTickets from "./pages/SellerMyTickets";
-import SellerBuyerReports from "./pages/SellerBuyerReports";
-import { SellerAccountBlocked } from "./pages/SellerAccountBlocked";
-import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
-
-// Admin Pages
-import AdminAuth from "./pages/AdminAuth";
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminCategories from "./pages/AdminCategories";
-import AdminSellers from "./pages/AdminSellers";
-import AdminBuyers from "./pages/AdminBuyers";
-import AdminOrders from "./pages/AdminOrders";
-import AdminVouchers from "./pages/AdminVouchers";
-import AdminReviewModeration from "./pages/AdminReviewModeration";
-import AdminAnalytics from "./pages/AdminAnalytics";
-import AdminSettings from "./pages/AdminSettings";
-import AdminProducts from "./pages/AdminProducts";
-import AdminProductRequests from "./pages/AdminProductRequests";
-import AdminFlashSales from "./pages/AdminFlashSales";
-import AdminPayouts from "./pages/AdminPayouts";
-import AdminProfile from "./pages/AdminProfile";
-import AdminProductApprovals from "./pages/AdminProductApprovals";
-import AdminTickets from "./pages/AdminTickets";
-import AdminTrustedBrands from "./pages/AdminTrustedBrands";
 import { ChatBubble } from "./components/ChatBubbleAI";
-import NotFoundPage from "./pages/NotFoundPage";
+import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
+import TrackingForm from "./components/TrackingForm";
+import PageLoader from "./components/PageLoader";
+
+// ---------------------------------------------------------------------------
+// Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
+// ---------------------------------------------------------------------------
+
+// Helper: wrap named exports so React.lazy (which requires default) works
+const lazyNamed = <T extends Record<string, any>>(
+  factory: () => Promise<T>,
+  name: keyof T
+) => lazy(() => factory().then((m) => ({ default: m[name] as React.ComponentType<any> })));
+
+// Public / Buyer pages (default exports)
+const HomePage = lazy(() => import("./pages/HomePage"));
+const SellerLandingPage = lazy(() => import("./pages/SellerLandingPage"));
+const ShopPage = lazy(() => import("./pages/ShopPage"));
+const SearchPage = lazy(() => import("./pages/SearchPage"));
+const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
+const StoresPage = lazy(() => import("./pages/StoresPage"));
+const FlashSalesPage = lazy(() => import("./pages/FlashSalesPage"));
+const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const OrderConfirmationPage = lazy(() => import("./pages/OrderConfirmationPage"));
+const OrdersPage = lazy(() => import("./pages/OrdersPage"));
+const OrderDetailPage = lazy(() => import("./pages/OrderDetailPage"));
+const DeliveryTrackingPage = lazy(() => import("./pages/DeliveryTrackingPage"));
+const RegistryAndGiftingPage = lazy(() => import("./pages/RegistryAndGiftingPage"));
+const SharedRegistryPage = lazy(() => import("./pages/SharedRegistryPage"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+
+// Enhanced Buyer pages (default exports)
+const EnhancedCartPage = lazy(() => import("./pages/EnhancedCartPage"));
+const BuyerProfilePage = lazy(() => import("./pages/BuyerProfilePage"));
+const ProfileComponentsTest = lazy(() => import("./pages/ProfileComponentsTest"));
+const SellerStorefrontPage = lazy(() => import("./pages/SellerStorefrontPage"));
+const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
+const BuyerReviewsPage = lazy(() => import("./pages/BuyerReviewsPage"));
+const BuyerFollowingPage = lazy(() => import("./pages/BuyerFollowingPage"));
+const BuyerSettingsPage = lazy(() => import("./pages/BuyerSettingsPage"));
+const BuyerProductRequestsPage = lazy(() => import("./pages/BuyerProductRequestsPage"));
+const BuyerLoginPage = lazy(() => import("./pages/BuyerLoginPage"));
+const BuyerSignupPage = lazy(() => import("./pages/BuyerSignupPage"));
+const BuyerSupport = lazyNamed(() => import("./pages/BuyerSupport"), "BuyerSupport");
+const MyTickets = lazy(() => import("./pages/MyTickets"));
+const BuyerOnboardingPage = lazy(() => import("./pages/BuyerOnboardingPage"));
+const MessagesPage = lazy(() => import("./pages/MessagesPage"));
+
+// Seller auth pages (named exports)
+const SellerLogin = lazyNamed(() => import("./pages/SellerAuth"), "SellerLogin");
+const SellerRegister = lazyNamed(() => import("./pages/SellerAuth"), "SellerRegister");
+const SellerAuthChoice = lazyNamed(() => import("./pages/SellerAuthChoice"), "SellerAuthChoice");
+const SellerOnboarding = lazyNamed(() => import("./pages/SellerOnboarding"), "SellerOnboarding");
+
+// Seller protected pages (named exports)
+const UnverifiedSellerPortal = lazyNamed(() => import("./pages/UnverifiedSellerPortal"), "UnverifiedSellerPortal");
+const SellerDashboard = lazyNamed(() => import("./pages/SellerDashboard"), "SellerDashboard");
+const SellerStoreProfile = lazyNamed(() => import("./pages/SellerStoreProfile"), "SellerStoreProfile");
+const SellerEarnings = lazyNamed(() => import("./pages/SellerEarnings"), "SellerEarnings");
+const SellerProducts = lazyNamed(() => import("./pages/SellerProducts"), "SellerProducts");
+const AddProduct = lazyNamed(() => import("./pages/SellerProducts"), "AddProduct");
+const SellerOrders = lazyNamed(() => import("./pages/SellerOrders"), "SellerOrders");
+const SellerReturns = lazyNamed(() => import("./pages/SellerReturns"), "SellerReturns");
+const SellerReviews = lazyNamed(() => import("./pages/SellerReviews"), "SellerReviews");
+const SellerAnalytics = lazyNamed(() => import("./pages/SellerAnalytics"), "SellerAnalytics");
+const SellerSettings = lazyNamed(() => import("./pages/SellerSettings"), "SellerSettings");
+const SellerAccountBlocked = lazyNamed(() => import("./pages/SellerAccountBlocked"), "SellerAccountBlocked");
+
+// Seller protected pages (default exports)
+const SellerNotifications = lazy(() => import("./pages/SellerNotifications"));
+const SellerDiscounts = lazy(() => import("./pages/SellerDiscounts"));
+const SellerBoostProduct = lazy(() => import("./pages/SellerBoostProduct"));
+const SellerMessages = lazy(() => import("./pages/SellerMessages"));
+const SellerProductStatus = lazy(() => import("./pages/SellerProductStatus"));
+const SellerPOS = lazy(() => import("./pages/SellerPOS"));
+const SellerPOSSettings = lazy(() => import("./pages/SellerPOSSettings"));
+const SellerHelpCenter = lazy(() => import("./pages/SellerHelpCenter"));
+const SellerMyTickets = lazy(() => import("./pages/SellerMyTickets"));
+const SellerBuyerReports = lazy(() => import("./pages/SellerBuyerReports"));
+
+// Admin pages (default exports)
+const AdminAuth = lazy(() => import("./pages/AdminAuth"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminCategories = lazy(() => import("./pages/AdminCategories"));
+const AdminSellers = lazy(() => import("./pages/AdminSellers"));
+const AdminBuyers = lazy(() => import("./pages/AdminBuyers"));
+const AdminOrders = lazy(() => import("./pages/AdminOrders"));
+const AdminVouchers = lazy(() => import("./pages/AdminVouchers"));
+const AdminReviewModeration = lazy(() => import("./pages/AdminReviewModeration"));
+const AdminAnalytics = lazy(() => import("./pages/AdminAnalytics"));
+const AdminSettings = lazy(() => import("./pages/AdminSettings"));
+const AdminProducts = lazy(() => import("./pages/AdminProducts"));
+const AdminProductRequests = lazy(() => import("./pages/AdminProductRequests"));
+const AdminFlashSales = lazy(() => import("./pages/AdminFlashSales"));
+const AdminPayouts = lazy(() => import("./pages/AdminPayouts"));
+const AdminProfile = lazy(() => import("./pages/AdminProfile"));
+const AdminProductApprovals = lazy(() => import("./pages/AdminProductApprovals"));
+const AdminTickets = lazy(() => import("./pages/AdminTickets"));
+const AdminTrustedBrands = lazy(() => import("./pages/AdminTrustedBrands"));
 
 function App() {
   return (
@@ -91,6 +111,7 @@ function App() {
       <Router>
         <ScrollToTop />
         <ChatBubble />
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Buyer Routes */}
           <Route path="/" element={<HomePage />} />
@@ -493,6 +514,7 @@ function App() {
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        </Suspense>
 
         {/* Global components that need Router context */}
         {/* <OrderNotificationModal /> - Disabled for testing */}
