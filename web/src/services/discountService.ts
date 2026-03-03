@@ -41,7 +41,7 @@ export class DiscountService {
         .from('discount_campaigns')
         .insert([
           {
-            seller_id: campaign.sellerId,
+            seller_id: campaign.sellerId ?? null,
             name: campaign.name,
             description: campaign.description,
             campaign_type: campaign.campaignType,
@@ -433,6 +433,8 @@ export class DiscountService {
           category: p.category?.name || 'General',
           stock: totalStock,
           sold: soldCount,
+          campaignId: c.id,
+          campaignName: c.name,
           campaignBadge: c.badge_text,
           campaignBadgeColor: c.badge_color,
           campaignEndsAt: c.ends_at,
@@ -736,13 +738,16 @@ export class DiscountService {
 
   private transformProductDiscountWithProduct(data: Record<string, unknown>): ProductDiscount {
     const base = this.transformProductDiscount(data);
+    // NOTE: Supabase aliases `images:product_images(...)` — the field comes back as `images`, not `product_images`
     const product = data.product as {
       name?: string;
       price?: string | number;
-      product_images?: { image_url?: string; is_primary?: boolean; sort_order?: number }[];
+      images?: { image_url?: string; is_primary?: boolean; sort_order?: number }[];
+      variants?: { stock?: number }[];
+      seller?: { id?: string; store_name?: string; verified_at?: string | null };
     } | undefined;
 
-    const sortedImages = (product?.product_images || [])
+    const sortedImages = (product?.images || [])
       .slice()
       .sort((a, b) => {
         if (a.is_primary && !b.is_primary) return -1;
@@ -750,13 +755,17 @@ export class DiscountService {
         return (a.sort_order ?? 9999) - (b.sort_order ?? 9999);
       });
     const productImage = sortedImages[0]?.image_url;
+    const productStock = (product?.variants || []).reduce((sum, v) => sum + (v.stock || 0), 0);
+    const productSellerName = product?.seller?.store_name;
 
     return {
       ...base,
       campaign: data.campaign ? this.transformCampaign(data.campaign as Record<string, unknown>) : undefined,
       productName: product?.name,
       productImage,
-      productPrice: product?.price ? parseFloat(String(product.price)) : undefined
+      productPrice: product?.price ? parseFloat(String(product.price)) : undefined,
+      productStock,
+      productSellerName,
     };
   }
 }

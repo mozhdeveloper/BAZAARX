@@ -73,6 +73,15 @@ const AdminFlashSales: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
+  // Edit state
+  const [editSale, setEditSale] = useState<FlashSale | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editProducts, setEditProducts] = useState<FlashSaleProduct[]>([]);
+  const [editProductSearch, setEditProductSearch] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   const handleCreateFlashSale = async () => {
     if (!saleName.trim()) { alert('Please enter a flash sale name'); return; }
     if (!startDate || !endDate) { alert('Please set start and end dates'); return; }
@@ -80,12 +89,12 @@ const AdminFlashSales: React.FC = () => {
 
     setIsCreating(true);
     try {
-      // 1. Create the campaign
+      // 1. Create the platform-level campaign (no seller_id — covers products from any seller)
       const campaign = await discountService.createCampaign({
         name: saleName,
         campaignType: 'flash_sale',
-        discountType: 'fixed',
-        discountValue: 0, // Per-product overrides used instead
+        discountType: 'fixed_amount', // DB requires 'fixed_amount', not 'fixed'
+        discountValue: 1,             // DB requires > 0; per-product overrides carry real prices
         startsAt: new Date(startDate).toISOString(),
         endsAt: new Date(endDate).toISOString(),
         badgeText: 'Flash Sale',
@@ -96,13 +105,13 @@ const AdminFlashSales: React.FC = () => {
       // 2. Add products with their flash prices
       const overrides = selectedProducts.map(p => ({
         productId: p.productId,
-        discountType: 'fixed' as string,
-        discountValue: p.originalPrice - p.flashPrice,
+        discountType: 'fixed_amount' as string,
+        discountValue: Math.max(1, p.originalPrice - p.flashPrice),
       }));
 
       await discountService.addProductsToCampaign(
         campaign.id,
-        '', // admin — no specific seller
+        campaign.id, // no seller filter needed for platform campaigns
         selectedProducts.map(p => p.productId),
         overrides
       );
@@ -122,6 +131,87 @@ const AdminFlashSales: React.FC = () => {
     }
   };
 
+  const handleEditSave = async () => {
+    if (!editSale) return;
+    if (!editName.trim()) { alert('Please enter a name'); return; }
+    if (!editStartDate || !editEndDate) { alert('Please set start and end dates'); return; }
+    if (editProducts.length === 0) { alert('Please keep at least one product'); return; }
+    setIsSavingEdit(true);
+    try {
+      // Update campaign metadata
+      await discountService.updateCampaign(editSale.id, {
+        name: editName,
+        startsAt: new Date(editStartDate).toISOString(),
+        endsAt: new Date(editEndDate).toISOString(),
+      });
+
+      // Replace all product discounts with new list
+      const overrides = editProducts.map(p => ({
+        productId: p.productId,
+        discountType: 'fixed_amount' as string,
+        discountValue: Math.max(1, p.originalPrice - p.flashPrice),
+      }));
+      await discountService.addProductsToCampaign(
+        editSale.id,
+        editSale.id, // sellerId not needed — addProductsToCampaign ignores it
+        editProducts.map(p => p.productId),
+        overrides,
+      );
+
+      // Update local state
+      setFlashSales(prev => prev.map(s => s.id === editSale.id
+        ? {
+            ...s,
+            name: editName,
+            startDate: new Date(editStartDate),
+            endDate: new Date(editEndDate),
+            products: editProducts,
+            totalProducts: editProducts.length,
+            totalRevenue: editProducts.reduce((sum, p) => sum + p.flashPrice * p.sold, 0),
+          }
+        : s
+      ));
+      setEditSale(null);
+      setEditProducts([]);
+    } catch (err: any) {
+      alert('Failed to save: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const updateEditFlashPrice = (productId: string, price: number) => {
+    setEditProducts(prev => prev.map(p =>
+      p.productId === productId
+        ? { ...p, flashPrice: price, discount: p.originalPrice > 0 ? Math.round(((p.originalPrice - price) / p.originalPrice) * 100) : 0 }
+        : p
+    ));
+  };
+
+  const removeEditProduct = (productId: string) => {
+    setEditProducts(prev => prev.filter(p => p.productId !== productId));
+  };
+
+  const addEditProduct = (product: any) => {
+    const alreadyIn = editProducts.some(p => p.productId === product.id);
+    if (alreadyIn) return;
+    const orig = product.price || 0;
+    const flash = Math.round(orig * 0.8);
+    setEditProducts(prev => [...prev, {
+      id: '',
+      productId: product.id,
+      productName: product.name,
+      seller: product.storeName || '',
+      image: product.images?.[0] || product.image || '',
+      originalPrice: orig,
+      flashPrice: flash,
+      discount: orig > 0 ? Math.round(((orig - flash) / orig) * 100) : 0,
+      stock: 0,
+      sold: 0,
+    }]);
+    setEditProductSearch('');
+  };
+
   useEffect(() => {
     fetchProducts({});
   }, []);
@@ -133,6 +223,14 @@ const AdminFlashSales: React.FC = () => {
       .filter(p => !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase()))
       .slice(0, 10);
   }, [allStoreProducts, productSearch, selectedProducts]);
+
+  const editAvailableProducts = useMemo(() => {
+    const inIds = new Set(editProducts.map(p => p.productId));
+    return (allStoreProducts || [])
+      .filter(p => !inIds.has(p.id))
+      .filter(p => !editProductSearch || p.name.toLowerCase().includes(editProductSearch.toLowerCase()))
+      .slice(0, 10);
+  }, [allStoreProducts, editProductSearch, editProducts]);
 
   const addProduct = (product: any) => {
     setSelectedProducts(prev => [...prev, {
@@ -175,7 +273,7 @@ const AdminFlashSales: React.FC = () => {
               id: pd.id,
               productId: pd.productId,
               productName: pd.productName || 'Unknown Product',
-              seller: '',
+              seller: pd.productSellerName || '',
               image: pd.productImage || '',
               originalPrice: pd.productPrice || 0,
               flashPrice: pd.productPrice && pd.overrideDiscountValue
@@ -184,7 +282,7 @@ const AdminFlashSales: React.FC = () => {
               discount: pd.productPrice && pd.overrideDiscountValue
                 ? Math.round((pd.overrideDiscountValue / pd.productPrice) * 100)
                 : 0,
-              stock: 0,
+              stock: pd.productStock || 0,
               sold: pd.soldCount || 0,
             }));
           } catch { /* ignore product load errors */ }
@@ -456,32 +554,61 @@ const AdminFlashSales: React.FC = () => {
                       {/* Products in Flash Sale */}
                       {sale.products.length > 0 && (
                         <div className="mt-4 border-t pt-4">
-                          <h4 className="font-semibold text-gray-900 mb-3">Featured Products</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {sale.products.map((product) => (
-                              <div key={product.id} className="flex gap-3 bg-gray-50 rounded-lg p-3">
-                                <img
-                                  src={product.image}
-                                  alt={product.productName}
-                                  className="w-16 h-16 rounded-lg object-cover"
-                                />
-                                <div className="flex-1">
-                                  <p className="font-medium text-gray-900 text-sm">{product.productName}</p>
-                                  <p className="text-xs text-gray-600">{product.seller}</p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-xs text-gray-500 line-through">₱{product.originalPrice}</span>
-                                    <span className="text-sm font-bold text-red-600">₱{product.flashPrice}</span>
-                                    <Badge variant="outline" className="text-xs">-{product.discount}%</Badge>
+                          <h4 className="font-semibold text-gray-900 mb-3">
+                            Featured Products
+                            <span className="ml-2 text-sm font-normal text-gray-500">({sale.products.length})</span>
+                          </h4>
+
+                          {sale.products.length <= 10 ? (
+                            /* Image grid for ≤ 10 products */
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {sale.products.map((product) => (
+                                <div key={product.id} className="flex gap-3 bg-gray-50 rounded-lg p-3">
+                                  <img
+                                    src={product.image}
+                                    alt={product.productName}
+                                    className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                                    onError={(e) => {
+                                      const t = e.currentTarget;
+                                      t.onerror = null;
+                                      t.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(product.productName)}&size=64&background=f3f4f6&color=374151`;
+                                    }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 text-sm truncate">{product.productName}</p>
+                                    <p className="text-xs text-gray-600 truncate">{product.seller}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-xs text-gray-500 line-through">₱{product.originalPrice}</span>
+                                      <span className="text-sm font-bold text-red-600">₱{product.flashPrice}</span>
+                                      <Badge variant="outline" className="text-xs">-{product.discount}%</Badge>
+                                    </div>
+                                    {sale.status === 'active' && (
+                                      <p className="text-xs text-gray-600 mt-1">
+                                        Sold: {product.sold}/{product.stock}
+                                      </p>
+                                    )}
                                   </div>
-                                  {sale.status === 'active' && (
-                                    <p className="text-xs text-gray-600 mt-1">
-                                      Sold: {product.sold}/{product.stock}
-                                    </p>
-                                  )}
                                 </div>
-                              </div>
-                            ))}
-                          </div>
+                              ))}
+                            </div>
+                          ) : (
+                            /* Compact list for > 10 products */
+                            <div className="divide-y divide-gray-100 rounded-lg border overflow-hidden">
+                              {sale.products.map((product) => (
+                                <div key={product.id} className="flex items-center justify-between px-3 py-2 bg-white hover:bg-gray-50 text-sm">
+                                  <span className="text-gray-900 font-medium truncate flex-1 mr-3">{product.productName}</span>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className="text-gray-400 line-through text-xs">₱{product.originalPrice}</span>
+                                    <span className="font-bold text-red-600">₱{product.flashPrice}</span>
+                                    <Badge variant="outline" className="text-xs">-{product.discount}%</Badge>
+                                    {sale.status === 'active' && (
+                                      <span className="text-xs text-gray-500">{product.sold}/{product.stock} sold</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -512,6 +639,19 @@ const AdminFlashSales: React.FC = () => {
                           <Button
                             variant="outline"
                             className="w-full"
+                            onClick={() => {
+                              setEditSale(sale);
+                              setEditName(sale.name);
+                              setEditProducts([...sale.products]);
+                              setEditProductSearch('');
+                              // Convert dates to datetime-local format
+                              const toLocal = (d: Date) => {
+                                const pad = (n: number) => String(n).padStart(2, '0');
+                                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                              };
+                              setEditStartDate(toLocal(new Date(sale.startDate)));
+                              setEditEndDate(toLocal(new Date(sale.endDate)));
+                            }}
                           >
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
@@ -712,6 +852,167 @@ const AdminFlashSales: React.FC = () => {
                   onClick={() => setShowCreateModal(false)}
                   variant="outline"
                   disabled={isCreating}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Edit Flash Sale Modal */}
+      {editSale && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Edit Flash Sale</h2>
+                <button onClick={() => setEditSale(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="space-y-5">
+                {/* Name */}
+                <div>
+                  <Label htmlFor="editName">Flash Sale Name</Label>
+                  <Input
+                    id="editName"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
+                </div>
+
+                {/* Dates */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="editStart">Start Date</Label>
+                    <Input
+                      id="editStart"
+                      type="datetime-local"
+                      value={editStartDate}
+                      onChange={(e) => setEditStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editEnd">End Date</Label>
+                    <Input
+                      id="editEnd"
+                      type="datetime-local"
+                      value={editEndDate}
+                      onChange={(e) => setEditEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Per-item product editing */}
+                <div>
+                  <Label>Products &amp; Flash Prices</Label>
+                  <p className="text-xs text-gray-500 mb-2">Adjust flash prices or remove/add products.</p>
+
+                  {/* Add product search */}
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search to add a product..."
+                      value={editProductSearch}
+                      onChange={(e) => setEditProductSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                    {editProductSearch && editAvailableProducts.length > 0 && (
+                      <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {editAvailableProducts.map((p: any) => (
+                          <button
+                            key={p.id}
+                            onClick={() => addEditProduct(p)}
+                            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left"
+                          >
+                            <img src={p.images?.[0] || p.image || ''} alt="" className="w-8 h-8 rounded object-cover bg-gray-100" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                              <p className="text-xs text-gray-500">₱{(p.price || 0).toLocaleString()}</p>
+                            </div>
+                            <Plus className="h-4 w-4 text-gray-400" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Product list with editable flash prices */}
+                  {editProducts.length > 0 ? (
+                    <div className="space-y-2 border border-gray-200 rounded-lg p-3">
+                      <div className="grid grid-cols-[1fr,90px,110px,32px] gap-2 text-xs font-bold text-gray-500 px-1 mb-1">
+                        <span>Product</span>
+                        <span>Original</span>
+                        <span>Flash Price</span>
+                        <span></span>
+                      </div>
+                      {editProducts.map((p) => {
+                        const disc = p.originalPrice > 0
+                          ? Math.round(((p.originalPrice - p.flashPrice) / p.originalPrice) * 100)
+                          : 0;
+                        return (
+                          <div key={p.productId} className="grid grid-cols-[1fr,90px,110px,32px] gap-2 items-center bg-gray-50 rounded-lg px-2 py-1.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img
+                                src={p.image}
+                                alt=""
+                                className="w-7 h-7 rounded object-cover bg-gray-200 flex-shrink-0"
+                                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.productName)}&size=28&background=f3f4f6&color=374151`; }}
+                              />
+                              <span className="text-sm font-medium text-gray-900 truncate">{p.productName}</span>
+                            </div>
+                            <span className="text-sm text-gray-500">₱{p.originalPrice.toLocaleString()}</span>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                value={p.flashPrice}
+                                onChange={(e) => updateEditFlashPrice(p.productId, Number(e.target.value))}
+                                className="h-8 text-sm font-bold text-[#FF6A00] pr-1"
+                                min={1}
+                                max={p.originalPrice}
+                              />
+                              {disc > 0 && (
+                                <Badge className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] px-1 py-0 border-0">
+                                  -{disc}%
+                                </Badge>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => removeEditProduct(p.productId)}
+                              className="text-gray-400 hover:text-red-500"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center">
+                      <p className="text-sm text-gray-500">No products — search above to add some.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  onClick={handleEditSave}
+                  disabled={isSavingEdit}
+                  className="flex-1 bg-[#FF6A00] hover:bg-[#E55D00]"
+                >
+                  {isSavingEdit ? 'Saving…' : 'Save Changes'}
+                </Button>
+                <Button
+                  onClick={() => { setEditSale(null); setEditProducts([]); }}
+                  variant="outline"
+                  disabled={isSavingEdit}
                 >
                   Cancel
                 </Button>

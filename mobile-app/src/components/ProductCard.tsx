@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { BadgeCheck, ShieldCheck, Star, Flame } from 'lucide-react-native';
 import { Product } from '../types';
 import { COLORS } from '../constants/theme';
@@ -11,7 +12,7 @@ interface ProductCardProps {
   variant?: 'default' | 'flash';
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, variant = 'default' }) => {
+export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, onPress, variant = 'default' }) => {
   const isFlash = variant === 'flash';
   const regularPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price || 0));
   const pbPrice = product.originalPrice ?? product.original_price;
@@ -35,7 +36,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
     >
       {/* Product Image */}
       <View style={styles.imageContainer}>
-        <Image source={{ uri: safeImageUri(product.image) }} style={styles.image} resizeMode="cover" />
+        <Image source={{ uri: safeImageUri(product.image) }} style={styles.image} contentFit="cover" cachePolicy="memory-disk" transition={200} />
 
         {/* Discount Badge */}
         {hasDiscount && (
@@ -120,7 +121,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, vari
       </View>
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -310,3 +311,5 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   }
 });
+
+ProductCard.displayName = 'ProductCard';

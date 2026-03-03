@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { Trash2, ChevronDown } from 'lucide-react-native';
 import { CartItem } from '../types';
 import { QuantityStepper } from './QuantityStepper';
@@ -16,7 +17,7 @@ interface CartItemRowProps {
   onPress?: () => void;
 }
 
-export const CartItemRow: React.FC<CartItemRowProps> = ({
+export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
   item,
   onIncrement,
   onDecrement,
@@ -28,7 +29,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
   return (
     <View style={styles.container}>
       <Pressable onPress={onPress}>
-        <Image source={{ uri: safeImageUri(item.image) }} style={styles.image} resizeMode="cover" />
+        <Image source={{ uri: safeImageUri(item.image) }} style={styles.image} contentFit="cover" cachePolicy="memory-disk" transition={150} />
       </Pressable>
 
       <View style={styles.infoContainer}>
@@ -102,7 +103,9 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
       </View>
     </View>
   );
-};
+});
+
+CartItemRow.displayName = 'CartItemRow';
 
 const styles = StyleSheet.create({
   container: {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Package,
@@ -11,6 +11,8 @@ import {
     CheckCircle,
     Star,
     MessageCircle,
+    Pencil,
+    Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,8 +30,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { useOrderStore, useAuthStore, useProductStore, SellerOrder } from "@/stores/sellerStore"; import { useChatStore } from "@/stores/chatStore";
+import { useOrderStore, useAuthStore, useProductStore, SellerOrder } from "@/stores/sellerStore";
+import { useChatStore } from "@/stores/chatStore";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
+import { orderMutationService } from "@/services/orders/orderMutationService";
 
 interface OrderDetailsModalProps {
     isOpen: boolean;
@@ -87,7 +91,63 @@ export function OrderDetailsModal({
     });
     // ------------------------
 
+    // POS customer editing state
+    const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+    const [posCustomerName, setPosCustomerName] = useState("");
+    const [posCustomerEmail, setPosCustomerEmail] = useState("");
+    const [posNotes, setPosNotes] = useState("");
+    const [isEditingNotes, setIsEditingNotes] = useState(false);
+    const [isSavingPOS, setIsSavingPOS] = useState(false);
+
+    // Sync POS fields whenever the order changes (e.g. modal reopened with a different order)
+    useEffect(() => {
+        if (order) {
+            setPosCustomerName(order.buyerName || "");
+            setPosCustomerEmail(order.buyerEmail || "");
+            setPosNotes(order.notes || order.posNote || "");
+            setIsEditingCustomer(false);
+            setIsEditingNotes(false);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [order?.id]);
+
     if (!isOpen || !order) return null;
+
+    const isPOS = order.type === "OFFLINE";
+
+    const handleSavePOSCustomer = async () => {
+        if (!posCustomerName.trim()) return;
+        setIsSavingPOS(true);
+        try {
+            await orderMutationService.updatePOSOrderCustomer({
+                orderId: order.id,
+                buyerName: posCustomerName.trim(),
+                buyerEmail: posCustomerEmail.trim() || undefined,
+            });
+            setIsEditingCustomer(false);
+            setAlertModal({ isOpen: true, title: "Saved", message: "Customer details updated.", isError: false });
+        } catch {
+            setAlertModal({ isOpen: true, title: "Error", message: "Failed to save customer details.", isError: true });
+        } finally {
+            setIsSavingPOS(false);
+        }
+    };
+
+    const handleSavePOSNotes = async () => {
+        setIsSavingPOS(true);
+        try {
+            await orderMutationService.updatePOSOrderCustomer({
+                orderId: order.id,
+                notes: posNotes,
+            });
+            setIsEditingNotes(false);
+            setAlertModal({ isOpen: true, title: "Saved", message: "Delivery notes updated.", isError: false });
+        } catch {
+            setAlertModal({ isOpen: true, title: "Error", message: "Failed to save delivery notes.", isError: true });
+        } finally {
+            setIsSavingPOS(false);
+        }
+    };
 
     const handleStatusUpdate = async (
         status: Extract<SellerOrder["status"], "confirmed" | "cancelled">,
@@ -416,46 +476,170 @@ export function OrderDetailsModal({
 
                                 {/* Customer */}
                                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
-                                    <span className="font-semibold text-gray-900 text-sm block mb-3">
-                                        Customer
-                                    </span>
-                                    <div>
-                                        <p className="text-sm font-semibold text-gray-900">
-                                            {order.buyerName}
-                                        </p>
-                                        <p className="text-xs text-gray-500 mt-0.5">
-                                            {order.shippingAddress?.city ||
-                                                "Unknown Location"}
-                                            ,{" "}
-                                            {order.shippingAddress?.province ||
-                                                "PH"}
-                                        </p>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="font-semibold text-gray-900 text-sm">
+                                            Customer
+                                        </span>
+                                        {isPOS && !isEditingCustomer && (
+                                            <button
+                                                onClick={() => setIsEditingCustomer(true)}
+                                                className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-600 font-medium"
+                                            >
+                                                <Pencil className="w-3 h-3" />
+                                                Edit
+                                            </button>
+                                        )}
                                     </div>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-3 w-full text-[#FF6A00] border-[#FF6A00]/20 hover:bg-[#FF6A00]/5"
-                                        onClick={() => {
-                                            const currentSellerId = useAuthStore.getState().seller?.id || '';
-                                            useChatStore.getState().openChat({
-                                                sellerId: currentSellerId,
-                                                // FIX 1: Changed store_name to storeName
-                                                sellerName: useAuthStore.getState().seller?.storeName || 'My Store',
-                                                sellerAvatar: '',
-                                                // FIX 2: Changed buyerId to buyer_id
-                                                buyerId: order.buyer_id || '',
-                                                buyerName: order.buyerName || 'Buyer',
-                                                orderId: order.id,
-                                                productName: `Order #${order.id?.slice(0, 8).toUpperCase()}`,
-                                                productImage: order.items?.[0]?.image || '',
-                                            });
-                                            useChatStore.getState().setMiniMode(false);
-                                        }}
-                                    >
-                                        <MessageCircle className="h-4 w-4 mr-2" />
-                                        Chat with Buyer
-                                    </Button>
+
+                                    {isPOS && isEditingCustomer ? (
+                                        <div className="space-y-2">
+                                            <div>
+                                                <label className="text-xs text-gray-500 mb-1 block">Customer Name <span className="text-red-400">*</span></label>
+                                                <Input
+                                                    value={posCustomerName}
+                                                    onChange={(e) => setPosCustomerName(e.target.value)}
+                                                    placeholder="e.g. Juan Dela Cruz"
+                                                    className="h-8 text-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500 mb-1 block">Email (optional)</label>
+                                                <Input
+                                                    value={posCustomerEmail}
+                                                    onChange={(e) => setPosCustomerEmail(e.target.value)}
+                                                    placeholder="customer@email.com"
+                                                    className="h-8 text-sm"
+                                                    type="email"
+                                                />
+                                            </div>
+                                            <div className="flex gap-2 pt-1">
+                                                <Button
+                                                    size="sm"
+                                                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white h-8 text-xs"
+                                                    onClick={() => void handleSavePOSCustomer()}
+                                                    disabled={isSavingPOS || !posCustomerName.trim()}
+                                                >
+                                                    {isSavingPOS ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Check className="w-3 h-3 mr-1" />Save</>}
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="flex-1 h-8 text-xs"
+                                                    onClick={() => {
+                                                        setIsEditingCustomer(false);
+                                                        setPosCustomerName(order.buyerName || "");
+                                                        setPosCustomerEmail(order.buyerEmail || "");
+                                                    }}
+                                                    disabled={isSavingPOS}
+                                                >
+                                                    Discard
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-900">
+                                                {posCustomerName || order.buyerName || "Walk-in Customer"}
+                                            </p>
+                                            {(posCustomerEmail || order.buyerEmail) && (
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    {posCustomerEmail || order.buyerEmail}
+                                                </p>
+                                            )}
+                                            {!isPOS && (
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    {order.shippingAddress?.city || "Unknown Location"},{" "}
+                                                    {order.shippingAddress?.province || "PH"}
+                                                </p>
+                                            )}
+                                            {isPOS && (
+                                                <span className="inline-flex items-center gap-1 mt-1.5 text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 font-medium">
+                                                    POS / Walk-in
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {!isPOS && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="mt-3 w-full text-[#FF6A00] border-[#FF6A00]/20 hover:bg-[#FF6A00]/5"
+                                            onClick={() => {
+                                                const currentSellerId = useAuthStore.getState().seller?.id || '';
+                                                useChatStore.getState().openChat({
+                                                    sellerId: currentSellerId,
+                                                    sellerName: useAuthStore.getState().seller?.storeName || 'My Store',
+                                                    sellerAvatar: '',
+                                                    buyerId: order.buyer_id || '',
+                                                    buyerName: order.buyerName || 'Buyer',
+                                                    orderId: order.id,
+                                                    productName: `Order #${order.id?.slice(0, 8).toUpperCase()}`,
+                                                    productImage: order.items?.[0]?.image || '',
+                                                });
+                                                useChatStore.getState().setMiniMode(false);
+                                            }}
+                                        >
+                                            <MessageCircle className="h-4 w-4 mr-2" />
+                                            Chat with Buyer
+                                        </Button>
+                                    )}
                                 </div>
+
+                                {/* POS Delivery Notes */}
+                                {isPOS && (
+                                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="font-semibold text-gray-900 text-sm">Delivery / Notes</span>
+                                            {!isEditingNotes && (
+                                                <button
+                                                    onClick={() => setIsEditingNotes(true)}
+                                                    className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-600 font-medium"
+                                                >
+                                                    <Pencil className="w-3 h-3" />
+                                                    Edit
+                                                </button>
+                                            )}
+                                        </div>
+                                        {isEditingNotes ? (
+                                            <div className="space-y-2">
+                                                <textarea
+                                                    value={posNotes}
+                                                    onChange={(e) => setPosNotes(e.target.value)}
+                                                    placeholder="Delivery address or additional notes..."
+                                                    rows={3}
+                                                    className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
+                                                />
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white h-8 text-xs"
+                                                        onClick={() => void handleSavePOSNotes()}
+                                                        disabled={isSavingPOS}
+                                                    >
+                                                        {isSavingPOS ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Check className="w-3 h-3 mr-1" />Save</>}
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="flex-1 h-8 text-xs"
+                                                        onClick={() => {
+                                                            setIsEditingNotes(false);
+                                                            setPosNotes(order.notes || order.posNote || "");
+                                                        }}
+                                                        disabled={isSavingPOS}
+                                                    >
+                                                        Discard
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-gray-600 leading-relaxed">
+                                                {posNotes || <span className="text-gray-400 italic">No notes added</span>}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
 
                                 {latestReview && (
                                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">

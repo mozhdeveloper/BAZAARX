@@ -173,17 +173,23 @@ export default function HomeScreen({ navigation }: Props) {
     )
     : [];
 
+  // === PARALLEL DATA LOADING — all independent fetches in one shot ===
   useEffect(() => {
-    const loadProducts = async () => {
+    const loadAllData = async () => {
       setIsLoadingProducts(true);
       setFetchError(null);
-      try {
-        const data = await productService.getProducts({
-          isActive: true,
-          approvalStatus: 'approved'
-        });
 
-        const mapped: Product[] = (data || []).map((row: any) => {
+      const [productsResult, flashResult, featuredResult, boostedResult, sellersResult] = await Promise.allSettled([
+        productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
+        discountService.getFlashSaleProducts(),
+        featuredProductService.getFeaturedProducts(10),
+        adBoostService.getActiveBoostedProducts('featured', 10),
+        sellerService.getAllSellers(),
+      ]);
+
+      // Products
+      if (productsResult.status === 'fulfilled') {
+        const mapped: Product[] = (productsResult.value || []).map((row: any) => {
           const images = row.images?.map((img: any) =>
             typeof img === 'string' ? img : img.image_url
           ).filter(Boolean) || [];
@@ -207,11 +213,6 @@ export default function HomeScreen({ navigation }: Props) {
             thumbnail_url: v.thumbnail_url,
           }));
 
-          const colors = Array.from(new Set(variants.map((v: any) => v.color).filter(Boolean))) as string[];
-          const sizes = Array.from(new Set(variants.map((v: any) => v.size).filter(Boolean))) as string[];
-          const option1Values = Array.from(new Set(variants.map((v: any) => v.option_1_value || v.color).filter(Boolean))) as string[];
-          const option2Values = Array.from(new Set(variants.map((v: any) => v.option_2_value || v.size).filter(Boolean))) as string[];
-
           return {
             ...row,
             price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
@@ -222,47 +223,35 @@ export default function HomeScreen({ navigation }: Props) {
         });
         const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
         setDbProducts(uniqueMapped);
-      } catch (e: any) {
-        setFetchError(e?.message || 'Failed to load products');
+      } else {
+        setFetchError((productsResult.reason as any)?.message || 'Failed to load products');
         setDbProducts([]);
-      } finally {
-        setIsLoadingProducts(false);
       }
-    };
-    loadProducts();
-  }, []);
 
-  useEffect(() => {
-    const loadFlashSales = async () => {
-      try {
-        const data = await discountService.getFlashSaleProducts();
-        // Deduplicate by product ID — a product can belong to multiple campaigns
+      // Flash sales
+      if (flashResult.status === 'fulfilled') {
         const seen = new Set<string>();
-        const unique = (data || []).filter((p: any) => {
+        const unique = (flashResult.value || []).filter((p: any) => {
           if (seen.has(p.id)) return false;
           seen.add(p.id);
           return true;
         });
         setFlashSaleProducts(unique);
-      } catch (e) {
-        console.error('Error loading flash sales:', e);
       }
+
+      // Featured + Boosted
+      if (featuredResult.status === 'fulfilled') setFeaturedProducts(featuredResult.value);
+      if (boostedResult.status === 'fulfilled') setBoostedProducts(boostedResult.value);
+
+      // Sellers
+      if (sellersResult.status === 'fulfilled' && sellersResult.value) setSellers(sellersResult.value);
+
+      setIsLoadingProducts(false);
     };
-    loadFlashSales();
+    loadAllData();
   }, []);
 
-  // Fetch featured products
-  useEffect(() => {
-    featuredProductService.getFeaturedProducts(10).then(data => {
-      setFeaturedProducts(data);
-    }).catch(e => console.error('Error loading featured products:', e));
-
-    // Also fetch boosted products
-    adBoostService.getActiveBoostedProducts('featured', 10).then(data => {
-      setBoostedProducts(data);
-    }).catch(e => console.error('Error loading boosted products:', e));
-  }, []);
-
+  // Flash sale countdown timer
   useEffect(() => {
     if (flashSaleProducts.length === 0) return;
 
@@ -293,14 +282,6 @@ export default function HomeScreen({ navigation }: Props) {
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [flashSaleProducts]);
-
-  useEffect(() => {
-    const fetchSellers = async () => {
-      const data = await sellerService.getAllSellers();
-      if (data) setSellers(data);
-    };
-    fetchSellers();
-  }, []);
 
   // --- FETCH NOTIFICATIONS ---
   const loadNotifications = useCallback(async () => {

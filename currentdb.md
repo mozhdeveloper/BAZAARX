@@ -142,7 +142,7 @@ CREATE TABLE public.conversations (
 );
 CREATE TABLE public.discount_campaigns (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  seller_id uuid NOT NULL,
+  seller_id uuid,
   name text NOT NULL,
   description text,
   campaign_type text NOT NULL CHECK (campaign_type = ANY (ARRAY['flash_sale'::text, 'seasonal_sale'::text, 'clearance'::text, 'buy_more_save_more'::text, 'limited_time_offer'::text, 'new_arrival_promo'::text, 'bundle_deal'::text])),
@@ -807,6 +807,9 @@ CREATE TABLE public.shipping_addresses (
   coordinates jsonb,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  first_name text,
+  last_name text,
+  phone_number text,
   CONSTRAINT shipping_addresses_pkey PRIMARY KEY (id),
   CONSTRAINT shipping_addresses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );

@@ -448,68 +448,93 @@ export default function ShopPage() {
           </div>
 
           <div className="pt-2 pb-0">
-            {/* Flash Sale Section — only shown when there are active campaigns */}
-            {flashSaleProducts.length > 0 && (
-              <div className="mb-2 bg-gradient-to-br from-white via-white to-[var(--brand-wash)]/30 rounded-2xl py-6 px-4 sm:px-6 lg:px-8 shadow-[0_4px_25px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_35px_rgba(255,106,0,0.12)] transition-all duration-500 border border-white/50">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                  <div className="flex items-center gap-5">
-                    <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading">
-                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
-                        FLASH SALE
-                      </span>
-                    </h2>
+            {/* Flash Sale Section — one block per active campaign */}
+            {flashSaleProducts.length > 0 && (() => {
+              // Group products by campaign
+              const campaignMap = new Map<string, { name: string; endsAt: string; products: any[] }>();
+              for (const p of flashSaleProducts) {
+                const key = p.campaignId || 'default';
+                if (!campaignMap.has(key)) {
+                  campaignMap.set(key, { name: p.campaignName || 'Flash Sale', endsAt: p.campaignEndsAt || '', products: [] });
+                }
+                campaignMap.get(key)!.products.push(p);
+              }
+              const campaigns = Array.from(campaignMap.values());
 
-                    {/* Ends in + Accurate Timer */}
-                    {flashEndsAt && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-timer"><line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" /></svg>
-                        <div className="flex items-center gap-1.5 font-bold font-mono text-base">
-                          <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                            {String(timeLeft.hours).padStart(2, "0")}
-                          </div>
-                          <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
-                          <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                            {String(timeLeft.minutes).padStart(2, "0")}
-                          </div>
-                          <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
-                          <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                            {String(timeLeft.seconds).padStart(2, "0")}
-                          </div>
+              return campaigns.map((campaign, ci) => {
+                // Per-campaign countdown
+                const endsAt = campaign.endsAt;
+                return (
+                  <div
+                    key={ci}
+                    className="mb-2 bg-gradient-to-br from-white via-white to-[var(--brand-wash)]/30 rounded-2xl py-6 px-4 sm:px-6 lg:px-8 shadow-[0_4px_25px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_35px_rgba(255,106,0,0.12)] transition-all duration-500 border border-white/50"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div>
+                          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading leading-none">
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
+                              FLASH SALE
+                            </span>
+                          </h2>
+                          <p className="text-sm font-semibold text-gray-600 mt-0.5 tracking-wide">
+                            {campaign.name}
+                          </p>
                         </div>
+
+                        {/* Countdown timer using global timeLeft for earliest campaign */}
+                        {endsAt && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-timer"><line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" /></svg>
+                            <div className="flex items-center gap-1.5 font-bold font-mono text-base">
+                              <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
+                                {String(timeLeft.hours).padStart(2, '0')}
+                              </div>
+                              <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
+                              <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
+                                {String(timeLeft.minutes).padStart(2, '0')}
+                              </div>
+                              <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
+                              <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
+                                {String(timeLeft.seconds).padStart(2, '0')}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  <div className="flex items-center gap-3 self-end sm:self-auto">
-                    <Link
-                      to="/flash-sales"
-                      className="group flex items-center gap-2 text-[var(--brand-accent)] font-medium text-sm hover:text-[var(--brand-primary-dark)] transition-colors"
-                    >
-                      <span>View All</span>
-                      <svg
-                        width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                        className="group-hover:translate-x-1 transition-transform"
-                      >
-                        <line x1="7" y1="17" x2="17" y2="7"></line>
-                        <polyline points="7 7 17 7 17 17"></polyline>
-                      </svg>
-                    </Link>
-                  </div>
-                </div>
+                      <div className="flex items-center gap-3 self-end sm:self-auto">
+                        <Link
+                          to="/flash-sales"
+                          className="group flex items-center gap-2 text-[var(--brand-accent)] font-medium text-sm hover:text-[var(--brand-primary-dark)] transition-colors"
+                        >
+                          <span>View All</span>
+                          <svg
+                            width="18" height="18" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                            className="group-hover:translate-x-1 transition-transform"
+                          >
+                            <line x1="7" y1="17" x2="17" y2="7"></line>
+                            <polyline points="7 7 17 7 17 17"></polyline>
+                          </svg>
+                        </Link>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 shrink-0 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {flashSaleProducts.slice(0, 6).map((product: any, index: number) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      index={index}
-                      isFlash={true}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+                    <div className="grid grid-cols-2 shrink-0 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                      {campaign.products.slice(0, 6).map((product: any, index: number) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          index={index}
+                          isFlash={true}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}

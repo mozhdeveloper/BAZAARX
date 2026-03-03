@@ -85,35 +85,35 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
     } = payload;
 
     try {
-        // 1. Validate Stock (non-blocking — skips items with missing products)
-        // Stock is stored in product_variants table, not products table
-        for (const item of items) {
-            if (!item.id) continue;
-
-            // Get total stock from all variants for this product
-            const { data: variants, error: variantError } = await supabase
+        // 1. Validate Stock — batch query all variants at once instead of per-item loop
+        const productIdsForStock = items.map(i => i.id).filter(Boolean) as string[];
+        
+        let allVariants: { id: string; product_id: string; stock: number }[] = [];
+        if (productIdsForStock.length > 0) {
+            const { data: variantsData, error: variantError } = await supabase
                 .from('product_variants')
-                .select('id, stock')
-                .eq('product_id', item.id);
+                .select('id, product_id, stock')
+                .in('product_id', productIdsForStock);
 
             if (variantError) {
-                console.warn(`[Checkout] Stock check error for ${item.id}:`, variantError.message);
-                continue; // Skip validation but allow checkout
+                console.warn('[Checkout] Batch stock check error:', variantError.message);
+            } else {
+                allVariants = variantsData || [];
             }
-            
-            if (!variants || variants.length === 0) {
-                console.warn(`[Checkout] No variants found for product ${item.id}, skipping stock check`);
-                continue;
-            }
+        }
 
-            // If specific variant selected, check that variant's stock
-            // Otherwise check total stock across all variants
+        // Validate stock per item using the batched result
+        for (const item of items) {
+            if (!item.id) continue;
+            const itemVariants = allVariants.filter(v => v.product_id === item.id);
+            if (itemVariants.length === 0) continue;
+
             let availableStock = 0;
             if (item.selectedVariant?.variantId) {
-                const selectedVariant = variants.find(v => v.id === item.selectedVariant?.variantId);
+                const selectedVariant = itemVariants.find(v => v.id === item.selectedVariant?.variantId);
                 availableStock = selectedVariant?.stock || 0;
             } else {
-                availableStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+                availableStock = itemVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
             }
 
             if (availableStock < item.quantity) {
@@ -121,21 +121,30 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             }
         }
 
-        // 2. Group items by seller (robust to legacy fields and quick orders)
+        // 2. Group items by seller — batch query all seller IDs at once
+        const itemsMissingSeller = items.filter(item => 
+            item.id && !(item as any).seller_id && !(item as any).sellerId
+        );
+        const sellerLookupMap = new Map<string, string>();
+
+        if (itemsMissingSeller.length > 0) {
+            const idsToLookup = itemsMissingSeller.map(i => i.id).filter(Boolean) as string[];
+            const { data: prodData, error: prodErr } = await supabase
+                .from('products')
+                .select('id, seller_id')
+                .in('id', idsToLookup);
+            if (!prodErr && prodData) {
+                prodData.forEach(p => {
+                    if (p.seller_id) sellerLookupMap.set(p.id, p.seller_id as string);
+                });
+            }
+        }
+
         const itemsBySeller: Record<string, typeof items> = {};
         for (const item of items) {
             let sellerId: string | undefined = (item as any).seller_id || (item as any).sellerId;
-
             if (!sellerId && item.id) {
-                // Fallback: fetch seller_id from products table
-                const { data: prod, error: prodErr } = await supabase
-                    .from('products')
-                    .select('seller_id')
-                    .eq('id', item.id)
-                    .maybeSingle();
-                if (!prodErr && prod?.seller_id) {
-                    sellerId = prod.seller_id as string;
-                }
+                sellerId = sellerLookupMap.get(item.id);
             }
 
             if (!sellerId) {
@@ -513,89 +522,97 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 }
             }
 
-            // Record campaign discount usage if campaign discounts were applied
+            // Record campaign discount usage — batch insert all at once
             if (campaignDiscounts && campaignDiscounts.length > 0) {
-                // Filter discounts for this seller's items
                 const sellerDiscounts = campaignDiscounts.filter(cd => 
                     sellerItems.some(si => si.id === cd.productId)
                 );
                 
-                for (const campaignDisc of sellerDiscounts) {
-                    if (campaignDisc.campaignId && campaignDisc.discountAmount > 0) {
-                        try {
-                            // First get the product_discount record for this campaign and product
-                            const { data: productDiscount } = await supabase
-                                .from('product_discounts')
-                                .select('id')
-                                .eq('campaign_id', campaignDisc.campaignId)
-                                .eq('product_id', campaignDisc.productId)
-                                .maybeSingle();
+                const discountInserts = sellerDiscounts
+                    .filter(cd => cd.campaignId && cd.discountAmount > 0)
+                    .map(cd => ({
+                        buyer_id: userId,
+                        order_id: orderData.id,
+                        campaign_id: cd.campaignId!,
+                        discount_amount: cd.discountAmount,
+                    }));
 
-                            const { error: discError } = await supabase
-                                .from('order_discounts')
-                                .insert({
-                                    buyer_id: userId,
-                                    order_id: orderData.id,
-                                    campaign_id: campaignDisc.campaignId,
-                                    discount_amount: campaignDisc.discountAmount,
-                                    discount_type: 'campaign'
-                                });
-
-                            if (discError) {
-                                console.error('[Checkout] Failed to record campaign discount usage:', discError);
-                            } else {
-                                console.log('[Checkout] ✅ Campaign discount usage recorded:', campaignDisc.campaignName, 'discount:', campaignDisc.discountAmount);
-                            }
-                        } catch (discErr) {
-                            console.warn('[Checkout] Failed to record campaign discount:', discErr);
-                        }
+                if (discountInserts.length > 0) {
+                    const { error: discError } = await supabase
+                        .from('order_discounts')
+                        .insert(discountInserts);
+                    if (discError) {
+                        console.warn('[Checkout] Failed to record campaign discounts:', discError.message);
                     }
                 }
             }
 
-            // Update stock in product_variants table (not products table)
+            // Update stock in product_variants — batch fetch current stock then update
+            const variantIdsToUpdate: string[] = [];
+            const productIdsForFallback: string[] = [];
+            
             for (const item of sellerItems) {
                 if (!item.id) continue;
+                if (item.selectedVariant?.variantId) {
+                    variantIdsToUpdate.push(item.selectedVariant.variantId);
+                } else {
+                    productIdsForFallback.push(item.id);
+                }
+            }
 
-                try {
-                    // If specific variant was selected, update that variant's stock
-                    if (item.selectedVariant?.variantId) {
-                        const { data: currentVariant } = await supabase
-                            .from('product_variants')
-                            .select('stock')
-                            .eq('id', item.selectedVariant.variantId)
-                            .single();
+            try {
+                // Batch fetch all variant stocks we need
+                const variantStockMap = new Map<string, number>();
 
-                        if (currentVariant) {
-                            await supabase
-                                .from('product_variants')
-                                .update({
-                                    stock: Math.max(0, (currentVariant.stock || 0) - item.quantity)
-                                })
-                                .eq('id', item.selectedVariant.variantId);
+                if (variantIdsToUpdate.length > 0) {
+                    const { data: varStocks } = await supabase
+                        .from('product_variants')
+                        .select('id, stock')
+                        .in('id', variantIdsToUpdate);
+                    varStocks?.forEach(v => variantStockMap.set(v.id, v.stock || 0));
+                }
+
+                // For items without specific variant, get primary variant per product
+                if (productIdsForFallback.length > 0) {
+                    const { data: fallbackVars } = await supabase
+                        .from('product_variants')
+                        .select('id, product_id, stock')
+                        .in('product_id', productIdsForFallback)
+                        .order('created_at', { ascending: true });
+                    // Take only first variant per product
+                    const seen = new Set<string>();
+                    fallbackVars?.forEach(v => {
+                        if (!seen.has(v.product_id)) {
+                            seen.add(v.product_id);
+                            variantStockMap.set(v.id, v.stock || 0);
                         }
-                    } else {
-                        // No specific variant selected - update the first/primary variant
-                        const { data: variants } = await supabase
-                            .from('product_variants')
-                            .select('id, stock')
-                            .eq('product_id', item.id)
-                            .order('created_at', { ascending: true })
-                            .limit(1);
+                    });
+                }
 
-                        if (variants && variants.length > 0) {
-                            await supabase
-                                .from('product_variants')
-                                .update({
-                                    stock: Math.max(0, (variants[0].stock || 0) - item.quantity)
-                                })
-                                .eq('id', variants[0].id);
+                // Now update each variant stock (these are individual UPDATEs but with pre-fetched data)
+                for (const item of sellerItems) {
+                    if (!item.id) continue;
+                    let variantId = item.selectedVariant?.variantId;
+                    if (!variantId) {
+                        // Find the fallback variant ID from our map
+                        for (const [vid, _] of variantStockMap) {
+                            // Match by checking if this variant belongs to this product
+                            // We stored the primary variant's id in the map
+                            const belongsToProduct = allVariants.some(v => v.id === vid && v.product_id === item.id);
+                            if (belongsToProduct) { variantId = vid; break; }
                         }
                     }
-                } catch (stockErr) {
-                    console.warn(`[Checkout] Failed to update stock for ${item.name}:`, stockErr);
-                    // Continue - don't fail checkout for stock update issues
+                    if (variantId && variantStockMap.has(variantId)) {
+                        const currentStock = variantStockMap.get(variantId) || 0;
+                        await supabase
+                            .from('product_variants')
+                            .update({ stock: Math.max(0, currentStock - item.quantity) })
+                            .eq('id', variantId);
+                    }
                 }
+            } catch (stockErr) {
+                console.warn('[Checkout] Failed to update stock:', stockErr);
+                // Continue — don't fail checkout for stock update issues
             }
         }
 

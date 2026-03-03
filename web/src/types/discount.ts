@@ -60,6 +60,8 @@ export interface ProductDiscount {
   productName?: string;
   productImage?: string;
   productPrice?: number;
+  productStock?: number;
+  productSellerName?: string;
 }
 
 export interface DiscountUsage {

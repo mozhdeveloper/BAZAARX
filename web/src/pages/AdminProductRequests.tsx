@@ -31,9 +31,16 @@ const AdminProductRequests: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<ProductRequestItem | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Load from Supabase instead of mock data
   const [requests, setRequests] = useState<ProductRequestItem[]>([]);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -68,19 +75,26 @@ const AdminProductRequests: React.FC = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const handleUpdateStatus = async (requestId: string, newStatus: 'approved' | 'rejected' | 'in_progress') => {
+  const handleUpdateStatus = async (requestId: string, newStatus: 'approved' | 'rejected' | 'in_progress', notes?: string) => {
+    setUpdatingId(requestId);
     try {
-      await productRequestService.updateStatus(requestId, newStatus, adminNotes || undefined);
+      const notesToSave = notes !== undefined ? notes : adminNotes;
+      await productRequestService.updateStatus(requestId, newStatus, notesToSave || undefined);
       setRequests(prev =>
         prev.map(r =>
-          r.id === requestId ? { ...r, status: newStatus, adminNotes } : r
+          r.id === requestId ? { ...r, status: newStatus, adminNotes: notesToSave || r.adminNotes } : r
         )
       );
+      const label = newStatus === 'in_progress' ? 'In Progress' : newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+      showToast(`Request marked as ${label}`);
     } catch (error) {
       console.error('Failed to update status:', error);
+      showToast('Failed to update request status', 'error');
+    } finally {
+      setUpdatingId(null);
+      setSelectedRequest(null);
+      setAdminNotes('');
     }
-    setSelectedRequest(null);
-    setAdminNotes('');
   };
 
   const stats = {
@@ -256,9 +270,6 @@ const AdminProductRequests: React.FC = () => {
 
                           <div className="flex flex-wrap gap-2 mb-3">
                             <Badge variant="outline">{request.category}</Badge>
-                            <Badge className={getPriorityColor(request.priority)}>
-                              {request.priority.toUpperCase()} Priority
-                            </Badge>
                             <Badge className={getStatusColor(request.status)}>
                               {request.status.replace('_', ' ').toUpperCase()}
                             </Badge>
@@ -349,13 +360,35 @@ const AdminProductRequests: React.FC = () => {
                         </Button>
                       )}
                       {request.status === 'in_progress' && (
-                        <Button
-                          variant="outline"
-                          className="w-full text-blue-600 border-blue-600"
-                        >
-                          <TrendingUp className="h-4 w-4 mr-2" />
-                          In Progress
-                        </Button>
+                        <>
+                          <Button
+                            onClick={() => handleUpdateStatus(request.id, 'approved', request.adminNotes)}
+                            disabled={updatingId === request.id}
+                            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60"
+                          >
+                            {updatingId === request.id
+                              ? <span className="animate-spin mr-2">⟳</span>
+                              : <CheckCircle className="h-4 w-4 mr-2" />}
+                            Approve
+                          </Button>
+                          <Button
+                            onClick={() => { setSelectedRequest(request); setAdminNotes(request.adminNotes || ''); }}
+                            variant="outline"
+                            className="w-full text-blue-600 border-blue-600 hover:bg-blue-50"
+                          >
+                            <TrendingUp className="h-4 w-4 mr-2" />
+                            Review / Notes
+                          </Button>
+                          <Button
+                            onClick={() => handleUpdateStatus(request.id, 'rejected', request.adminNotes)}
+                            disabled={updatingId === request.id}
+                            variant="outline"
+                            className="w-full text-red-600 border-red-600 hover:bg-red-50 disabled:opacity-60"
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Reject
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -374,6 +407,15 @@ const AdminProductRequests: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-lg shadow-xl text-sm font-medium transition-all ${
+          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {toast.type === 'success' ? '✓ ' : '✕ '}{toast.message}
+        </div>
+      )}
 
       {/* Review Modal */}
       {selectedRequest && (
@@ -398,12 +440,6 @@ const AdminProductRequests: React.FC = () => {
                     <p className="font-medium text-gray-900">{selectedRequest.category}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Priority</p>
-                    <Badge className={getPriorityColor(selectedRequest.priority)}>
-                      {selectedRequest.priority.toUpperCase()}
-                    </Badge>
-                  </div>
-                  <div>
                     <p className="text-sm text-gray-600">Votes</p>
                     <p className="font-medium text-gray-900">{selectedRequest.votes}</p>
                   </div>
@@ -426,24 +462,29 @@ const AdminProductRequests: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <Button
                   onClick={() => handleUpdateStatus(selectedRequest.id, 'approved')}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  disabled={updatingId === selectedRequest.id}
+                  className="flex-1 min-w-[100px] bg-green-600 hover:bg-green-700 disabled:opacity-60"
                 >
-                  <CheckCircle className="h-4 w-4 mr-2" />
+                  {updatingId === selectedRequest.id
+                    ? <span className="animate-spin mr-2">⟳</span>
+                    : <CheckCircle className="h-4 w-4 mr-2" />}
                   Approve
                 </Button>
                 <Button
                   onClick={() => handleUpdateStatus(selectedRequest.id, 'in_progress')}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  disabled={updatingId === selectedRequest.id}
+                  className="flex-1 min-w-[100px] bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
                 >
                   <TrendingUp className="h-4 w-4 mr-2" />
                   In Progress
                 </Button>
                 <Button
                   onClick={() => handleUpdateStatus(selectedRequest.id, 'rejected')}
-                  className="flex-1 bg-red-600 hover:bg-red-700"
+                  disabled={updatingId === selectedRequest.id}
+                  className="flex-1 min-w-[100px] bg-red-600 hover:bg-red-700 disabled:opacity-60"
                 >
                   <XCircle className="h-4 w-4 mr-2" />
                   Reject
@@ -454,6 +495,7 @@ const AdminProductRequests: React.FC = () => {
                     setAdminNotes('');
                   }}
                   variant="outline"
+                  disabled={updatingId === selectedRequest.id}
                 >
                   Cancel
                 </Button>

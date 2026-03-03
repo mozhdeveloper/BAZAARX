@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Dimensions,
   Modal,
   ScrollView,
+  FlatList,
   Image,
   StatusBar,
   ActivityIndicator,
@@ -603,23 +604,33 @@ export default function ShopScreen({ navigation, route }: Props) {
             )}
 
             <View style={styles.productsSection}>
-              <View style={styles.productsGrid}>
-                {filteredProducts.map((product) => (
-                  <View key={product.id} style={styles.cardWrapper}>
+              <FlatList
+                data={filteredProducts}
+                keyExtractor={(item) => item.id}
+                numColumns={2}
+                initialNumToRender={10}
+                maxToRenderPerBatch={6}
+                windowSize={5}
+                removeClippedSubviews={true}
+                scrollEnabled={false}
+                columnWrapperStyle={styles.productsGrid}
+                renderItem={({ item: product }) => (
+                  <View style={styles.cardWrapper}>
                     <ProductCard product={product} onPress={() => navigation.navigate('ProductDetail', { product })} />
                   </View>
-                ))}
-              </View>
+                )}
+                ListEmptyComponent={
+                  !isLoading ? (
+                    <View style={[styles.productsSection, { marginTop: 20 }]}>
+                      <View style={styles.emptyBox}>
+                        <Text style={styles.emptyTitle}>No products found</Text>
+                        <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
+                      </View>
+                    </View>
+                  ) : null
+                }
+              />
             </View>
-
-            {!isLoading && filteredProducts.length === 0 && (
-              <View style={[styles.productsSection, { marginTop: 20 }]}>
-                <View style={styles.emptyBox}>
-                  <Text style={styles.emptyTitle}>No products found</Text>
-                  <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
-                </View>
-              </View>
-            )}
           </>
         )}
         <View style={{ height: 100 }} />

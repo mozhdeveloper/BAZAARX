@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
-import { useReturnStore } from '../src/stores/returnStore';
-import { useOrderStore } from '../src/stores/orderStore';
 import { useAuthStore } from '../src/stores/authStore';
+import { returnService, MobileReturnRequest } from '../src/services/returnService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ReturnOrders'>;
 
@@ -42,8 +41,19 @@ const getStatusLabel = (status: string) => {
 export default function ReturnOrdersScreen({ navigation }: Props) {
   const { user } = useAuthStore();
   const insets = useSafeAreaInsets();
-  const getReturnRequestsByUser = useReturnStore((state) => state.getReturnRequestsByUser);
-  const returnRequests = getReturnRequestsByUser(user?.id || '2'); // Default to '2' (guest/demo) if no user, but should be logged in
+  const [returnRequests, setReturnRequests] = useState<MobileReturnRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user?.id) {
+      returnService.getReturnRequestsByBuyer(user.id)
+        .then(data => setReturnRequests(data))
+        .catch(err => console.error('Failed to load return requests:', err))
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [user?.id]);
 
   const renderItem = ({ item }: { item: any }) => {
     return (
@@ -64,9 +74,11 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
           <Text style={styles.dateLabel}>Requested on {new Date(item.createdAt).toLocaleDateString()}</Text>
           <View style={styles.row}>
              <Text style={styles.amountLabel}>Refund Amount:</Text>
-             <Text style={styles.amountValue}>₱{item.amount.toLocaleString()}</Text>
+             <Text style={styles.amountValue}>₱{(item.refundAmount ?? 0).toLocaleString()}</Text>
           </View>
-          <Text style={styles.reasonText}>Reason: {getStatusLabel(item.reason)}</Text>
+          {item.returnReason && (
+            <Text style={styles.reasonText}>Reason: {getStatusLabel(item.returnReason)}</Text>
+          )}
         </View>
         
         <View style={styles.cardFooter}>

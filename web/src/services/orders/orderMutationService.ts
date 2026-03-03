@@ -144,6 +144,86 @@ class OrderMutationService {
       paymentMethod,
     );
   }
+
+  /**
+   * Update customer details and/or delivery notes for a POS (OFFLINE) order.
+   * Name/email are saved to the order_recipients table (linked via orders.recipient_id).
+   * Notes are saved directly to orders.notes.
+   */
+  async updatePOSOrderCustomer({
+    orderId,
+    buyerName,
+    buyerEmail,
+    notes,
+  }: {
+    orderId: string;
+    buyerName?: string;
+    buyerEmail?: string;
+    notes?: string;
+  }): Promise<boolean> {
+    if (!isSupabaseConfigured()) return true;
+
+    const updateOrderData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (notes !== undefined) updateOrderData.notes = notes;
+
+    if (buyerName !== undefined || buyerEmail !== undefined) {
+      const { data: orderRow, error: fetchError } = await supabase
+        .from("orders")
+        .select("recipient_id")
+        .eq("id", orderId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const nameParts = (buyerName || "").trim().split(/\s+/).filter(Boolean);
+      const firstName = nameParts[0] || "Walk-in";
+      const lastName = nameParts.slice(1).join(" ") || "Customer";
+
+      if (orderRow?.recipient_id) {
+        const recipientUpdate: Record<string, unknown> = {};
+        if (buyerName !== undefined) {
+          recipientUpdate.first_name = firstName;
+          recipientUpdate.last_name = lastName;
+        }
+        if (buyerEmail !== undefined) {
+          recipientUpdate.email = buyerEmail || null;
+        }
+
+        if (Object.keys(recipientUpdate).length > 0) {
+          const { error } = await supabase
+            .from("order_recipients")
+            .update(recipientUpdate)
+            .eq("id", orderRow.recipient_id);
+          if (error) throw error;
+        }
+      } else {
+        const { data: newRecipient, error: insertError } = await supabase
+          .from("order_recipients")
+          .insert({
+            first_name: firstName,
+            last_name: lastName,
+            email: buyerEmail || null,
+            phone: null,
+          })
+          .select("id")
+          .single();
+
+        if (insertError) throw insertError;
+        if (newRecipient) updateOrderData.recipient_id = newRecipient.id;
+      }
+    }
+
+    const { error } = await supabase
+      .from("orders")
+      .update(updateOrderData)
+      .eq("id", orderId);
+
+    if (error) throw error;
+    return true;
+  }
 }
 
 export const orderMutationService = new OrderMutationService();
