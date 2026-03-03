@@ -241,7 +241,7 @@ export class DiscountService {
   // ============================================================================
 
   /**
-   * Add products to campaign
+   * Add products to campaign (appends - does not delete existing)
    */
   async addProductsToCampaign(
     campaignId: string,
@@ -258,25 +258,31 @@ export class DiscountService {
       throw new Error('Supabase not configured');
     }
 
+    if (!productIds || productIds.length === 0) {
+      return [];
+    }
+
     try {
-      // First, remove existing products for this campaign to avoid unique constraint errors
-      await supabase
+      // Get existing product IDs in this campaign to avoid duplicates
+      const { data: existing } = await supabase
         .from('product_discounts')
-        .delete()
+        .select('product_id')
         .eq('campaign_id', campaignId);
 
-      // If no products selected, just return empty
-      if (!productIds || productIds.length === 0) {
+      const existingProductIds = new Set((existing || []).map(e => e.product_id));
+
+      // Filter out products that already exist in campaign
+      const newProductIds = productIds.filter(id => !existingProductIds.has(id));
+
+      if (newProductIds.length === 0) {
         return [];
       }
 
-      const productDiscounts = productIds.map(productId => {
+      const productDiscounts = newProductIds.map(productId => {
         const override = overrides?.find(o => o.productId === productId);
         return {
           campaign_id: campaignId,
           product_id: productId,
-          // Deployed schema supports `discount_type`/`discount_value` only.
-          // `discounted_stock`, override columns, and `seller_id` are not present.
           discount_type: override?.discountType ?? null,
           discount_value: override?.discountValue ?? null
         };
@@ -485,6 +491,32 @@ export class DiscountService {
     } catch (error) {
       console.error('Error removing product from campaign:', error);
       throw new Error('Failed to remove product from campaign.');
+    }
+  }
+
+  /**
+   * Remove multiple products from campaign by product IDs
+   */
+  async removeProductsFromCampaign(campaignId: string, productIds: string[]): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    if (!productIds || productIds.length === 0) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('product_discounts')
+        .delete()
+        .eq('campaign_id', campaignId)
+        .in('product_id', productIds);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error removing products from campaign:', error);
+      throw new Error('Failed to remove products from campaign.');
     }
   }
 
