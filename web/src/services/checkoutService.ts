@@ -95,10 +95,10 @@ export class CheckoutService {
                 const variantsList = variants || [];
                 const selectedVar = item.selected_variant as any;
 
-                const variant = selectedVar 
-                    ? (variantsList.find(v => v.id === selectedVar.id) || 
-                       variantsList.find(v => v.sku === selectedVar.sku) ||
-                       variantsList.find(v => v.variant_name === selectedVar.name || v.variant_name === selectedVar.name))
+                const variant = selectedVar
+                    ? (variantsList.find(v => v.id === selectedVar.id) ||
+                        variantsList.find(v => v.sku === selectedVar.sku) ||
+                        variantsList.find(v => v.variant_name === selectedVar.name || v.variant_name === selectedVar.name))
                     : variantsList[0];
 
                 if (variant) {
@@ -150,7 +150,7 @@ export class CheckoutService {
 
             // 3. GLOBAL PRICING LOGIC (Preserving your exact logic)
             const sharedBaseNumber = this.generateOrderNumber();
-            
+
             const getUnitPrice = (item: CheckoutPayload['items'][number]): number => {
                 const base =
                     Number((item.selected_variant as any)?.original_price) ||
@@ -163,7 +163,7 @@ export class CheckoutService {
 
             const uniqueProductIds = [...new Set(items.map(item => item.product_id).filter(Boolean) as string[])];
             const activeDiscountsByProduct = await discountService.getActiveDiscountsForProducts(uniqueProductIds);
-            
+
             const linePricing: CheckoutLinePricing[] = items.map(item => {
                 const unitPrice = getUnitPrice(item);
                 const activeDiscount = item.product_id ? (activeDiscountsByProduct[item.product_id] || null) : null;

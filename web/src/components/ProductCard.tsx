@@ -104,13 +104,18 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
                 <div className="w-full h-[6px] bg-[#FEE2E2] rounded-full mb-1.5 border border-[#FCA5A5]/30 overflow-hidden">
                   <div
                     className="h-full bg-[#DC2626] rounded-full"
-                    style={{ width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 1)) * 100))}%` }}
+                    style={{
+                      width: `${Math.min(100, Math.max(5,
+                        (product.campaignSold || 0) /
+                        ((product.campaignSold || 0) + (product.campaignStock || product.stock || 1)) * 100
+                      ))}%`
+                    }}
                   />
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Flame className="w-4 h-4 text-[#DC2626] fill-[#DC2626]" />
                   <span className="text-[11px] text-[#DC2626] font-bold uppercase tracking-widest flex items-center gap-1">
-                    {(product.sold || 0).toLocaleString()} SOLD
+                    {(product.campaignSold ?? product.sold ?? 0).toLocaleString()} SOLD
                   </span>
                 </div>
               </div>

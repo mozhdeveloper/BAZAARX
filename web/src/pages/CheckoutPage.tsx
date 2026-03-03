@@ -5,6 +5,7 @@ import { checkoutService } from "@/services/checkoutService"; // Import checkout
 import { discountService } from "@/services/discountService";
 import {
   ArrowLeft,
+  ChevronLeft,
   MapPin,
   CreditCard,
   Smartphone,
@@ -204,7 +205,7 @@ export default function CheckoutPage() {
   );
 
   const getOriginalUnitPrice = (item: typeof checkoutItems[number]) =>
-    Number((item.selectedVariant as any)?.originalPrice || item.originalPrice || item.price || 0);
+    Number((item.selectedVariant as any)?.originalPrice ?? item.selectedVariant?.price ?? item.originalPrice ?? item.price ?? 0);
 
   const checkoutProductIdsKey = useMemo(() => {
     const ids = [...new Set(checkoutItems.map(item => item.id).filter(Boolean))];
@@ -321,11 +322,31 @@ export default function CheckoutPage() {
   const subtotalAfterCampaign = Math.max(0, originalSubtotal - campaignDiscountTotal);
   const earnedBazcoins = Math.floor(subtotalAfterCampaign / 10);
 
-  let shippingFee =
-    checkoutItems.length > 0 &&
-      !checkoutItems.every((item) => item.isFreeShipping)
-      ? 50
-      : 0;
+  // Per-seller shipping logic consistent with EnhancedCartPage
+  const shippingFee = useMemo(() => {
+    // If a free shipping voucher is applied, return 0 immediately
+    if (appliedVoucher?.type === "shipping") return 0;
+
+    const sellers: Record<string, { subtotal: number; hasFreeShippingItem: boolean }> = {};
+
+    checkoutItems.forEach(item => {
+      const sellerId = item.sellerId || item.seller?.id || 'default';
+      const originalPrice = getOriginalUnitPrice(item);
+      const activeDiscount = activeCampaignDiscounts[item.id] || null;
+      const { discountedUnitPrice } = discountService.calculateLineDiscount(originalPrice, 1, activeDiscount);
+
+      if (!sellers[sellerId]) {
+        sellers[sellerId] = { subtotal: 0, hasFreeShippingItem: false };
+      }
+      sellers[sellerId].subtotal += discountedUnitPrice * item.quantity;
+      if (item.isFreeShipping) sellers[sellerId].hasFreeShippingItem = true;
+    });
+
+    return Object.values(sellers).reduce((total, seller) => {
+      const isEligible = seller.hasFreeShippingItem || seller.subtotal >= 1000;
+      return total + (isEligible ? 0 : 100);
+    }, 0);
+  }, [checkoutItems, activeCampaignDiscounts, appliedVoucher]);
   let discount = 0;
 
   // Apply voucher discount after campaign discount
@@ -337,22 +358,20 @@ export default function CheckoutPage() {
         : Math.round(percentageDiscount);
     } else if (appliedVoucher.type === "fixed") {
       discount = Math.min(appliedVoucher.value, subtotalAfterCampaign);
-    } else if (appliedVoucher.type === "shipping") {
-      shippingFee = 0;
     }
   }
 
   const maxRedeemableBazcoins = Math.min(availableBazcoins, Math.max(0, subtotalAfterCampaign - discount));
   const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
 
-  // VAT calculation (12%) based on original subtotal display rule
-  const tax = Math.round(originalSubtotal * 0.12);
+  // VAT is included in the subtotal in the PH market context to match EnhancedCartPage
+  const tax = Math.round((subtotalAfterCampaign / 1.12) * 0.12);
 
   const couponSavings = campaignDiscountTotal + discount + bazcoinDiscount;
   const grandTotalSavings = couponSavings;
 
-  // Final total calculation including Bazcoins
-  const finalTotal = Math.max(0, originalSubtotal + shippingFee + tax - couponSavings);
+  // Final total calculation consistent with EnhancedCartPage (Tax is inclusive)
+  const finalTotal = Math.max(0, originalSubtotal + shippingFee - couponSavings);
 
   const handleApplyVoucher = async () => {
     const code = voucherCode.trim().toUpperCase();
@@ -734,29 +753,29 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       {!isAddressModalOpen && <Header />}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4 mb-8"
-        >
+        <div className="mb-8">
           <button
             onClick={() => navigate(-1)}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ChevronLeft
+              size={20}
+              className="group-hover:-translate-x-0.5 transition-transform"
+            />
+            <span className="text-sm font-medium">Back</span>
           </button>
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-1">
               Checkout
             </h1>
             <p className="text-gray-600">Complete your order & earn <span className="text-[var(--brand-primary)] font-bold">{earnedBazcoins} Bazcoins</span></p>
           </div>
-        </motion.div>
+        </div>
 
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -766,7 +785,7 @@ export default function CheckoutPage() {
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm"
+                className="bg-white border-0 rounded-2xl p-6 shadow-md"
               >
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
@@ -845,7 +864,7 @@ export default function CheckoutPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-white border border-gray-200 rounded-xl p-6"
+                className="bg-white border-0 rounded-xl p-6 shadow-md"
               >
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-8 h-8 bg-[var(--brand-primary)] rounded-full flex items-center justify-center">
@@ -1090,7 +1109,7 @@ export default function CheckoutPage() {
               animate={{ opacity: 1, x: 0 }}
               className="lg:col-span-1"
             >
-              <div className="bg-gray-50 rounded-xl p-6 sticky top-24">
+              <div className="bg-white shadow-md rounded-xl p-6 sticky top-24">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Order Summary
                 </h3>
@@ -1105,15 +1124,27 @@ export default function CheckoutPage() {
                     const lineOriginalTotal = originalUnitPrice * item.quantity;
                     const lineDiscountedTotal = discountedUnitPrice * item.quantity;
 
-                    // Build variant display from available fields
+                    // Build variant display from available fields - deduplicate redundant values
                     let variantParts: string[] = [];
                     if (variant) {
-                      const variantName = variant.variant_name || variant.name;
-                      if (variantName) variantParts.push(variantName);
-                      if (variant.size) variantParts.push(`Size: ${variant.size}`);
-                      if (variant.color) variantParts.push(`Color: ${variant.color}`);
-                      if (variant.option_1_value) variantParts.push(variant.option_1_value);
-                      if (variant.option_2_value) variantParts.push(variant.option_2_value);
+                      const vName = (variant.variant_name || variant.name || '').trim();
+                      const vSize = (variant.size || variant.option_1_value || '').trim();
+                      const vColor = (variant.color || variant.option_2_value || '').trim();
+
+                      if (vName) variantParts.push(vName);
+
+                      // Only add Size if not already mentioned in variant name
+                      if (vSize && !vName.toLowerCase().includes(vSize.toLowerCase())) {
+                        variantParts.push(`Size: ${vSize}`);
+                      }
+
+                      // Only add Color if not already mentioned and not 'Default'
+                      if (vColor &&
+                        !vName.toLowerCase().includes(vColor.toLowerCase()) &&
+                        vColor.toLowerCase() !== 'default') {
+                        variantParts.push(`Color: ${vColor}`);
+                      }
+
                       if (variantParts.length === 0) {
                         if (variant.sku) variantParts.push(`SKU: ${variant.sku}`);
                         else if (variant.id) variantParts.push(`#${variant.id.slice(0, 8)}`);
@@ -1122,27 +1153,38 @@ export default function CheckoutPage() {
                     const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
 
                     return (
-                      <div key={`${item.id}-${variant?.id || 'no-variant'}`} className="flex justify-between text-sm">
-                        <div className="flex-1">
+                      <div key={`${item.id}-${variant?.id || 'no-variant'}`} className="flex items-start gap-3 text-sm">
+                        {/* Product Image */}
+                        <div className="w-12 h-12 rounded-lg border border-gray-100 bg-white overflow-hidden flex-shrink-0 mt-0.5">
+                          <img
+                            src={variant?.thumbnail_url || item.image || (item.images && item.images[0])}
+                            alt={item.name}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
                           <p className="text-gray-900 font-medium line-clamp-1">
                             {item.name}
                           </p>
-                          {variantInfo && (
-                            <p className="text-xs text-orange-600 font-medium">
-                              {variantInfo}
-                            </p>
-                          )}
-                          <p className="text-gray-500">Qty: {item.quantity}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-gray-900 font-medium">
-                            ₱{lineDiscountedTotal.toLocaleString()}
-                          </p>
-                          {lineOriginalTotal > lineDiscountedTotal && (
-                            <p className="text-xs text-gray-500 line-through">
-                              ₱{lineOriginalTotal.toLocaleString()}
-                            </p>
-                          )}
+                          <div className="flex flex-col">
+                            {variantInfo && (
+                              <p className="text-xs text-[var(--text-muted)] font-sm mb-1">
+                                {variantInfo}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 justify-end">
+                              {originalUnitPrice > discountedUnitPrice && (
+                                <span className="text-xs text-gray-400 line-through">
+                                  ₱{originalUnitPrice.toLocaleString()}
+                                </span>
+                              )}
+                              <p className="text-[var(--brand-primary)] font-bold">
+                                ₱{discountedUnitPrice.toLocaleString()}
+                              </p>
+                              <span className="text-gray-400 text-xs font-medium">x{item.quantity}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1150,7 +1192,7 @@ export default function CheckoutPage() {
                 </div>
 
                 {/* Voucher Code Section */}
-                <div className="mb-6 pb-6 border-b border-gray-200">
+                <div className="mb-6 pb-4 border-b border-gray-200">
                   <div className="flex items-center gap-2 mb-3">
                     <Tag className="w-4 h-4 text-[var(--brand-primary)]" />
                     <h4 className="text-sm font-semibold text-gray-900">
@@ -1189,13 +1231,13 @@ export default function CheckoutPage() {
                             setVoucherCode(e.target.value.toUpperCase())
                           }
                           placeholder="Enter voucher code"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent text-sm"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] focus:border-transparent text-sm"
                         />
                         <button
                           type="button"
                           onClick={handleApplyVoucher}
                           disabled={!voucherCode.trim()}
-                          className="px-4 py-2 bg-[var(--brand-primary)] text-white rounded-lg hover:bg-[var(--brand-secondary)] disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                          className="px-4 py-2 bg-[var(--brand-primary)] text-white rounded-lg hover:bg-[var(--brand-accent)] disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
                         >
                           Apply
                         </button>
@@ -1212,11 +1254,11 @@ export default function CheckoutPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="bg-white border border-gray-200 rounded-xl p-6 mb-6"
+                  className="bg-white border-b border-gray-200 p-2 mb-6 -mt-4"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
+                      <div className="w-8 h-8 bg-[var(--brand-accent)] rounded-full flex items-center justify-center">
                         <span className="text-white font-bold">B</span>
                       </div>
                       <div>
@@ -1233,7 +1275,7 @@ export default function CheckoutPage() {
                         <button
                           type="button"
                           onClick={() => setUseBazcoins(!useBazcoins)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:ring-offset-2 ${useBazcoins ? 'bg-[var(--brand-primary)]' : 'bg-gray-200'
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-0 ${useBazcoins ? 'bg-[var(--brand-primary)]' : 'bg-gray-200'
                             }`}
                         >
                           <span
@@ -1248,74 +1290,78 @@ export default function CheckoutPage() {
                   </div>
                 </motion.section>
 
-                <div className="space-y-2 mb-4">
-                  {" "}
-                  <div className="flex justify-between text-gray-600">
-                    <span>Subtotal</span>
-                    <span>₱{originalSubtotal.toLocaleString()}</span>
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Subtotal</span>
+                    <span className="text-gray-600 font-medium">₱{originalSubtotal.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>Shipping</span>
-                    <span>
+
+                  {campaignDiscountTotal > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Campaign Discount</span>
+                      <span className="text-[var(--brand-primary)] font-medium">-₱{campaignDiscountTotal.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Shipping</span>
+                    <span className="text-gray-600 font-medium">
                       {shippingFee === 0 ? (
-                        <span className="text-green-600 font-medium">Free</span>
+                        <span>Free</span>
                       ) : (
                         `₱${shippingFee}`
                       )}
                     </span>
                   </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>Tax (12% VAT)</span>
-                    <span>₱{tax.toLocaleString()}</span>
-                  </div>
-                  {campaignDiscountTotal > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Campaign Discount</span>
-                      <span>-₱{campaignDiscountTotal.toLocaleString()}</span>
-                    </div>
-                  )}
+
                   {discount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Voucher Discount</span>
-                      <span>-₱{discount.toLocaleString()}</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Voucher Discount</span>
+                      <span className="text-[var(--brand-primary)] font-medium">-₱{discount.toLocaleString()}</span>
                     </div>
                   )}
+
                   {bazcoinDiscount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>BazCoins Applied</span>
-                      <span>-₱{bazcoinDiscount.toLocaleString()}</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">BazCoins Applied</span>
+                      <span className="text-[var(--brand-primary)] font-medium">-₱{bazcoinDiscount.toLocaleString()}</span>
                     </div>
                   )}
+
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Tax (12% VAT Included)</span>
+                    <span className="text-gray-600 font-medium">₱{tax.toLocaleString()}</span>
+                  </div>
                   <hr className="border-gray-300" />
-                  <div className="flex justify-between text-lg font-bold text-gray-900">
+                  <div className="flex justify-between text-md font-bold text-gray-900">
                     <span>Total</span>
                     <span className="text-[var(--brand-primary)]">
                       ₱{finalTotal.toLocaleString()}
                     </span>
                   </div>
                   {grandTotalSavings > 0 && (
-                    <div className="mt-2 text-right">
-                      <p className="text-xs text-green-600 font-semibold animate-pulse">
-                        You're saving ₱{grandTotalSavings.toLocaleString()} on this order!
+                    <div className="text-right">
+                      <p className="text-xs text-[var(--brand-primary-dark)]">
+                        Saved ₱{grandTotalSavings.toLocaleString()}!
                       </p>
                     </div>
                   )}
                 </div>
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-                  <div className="bg-yellow-400 rounded-full w-5 h-5 flex items-center justify-center mt-0.5">
+                <div className="bg-[var(--brand-wash)] border border-[var(--brand-accent)] rounded-lg p-4 mb-6 flex items-start gap-3">
+                  <div className="bg-[var(--brand-accent)] rounded-full w-5 h-5 flex items-center justify-center mt-0.5">
                     <span className="text-white text-xs font-bold">B</span>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-yellow-800">You will earn {earnedBazcoins} Bazcoins</p>
-                    <p className="text-xs text-yellow-700">Receive coins upon successful delivery</p>
+                    <p className="text-sm font-semibold text-[var(--brand-primary)]">You will earn {earnedBazcoins} Bazcoins</p>
+                    <p className="text-xs text-[var(--text-muted)]">Receive coins upon successful delivery</p>
                   </div>
                 </div>
 
                 <Button
                   type="submit"
                   disabled={isLoading || !selectedAddress}
-                  className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -1324,7 +1370,6 @@ export default function CheckoutPage() {
                     </span>
                   ) : (
                     <span className="flex items-center justify-center gap-2">
-                      <Check className="w-5 h-5" />
                       Place Order
                     </span>
                   )}

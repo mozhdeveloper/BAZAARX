@@ -421,12 +421,10 @@ export class DiscountService {
         let discountBadgeTooltip = undefined;
 
         if (dType === "percentage") {
-          discountedPrice = basePrice * (1 - dValue / 100);
+          discountedPrice = Math.round(basePrice * (1 - dValue / 100));
           discountBadgePercent = Math.round(Number(dValue));
           if (c.max_discount_amount) {
-            const maxD = parseFloat(c.max_discount_amount);
-            discountedPrice = Math.max(discountedPrice, basePrice - maxD);
-            discountBadgeTooltip = `Up to ₱${Number(maxD).toLocaleString()} off`;
+            discountBadgeTooltip = `Up to ₱${Number(c.max_discount_amount).toLocaleString()} off`;
           }
         } else if (dType === "fixed_amount") {
           discountedPrice = Math.max(0, basePrice - dValue);
@@ -437,13 +435,15 @@ export class DiscountService {
         const rawImg = images.find((i: any) => i.is_primary)?.image_url || images[0]?.image_url || '';
         const BLOCKED = ['fbcdn.net', 'facebook.com', 'instagram.com', 'cdninstagram.com', 'scontent.'];
         const isSafe = (url: string) => {
-            try { const h = new URL(url).hostname; return !BLOCKED.some(d => h.includes(d)); }
-            catch { return false; }
+          try { const h = new URL(url).hostname; return !BLOCKED.some(d => h.includes(d)); }
+          catch { return false; }
         };
         const primaryImg = rawImg && isSafe(rawImg) ? rawImg : 'https://placehold.co/400x400?text=No+Image';
 
         const totalStock = (p.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
-        const soldCount = soldCountsMap.get(p.id) || (pd.sold_count as number) || 0;
+        const campaignSold = Number(pd.sold_count || 0);
+        const campaignStock = Number(pd.discounted_stock || 0);
+        const soldCount = soldCountsMap.get(p.id) || campaignSold || 0;
 
         return {
           id: p.id,
@@ -458,6 +458,8 @@ export class DiscountService {
           category: p.category?.name || 'General',
           stock: totalStock,
           sold: soldCount,
+          campaignSold: campaignSold,
+          campaignStock: campaignStock,
           campaignId: c.id,
           campaignName: c.name,
           campaignBadge: c.badge_text,
@@ -542,16 +544,27 @@ export class DiscountService {
         .eq('id', discount.campaign_id)
         .maybeSingle();
 
+      const originalPrice = parseFloat(discount.original_price || discount.price);
+      const discountValue = parseFloat(discount.discount_value);
+      const discountType = discount.discount_type;
+
+      let discountedPrice = originalPrice;
+      if (discountType === 'percentage') {
+        discountedPrice = Math.round(originalPrice * (1 - discountValue / 100));
+      } else if (discountType === 'fixed_amount') {
+        discountedPrice = Math.max(0, originalPrice - discountValue);
+      }
+
       return {
         campaignId: discount.campaign_id,
         campaignName: discount.campaign_name,
         discountType: discount.discount_type,
-        discountValue: parseFloat(discount.discount_value),
+        discountValue: discountValue,
         maxDiscountAmount: campaignMeta?.max_discount_amount != null
           ? parseFloat(String(campaignMeta.max_discount_amount))
           : undefined,
-        discountedPrice: parseFloat(discount.discounted_price),
-        originalPrice: parseFloat(discount.original_price || discount.price),
+        discountedPrice: discountedPrice,
+        originalPrice: originalPrice,
         badgeText: discount.badge_text,
         badgeColor: discount.badge_color,
         endsAt: new Date(discount.ends_at)
@@ -622,20 +635,13 @@ export class DiscountService {
       rawDiscountPerUnit = activeDiscount.discountValue;
     }
 
-    if (
-      activeDiscount.discountType === 'percentage' &&
-      typeof activeDiscount.maxDiscountAmount === 'number'
-    ) {
-      rawDiscountPerUnit = Math.min(rawDiscountPerUnit, Math.max(0, activeDiscount.maxDiscountAmount));
-    }
-
     const discountPerUnit = Math.min(normalizedUnitPrice, Math.max(0, rawDiscountPerUnit));
-    const discountedUnitPrice = Math.max(0, normalizedUnitPrice - discountPerUnit);
-    const discountTotal = discountPerUnit * normalizedQty;
+    const discountedUnitPrice = Math.round(Math.max(0, normalizedUnitPrice - discountPerUnit));
+    const discountTotal = normalizedUnitPrice - discountedUnitPrice;
 
     return {
-      discountPerUnit,
-      discountTotal,
+      discountPerUnit: discountTotal,
+      discountTotal: discountTotal * normalizedQty,
       discountedUnitPrice
     };
   }

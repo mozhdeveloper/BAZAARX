@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Minus, Plus } from 'lucide-react';
 import { ProductVariant } from '@/types/database.types';
 import { cn } from '@/lib/utils';
+import { ActiveDiscount } from '@/types/discount';
+import { discountService } from '@/services/discountService';
 
 interface VariantSelectionModalProps {
     isOpen: boolean;
@@ -26,6 +28,7 @@ interface VariantSelectionModalProps {
     buttonText?: string;
     initialSelectedVariant?: any;
     initialQuantity?: number;
+    activeDiscount?: ActiveDiscount | null;
 }
 
 export function VariantSelectionModal({
@@ -36,6 +39,7 @@ export function VariantSelectionModal({
     buttonText = 'Add to Cart',
     initialSelectedVariant,
     initialQuantity,
+    activeDiscount,
 }: VariantSelectionModalProps) {
     console.log('🎨 NEW MODAL LOADED - v2.0 with separate variant sections');
     console.log('Product data:', {
@@ -114,8 +118,9 @@ export function VariantSelectionModal({
         if (isOpen) {
             setQuantity(initialQuantity || 1);
             setCurrentImage(product.image);
-            setCurrentPrice(product.price);
-            setCurrentOriginalPrice((product as any).originalPrice || null);
+            const { discountedUnitPrice } = discountService.calculateLineDiscount(product.price, 1, activeDiscount);
+            setCurrentPrice(discountedUnitPrice);
+            setCurrentOriginalPrice(discountedUnitPrice < product.price ? product.price : (product as any).originalPrice || null);
 
             // Auto-select based on initial variant if provided, otherwise first options
             if (initialSelectedVariant) {
@@ -132,7 +137,7 @@ export function VariantSelectionModal({
                 }
             }
         }
-    }, [isOpen, product, initialSelectedVariant, initialQuantity]);
+    }, [isOpen, product, initialSelectedVariant, initialQuantity, activeDiscount]);
 
     // Update variant info when selection changes
     useEffect(() => {
@@ -158,8 +163,11 @@ export function VariantSelectionModal({
         });
 
         if (matchedVariant) {
-            setCurrentPrice(matchedVariant.price);
-            setCurrentOriginalPrice((matchedVariant as any).originalPrice ?? null);
+            const variantBasePrice = matchedVariant.price;
+            const { discountedUnitPrice } = discountService.calculateLineDiscount(variantBasePrice, 1, activeDiscount);
+
+            setCurrentPrice(discountedUnitPrice);
+            setCurrentOriginalPrice(discountedUnitPrice < variantBasePrice ? variantBasePrice : (matchedVariant as any).originalPrice ?? null);
             setCurrentStock(matchedVariant.stock);
             // Use variant thumbnail if available, otherwise fall back to product image
             const newImage = matchedVariant.thumbnail_url || product.image;
@@ -178,6 +186,7 @@ export function VariantSelectionModal({
         hasVariants,
         hasColorOptions,
         hasSizeOptions,
+        activeDiscount,
     ]);
 
     const handleColorSelect = (color: string) => {

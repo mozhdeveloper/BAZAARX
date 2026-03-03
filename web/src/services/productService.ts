@@ -342,6 +342,8 @@ export class ProductService {
             campaignBadge,
             campaignBadgeColor,
             campaignEndsAt,
+            campaignSold: campaignSoldCount,
+            campaignStock: totalStock, // Fallback to total stock as discounted_stock isn't currently fetched
             // Campaign discount info for variants calculation in modals
             campaignDiscount: activeDiscount ? {
                 discountType: activeDiscount.discount_type || activeDiscount.campaign?.discount_type,
