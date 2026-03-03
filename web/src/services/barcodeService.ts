@@ -112,7 +112,7 @@ export async function lookupBarcodeQuick(
         stock,
         thumbnail_url
       `)
-      .eq('barcode', normalizedBarcode);
+      .ilike('barcode', normalizedBarcode);
 
     if (!variantError && variants && variants.length > 0) {
       // Check if this variant belongs to the seller's product
@@ -123,7 +123,7 @@ export async function lookupBarcodeQuick(
           .eq('id', variant.product_id)
           .eq('seller_id', vendorId)
           .is('deleted_at', null)
-          .single();
+          .maybeSingle();
 
         if (product) {
           return {
@@ -155,7 +155,7 @@ export async function lookupBarcodeQuick(
         stock,
         thumbnail_url
       `)
-      .eq('sku', normalizedBarcode);
+      .ilike('sku', normalizedBarcode);
 
     if (!skuError && variantsBySku && variantsBySku.length > 0) {
       for (const variantBySku of variantsBySku) {
@@ -165,7 +165,7 @@ export async function lookupBarcodeQuick(
           .eq('id', variantBySku.product_id)
           .eq('seller_id', vendorId)
           .is('deleted_at', null)
-          .single();
+          .maybeSingle();
 
         if (product) {
           return {
@@ -188,7 +188,7 @@ export async function lookupBarcodeQuick(
     const { data: product, error: productError } = await supabase
       .from('products')
       .select('id, name, sku, price, seller_id')
-      .eq('sku', normalizedBarcode)
+      .ilike('sku', normalizedBarcode)
       .eq('seller_id', vendorId)
       .is('deleted_at', null)
       .maybeSingle();
