@@ -379,6 +379,19 @@ export class DiscountService {
 
       if (pError) throw pError;
 
+      // Fetch real sold counts from the product_sold_counts view
+      const productIds = (productDiscounts || []).map((pd: any) => pd.product?.id).filter(Boolean);
+      const soldCountsMap = new Map<string, number>();
+      if (productIds.length > 0) {
+        const { data: soldData } = await supabase
+          .from('product_sold_counts')
+          .select('product_id, sold_count')
+          .in('product_id', productIds);
+        (soldData || []).forEach((row: any) => {
+          soldCountsMap.set(row.product_id, row.sold_count || 0);
+        });
+      }
+
       // 3. Transform into generic product objects for UI
       return (productDiscounts || []).map(pd => {
         const p = pd.product as any;
@@ -418,7 +431,7 @@ export class DiscountService {
         const primaryImg = images.find((i: any) => i.is_primary)?.image_url || images[0]?.image_url || '';
 
         const totalStock = (p.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
-        const soldCount = (pd.sold_count as number) || 0;
+        const soldCount = soldCountsMap.get(p.id) || (pd.sold_count as number) || 0;
 
         return {
           id: p.id,
