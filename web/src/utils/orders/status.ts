@@ -33,7 +33,11 @@ export const mapNormalizedToBuyerUiStatus = (
     return "reviewed";
   }
 
-  if (shipmentStatus === "delivered" || shipmentStatus === "received") {
+  if (shipmentStatus === "received") {
+    return "received";
+  }
+
+  if (shipmentStatus === "delivered") {
     return "delivered";
   }
 
@@ -64,7 +68,10 @@ export const mapNormalizedToSellerUiStatus = (
   paymentStatus?: PaymentStatus | null,
   shipmentStatus?: ShipmentStatus | null,
 ): SellerOrderSnapshot["status"] => {
-  if (shipmentStatus === "delivered" || shipmentStatus === "received") {
+  if (shipmentStatus === "received") {
+    return "delivered";
+  }
+  if (shipmentStatus === "delivered") {
     return "delivered";
   }
   if (shipmentStatus === "shipped" || shipmentStatus === "out_for_delivery") {

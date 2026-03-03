@@ -569,8 +569,11 @@ export function SellerPOS() {
         throw new Error('Failed to create order');
       }
 
-      // Also update local store for immediate UI update
-      await addOfflineOrder(cart, total, receiptNote);
+      // Refresh orders to get the newly created POS order from database
+      // This replaces the old pattern of calling addOfflineOrder which caused duplicate orders
+      if (seller.id) {
+        fetchOrders(seller.id);
+      }
 
       // Update cash drawer session
       updateCashDrawerOnSale(total, paymentMethod);
@@ -600,11 +603,6 @@ export function SellerPOS() {
         setTimeout(() => {
           printReceipt();
         }, 500);
-      }
-
-      // Refresh orders to show new POS order
-      if (seller.id) {
-        fetchOrders(seller.id);
       }
 
       // Clear cart after 2 seconds

@@ -20,6 +20,11 @@ interface MarkOrderDeliveredInput {
   sellerId: string;
 }
 
+interface ConfirmOrderReceivedInput {
+  orderId: string;
+  buyerId: string;
+}
+
 interface CancelOrderInput {
   orderId: string;
   reason?: string;
@@ -82,6 +87,13 @@ class OrderMutationService {
     sellerId,
   }: MarkOrderDeliveredInput): Promise<boolean> {
     return orderService.markOrderAsDelivered(orderId, sellerId);
+  }
+
+  async confirmOrderReceived({
+    orderId,
+    buyerId,
+  }: ConfirmOrderReceivedInput): Promise<boolean> {
+    return orderService.confirmOrderReceived(orderId, buyerId);
   }
 
   async cancelOrder({

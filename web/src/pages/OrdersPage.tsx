@@ -21,6 +21,7 @@ import {
   Store,
   ChevronRight,
   Bell,
+  PackageCheck,
 } from "lucide-react";
 import { useCartStore } from "../stores/cartStore";
 import { Button } from "../components/ui/button";
@@ -82,6 +83,11 @@ export default function OrdersPage() {
   const [orderToCancel, setOrderToCancel] = useState<any>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [otherReason, setOtherReason] = useState("");
+
+  // Confirm received state
+  const [confirmReceivedModalOpen, setConfirmReceivedModalOpen] = useState(false);
+  const [orderToConfirmReceived, setOrderToConfirmReceived] = useState<any>(null);
+  const [isConfirmingReceived, setIsConfirmingReceived] = useState(false);
 
   const CANCEL_REASONS = [
     "Changed my mind",
@@ -224,6 +230,60 @@ export default function OrdersPage() {
     }
   };
 
+  const handleConfirmReceived = async () => {
+    if (!orderToConfirmReceived?.dbId || !profile?.id) {
+      toast({
+        title: "Error",
+        description: "Unable to confirm receipt. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsConfirmingReceived(true);
+    try {
+      const success = await orderMutationService.confirmOrderReceived({
+        orderId: orderToConfirmReceived.dbId,
+        buyerId: profile.id,
+      });
+
+      if (!success) {
+        throw new Error("Failed to confirm receipt");
+      }
+
+      // Update local state to reflect the change
+      const updatedOrders = orders.map((order) => {
+        if (order.id === orderToConfirmReceived.id) {
+          return {
+            ...order,
+            status: "received" as const,
+            shipmentStatus: "received",
+          };
+        }
+        return order;
+      });
+      hydrateBuyerOrders(updatedOrders as any);
+
+      toast({
+        title: "Order Confirmed",
+        description: "Thank you for confirming receipt! You can now leave a review.",
+      });
+
+      setConfirmReceivedModalOpen(false);
+      setOrderToConfirmReceived(null);
+      void loadBuyerOrders();
+    } catch (error: any) {
+      console.error("Error confirming receipt:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to confirm receipt. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsConfirmingReceived(false);
+    }
+  };
+
   // Show success message for newly created orders
   const newOrderId = (
     location.state as { newOrderId?: string; fromCheckout?: boolean } | null
@@ -259,6 +319,7 @@ export default function OrdersPage() {
     { value: "confirmed", label: "Processing" }, // DB might use 'processing' or 'confirmed'
     { value: "shipped", label: "Shipped" },
     { value: "delivered", label: "Delivered" },
+    { value: "received", label: "Received" },
     { value: "returned", label: "Return/Refund" },
     { value: "cancelled", label: "Cancelled" },
     { value: "reviewed", label: "Reviewed" },
@@ -703,9 +764,24 @@ export default function OrdersPage() {
                           order.status ===
                           "shipped" ? /* In Progress - Track Order */
                           null : order.status === "delivered" ? (
-                            /* Delivered - See Details and Review */
+                            /* Delivered - Confirm Received, Review, or Buy Again */
                             <>
-                              {/* Review Action - Secondary, right next to primary */}
+                              {/* Confirm Received - Primary Action for newly delivered orders */}
+                              {order.status === "delivered" && (
+                                <Button
+                                  onClick={() => {
+                                    setOrderToConfirmReceived(order);
+                                    setConfirmReceivedModalOpen(true);
+                                  }}
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                >
+                                  <PackageCheck className="w-4 h-4 mr-1.5" />
+                                  Confirm Received
+                                </Button>
+                              )}
+
+                              {/* Review Action - Secondary */}
                               {order.status === "delivered" && (
                                 <Button
                                   onClick={() => {
@@ -1392,6 +1468,67 @@ export default function OrdersPage() {
                     className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:opacity-50 shadow-lg shadow-orange-100 h-11 rounded-xl font-bold"
                   >
                     Confirm
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm Received Modal */}
+      <AnimatePresence>
+        {confirmReceivedModalOpen && orderToConfirmReceived && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => setConfirmReceivedModalOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-xl p-6 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center">
+                <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                  <PackageCheck className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  Confirm Order Received
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Have you received your order <span className="font-semibold">{orderToConfirmReceived.orderNumber || orderToConfirmReceived.id}</span>? 
+                  This will confirm that the package was delivered to you.
+                </p>
+                <p className="text-sm text-amber-600 mb-6">
+                  Only confirm if you have actually received the items.
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => {
+                      setConfirmReceivedModalOpen(false);
+                      setOrderToConfirmReceived(null);
+                    }}
+                    variant="outline"
+                    className="flex-1 border-gray-200 text-gray-600 hover:bg-gray-100 rounded-xl h-11"
+                    disabled={isConfirmingReceived}
+                  >
+                    Not Yet
+                  </Button>
+                  <Button
+                    onClick={handleConfirmReceived}
+                    disabled={isConfirmingReceived}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 shadow-lg h-11 rounded-xl font-bold"
+                  >
+                    {isConfirmingReceived ? (
+                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      "Yes, I Received It"
+                    )}
                   </Button>
                 </div>
               </div>
