@@ -165,10 +165,12 @@ export const MobileSidebar = ({
 export const SidebarLink = ({
   link,
   className,
+  badge,
   ...props
 }: {
   link: Links;
   className?: string;
+  badge?: number;
 } & Omit<LinkProps, "to">) => {
   const { open, animate } = useSidebar();
   const location = useLocation();
@@ -176,6 +178,8 @@ export const SidebarLink = ({
     link.href === "/seller"
       ? location.pathname === link.href
       : location.pathname.startsWith(link.href);
+
+  const showBadge = typeof badge === "number" && badge > 0;
 
   return (
     <Link
@@ -189,8 +193,12 @@ export const SidebarLink = ({
       )}
       {...props}
     >
-      <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+      {/* Icon with red dot when collapsed */}
+      <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center relative">
         {link.icon}
+        {showBadge && !open && (
+          <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm" />
+        )}
       </div>
       <motion.span
         animate={{
@@ -198,12 +206,18 @@ export const SidebarLink = ({
           width: animate ? (open ? "auto" : 0) : "auto",
         }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="text-sm font-medium whitespace-nowrap overflow-hidden"
+        className="text-sm font-medium whitespace-nowrap overflow-hidden flex items-center gap-2"
         style={{
-          display: animate ? (open ? "block" : "none") : "block",
+          display: animate ? (open ? "flex" : "none") : "flex",
         }}
       >
         {link.label}
+        {/* Count pill when expanded */}
+        {showBadge && (
+          <span className="min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none flex-shrink-0">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
       </motion.span>
     </Link>
   );

@@ -1042,7 +1042,7 @@ export function OrderDetailsModal({
             )}
 
             {/* --- NEW: Universal Alert Modal --- */}
-            <Dialog open={alertModal.isOpen} onOpenChange={(isOpen) => setAlertModal(prev => ({ ...prev, isOpen }))}>
+            <Dialog key="alert-modal" open={alertModal.isOpen} onOpenChange={(isOpen) => setAlertModal(prev => ({ ...prev, isOpen }))}>
                 <DialogContent className="sm:max-w-[400px] z-[300]">
                     <DialogHeader>
                         <DialogTitle className={alertModal.isError ? "text-red-600" : "text-green-600"}>
@@ -1061,7 +1061,7 @@ export function OrderDetailsModal({
             </Dialog>
 
             {/* --- NEW: Universal Confirm Modal --- */}
-            <Dialog open={confirmModal.isOpen} onOpenChange={(isOpen) => setConfirmModal(prev => ({ ...prev, isOpen }))}>
+            <Dialog key="confirm-modal" open={confirmModal.isOpen} onOpenChange={(isOpen) => setConfirmModal(prev => ({ ...prev, isOpen }))}>
                 <DialogContent className="sm:max-w-[425px] z-[300]">
                     <DialogHeader>
                         <DialogTitle>{confirmModal.title}</DialogTitle>

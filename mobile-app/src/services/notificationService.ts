@@ -545,6 +545,7 @@ class NotificationService {
   async notifySellerReturnRequest(params: {
     sellerId: string;
     orderId: string;
+    returnId: string;
     orderNumber: string;
     buyerName: string;
     reason: string;
@@ -558,7 +559,7 @@ class NotificationService {
       icon: 'RotateCcw',
       iconBg: 'bg-orange-500',
       actionUrl: '/seller/returns',
-      actionData: { orderId: params.orderId },
+      actionData: { orderId: params.orderId, returnId: params.returnId },
       priority: 'high'
     });
   }

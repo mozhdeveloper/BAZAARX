@@ -4,6 +4,7 @@
  * Supports 3 resolution paths, counter-offers, escalation, and return shipping.
  */
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { notificationService } from "@/services/notificationService";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -377,6 +378,47 @@ class ReturnService {
         changed_by_role: isInstant ? "system" : "buyer",
       });
 
+      // Notify the seller(s) of the return request (non-blocking)
+      if (!isInstant) {
+        try {
+          const { data: orderDetails } = await supabase
+            .from("orders")
+            .select(`
+              buyer:buyers(profiles(first_name, last_name)),
+              order_items(product:products(seller_id))
+            `)
+            .eq("id", orderDbId)
+            .single();
+
+          const sellerIds = [
+            ...new Set(
+              ((orderDetails as any)?.order_items || [])
+                .map((item: any) => item.product?.seller_id)
+                .filter(Boolean) as string[]
+            ),
+          ];
+
+          const buyerProfile = (orderDetails as any)?.buyer?.profiles;
+          const buyerName = buyerProfile
+            ? `${buyerProfile.first_name || ""} ${buyerProfile.last_name || ""}`.trim() || "A buyer"
+            : "A buyer";
+
+          for (const sellerId of sellerIds) {
+            await notificationService.notifySellerReturnRequest({
+              sellerId,
+              buyerName,
+              orderId: orderDbId,
+              returnId: returnData.id,
+              returnType: params.returnType || "return_refund",
+              refundAmount: params.refundAmount ?? null,
+            });
+          }
+        } catch (notifErr) {
+          console.error("[returnService] Failed to notify seller of return:", notifErr);
+          // Non-blocking — return submission still succeeds
+        }
+      }
+
       return this.transform(returnData);
     } catch (error: any) {
       console.error("Failed to submit return request:", error);
@@ -459,7 +501,7 @@ class ReturnService {
 
       if (error) throw error;
 
-      return (data || [])
+      const mapped = (data || [])
         .filter((row: any) => {
           const items = row.order?.order_items || [];
           return items.some((item: any) => item.product?.seller_id === sellerId);
@@ -488,6 +530,15 @@ class ReturnService {
 
           return req;
         });
+
+      // Deduplicate: order_items!inner join produces one row per item,
+      // so the same return can appear multiple times when an order has multiple items
+      const seen = new Set<string>();
+      return mapped.filter((req) => {
+        if (seen.has(req.id)) return false;
+        seen.add(req.id);
+        return true;
+      });
     } catch (error) {
       console.error("Failed to get seller return requests:", error);
       return [];

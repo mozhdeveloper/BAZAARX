@@ -33,6 +33,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
 import { chatService } from '../../../src/services/chatService';
+import { notificationService } from '../../../src/services/notificationService';
 import { orderExportService } from '../../../src/services/orderExportService';
 import { safeImageUri } from '../../../src/utils/imageUtils';
 import SellerDrawer from '../../../src/components/SellerDrawer';
@@ -77,6 +78,7 @@ export default function SellerDashboardScreen() {
   // State Management
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
@@ -93,6 +95,24 @@ export default function SellerDashboardScreen() {
       fetchProducts({ sellerId: currentSeller.id });
     }
   }, [currentSeller?.id, filters.startDate, filters.endDate]);
+
+  // Unread badge polling (notifications + messages)
+  useEffect(() => {
+    if (!currentSeller?.id) return;
+    const fetchCounts = async () => {
+      try {
+        const [notifCount, msgCount] = await Promise.all([
+          notificationService.getUnreadCount(currentSeller.id, 'seller'),
+          chatService.getUnreadCount(currentSeller.id, 'seller'),
+        ]);
+        setUnreadNotifCount(notifCount);
+        setUnreadMessagesCount(msgCount);
+      } catch (_) {}
+    };
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 30000);
+    return () => clearInterval(interval);
+  }, [currentSeller?.id]);
 
   // Derived Stats Logic
   const stats = React.useMemo(() => {
@@ -188,7 +208,7 @@ export default function SellerDashboardScreen() {
           </View>
           <Pressable onPress={() => navigation.navigate('Notifications')}>
             <Bell size={22} color="#1F2937" strokeWidth={2.5} />
-            <View style={styles.notificationBadge} />
+            {unreadNotifCount > 0 && <View style={styles.notificationBadge} />}
           </Pressable>
         </View>
       </View>
