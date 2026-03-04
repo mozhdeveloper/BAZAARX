@@ -90,7 +90,7 @@ const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
                             onPress={handleClose}
                             disabled={isUpdating}
                         >
-                            <Text style={[styles.buttonText, { color: '#6B7280' }]}>Keep Order</Text>
+                            <Text style={[styles.buttonText, { color: '#1F2937' }]}>Keep Order</Text>
                         </Pressable>
                         <Pressable
                             style={[
@@ -141,12 +141,12 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#1F2937',
+        color: '#1F2937', // Off black
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 14,
-        color: '#6B7280',
+        color: '#1F2937', // Off black
         textAlign: 'center',
         lineHeight: 20,
     },
@@ -161,11 +161,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#FFE4DA',
+        borderColor: '#D1D5DB', // Light gray border
         backgroundColor: '#FFFFFF', // White for unselected
     },
     radioRowSelected: {
-        borderColor: '#FF5722',
+        borderColor: COLORS.primary,
         backgroundColor: COLORS.primary,
     },
     radioOuter: {
@@ -173,27 +173,27 @@ const styles = StyleSheet.create({
         height: 20,
         borderRadius: 10,
         borderWidth: 2,
-        borderColor: '#FF5722',
+        borderColor: '#D1D5DB',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
     },
     radioOuterSelected: {
-        borderColor: '#FF5722',
+        borderColor: '#FFFFFF',
     },
     radioInner: {
         width: 10,
         height: 10,
         borderRadius: 5,
-        backgroundColor: '#FF5722',
+        backgroundColor: COLORS.primary,
     },
     radioLabel: {
         fontSize: 14,
-        color: '#374151',
+        color: '#1F2937', // Off black text
         flex: 1,
     },
     radioLabelSelected: {
-        color: '#1F2937',
+        color: '#FFFFFF',
         fontWeight: '600',
     },
     footer: {
@@ -208,12 +208,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     buttonDestructive: {
-        backgroundColor: '#FF5722',
+        backgroundColor: COLORS.primary,
     },
     buttonOutline: {
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: '#FF5722',
+        borderColor: '#D1D5DB', // Light gray color
     },
     buttonDisabled: {
         opacity: 0.45,
