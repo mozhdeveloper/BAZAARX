@@ -374,7 +374,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Interactive Status Banner */}
@@ -421,7 +421,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               ];
 
           return (
-            <View style={{ backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 12, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
+            <View style={{ backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 12, marginBottom: 16, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8 }}>
                 <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' }}>
                   <Clock size={16} color={COLORS.primary} />
@@ -602,7 +602,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       </ScrollView>
 
       {/* Bottom Action Bar */}
-      <View style={[styles.bottomBar, { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 12 }]}>
+      <View style={styles.bottomBar}>
         {order.status === 'pending' && (
           <>
             <Pressable
@@ -791,8 +791,6 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         </SafeAreaView>
       </Modal>
 
-      {/* Bottom Navigation */}
-      <BuyerBottomNav />
     </View>
   );
 }
@@ -1065,21 +1063,19 @@ const styles = StyleSheet.create({
   },
   // ===== BOTTOM BAR =====
   bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    flexDirection: 'row',
+    gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingTop: 14,
+    paddingBottom: 30,
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 4,
   },
   receivedButton: {
     backgroundColor: COLORS.primary,
