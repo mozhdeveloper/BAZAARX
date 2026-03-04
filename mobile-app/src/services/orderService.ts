@@ -73,6 +73,41 @@ const compactRecord = (record: Record<string, unknown>): Record<string, unknown>
   );
 };
 
+// ─── Order Query Cache (30s TTL) ──────────────────────────────────────────────
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const ORDER_CACHE_TTL = 30_000; // 30 seconds
+const orderQueryCache = new Map<string, CacheEntry<any>>();
+
+function getCachedOrNull<T>(key: string): T | null {
+  const entry = orderQueryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > ORDER_CACHE_TTL) {
+    orderQueryCache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCache<T>(key: string, data: T): void {
+  orderQueryCache.set(key, { data, timestamp: Date.now() });
+}
+
+function invalidateOrderCache(pattern?: string): void {
+  if (!pattern) {
+    orderQueryCache.clear();
+    return;
+  }
+  for (const key of orderQueryCache.keys()) {
+    if (key.includes(pattern)) {
+      orderQueryCache.delete(key);
+    }
+  }
+}
+
 const firstRelationRow = <T>(value: T | T[] | null | undefined): T | null => {
   if (Array.isArray(value)) {
     return value[0] || null;
@@ -462,6 +497,7 @@ export class OrderService {
     orderData: OrderInsert,
     items: OrderItemInsert[]
   ): Promise<Order | null> {
+    invalidateOrderCache();
     if (!isSupabaseConfigured()) {
       const newOrder = {
         ...orderData,
@@ -494,6 +530,10 @@ export class OrderService {
    * Get orders for a buyer
    */
   async getBuyerOrders(buyerId: string): Promise<Order[]> {
+    const cacheKey = `buyer_orders_${buyerId}`;
+    const cached = getCachedOrNull<Order[]>(cacheKey);
+    if (cached) return cached;
+
     if (!isSupabaseConfigured()) {
       return this.mockOrders.filter(o => o.buyer_id === buyerId);
     }
@@ -506,7 +546,9 @@ export class OrderService {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      const result = data || [];
+      setCache(cacheKey, result);
+      return result;
     } catch (error) {
       console.error('Error fetching buyer orders:', error);
       throw new Error('Failed to fetch orders');
@@ -647,6 +689,10 @@ export class OrderService {
     startDate?: Date | null,
     endDate?: Date | null,
   ): Promise<Order[]> {
+    const cacheKey = `seller_orders_${sellerId}_${startDate?.getTime() || 'all'}_${endDate?.getTime() || 'all'}`;
+    const cached = getCachedOrNull<Order[]>(cacheKey);
+    if (cached) return cached;
+
     if (!isSupabaseConfigured()) {
       return this.mockOrders.filter((order) => {
         const matchesSeller = order.seller_id === sellerId;
@@ -789,6 +835,7 @@ export class OrderService {
         };
       });
 
+      setCache(cacheKey, data);
       return data;
     } catch (error) {
       console.error('Error fetching seller orders:', error);
@@ -800,6 +847,10 @@ export class OrderService {
    * Get a single order by ID or order number
    */
   async getOrderById(orderId: string): Promise<any | null> {
+    const orderCacheKey = `order_${orderId}`;
+    const cached = getCachedOrNull<any>(orderCacheKey);
+    if (cached) return cached;
+
     if (!isSupabaseConfigured()) {
       return this.mockOrders.find(o => o.id === orderId) || null;
     }
@@ -834,7 +885,9 @@ export class OrderService {
       }
 
       // Map the DB result to the UI Order interface
-      return mapDbOrderToOrder(data);
+      const result = mapDbOrderToOrder(data);
+      setCache(orderCacheKey, result);
+      return result;
 
     } catch (error) {
       console.error('Error fetching order:', error);
@@ -1066,6 +1119,7 @@ export class OrderService {
     userId?: string,
     userRole?: string
   ): Promise<boolean> {
+    invalidateOrderCache();
     if (!isSupabaseConfigured()) {
       const order = this.mockOrders.find(o => o.id === orderId);
       if (order) {
@@ -1459,6 +1513,7 @@ export class OrderService {
    * Cancel an order
    */
   async cancelOrder(orderId: string, reason?: string, cancelledBy?: string): Promise<boolean> {
+    invalidateOrderCache();
     if (!isSupabaseConfigured()) {
       const order = this.mockOrders.find(o => o.id === orderId);
       if (order) {

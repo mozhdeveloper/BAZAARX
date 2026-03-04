@@ -30,6 +30,8 @@ interface ProductSelection {
   productId: string;
   selected: boolean;
   discountedStock?: number;
+  productDiscountId?: string;
+  isExisting: boolean;
 }
 
 export function AddProductsToCampaignDialog({
@@ -57,6 +59,14 @@ export function AddProductsToCampaignDialog({
     }
   }, [open, sellerId, fetchProducts]);
 
+  // Reset selections when dialog opens with a new campaign
+  useEffect(() => {
+    if (open) {
+      setSelections({});
+      setExistingProducts(new Set());
+    }
+  }, [campaign?.id, open]);
+
   // Load products already in campaign
   useEffect(() => {
     const loadExistingProducts = async () => {
@@ -66,8 +76,32 @@ export function AddProductsToCampaignDialog({
         const campaignProducts = await discountService.getProductsInCampaign(
           campaign.id,
         );
+        
         const productIds = new Set(campaignProducts.map((p) => p.productId));
         setExistingProducts(productIds);
+
+        // Initialize selections with existing products (pre-selected)
+        const existingSelections: Record<string, ProductSelection> = {};
+        campaignProducts.forEach((p) => {
+          existingSelections[p.productId] = {
+            productId: p.productId,
+            selected: true,
+            discountedStock: p.discountedStock,
+            productDiscountId: p.id,
+            isExisting: true,
+          };
+        });
+        
+        // Merge with current selections (don't overwrite new selections)
+        setSelections((prev) => {
+          const merged = { ...existingSelections };
+          Object.keys(prev).forEach((key) => {
+            if (!merged[key]) {
+              merged[key] = prev[key];
+            }
+          });
+          return merged;
+        });
       } catch (error) {
         console.error("Failed to load campaign products:", error);
       }
@@ -89,17 +123,21 @@ export function AddProductsToCampaignDialog({
   });
 
   const handleToggleProduct = (productId: string) => {
+    const isExisting = existingProducts.has(productId);
     setSelections((prev) => ({
       ...prev,
       [productId]: {
         productId,
         selected: !prev[productId]?.selected,
         discountedStock: prev[productId]?.discountedStock,
+        productDiscountId: prev[productId]?.productDiscountId,
+        isExisting,
       },
     }));
   };
 
   const handleSetStock = (productId: string, stock: number) => {
+    const isExisting = existingProducts.has(productId);
     setSelections((prev) => ({
       ...prev,
       [productId]: {
@@ -107,6 +145,7 @@ export function AddProductsToCampaignDialog({
         productId,
         selected: prev[productId]?.selected || false,
         discountedStock: stock > 0 ? stock : undefined,
+        isExisting,
       },
     }));
   };
@@ -127,62 +166,61 @@ export function AddProductsToCampaignDialog({
       return;
     }
 
-    // Filter out products already in campaign
+    // Get products to add (new products only)
     const newProducts = selectedProducts.filter(
-      (s) => !existingProducts.has(s.productId),
+      (s) => !s.isExisting,
     );
 
-    if (newProducts.length === 0) {
-      toast({
-        title: "Products Already Added",
-        description: "All selected products are already in this campaign",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (newProducts.length < selectedProducts.length) {
-      const skipped = selectedProducts.length - newProducts.length;
-      toast({
-        title: "Notice",
-        description: `${skipped} product(s) already in campaign will be skipped`,
-      });
-    }
+    // Get products to remove (existing products that were deselected)
+    const productsToRemove = Object.values(selections)
+      .filter((s) => s.isExisting && !s.selected)
+      .map((s) => s.productId);
 
     setLoading(true);
     try {
-      const productIds = newProducts.map((s) => s.productId);
-      const overrides = newProducts
-        .filter((s) => s.discountedStock)
-        .map((s) => ({
-          productId: s.productId,
-          discountedStock: s.discountedStock!,
-        }));
+      // Remove deselected products first
+      if (productsToRemove.length > 0) {
+        await discountService.removeProductsFromCampaign(
+          campaign.id,
+          productsToRemove,
+        );
+      }
 
-      await discountService.addProductsToCampaign(
-        campaign.id,
-        sellerId,
-        productIds,
-        overrides.length > 0 ? overrides : undefined,
-      );
+      // Add new products
+      if (newProducts.length > 0) {
+        const productIds = newProducts.map((s) => s.productId);
+        const overrides = newProducts
+          .filter((s) => s.discountedStock)
+          .map((s) => ({
+            productId: s.productId,
+            discountedStock: s.discountedStock!,
+          }));
+
+        await discountService.addProductsToCampaign(
+          campaign.id,
+          sellerId,
+          productIds,
+          overrides.length > 0 ? overrides : undefined,
+        );
+      }
 
       toast({
-        title: "Products Added",
-        description: `${newProducts.length} product(s) added to campaign successfully!`,
+        title: "Products Updated",
+        description: `${newProducts.length} added, ${productsToRemove.length} removed`,
       });
 
       // Reset and close
       setSelections({});
       setSearchQuery("");
+      setExistingProducts(new Set());
       onOpenChange(false);
 
       if (onProductsAdded) {
         onProductsAdded();
       }
     } catch (error) {
-      console.error("Failed to add products:", error);
+      console.error("Failed to update products:", error);
 
-      // Check if it's a duplicate key error
       const isDuplicateError =
         error instanceof Error &&
         (error.message.includes("duplicate key") ||
@@ -194,7 +232,7 @@ export function AddProductsToCampaignDialog({
           ? "One or more products are already in this campaign"
           : error instanceof Error
             ? error.message
-            : "Failed to add products to campaign",
+            : "Failed to update products in campaign",
         variant: "destructive",
       });
     } finally {
@@ -269,8 +307,7 @@ export function AddProductsToCampaignDialog({
                 return (
                   <div
                     key={product.id}
-                    className={`p-4 hover:bg-gray-50 transition-colors ${isInCampaign ? "opacity-50" : ""
-                      }`}
+                    className={`p-4 hover:bg-gray-50 transition-colors`}
                   >
                     <div className="flex items-start gap-4">
                       {/* Checkbox */}
@@ -280,7 +317,6 @@ export function AddProductsToCampaignDialog({
                           onCheckedChange={() =>
                             handleToggleProduct(product.id)
                           }
-                          disabled={isInCampaign}
                         />
                       </div>
 
@@ -320,7 +356,7 @@ export function AddProductsToCampaignDialog({
                         </div>
 
                         {/* Stock Limit Input (only if selected) */}
-                        {isSelected && !isInCampaign && (
+                        {isSelected && (
                           <div className="mt-3 flex items-center gap-2">
                             <Label
                               htmlFor={`stock-${product.id}`}
@@ -360,7 +396,12 @@ export function AddProductsToCampaignDialog({
         <DialogFooter className="gap-2 sm:gap-0 mt-2">
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={() => {
+              setSelections({});
+              setExistingProducts(new Set());
+              setSearchQuery("");
+              onOpenChange(false);
+            }}
             disabled={loading}
             className="rounded-xl border-[var(--btn-border)] font-bold hover:bg-gray-100 hover:text-[var(--text-headline)] active:scale-95 transition-all h-11"
           >

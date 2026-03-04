@@ -3,6 +3,7 @@ import {
   View,
   Text,
   ScrollView,
+  FlatList,
   TextInput,
   StyleSheet,
   Pressable,
@@ -2246,10 +2247,44 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   // --- STRICTLY FORMATTED DROPDOWN (inside CheckoutScreen) ---
   function AddressDropdown({ label, value, type, list, disabled = false, placeholder = "Select..." }: any) {
     const isOpen = openDropdown === type;
-    const filteredList = list.filter((item: any) => {
-      const itemName = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
-      return itemName.toLowerCase().includes(searchText.toLowerCase());
-    });
+    const lowerSearch = searchText.toLowerCase();
+
+    // Memoize filtered+capped list — prevents re-filtering 40k+ barangays on every render
+    const filteredList = useMemo(() => {
+      const filtered = list.filter((item: any) => {
+        const itemName = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
+        return itemName.toLowerCase().includes(lowerSearch);
+      });
+      // Cap to 200 items for performance; user can narrow via search
+      return filtered.slice(0, 200);
+    }, [list, lowerSearch]);
+
+    // Show a hint when there are many items and no search text yet
+    const showSearchHint = useMemo(() => list.length > 200 && !searchText, [list, searchText]);
+
+    const renderDropdownItem = useCallback(({ item, index }: { item: any; index: number }) => {
+      let name = '';
+      if (type === 'region') name = item.region_name;
+      else if (type === 'province') name = item.province_name;
+      else if (type === 'city') name = item.city_name;
+      else name = item.brgy_name || item.barangay_name;
+
+      return (
+        <Pressable
+          style={({ pressed }) => [checkoutStyles.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
+          onPress={() => {
+            if (type === 'region') onRegionChange(item.region_code);
+            else if (type === 'province') onProvinceChange(item.province_code);
+            else if (type === 'city') onCityChange(item.city_code);
+            else onBarangayChange(item.brgy_name || item.barangay_name);
+          }}
+        >
+          <Text style={checkoutStyles.selectItemText}>{name}</Text>
+        </Pressable>
+      );
+    }, [type]);
+
+    const keyExtractor = useCallback((item: any, index: number) => `${type}-${index}`, [type]);
 
     return (
       <View style={{ marginBottom: 12, zIndex: isOpen ? 100 : 1 }}>
@@ -2280,31 +2315,22 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 autoFocus={true}
               />
             </View>
-            <ScrollView style={checkoutStyles.selectList} nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
-              {filteredList.map((item: any, index: number) => {
-                const key = `${type}-${index}`;
-                let name = '';
-                if (type === 'region') name = item.region_name;
-                else if (type === 'province') name = item.province_name;
-                else if (type === 'city') name = item.city_name;
-                else name = item.brgy_name || item.barangay_name;
-
-                return (
-                  <Pressable
-                    key={key}
-                    style={({ pressed }) => [checkoutStyles.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
-                    onPress={() => {
-                      if (type === 'region') onRegionChange(item.region_code);
-                      else if (type === 'province') onProvinceChange(item.province_code);
-                      else if (type === 'city') onCityChange(item.city_code);
-                      else onBarangayChange(item.brgy_name || item.barangay_name);
-                    }}
-                  >
-                    <Text style={checkoutStyles.selectItemText}>{name}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            {showSearchHint && (
+              <Text style={{ fontSize: 11, color: '#9CA3AF', paddingHorizontal: 12, paddingBottom: 4 }}>
+                Showing first 200 results — type to narrow
+              </Text>
+            )}
+            <FlatList
+              data={filteredList}
+              renderItem={renderDropdownItem}
+              keyExtractor={keyExtractor}
+              style={checkoutStyles.selectList}
+              keyboardShouldPersistTaps="handled"
+              initialNumToRender={15}
+              maxToRenderPerBatch={20}
+              windowSize={5}
+              removeClippedSubviews={true}
+            />
           </View>
         )}
       </View>

@@ -136,14 +136,25 @@ export default function CartScreen({ navigation }: any) {
     }, {} as Record<string, typeof items>);
   }, [items]);
 
-  const selectedItems = items.filter(item => selectedIds.includes(item.cartItemId));
-  const subtotal = selectedItems.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
-  const totalSavings = selectedItems.reduce((sum, item) => {
-    const savings = (item.originalPrice && item.originalPrice > (item.price || 0))
-      ? (item.originalPrice - (item.price || 0)) * item.quantity
-      : 0;
-    return sum + savings;
-  }, 0);
+  // Memoize cart calculations — avoids recalculating on every render
+  const { selectedItems, subtotal, totalSavings } = useMemo(() => {
+    const selectedSet = new Set(selectedIds);
+    const selected = items.filter(item => selectedSet.has(item.cartItemId));
+    let sub = 0;
+    let savings = 0;
+
+    selected.forEach(item => {
+      const price = item.price || 0;
+      const qty = item.quantity;
+      sub += price * qty;
+
+      if (item.originalPrice && item.originalPrice > price) {
+        savings += (item.originalPrice - price) * qty;
+      }
+    });
+
+    return { selectedItems: selected, subtotal: sub, totalSavings: savings };
+  }, [items, selectedIds]);
   const shippingFee = (subtotal > 500 || subtotal === 0) ? 0 : 50;
   const total = subtotal; // Only items subtotal, exclude shipping here as per request
 

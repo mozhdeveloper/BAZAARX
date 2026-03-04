@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TextInput,
-  ScrollView,
+  FlatList,
   Pressable,
   StyleSheet,
   KeyboardAvoidingView,
@@ -219,7 +219,7 @@ function formatText(text: string): React.ReactNode {
 
 export default function ChatSupportScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<FlatList>(null);
   const { user } = useAuthStore();
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -236,7 +236,7 @@ export default function ChatSupportScreen({ navigation }: Props) {
   ]);
 
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    setTimeout(() => scrollRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
   }, []);
 
   useEffect(() => {
@@ -363,6 +363,9 @@ export default function ChatSupportScreen({ navigation }: Props) {
     addUserMessage(reply);
   }, [addUserMessage, escalateToAgent]);
 
+  // Reversed for inverted FlatList (newest at bottom = index 0 in reversed)
+  const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
@@ -399,15 +402,31 @@ export default function ChatSupportScreen({ navigation }: Props) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-        <ScrollView
+        <FlatList
           ref={scrollRef}
+          data={reversedMessages}
+          keyExtractor={(msg) => msg.id}
+          inverted
           style={styles.messageList}
-          contentContainerStyle={styles.messageContent}
+          contentContainerStyle={styles.messageContentInverted}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-        >
-          {messages.map((msg) => (
-            <View key={msg.id}>
+          initialNumToRender={15}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          ListHeaderComponent={isTyping ? (
+            <View style={styles.messageBubbleRow}>
+              <View style={styles.avatarSmall}>
+                <Bot size={14} color="#FFF" />
+              </View>
+              <View style={[styles.bubble, styles.bubbleBot, styles.typingBubble]}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={[styles.bubbleText, { marginLeft: 8 }]}>Baz is typing…</Text>
+              </View>
+            </View>
+          ) : null}
+          renderItem={({ item: msg }) => (
+            <View>
               <View
                 style={[
                   styles.messageBubbleRow,
@@ -447,7 +466,7 @@ export default function ChatSupportScreen({ navigation }: Props) {
               {/* Quick replies */}
               {msg.quickReplies && msg.quickReplies.length > 0 && (
                 <View style={styles.quickRepliesContainer}>
-                  {msg.quickReplies.map((qr) => (
+                  {msg.quickReplies.map((qr: string) => (
                     <Pressable
                       key={qr}
                       style={({ pressed }) => [
@@ -470,21 +489,8 @@ export default function ChatSupportScreen({ navigation }: Props) {
                 </View>
               )}
             </View>
-          ))}
-
-          {/* Typing indicator */}
-          {isTyping && (
-            <View style={styles.messageBubbleRow}>
-              <View style={styles.avatarSmall}>
-                <Bot size={14} color="#FFF" />
-              </View>
-              <View style={[styles.bubble, styles.bubbleBot, styles.typingBubble]}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={[styles.bubbleText, { marginLeft: 8 }]}>Baz is typing…</Text>
-              </View>
-            </View>
           )}
-        </ScrollView>
+        />
 
         {/* Talk to Agent Banner */}
         <Pressable
@@ -578,6 +584,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messageContent: {
+    padding: 16,
+    gap: 12,
+  },
+  messageContentInverted: {
     padding: 16,
     gap: 12,
   },

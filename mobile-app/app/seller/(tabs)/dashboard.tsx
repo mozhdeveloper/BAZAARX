@@ -113,31 +113,32 @@ export default function SellerDashboardScreen() {
     };
   }, [orders, allProducts]);
 
-  // Chart Data Preparation
+  // Chart Data Preparation — single-pass aggregation + date range generation
   const revenueChartData = React.useMemo(() => {
-    const dataPoints: any[] = [];
-    const dateMap = new Map();
-    const start = filters.startDate || new Date(new Date().setDate(new Date().getDate() - 7));
-    const end = filters.endDate || new Date();
+    if (!orders.length) return [];
 
-    let curr = new Date(start);
-    while (curr <= end) {
-      dateMap.set(curr.toISOString().split('T')[0], 0);
-      curr.setDate(curr.getDate() + 1);
-    }
-
-    orders.filter((o: any) => o.status === 'completed' || o.status === 'delivered').forEach((order: any) => {
-      const dateKey = new Date(order.createdAt || order.orderDate).toISOString().split('T')[0];
-      if (dateMap.has(dateKey)) {
-        dateMap.set(dateKey, (dateMap.get(dateKey) || 0) + order.total);
+    // Single pass: aggregate revenue by date for completed/delivered orders
+    const aggregated = new Map<string, number>();
+    orders.forEach((order: any) => {
+      if (order.status === 'completed' || order.status === 'delivered') {
+        const dateKey = new Date(order.createdAt || order.orderDate).toISOString().split('T')[0];
+        aggregated.set(dateKey, (aggregated.get(dateKey) || 0) + order.total);
       }
     });
 
-    dateMap.forEach((val, date) => {
-      dataPoints.push({ value: val / 1000, label: date.split('-')[2] });
-    });
+    // Generate date range and look up from aggregated map
+    const dataPoints: any[] = [];
+    const start = filters.startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const end = filters.endDate || new Date();
+
+    const curr = new Date(start);
+    while (curr <= end) {
+      const dateKey = curr.toISOString().split('T')[0];
+      dataPoints.push({ value: (aggregated.get(dateKey) || 0) / 1000, label: dateKey.split('-')[2] });
+      curr.setDate(curr.getDate() + 1);
+    }
     return dataPoints;
-  }, [orders, filters]);
+  }, [orders, filters.startDate, filters.endDate]);
 
   // Top Products Logic
   const topProducts = React.useMemo(() => {
