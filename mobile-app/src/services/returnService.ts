@@ -304,35 +304,46 @@ class ReturnService {
       metadata: { resolution_path: resolutionPath, return_type: returnType },
     });
 
-    // 10. Notifications
-    try {
-      const { data: fullOrder } = await supabase
-        .from('orders')
-        .select(`
-          order_number,
-          buyer:buyers(profiles(first_name, last_name)),
-          order_items!inner(product:products!inner(seller_id))
-        `)
-        .eq('id', orderDbId)
-        .single();
+    // 10. Notify seller(s) — only for non-instant returns (instant = auto-approved, no action needed)
+    if (resolutionPath !== 'instant') {
+      try {
+        const { data: orderDetails } = await supabase
+          .from('orders')
+          .select('order_number, buyer_id, order_items(products(seller_id))')
+          .eq('id', orderDbId)
+          .single();
 
-      if (fullOrder) {
-        const sellerId = (fullOrder as any).order_items?.[0]?.product?.seller_id;
-        const buyerProfile = (fullOrder as any).buyer?.profiles;
-        const buyerName = buyerProfile ? `${buyerProfile.first_name || ''} ${buyerProfile.last_name || ''}`.trim() : 'A buyer';
-
-        if (sellerId) {
-          await notificationService.notifySellerReturnRequest({
-            sellerId,
-            orderId: orderDbId,
-            orderNumber: fullOrder.order_number,
-            buyerName,
-            reason: reason
-          });
+        let buyerName = 'A buyer';
+        if (orderDetails?.buyer_id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', orderDetails.buyer_id)
+            .single();
+          if (profile?.full_name) buyerName = profile.full_name;
         }
+
+        const sellerIds = new Set<string>();
+        ((orderDetails as any)?.order_items ?? []).forEach((item: any) => {
+          const sid = item?.products?.seller_id;
+          if (sid) sellerIds.add(sid);
+        });
+
+        await Promise.all(
+          [...sellerIds].map((sellerId) =>
+            notificationService.notifySellerReturnRequest({
+              sellerId,
+              orderId: orderDbId,
+              returnId: returnData.id,
+              orderNumber: (orderDetails as any)?.order_number ?? 'N/A',
+              buyerName,
+              reason,
+            })
+          )
+        );
+      } catch (err) {
+        console.warn('[ReturnService] Failed to send return notification:', err);
       }
-    } catch (err) {
-      console.warn('Failed to send return request notification:', err);
     }
 
     return this.transform(returnData);

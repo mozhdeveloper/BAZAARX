@@ -128,8 +128,9 @@ export function SellerNotifications() {
       // Type filter
       if (filterType !== "all") {
         if (filterType === "orders" && !n.type.includes("order")) return false;
-        if (filterType === "returns" && !n.type.includes("return")) return false;
+        if (filterType === "returns" && !n.type.includes("return") && n.type !== "return_request") return false;
         if (filterType === "reviews" && !n.type.includes("review")) return false;
+        if (filterType === "messages" && n.type !== "seller_new_message") return false;
       }
 
       // Status filter
@@ -252,6 +253,7 @@ export function SellerNotifications() {
                     <SelectItem value="orders" className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg">Orders</SelectItem>
                     <SelectItem value="returns" className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg">Returns</SelectItem>
                     <SelectItem value="reviews" className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg">Reviews</SelectItem>
+                    <SelectItem value="messages" className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg">Messages</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>

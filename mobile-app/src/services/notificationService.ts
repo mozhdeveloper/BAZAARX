@@ -500,6 +500,30 @@ class NotificationService {
     });
   }
 
+  /**
+   * Notify seller when a buyer submits a return request
+   */
+  async notifySellerReturnRequest(params: {
+    sellerId: string;
+    orderId: string;
+    returnId: string;
+    orderNumber: string;
+    buyerName: string;
+    reason: string;
+  }): Promise<Notification | null> {
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_return_request',
+      title: 'Return Request',
+      message: `${params.buyerName} requested a return for order #${params.orderNumber}. Reason: ${params.reason}`,
+      icon: 'RotateCcw',
+      iconBg: 'bg-orange-500',
+      actionUrl: '/seller/returns',
+      actionData: { orderId: params.orderId, returnId: params.returnId },
+      priority: 'high'
+    });
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  ADMIN — Support & Moderation Notifications
@@ -589,30 +613,6 @@ class NotificationService {
     return () => {
       supabase.removeChannel(channel);
     };
-  }
-
-  /**
-   * Notify seller when a buyer submits a return request
-   */
-  async notifySellerReturnRequest(params: {
-    sellerId: string;
-    orderId: string;
-    orderNumber: string;
-    buyerName: string;
-    reason: string;
-  }): Promise<Notification | null> {
-    return this.createNotification({
-      userId: params.sellerId,
-      userType: 'seller',
-      type: 'seller_return_request',
-      title: 'Return Request',
-      message: `${params.buyerName} requested a return for order #${params.orderNumber}. Reason: ${params.reason}`,
-      icon: 'RotateCcw',
-      iconBg: 'bg-orange-500',
-      actionUrl: '/seller/returns',
-      actionData: { orderId: params.orderId },
-      priority: 'high'
-    });
   }
 
   /**

@@ -61,8 +61,7 @@ import { ProductFormTabs } from "@/components/seller/products/ProductFormTabs";
 import { GeneralInfoTab } from "@/components/seller/products/GeneralInfoTab";
 import { AttributesTab } from "@/components/seller/products/AttributesTab";
 import { uploadProductImages, validateImageFile, compressImage } from "@/utils/storage";
-
-
+import { categoryService } from "@/services/categoryService";
 
 export function SellerProducts() {
     const [searchQuery, setSearchQuery] = useState("");
@@ -871,7 +870,9 @@ export function AddProduct() {
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                const dbCategories = await productService.getCategories();
+                // Use the new CategoryService to fetch ONLY active categories
+                const dbCategories = await categoryService.getActiveCategories();
+
                 if (dbCategories.length > 0) {
                     setCategories(
                         dbCategories.map((c) => ({ id: c.id, name: c.name })),
@@ -899,6 +900,7 @@ export function AddProduct() {
         };
         fetchCategories();
     }, []);
+
     const [newVariant, setNewVariant] = useState<Partial<VariantConfig>>({
         variantLabel1Value: "",
         variantLabel2Value: "",
@@ -1247,8 +1249,8 @@ export function AddProduct() {
                     console.error("Image upload failed:", uploadError);
                     toast({
                         title: "Upload Failed",
-                        description: uploadError instanceof Error 
-                            ? uploadError.message 
+                        description: uploadError instanceof Error
+                            ? uploadError.message
                             : "Could not upload images. Please try using URL mode or contact support.",
                         variant: "destructive",
                     });

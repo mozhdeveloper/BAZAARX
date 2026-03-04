@@ -39,6 +39,7 @@ import { CartModal } from "../components/ui/cart-modal";
 import ShopBuyNowModal from "../components/shop/ShopBuyNowModal";
 import ShopVariantModal from "../components/shop/ShopVariantModal";
 import { sellerService } from '../services/sellerService';
+import { categoryService } from '../services/categoryService';
 
 interface SearchProduct {
   id: string;
@@ -160,6 +161,16 @@ const SearchPage: React.FC = () => {
   const [variantProduct, setVariantProduct] = useState<any>(null);
   const [isBuyNowAction, setIsBuyNowAction] = useState(false);
   const { toast } = useToast();
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+
+  // NEW: Fetch categories on mount
+  useEffect(() => {
+    categoryService.getActiveCategories()
+      .then(data => {
+        if (data) setCategories(data);
+      })
+      .catch(err => console.error('Failed to fetch categories:', err));
+  }, []);
 
   // Fetch products on mount
   useEffect(() => {
@@ -177,26 +188,22 @@ const SearchPage: React.FC = () => {
     };
   }, [fetchProducts, subscribeToProducts]);
 
-  // Derived Data for Filters
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    const categories = ['Electronics', 'Fashion', 'Home & Living', 'Beauty', 'Food & Beverages', 'Sports & Outdoors', 'Books & Media', 'Automotive', 'Toys & Games', 'Crafts & Handmade'];
+    const categoryNames = categories.map(c => c.name);
 
-    categories.forEach(cat => counts[cat] = 0);
+    // Initialize only active categories
+    categoryNames.forEach(cat => counts[cat] = 0);
 
     sellerProducts.forEach(p => {
-      const cat = p.category || 'General';
-      // Simple matching for demo; in real app, might need exact match or ID match
-      const matchedCat = categories.find(c => cat.includes(c) || c.includes(cat));
-      if (matchedCat) {
-        counts[matchedCat] = (counts[matchedCat] || 0) + 1;
-      } else {
-        // Fallback or ignore
+      // Check if the product's category is in our active list
+      if (categoryNames.includes(p.category)) {
+        counts[p.category] = (counts[p.category] || 0) + 1;
       }
     });
 
     return counts;
-  }, [sellerProducts]);
+  }, [sellerProducts, categories]);
 
   const brandCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -294,7 +301,6 @@ const SearchPage: React.FC = () => {
     return 0; // relevance
   });
 
-  const categories = ['Electronics', 'Fashion', 'Home & Living', 'Food & Beverages', 'Sports & Outdoors', 'Books & Media', 'Automotive', 'Beauty', 'Toys & Games', 'Crafts & Handmade'];
   const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
   const colors = [
     { name: 'Pink', hex: '#F9A8D4' },
@@ -383,17 +389,19 @@ const SearchPage: React.FC = () => {
                     className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === 'All' ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                   >
                     <span className={`text-sm ${selectedCategory === 'All' ? 'font-bold' : 'font-medium'}`}>All Product</span>
-                    <span className="text-xs font-semibold">{sellerProducts.length}</span>
+                    <span className="text-xs font-semibold">
+                      {Object.values(categoryCounts).reduce((a, b) => a + b, 0)}
+                    </span>
                   </button>
                   {categories.map(cat => (
                     <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === cat ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.name)}
+                      className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === cat.name ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                     >
-                      <span className="text-sm font-medium">{cat}</span>
-                      <span className={`text-xs ${selectedCategory === cat ? 'font-semibold text-[var(--brand-primary)]' : 'font-normal text-[var(--text-muted)] group-hover:text-[var(--text-primary)]'}`}>
-                        {categoryCounts[cat] || 0}
+                      <span className="text-sm font-medium">{cat.name}</span>
+                      <span className={`text-xs ${selectedCategory === cat.name ? 'font-semibold text-[var(--brand-primary)]' : 'font-normal text-[var(--text-muted)] group-hover:text-[var(--text-primary)]'}`}>
+                        {categoryCounts[cat.name] || 0}
                       </span>
                     </button>
                   ))}

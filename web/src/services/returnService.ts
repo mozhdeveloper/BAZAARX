@@ -378,37 +378,44 @@ class ReturnService {
         changed_by_role: isInstant ? "system" : "buyer",
       });
 
-      // Notifications
-      try {
-        const { data: fullOrder } = await supabase
-          .from("orders")
-          .select(`
-            order_number,
-            buyer:buyer_id(profiles:id(first_name, last_name)),
-            order_items!inner(product:products!inner(seller_id))
-          `)
-          .eq("id", orderDbId)
-          .single();
+      // Notify the seller(s) of the return request (non-blocking)
+      if (!isInstant) {
+        try {
+          const { data: orderDetails } = await supabase
+            .from("orders")
+            .select(`
+              buyer:buyer_id(profiles:id(first_name, last_name)),
+              order_items(product:products(seller_id))
+            `)
+            .eq("id", orderDbId)
+            .single();
 
-        if (fullOrder) {
-          const sellerId = (fullOrder as any).order_items?.[0]?.product?.seller_id;
-          const buyerProfile = (fullOrder as any).buyer?.profiles;
-          const buyerName = buyerProfile 
-            ? `${buyerProfile.first_name || ""} ${buyerProfile.last_name || ""}`.trim() 
+          const sellerIds = [
+            ...new Set(
+              ((orderDetails as any)?.order_items || [])
+                .map((item: any) => item.product?.seller_id)
+                .filter(Boolean) as string[]
+            ),
+          ];
+
+          const buyerProfile = (orderDetails as any)?.buyer?.profiles;
+          const buyerName = buyerProfile
+            ? `${buyerProfile.first_name || ""} ${buyerProfile.last_name || ""}`.trim() || "A buyer"
             : "A buyer";
 
-          if (sellerId) {
+          for (const sellerId of sellerIds) {
             await notificationService.notifySellerReturnRequest({
               sellerId,
-              orderId: orderDbId,
-              orderNumber: fullOrder.order_number,
               buyerName,
-              reason: params.reason
+              orderId: orderDbId,
+              returnId: returnData.id,
+              orderNumber: (orderDetails as any)?.order_number ?? "N/A",
+              reason: params.reason,
             });
           }
+        } catch (err) {
+          console.warn("[ReturnService] Failed to send return notification:", err);
         }
-      } catch (err) {
-        console.warn("Failed to send return request notification:", err);
       }
 
       return this.transform(returnData);
@@ -493,7 +500,7 @@ class ReturnService {
 
       if (error) throw error;
 
-      return (data || [])
+      const mapped = (data || [])
         .filter((row: any) => {
           const items = row.order?.order_items || [];
           return items.some((item: any) => item.product?.seller_id === sellerId);
@@ -522,6 +529,15 @@ class ReturnService {
 
           return req;
         });
+
+      // Deduplicate: order_items!inner join produces one row per item,
+      // so the same return can appear multiple times when an order has multiple items
+      const seen = new Set<string>();
+      return mapped.filter((req) => {
+        if (seen.has(req.id)) return false;
+        seen.add(req.id);
+        return true;
+      });
     } catch (error) {
       console.error("Failed to get seller return requests:", error);
       return [];
