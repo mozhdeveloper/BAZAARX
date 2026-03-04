@@ -15,6 +15,8 @@ import { X, Minus, Plus } from 'lucide-react-native';
 import { COLORS } from '../constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CartItem, Product } from '../types';
+import { discountService } from '../services/discountService';
+import type { ActiveDiscount } from '../types/discount';
 
 const { width } = Dimensions.get('window');
 
@@ -44,6 +46,8 @@ interface VariantSelectionModalProps {
   confirmLabel?: string;
   isBuyNow?: boolean;
   hideQuantity?: boolean;
+  /** Pass the active campaign discount so variant prices are shown discounted */
+  activeCampaignDiscount?: ActiveDiscount | null;
 }
 
 // Color hex mapping helper (copied from ProductDetailScreen for consistency)
@@ -88,6 +92,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
   confirmLabel = 'Confirm',
   isBuyNow = false,
   hideQuantity = false,
+  activeCampaignDiscount = null,
 }) => {
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
@@ -332,7 +337,26 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
               resizeMode="cover"
             />
             <View style={styles.modalInfo}>
-              <Text style={styles.modalPrice}>₱{(activeVariantInfo.price ?? 0).toLocaleString()}</Text>
+              {(() => {
+                const rawPrice = activeVariantInfo.price ?? 0;
+                if (!activeCampaignDiscount || rawPrice === 0) {
+                  return (
+                    <Text style={styles.modalPrice}>₱{rawPrice.toLocaleString()}</Text>
+                  );
+                }
+                const discounted = discountService.calculateLineDiscount(rawPrice, 1, activeCampaignDiscount).discountedUnitPrice;
+                const hasDiscount = discounted < rawPrice;
+                return hasDiscount ? (
+                  <View>
+                    <Text style={[styles.modalPrice, { color: '#DC2626' }]}>₱{discounted.toLocaleString()}</Text>
+                    <Text style={{ fontSize: 13, color: '#9CA3AF', textDecorationLine: 'line-through', fontWeight: '600' }}>
+                      ₱{rawPrice.toLocaleString()}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.modalPrice}>₱{discounted.toLocaleString()}</Text>
+                );
+              })()}
               <Text style={[styles.modalStock, { color: Number(activeVariantInfo.stock || 0) <= 0 ? '#DC2626' : '#10B981' }]}>
                 {Number(activeVariantInfo.stock || 0) <= 0 ? 'Out of Stock' : `In Stock: ${activeVariantInfo.stock}`}
               </Text>

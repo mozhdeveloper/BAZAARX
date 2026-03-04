@@ -72,7 +72,7 @@ const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5; // 5 columns, 20px padding ea
 
 const CategoryItem = React.memo(({ label, iconName }: { label: string; iconName: keyof typeof MaterialCommunityIcons.glyphMap }) => (
   <View style={styles.categoryItm}>
-    <View style={[styles.categoryIconBox, { 
+    <View style={[styles.categoryIconBox, {
       backgroundColor: '#FFFBF5', // Lighter Parchment
       shadowColor: COLORS.primary, // Amber Glow
       shadowOffset: { width: 0, height: 4 },
@@ -420,15 +420,17 @@ export default function HomeScreen({ navigation }: Props) {
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
       const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-      allItems.push({ key: `boost-${bp.id}`, mapped: {
-        id: product.id, name: product.name, price: product.price,
-        originalPrice: (product as any).original_price, original_price: (product as any).original_price,
-        primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
-        images: product.images?.map((img: any) => img.image_url) || [],
-        category: product.category?.name, seller: product.seller,
-        rating: avgRating, review_count: reviews.length, stock: totalStock,
-        is_active: !product.disabled_at,
-      }});
+      allItems.push({
+        key: `boost-${bp.id}`, mapped: {
+          id: product.id, name: product.name, price: product.price,
+          originalPrice: (product as any).original_price, original_price: (product as any).original_price,
+          primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+          images: product.images?.map((img: any) => img.image_url) || [],
+          category: product.category?.name, seller: product.seller,
+          rating: avgRating, review_count: reviews.length, stock: totalStock,
+          is_active: !product.disabled_at,
+        }
+      });
     }
 
     for (const fp of featuredProducts) {
@@ -439,15 +441,17 @@ export default function HomeScreen({ navigation }: Props) {
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
       const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-      allItems.push({ key: `feat-${(fp as any).id}`, mapped: {
-        id: product.id, name: product.name, price: product.price,
-        originalPrice: product.original_price, original_price: product.original_price,
-        primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
-        images: product.images?.map((img: any) => img.image_url) || [],
-        category: product.category?.name, seller: product.seller,
-        rating: avgRating, review_count: reviews.length, stock: totalStock,
-        is_active: !product.disabled_at,
-      }});
+      allItems.push({
+        key: `feat-${(fp as any).id}`, mapped: {
+          id: product.id, name: product.name, price: product.price,
+          originalPrice: product.original_price, original_price: product.original_price,
+          primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+          images: product.images?.map((img: any) => img.image_url) || [],
+          category: product.category?.name, seller: product.seller,
+          rating: avgRating, review_count: reviews.length, stock: totalStock,
+          is_active: !product.disabled_at,
+        }
+      });
     }
 
     return allItems.slice(0, 10);
@@ -721,9 +725,9 @@ export default function HomeScreen({ navigation }: Props) {
                     key={i}
                     style={[
                       styles.paginationDot,
-                      { 
+                      {
                         backgroundColor: i === activeSlide ? COLORS.primary : '#FDE68A', // Warm Orange vs Pale
-                        width: i === activeSlide ? 20 : 8 
+                        width: i === activeSlide ? 20 : 8
                       }
                     ]}
                   />
@@ -759,9 +763,9 @@ export default function HomeScreen({ navigation }: Props) {
                   <Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>See More</Text>
                 </Pressable>
               </View>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false} 
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, gap: 12 }}
               >
                 {flashSaleProducts.length > 0 ? (
@@ -959,7 +963,7 @@ const styles = StyleSheet.create({
   flashSaleTitle: { fontSize: 18, fontWeight: '800', color: '#D97706' },
   timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   timerText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  
+
   carouselContainer: { marginVertical: 10 },
   promoBox: {
     height: 180,

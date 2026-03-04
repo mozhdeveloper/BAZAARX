@@ -18,7 +18,7 @@ type ProductUpdate = Database['public']['Tables']['products']['Update'];
 
 export class ProductService {
   private static instance: ProductService;
-  
+
   // Query result cache with TTL
   private queryCache = new Map<string, { data: any[]; timestamp: number }>();
   private readonly CACHE_TTL = 60000; // 1 minute
@@ -256,7 +256,7 @@ export class ProductService {
       // Fetch sold counts for all products in a single query
       // Count only COMPLETED orders (paid + delivered)
       const productIds = data.map(p => p.id);
-      
+
       const { data: soldCountsData, error: soldCountsError } = await supabase
         .from('order_items')
         .select('product_id, quantity, order:orders!inner(payment_status, shipment_status, order_type)')
@@ -277,10 +277,10 @@ export class ProductService {
 
       // Transform to add legacy compatibility fields
       const result = data.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
-      
+
       // Store in cache
       this.setCache(cacheKey, result);
-      
+
       return result;
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -307,9 +307,26 @@ export class ProductService {
     const campaignBadgeColor = activeDiscount?.campaign?.badge_color;
     const campaignEndsAt = activeDiscount?.campaign?.ends_at;
     const campaignSoldCount = activeDiscount?.sold_count;
+    const campaignDiscountType = activeDiscount
+      ? (activeDiscount.discount_type || activeDiscount?.campaign?.discount_type)
+      : undefined;
+    const campaignDiscountValue = activeDiscount
+      ? parseFloat(String(activeDiscount.discount_value ?? activeDiscount?.campaign?.discount_value ?? 0))
+      : undefined;
 
     // Calculate discounted price if campaign is active
-    let price = product.price;
+    // Compute base price as lowest among product and valid variants (mirrors web behavior)
+    let basePrice = product.price;
+    if (product.variants && product.variants.length > 0) {
+      const variantPrices = product.variants
+        .map((v: any) => Number(v.price))
+        .filter((vp: number) => !isNaN(vp) && vp > 0);
+      if (variantPrices.length > 0) {
+        basePrice = Math.min(basePrice, ...variantPrices);
+      }
+    }
+
+    let price = basePrice;
     let originalPrice = product.original_price;
 
     if (activeDiscount) {
@@ -318,15 +335,15 @@ export class ProductService {
       const dValue = activeDiscount.discount_value || campaign.discount_value;
 
       if (dType === 'percentage') {
-        price = product.price * (1 - (dValue / 100));
+        price = basePrice * (1 - (dValue / 100));
         if (campaign.max_discount_amount) {
           const maxD = parseFloat(String(campaign.max_discount_amount));
-          price = Math.max(price, product.price - maxD);
+          price = Math.max(price, basePrice - maxD);
         }
       } else if (dType === 'fixed_amount') {
-        price = Math.max(0, product.price - dValue);
+        price = Math.max(0, basePrice - dValue);
       }
-      originalPrice = product.price; // Set original price to the regular price before discount
+      originalPrice = basePrice; // Set original price to the base price before discount
     }
 
     // Calculate rating from reviews and sold count from query result
@@ -392,6 +409,8 @@ export class ProductService {
       campaignBadge,
       campaignBadgeColor,
       campaignEndsAt,
+      campaignDiscountValue,
+      campaignDiscountType,
     };
   }
 
@@ -494,7 +513,7 @@ export class ProductService {
         console.error(`[ProductService] Error fetching product ${id}:`, error);
         return null;
       }
-      
+
       if (!data) return null;
 
       // Fetch sold count for this product

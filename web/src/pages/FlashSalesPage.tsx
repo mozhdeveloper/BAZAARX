@@ -132,14 +132,74 @@ export default function FlashSalesPage() {
                             <p className="text-gray-500 font-medium">Check back later for exciting deals from our sellers.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-                            {products.map(product => (
-                                <ProductCard
-                                    key={product.id}
-                                    product={product}
-                                    isFlash={true}
-                                />
-                            ))}
+                        <div className="space-y-16">
+                            {(() => {
+                                // Deduplicate by product ID (a product might be in multiple campaigns)
+                                const seen = new Set();
+                                const uniqueProducts = products.filter(p => {
+                                    if (seen.has(p.id)) return false;
+                                    seen.add(p.id);
+                                    return true;
+                                });
+
+                                // Group by campaign badge
+                                const groupsMap = uniqueProducts.reduce((acc, product) => {
+                                    const badge = product.campaignBadge || 'Flash Sale';
+                                    if (!acc[badge]) {
+                                        acc[badge] = {
+                                            badge,
+                                            color: product.campaignBadgeColor || "var(--brand-primary)",
+                                            campaignName: product.campaignName || "Special Event",
+                                            seller: product.seller,
+                                            products: []
+                                        };
+                                    }
+                                    acc[badge].products.push(product);
+                                    return acc;
+                                }, {} as any);
+
+                                const groups = Object.values(groupsMap).sort((a: any, b: any) => b.products.length - a.products.length);
+
+                                return groups.map((group: any) => (
+                                    <div key={group.badge} className="group-section">
+                                        <div className="flex items-center gap-4 mb-8">
+                                            <div
+                                                className="w-1.5 h-6 rounded-full"
+                                                style={{ backgroundColor: group.color }}
+                                            />
+                                            <div className="flex flex-wrap items-center gap-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-3">
+                                                    <span
+                                                        className="text-2xl font-black uppercase tracking-tight leading-none"
+                                                        style={{ color: group.color }}
+                                                    >
+                                                        {group.campaignName}
+                                                    </span>
+                                                    {group.seller && (
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-gray-300 text-xl leading-none">|</span>
+                                                            <span className="text-gray-500 text-sm">
+                                                                {group.seller}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 h-px bg-gray-100"></div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+                                            {group.products.map((product: any) => (
+                                                <ProductCard
+                                                    key={product.id}
+                                                    product={product}
+                                                    isFlash={true}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                ));
+                            })()}
                         </div>
                     )}
                 </div>

@@ -370,7 +370,7 @@ export class DiscountService {
             price,
             seller_id,
             images:product_images (image_url, is_primary, sort_order),
-            variants:product_variants (stock),
+            variants:product_variants (stock, price),
             seller:sellers!products_seller_id_fkey (id, store_name, verified_at),
             category:categories!products_category_id_fkey (name)
           )
@@ -383,21 +383,37 @@ export class DiscountService {
       return (productDiscounts || []).map(pd => {
         const p = pd.product as any;
         const c = pd.campaign as any;
-        
-        // Calculate discounted price
-        let discountedPrice = p.price;
+
+        // Lowest price across product and all its variants (mirrors web behavior)
+        // This shows the "starting from" price on the card, same as web
+        let basePrice = Number(p.price) || 0;
+        if (p.variants && p.variants.length > 0) {
+          const variantPrices = (p.variants as any[])
+            .map((v: any) => Number(v.price))
+            .filter((vp: number) => !isNaN(vp) && vp > 0);
+          if (variantPrices.length > 0) {
+            basePrice = Math.min(basePrice, ...variantPrices);
+          }
+        }
+
+        // Calculate discounted price — NO maxDiscountAmount cap applied here
+        // (matches web formula exactly; cap is only shown as a tooltip)
         const dType = pd.discount_type || c.discount_type;
-        const dValue = pd.discount_value || c.discount_value;
+        const dValue = Number(pd.discount_value || c.discount_value);
+        let discountedPrice = basePrice;
 
         if (dType === 'percentage') {
-          discountedPrice = p.price * (1 - (dValue / 100));
-          if (c.max_discount_amount) {
-            const maxD = parseFloat(c.max_discount_amount);
-            discountedPrice = Math.max(discountedPrice, p.price - maxD);
-          }
+          discountedPrice = Math.round(basePrice * (1 - dValue / 100));
+          // Note: c.max_discount_amount is intentionally NOT applied — web doesn't apply it
         } else if (dType === 'fixed_amount') {
-          discountedPrice = Math.max(0, p.price - dValue);
+          discountedPrice = Math.max(0, basePrice - dValue);
         }
+
+        // Tooltip text for max cap (display only, not used in price math)
+        const discountBadgePercent = dType === 'percentage' ? Math.round(dValue) : undefined;
+        const discountBadgeTooltip = (dType === 'percentage' && c.max_discount_amount)
+          ? `Up to ₱${Number(c.max_discount_amount).toLocaleString()} off`
+          : undefined;
 
         // Get primary image
         const images = p.images || [];
@@ -410,7 +426,7 @@ export class DiscountService {
           id: p.id,
           name: p.name,
           price: discountedPrice,
-          originalPrice: p.price,
+          originalPrice: basePrice,
           image: primaryImg,
           images: images.map((i: any) => i.image_url),
           seller: p.seller?.store_name || 'Generic Store',
@@ -421,7 +437,12 @@ export class DiscountService {
           sold: soldCount,
           campaignBadge: c.badge_text,
           campaignBadgeColor: c.badge_color,
+          campaignName: c.name,
           campaignEndsAt: c.ends_at,
+          campaignDiscountType: dType,
+          campaignDiscountValue: discountBadgePercent,
+          discountBadgePercent,
+          discountBadgeTooltip,
         };
       });
     } catch (error) {
@@ -473,16 +494,28 @@ export class DiscountService {
         .eq('id', discount.campaign_id)
         .maybeSingle();
 
+      // Pre-compute the discounted price WITHOUT applying the max_discount_amount cap
+      // (matches web's calculateLineDiscount which never applies the cap).
+      const originalPrice = parseFloat(discount.original_price || discount.price);
+      const discountValue = parseFloat(discount.discount_value);
+      const discountType = discount.discount_type;
+      let discountedPrice = originalPrice;
+      if (discountType === 'percentage') {
+        discountedPrice = Math.round(originalPrice * (1 - discountValue / 100));
+      } else if (discountType === 'fixed_amount') {
+        discountedPrice = Math.max(0, originalPrice - discountValue);
+      }
+
       return {
         campaignId: discount.campaign_id,
         campaignName: discount.campaign_name,
-        discountType: discount.discount_type,
-        discountValue: parseFloat(discount.discount_value),
+        discountType: discountType,
+        discountValue: discountValue,
         maxDiscountAmount: campaignMeta?.max_discount_amount != null
           ? parseFloat(String(campaignMeta.max_discount_amount))
           : undefined,
-        discountedPrice: parseFloat(discount.discounted_price),
-        originalPrice: parseFloat(discount.original_price || discount.price),
+        discountedPrice: discountedPrice,
+        originalPrice: originalPrice,
         badgeText: discount.badge_text,
         badgeColor: discount.badge_color,
         endsAt: new Date(discount.ends_at)
@@ -553,15 +586,10 @@ export class DiscountService {
       rawDiscountPerUnit = activeDiscount.discountValue;
     }
 
-    if (
-      activeDiscount.discountType === 'percentage' &&
-      typeof activeDiscount.maxDiscountAmount === 'number'
-    ) {
-      rawDiscountPerUnit = Math.min(rawDiscountPerUnit, Math.max(0, activeDiscount.maxDiscountAmount));
-    }
-
+    // NOTE: maxDiscountAmount is stored on the object for tooltip display only.
+    // It is NOT applied here so that price computation matches the web exactly.
     const discountPerUnit = Math.min(normalizedUnitPrice, Math.max(0, rawDiscountPerUnit));
-    const discountedUnitPrice = Math.max(0, normalizedUnitPrice - discountPerUnit);
+    const discountedUnitPrice = Math.round(Math.max(0, normalizedUnitPrice - discountPerUnit));
     const discountTotal = discountPerUnit * normalizedQty;
 
     return {

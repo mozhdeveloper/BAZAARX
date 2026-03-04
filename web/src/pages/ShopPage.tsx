@@ -452,11 +452,17 @@ export default function ShopPage() {
             {/* Flash Sale Section — one block per active campaign */}
             {flashSaleProducts.length > 0 && (() => {
               // Group products by campaign
-              const campaignMap = new Map<string, { name: string; endsAt: string; products: any[] }>();
+              const campaignMap = new Map<string, { name: string; endsAt: string; color: string; seller?: string; products: any[] }>();
               for (const p of flashSaleProducts) {
                 const key = p.campaignId || 'default';
                 if (!campaignMap.has(key)) {
-                  campaignMap.set(key, { name: p.campaignName || 'Flash Sale', endsAt: p.campaignEndsAt || '', products: [] });
+                  campaignMap.set(key, {
+                    name: p.campaignName || 'Flash Sale',
+                    endsAt: p.campaignEndsAt || '',
+                    color: p.campaignBadgeColor || 'var(--brand-primary)',
+                    seller: p.seller,
+                    products: []
+                  });
                 }
                 campaignMap.get(key)!.products.push(p);
               }
@@ -472,15 +478,23 @@ export default function ShopPage() {
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                       <div className="flex items-center gap-4 flex-wrap">
-                        <div>
-                          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading leading-none">
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
-                              FLASH SALE
-                            </span>
-                          </h2>
-                          <p className="text-sm font-semibold text-gray-600 mt-0.5 tracking-wide">
-                            {campaign.name}
-                          </p>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2
+                              className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading leading-none"
+                              style={{ color: campaign.color }}
+                            >
+                              {campaign.name}
+                            </h2>
+                            {campaign.seller && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-300 text-xl leading-none">|</span>
+                                <span className="text-gray-500 text-sm">
+                                  {campaign.seller}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* Countdown timer using global timeLeft for earliest campaign */}

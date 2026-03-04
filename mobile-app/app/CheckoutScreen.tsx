@@ -1566,7 +1566,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </View>
 
               <Pressable
-                onPress={() => {}}
+                onPress={() => { }}
                 style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
               >
                 <View style={styles.radio}>
@@ -1585,7 +1585,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </Pressable>
 
               <Pressable
-                onPress={() => {}}
+                onPress={() => { }}
                 style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
               >
                 <View style={styles.radio}>
@@ -1605,7 +1605,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
               <View>
                 <Pressable
-                  onPress={() => {}}
+                  onPress={() => { }}
                   style={[styles.paymentOption, { opacity: 0.5, backgroundColor: '#F3F4F6' }]}
                 >
                   <View style={styles.radio}>
@@ -1785,11 +1785,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Original Price</Text>
-                    <Text style={[styles.summaryValue, { color: '#6B7280', textDecorationLine: 'line-through' }]}>₱{originalSubtotal.toLocaleString()}</Text>
+                    <Text style={[styles.summaryValue, { color: '#000000' }]}>₱{originalSubtotal.toLocaleString()}</Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Campaign Discount</Text>
-                    <Text style={[styles.summaryValue, { color: '#DC2626' }]}>-₱{campaignDiscountTotal.toLocaleString()}</Text>
+                    <Text style={[styles.summaryValue, { color: '#000000' }]}>-₱{campaignDiscountTotal.toLocaleString()}</Text>
                   </View>
                 </>
               )}

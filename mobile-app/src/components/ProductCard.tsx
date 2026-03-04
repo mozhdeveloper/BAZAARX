@@ -20,8 +20,12 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, on
 
   // Calculate discount only if both prices are valid and discount exists
   const hasDiscount = !!(originalPrice > 0 && regularPrice > 0 && originalPrice > regularPrice);
+
+  // Prefer the actual applied campaign discount value (avoids incorrect % when max_discount_amount caps the price)
   const discountPercent = hasDiscount
-    ? Math.round(((originalPrice - regularPrice) / originalPrice) * 100)
+    ? (product.campaignDiscountType === 'percentage' && (product.campaignDiscountValue || (product as any).discountBadgePercent)
+      ? Math.round(product.campaignDiscountValue ?? (product as any).discountBadgePercent)
+      : Math.round(((originalPrice - regularPrice) / originalPrice) * 100))
     : 0;
 
   return (

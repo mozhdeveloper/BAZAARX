@@ -219,13 +219,22 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         const selectedLabel2Name =
             normalizedProduct?.label2Options[selectedVariantLabel2Index]?.name;
 
+        const normalize = (val: any) => String(val ?? '').trim().toLowerCase();
+
         const matchedVariant = dbVariants.find((v: any) => {
-            const l1 = v.option_1_value ?? v.size ?? v.variantLabel1Value;
-            const l2 = v.option_2_value ?? v.color ?? v.variantLabel2Value;
-            const label1Match =
-                !selectedVariantLabel1 || !l1 || l1 === selectedVariantLabel1;
-            const label2Match =
-                !selectedLabel2Name || !l2 || l2 === selectedLabel2Name;
+            const l1 = normalize(v.option_1_value ?? v.size ?? v.variantLabel1Value);
+            const l2 = normalize(v.option_2_value ?? v.color ?? v.variantLabel2Value);
+
+            // Skip axis check only when the UI has no active selection for it.
+            // Do NOT skip when a variant row is missing the value — that was
+            // the bug: every variant matched regardless of what was clicked.
+            const label1Match = !selectedVariantLabel1
+                ? true
+                : l1 === normalize(selectedVariantLabel1);
+            const label2Match = !selectedLabel2Name
+                ? true
+                : l2 === normalize(selectedLabel2Name);
+
             return label1Match && label2Match;
         });
 
@@ -642,8 +651,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                             />
                             {(() => {
-                                const basePrice = productData.price;
-                                const originalPrice = activeCampaignDiscount ? basePrice : (productData.originalPrice || basePrice);
+                                const currentVariant = getSelectedVariant();
+                                const basePrice = currentVariant?.price ?? productData.price;
+                                const originalPrice = activeCampaignDiscount ? basePrice : (productData.originalPrice && productData.originalPrice > basePrice ? productData.originalPrice : basePrice);
                                 const discountedPrice = getCampaignAdjustedPrice(basePrice);
                                 if (originalPrice <= discountedPrice) return null;
                                 const percentOff = activeCampaignDiscount?.discountType === 'percentage'
@@ -768,7 +778,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 <div className="flex items-center gap-4">
                                     {(() => {
                                         const currentVariant = getSelectedVariant();
-                                        const basePrice = currentVariant?.price || productData.originalPrice || productData.price;
+                                        // Use the selected variant's raw price if available, else product default
+                                        const basePrice = currentVariant?.price ?? productData.price;
                                         const discountedPrice = getCampaignAdjustedPrice(basePrice);
                                         const originalPrice = activeCampaignDiscount
                                             ? basePrice
