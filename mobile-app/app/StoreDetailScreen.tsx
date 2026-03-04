@@ -123,27 +123,29 @@ export default function StoreDetailScreen() {
                     // Map database products to display format
                     const mappedProducts = products.map(p => {
                         // Get primary image or first image
-                        const primaryImage = (p as any).images?.find((img: any) => img.is_primary)?.image_url 
-                            || (p as any).images?.[0]?.image_url 
-                            || (p as any).images?.[0] 
+                        const primaryImage = (p as any).images?.find((img: any) => img.is_primary)?.image_url
+                            || (p as any).images?.[0]?.image_url
+                            || (p as any).images?.[0]
                             || 'https://placehold.co/400?text=Product';
-                        
+
                         // Get category name from join
-                        const categoryName = typeof (p as any).category === 'object' 
-                            ? (p as any).category?.name 
+                        const categoryName = typeof (p as any).category === 'object'
+                            ? (p as any).category?.name
                             : ((p as any).category || 'General');
-                        
+
                         return {
                             id: p.id,
                             name: p.name,
                             price: p.price,
-                            originalPrice: (p as any).original_price || p.price,
+                            originalPrice: (p as any).originalPrice || (p as any).original_price || p.price,
+                            campaignDiscountType: (p as any).campaignDiscountType,
+                            campaignDiscountValue: (p as any).campaignDiscountValue,
                             image: primaryImage,
                             rating: (p as any).rating || 5.0,
-                            sold: (p as any).sales_count || 0,
+                            sold: (p as any).sold || (p as any).sales_count || 0,
                             category: categoryName,
-                            seller_id: (p as any).seller_id, // snake_case for DB compat
-                            sellerId: (p as any).seller_id,  // camelCase alias
+                            seller_id: (p as any).seller_id,
+                            sellerId: (p as any).seller_id,
                             seller: storeData.name,
                             sellerName: storeData.name,
                             sellerLocation: storeData.location

@@ -4,6 +4,7 @@
  * Supports 3 resolution paths, counter-offers, escalation, and return shipping.
  */
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { notificationService } from "./notificationService";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -377,6 +378,46 @@ class ReturnService {
         changed_by_role: isInstant ? "system" : "buyer",
       });
 
+      // Notify the seller(s) of the return request (non-blocking)
+      if (!isInstant) {
+        try {
+          const { data: orderDetails } = await supabase
+            .from("orders")
+            .select(`
+              buyer:buyer_id(profiles:id(first_name, last_name)),
+              order_items(product:products(seller_id))
+            `)
+            .eq("id", orderDbId)
+            .single();
+
+          const sellerIds = [
+            ...new Set(
+              ((orderDetails as any)?.order_items || [])
+                .map((item: any) => item.product?.seller_id)
+                .filter(Boolean) as string[]
+            ),
+          ];
+
+          const buyerProfile = (orderDetails as any)?.buyer?.profiles;
+          const buyerName = buyerProfile
+            ? `${buyerProfile.first_name || ""} ${buyerProfile.last_name || ""}`.trim() || "A buyer"
+            : "A buyer";
+
+          for (const sellerId of sellerIds) {
+            await notificationService.notifySellerReturnRequest({
+              sellerId,
+              buyerName,
+              orderId: orderDbId,
+              returnId: returnData.id,
+              orderNumber: (orderDetails as any)?.order_number ?? "N/A",
+              reason: params.reason,
+            });
+          }
+        } catch (err) {
+          console.warn("[ReturnService] Failed to send return notification:", err);
+        }
+      }
+
       return this.transform(returnData);
     } catch (error: any) {
       console.error("Failed to submit return request:", error);
@@ -459,7 +500,7 @@ class ReturnService {
 
       if (error) throw error;
 
-      return (data || [])
+      const mapped = (data || [])
         .filter((row: any) => {
           const items = row.order?.order_items || [];
           return items.some((item: any) => item.product?.seller_id === sellerId);
@@ -488,6 +529,15 @@ class ReturnService {
 
           return req;
         });
+
+      // Deduplicate: order_items!inner join produces one row per item,
+      // so the same return can appear multiple times when an order has multiple items
+      const seen = new Set<string>();
+      return mapped.filter((req) => {
+        if (seen.has(req.id)) return false;
+        seen.add(req.id);
+        return true;
+      });
     } catch (error) {
       console.error("Failed to get seller return requests:", error);
       return [];
@@ -524,6 +574,9 @@ class ReturnService {
         note: "Return approved and refund processed",
         changed_by_role: "seller",
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(orderId, "approved");
     } catch (error: any) {
       console.error("Failed to approve return:", error);
       throw new Error(error.message || "Failed to approve return");
@@ -551,7 +604,7 @@ class ReturnService {
 
       await supabase
         .from("orders")
-        .update({ shipment_status: "delivered", updated_at: new Date().toISOString() })
+        .update({ shipment_status: "received", updated_at: new Date().toISOString() })
         .eq("id", orderId);
 
       await supabase.from("order_status_history").insert({
@@ -560,6 +613,9 @@ class ReturnService {
         note: reason || "Return request rejected by seller",
         changed_by_role: "seller",
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(orderId, "rejected", reason);
     } catch (error: any) {
       console.error("Failed to reject return:", error);
       throw new Error(error.message || "Failed to reject return");
@@ -581,6 +637,25 @@ class ReturnService {
       })
       .eq("id", returnId);
     if (error) throw new Error(error.message || "Failed to send counter offer");
+
+    // Notifications
+    const { data: ret } = await supabase
+      .from("refund_return_periods")
+      .select("order_id")
+      .eq("id", returnId)
+      .single();
+
+    if (ret?.order_id) {
+      await supabase.from("order_status_history").insert({
+        order_id: ret.order_id,
+        status: "counter_offer_sent",
+        note: `Counter-offer: ₱${amount.toLocaleString()} — ${note}`,
+        changed_by_role: "seller",
+      });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, "counter_offered");
+    }
   }
 
   // ============================================================================
@@ -723,6 +798,34 @@ class ReturnService {
         note: "Return received, refund processed",
         changed_by_role: "seller",
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, "refunded");
+    }
+  }
+
+  /**
+   * Helper to notify buyer of return status update
+   */
+  private async notifyBuyerOfReturnUpdate(orderId: string, status: any, message?: string) {
+    try {
+      const { data: order } = await supabase
+        .from("orders")
+        .select("order_number, buyer_id")
+        .eq("id", orderId)
+        .single();
+
+      if (order?.buyer_id) {
+        await notificationService.notifyBuyerReturnStatus({
+          buyerId: order.buyer_id,
+          orderId,
+          orderNumber: order.order_number,
+          status,
+          message
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to notify buyer of return update:", err);
     }
   }
 

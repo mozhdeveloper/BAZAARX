@@ -11,6 +11,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { categoryService } from './categoryService';
 import type { Product, ProductWithSeller, ProductImage, ProductVariant, Category, Database } from '@/types/database.types';
 
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
@@ -18,7 +19,7 @@ type ProductUpdate = Database['public']['Tables']['products']['Update'];
 
 export class ProductService {
   private static instance: ProductService;
-  
+
   // Query result cache with TTL
   private queryCache = new Map<string, { data: any[]; timestamp: number }>();
   private readonly CACHE_TTL = 60000; // 1 minute
@@ -74,31 +75,20 @@ export class ProductService {
 
     if (!categoryId) {
       const categoryName = payload.category || payload.category_name;
-      if (typeof categoryName === 'string' && categoryName.trim().length > 0) {
-        categoryId = await this.getOrCreateCategoryByName(categoryName);
+      if (typeof categoryName === 'string') {
+        categoryId = await categoryService.getOrCreateCategoryByName(categoryName);
       }
     }
 
     if (!categoryId) {
-      const { data: defaultCategory, error } = await supabase
-        .from('categories')
-        .select('id')
-        .order('sort_order', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      categoryId = defaultCategory?.id || null;
+      categoryId = await categoryService.getDefaultCategoryId();
     }
 
     if (!categoryId) {
       throw new Error('Category is required and could not be resolved.');
     }
 
-    const { category, category_name, ...rest } = payload as ProductInsert & {
-      category?: string;
-      category_name?: string;
-    };
+    const { category, category_name, ...rest } = payload;
 
     return {
       ...rest,
@@ -139,74 +129,24 @@ export class ProductService {
         .select(`
           *,
           category:categories!products_category_id_fkey (
-            id,
-            name,
-            slug,
-            parent_id
+            id, name, slug, parent_id, is_active
           ),
-          images:product_images (
-            id,
-            image_url,
-            alt_text,
-            sort_order,
-            is_primary
-          ),
-          variants:product_variants (
-            id,
-            sku,
-            barcode,
-            variant_name,
-            size,
-            color,
-            option_1_value,
-            option_2_value,
-            price,
-            stock,
-            thumbnail_url
-          ),
-          reviews (
-            id,
-            rating
-          ),
-          seller:sellers!products_seller_id_fkey (
-            id,
-            store_name,
-            store_description,
-            avatar_url,
-            owner_name,
-            approval_status,
-            verified_at,
-            business_profile:seller_business_profiles (
-              business_type,
-              city,
-              province
-            )
-          ),
-          product_discounts (
-            id,
-            discount_type,
-            discount_value,
-            sold_count,
-            campaign:discount_campaigns (
-              id,
-              badge_text,
-              badge_color,
-              discount_type,
-              discount_value,
-              max_discount_amount,
-              ends_at,
-              status,
-              starts_at
-            )
-          )
+          images:product_images (*),
+          variants:product_variants (*),
+          reviews (id, rating),
+          seller:sellers!products_seller_id_fkey (*, business_profile:seller_business_profiles (*)),
+          product_discounts (*, campaign:discount_campaigns (*))
         `)
-        .is('deleted_at', null)  // Only non-deleted products
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       // Apply filters
       if (filters?.categoryId) {
         query = query.eq('category_id', filters.categoryId);
       }
+
+      query = query.eq('category.is_active', true);
+
       // Legacy category string support - lookup by name
       if (filters?.category && !filters?.categoryId) {
         // For now, filter on the joined category name
@@ -256,13 +196,12 @@ export class ProductService {
       // Fetch sold counts for all products in a single query
       // Count only COMPLETED orders (paid + delivered)
       const productIds = data.map(p => p.id);
-      
+
       const { data: soldCountsData, error: soldCountsError } = await supabase
         .from('order_items')
         .select('product_id, quantity, order:orders!inner(payment_status, shipment_status, order_type)')
         .in('product_id', productIds)
-        .eq('order.payment_status', 'paid')
-        .in('order.shipment_status', ['delivered', 'received']);
+        .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
 
       if (soldCountsError) {
         console.error('[ProductService] Error fetching sold counts:', soldCountsError);
@@ -276,11 +215,11 @@ export class ProductService {
       });
 
       // Transform to add legacy compatibility fields
-      const result = data.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
-      
+      const result = data?.map(p => this.transformProduct(p, 0)) || [];
+
       // Store in cache
       this.setCache(cacheKey, result);
-      
+
       return result;
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -307,9 +246,26 @@ export class ProductService {
     const campaignBadgeColor = activeDiscount?.campaign?.badge_color;
     const campaignEndsAt = activeDiscount?.campaign?.ends_at;
     const campaignSoldCount = activeDiscount?.sold_count;
+    const campaignDiscountType = activeDiscount
+      ? (activeDiscount.discount_type || activeDiscount?.campaign?.discount_type)
+      : undefined;
+    const campaignDiscountValue = activeDiscount
+      ? parseFloat(String(activeDiscount.discount_value ?? activeDiscount?.campaign?.discount_value ?? 0))
+      : undefined;
 
     // Calculate discounted price if campaign is active
-    let price = product.price;
+    // Compute base price as lowest among product and valid variants (mirrors web behavior)
+    let basePrice = product.price;
+    if (product.variants && product.variants.length > 0) {
+      const variantPrices = product.variants
+        .map((v: any) => Number(v.price))
+        .filter((vp: number) => !isNaN(vp) && vp > 0);
+      if (variantPrices.length > 0) {
+        basePrice = Math.min(basePrice, ...variantPrices);
+      }
+    }
+
+    let price = basePrice;
     let originalPrice = product.original_price;
 
     if (activeDiscount) {
@@ -318,15 +274,15 @@ export class ProductService {
       const dValue = activeDiscount.discount_value || campaign.discount_value;
 
       if (dType === 'percentage') {
-        price = product.price * (1 - (dValue / 100));
+        price = basePrice * (1 - (dValue / 100));
         if (campaign.max_discount_amount) {
           const maxD = parseFloat(String(campaign.max_discount_amount));
-          price = Math.max(price, product.price - maxD);
+          price = Math.max(price, basePrice - maxD);
         }
       } else if (dType === 'fixed_amount') {
-        price = Math.max(0, product.price - dValue);
+        price = Math.max(0, basePrice - dValue);
       }
-      originalPrice = product.price; // Set original price to the regular price before discount
+      originalPrice = basePrice; // Set original price to the base price before discount
     }
 
     // Calculate rating from reviews and sold count from query result
@@ -392,6 +348,8 @@ export class ProductService {
       campaignBadge,
       campaignBadgeColor,
       campaignEndsAt,
+      campaignDiscountValue,
+      campaignDiscountType,
     };
   }
 
@@ -494,7 +452,7 @@ export class ProductService {
         console.error(`[ProductService] Error fetching product ${id}:`, error);
         return null;
       }
-      
+
       if (!data) return null;
 
       // Fetch sold count for this product
@@ -502,8 +460,7 @@ export class ProductService {
         .from('order_items')
         .select('quantity, order:orders!inner(payment_status, shipment_status)')
         .eq('product_id', id)
-        .eq('order.payment_status', 'paid')
-        .in('order.shipment_status', ['delivered', 'received']);
+        .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
 
       const soldCount = soldCountsData?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
 

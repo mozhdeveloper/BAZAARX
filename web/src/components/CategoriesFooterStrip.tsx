@@ -1,10 +1,39 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { categories } from '../data/collections';
+import { categoryService } from '../services/categoryService'; // Adjust path as needed
+import type { Category } from '@/types/database.types';
+
+// Adding a local interface to handle the count if your DB returns it
+interface CategoryWithCount extends Category {
+  product_count?: number;
+}
 
 const CategoriesFooterStrip: React.FC = () => {
   const navigate = useNavigate();
+  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setIsLoading(true);
+        // Using getActiveCategories for the public-facing footer
+        const data = await categoryService.getActiveCategories();
+        setCategories(data);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  if (isLoading || categories.length === 0) {
+    return null; // Or a skeleton loader
+  }
 
   return (
     <section className="py-18 lg:py-20 bg-transparent overflow-hidden pb-0">
@@ -27,9 +56,11 @@ const CategoriesFooterStrip: React.FC = () => {
 
         <div className="relative h-[400px] flex items-center justify-center">
           {categories.slice(0, 10).map((category, index) => {
+            // Adjust math slightly based on actual returned length to keep it centered
+            const centerOffset = (categories.slice(0, 10).length - 1) / 2;
             const zIndexValue = categories.length - index;
-            const xOffset = (index - 4.5) * 120;
-            const rotation = (index - 4.5) * 4;
+            const xOffset = (index - centerOffset) * 120;
+            const rotation = (index - centerOffset) * 4;
 
             return (
               <motion.div
@@ -59,17 +90,18 @@ const CategoriesFooterStrip: React.FC = () => {
                 className="absolute w-56 h-72 bg-white rounded-[2rem] shadow-2xl overflow-hidden border-[6px] border-white cursor-pointer group"
               >
                 <img
-                  src={category.icon}
+                  src={category.image_url || category.icon || '/placeholder-category.jpg'}
                   alt={category.name}
                   className="w-full h-full object-cover grayscale-[0.1] group-hover:grayscale-0 transition-all duration-500"
                 />
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                   <p className="text-white font-bold text-xl mb-1">{category.name}</p>
-                  <p className="text-white/70 text-sm">{category.count} Items</p>
+                  {/* Showing count only if it exists in your DB schema */}
+                  {category.product_count !== undefined && (
+                    <p className="text-white/70 text-sm">{category.product_count} Items</p>
+                  )}
                 </div>
-
-
               </motion.div>
             );
           })}

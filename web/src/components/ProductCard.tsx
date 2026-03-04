@@ -98,9 +98,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
             </span>
           </div>
 
-          <div className="min-h-[50px]">
+          <div>
             {hasDiscount && isFlash ? (
-              <div className="mb-2">
+              <div>
                 <div className="w-full h-[6px] bg-[#FEE2E2] rounded-full mb-1.5 border border-[#FCA5A5]/30 overflow-hidden">
                   <div
                     className="h-full bg-[#DC2626] rounded-full"
@@ -127,22 +127,24 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
           </div>
         </div>
 
-        <div className="pt-4 border-t border-[var(--brand-accent-light)]/50">
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
-              {product.seller || "BazaarX Store"}
-            </p>
-            {isPremiumOutlet && (
-              <div className="flex items-center gap-0.5 bg-purple-100 px-1.5 py-0.5 rounded-full">
-                <Star className="w-3 h-3 text-purple-600 fill-purple-600" />
-                <span className="text-[9px] font-bold text-purple-700 uppercase">Premium</span>
-              </div>
-            )}
-            {product.sellerVerified && (
-              <BadgeCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            )}
+        {!isFlash && (
+          <div className="pt-4 border-t border-[var(--brand-accent-light)]/50">
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
+                {product.seller || "BazaarX Store"}
+              </p>
+              {isPremiumOutlet && (
+                <div className="flex items-center gap-0.5 bg-purple-100 px-1.5 py-0.5 rounded-full">
+                  <Star className="w-3 h-3 text-purple-600 fill-purple-600" />
+                  <span className="text-[9px] font-bold text-purple-700 uppercase">Premium</span>
+                </div>
+              )}
+              {product.sellerVerified && (
+                <BadgeCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </motion.div>
   );

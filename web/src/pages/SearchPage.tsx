@@ -39,6 +39,7 @@ import { CartModal } from "../components/ui/cart-modal";
 import ShopBuyNowModal from "../components/shop/ShopBuyNowModal";
 import ShopVariantModal from "../components/shop/ShopVariantModal";
 import { sellerService } from '../services/sellerService';
+import { categoryService } from '../services/categoryService';
 
 interface SearchProduct {
   id: string;
@@ -60,6 +61,10 @@ interface SearchProduct {
   variantLabel2Values?: any[];
   stock?: number;
   sellerId?: string;
+  campaignBadge?: string;
+  campaignBadgeColor?: string;
+  discountBadgePercent?: number;
+  discountBadgeTooltip?: string;
 }
 
 
@@ -160,6 +165,16 @@ const SearchPage: React.FC = () => {
   const [variantProduct, setVariantProduct] = useState<any>(null);
   const [isBuyNowAction, setIsBuyNowAction] = useState(false);
   const { toast } = useToast();
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+
+  // NEW: Fetch categories on mount
+  useEffect(() => {
+    categoryService.getActiveCategories()
+      .then(data => {
+        if (data) setCategories(data);
+      })
+      .catch(err => console.error('Failed to fetch categories:', err));
+  }, []);
 
   // Fetch products on mount
   useEffect(() => {
@@ -177,26 +192,22 @@ const SearchPage: React.FC = () => {
     };
   }, [fetchProducts, subscribeToProducts]);
 
-  // Derived Data for Filters
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    const categories = ['Electronics', 'Fashion', 'Home & Living', 'Beauty', 'Food & Beverages', 'Sports & Outdoors', 'Books & Media', 'Automotive', 'Toys & Games', 'Crafts & Handmade'];
+    const categoryNames = categories.map(c => c.name);
 
-    categories.forEach(cat => counts[cat] = 0);
+    // Initialize only active categories
+    categoryNames.forEach(cat => counts[cat] = 0);
 
     sellerProducts.forEach(p => {
-      const cat = p.category || 'General';
-      // Simple matching for demo; in real app, might need exact match or ID match
-      const matchedCat = categories.find(c => cat.includes(c) || c.includes(cat));
-      if (matchedCat) {
-        counts[matchedCat] = (counts[matchedCat] || 0) + 1;
-      } else {
-        // Fallback or ignore
+      // Check if the product's category is in our active list
+      if (categoryNames.includes(p.category)) {
+        counts[p.category] = (counts[p.category] || 0) + 1;
       }
     });
 
     return counts;
-  }, [sellerProducts]);
+  }, [sellerProducts, categories]);
 
   const brandCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -240,25 +251,33 @@ const SearchPage: React.FC = () => {
         );
       }
 
-      const mappedResults = results.map(p => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        originalPrice: p.originalPrice,
-        image: (p.images && p.images.length > 0) ? p.images[0] : 'https://via.placeholder.com/400',
-        rating: p.rating || 4.5,
-        sold: p.sales || 0,
-        seller: p.sellerName || 'BazaarX Seller',
-        isFreeShipping: false,
-        isVerified: true,
-        location: p.sellerLocation || 'Metro Manila',
-        category: p.category || 'General',
-        sellerId: p.sellerId,
-        variants: p.variants || [],
-        variantLabel1Values: p.variantLabel1Values || [],
-        variantLabel2Values: p.variantLabel2Values || [],
-        stock: p.stock || 0
-      }));
+      const mappedResults = results.map(p => {
+        const product = p as any;
+        return {
+          ...product,
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          originalPrice: p.originalPrice,
+          image: (p.images && p.images.length > 0) ? (typeof p.images[0] === 'string' ? p.images[0] : (p.images[0] as any).image_url) : 'https://via.placeholder.com/400',
+          rating: p.rating || 4.5,
+          sold: p.sales || 0,
+          seller: p.sellerName || 'BazaarX Seller',
+          isFreeShipping: product.isFreeShipping || product.is_free_shipping || false,
+          isVerified: product.isVerified || p.approvalStatus === "approved",
+          location: p.sellerLocation || 'Metro Manila',
+          category: p.category || 'General',
+          sellerId: p.sellerId,
+          variants: p.variants || [],
+          variantLabel1Values: p.variantLabel1Values || [],
+          variantLabel2Values: p.variantLabel2Values || [],
+          stock: p.stock || 0,
+          campaignBadge: product.campaignBadge,
+          campaignBadgeColor: product.campaignBadgeColor,
+          discountBadgePercent: product.discountBadgePercent,
+          discountBadgeTooltip: product.discountBadgeTooltip,
+        };
+      });
 
       setSearchResults(mappedResults);
       setIsSearching(false);
@@ -294,7 +313,6 @@ const SearchPage: React.FC = () => {
     return 0; // relevance
   });
 
-  const categories = ['Electronics', 'Fashion', 'Home & Living', 'Food & Beverages', 'Sports & Outdoors', 'Books & Media', 'Automotive', 'Beauty', 'Toys & Games', 'Crafts & Handmade'];
   const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
   const colors = [
     { name: 'Pink', hex: '#F9A8D4' },
@@ -383,17 +401,19 @@ const SearchPage: React.FC = () => {
                     className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === 'All' ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                   >
                     <span className={`text-sm ${selectedCategory === 'All' ? 'font-bold' : 'font-medium'}`}>All Product</span>
-                    <span className="text-xs font-semibold">{sellerProducts.length}</span>
+                    <span className="text-xs font-semibold">
+                      {Object.values(categoryCounts).reduce((a, b) => a + b, 0)}
+                    </span>
                   </button>
                   {categories.map(cat => (
                     <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === cat ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.name)}
+                      className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === cat.name ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                     >
-                      <span className="text-sm font-medium">{cat}</span>
-                      <span className={`text-xs ${selectedCategory === cat ? 'font-semibold text-[var(--brand-primary)]' : 'font-normal text-[var(--text-muted)] group-hover:text-[var(--text-primary)]'}`}>
-                        {categoryCounts[cat] || 0}
+                      <span className="text-sm font-medium">{cat.name}</span>
+                      <span className={`text-xs ${selectedCategory === cat.name ? 'font-semibold text-[var(--brand-primary)]' : 'font-normal text-[var(--text-muted)] group-hover:text-[var(--text-primary)]'}`}>
+                        {categoryCounts[cat.name] || 0}
                       </span>
                     </button>
                   ))}
@@ -655,78 +675,90 @@ const SearchPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   onClick={() => navigate(`/product/${product.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      navigate(`/product/${product.id}`);
+                    }
+                  }}
                   className="product-card-premium product-card-premium-interactive h-full flex flex-col group cursor-pointer border-0 rounded-2xl overflow-hidden"
                 >
-                  <div className="relative aspect-square overflow-hidden bg-[#FFF6E5]">
+                  <div className="relative aspect-square overflow-hidden bg-white/50">
                     <img
                       src={product.image}
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
+                      }}
                     />
-                    {product.originalPrice && product.originalPrice > product.price && (
+                    {product.originalPrice && (
                       <div
+                        title={product.discountBadgeTooltip}
                         className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm"
                       >
-                        {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
+                        {typeof product.discountBadgePercent === "number"
+                          ? product.discountBadgePercent
+                          : Math.round(
+                            ((product.originalPrice - product.price) /
+                              product.originalPrice) *
+                            100
+                          )}% OFF
+                      </div>
+                    )}
+                    {product.isFreeShipping && (
+                      <div className="absolute top-3 right-3 bg-[var(--color-success)] text-white p-1.5 rounded-lg shadow-sm">
+                        <Truck className="w-3 h-3" />
                       </div>
                     )}
                   </div>
 
-                  <div className="p-4 flex flex-col justify-between flex-1">
-                    <div>
-                      <h3 className="product-title-premium text-[15px] font-bold mb-1.5 line-clamp-2 text-[#1f2937]">
-                        {product.name}
-                      </h3>
+                  <div className="p-3 flex-1 flex flex-col">
+                    <h3 className="font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors duration-200 line-clamp-2 h-[40px] text-sm leading-tight">
+                      {product.name}
+                    </h3>
 
-                      <div className="flex items-center mb-4">
-                        <div className="flex text-[#F59E0B] text-[11px] mr-1.5">
-                          {[...Array(5)].map((_, i) => (
-                            <span
-                              key={i}
-                              className={
-                                i < Math.floor(product.rating || 5)
-                                  ? "fill-current"
-                                  : "text-gray-300"
-                              }
-                            >
-                              ★
-                            </span>
-                          ))}
-                        </div>
-                        <span className="text-[12px] text-gray-500 font-medium">
-                          ({product.rating || 5.0})
+                    <div className="mt-1 flex items-center gap-1.5 flex-wrap h-[20px]">
+                      <div className="flex items-center">
+                        <Star className="w-3.5 h-3.5 text-yellow-500 fill-current" />
+                        <span className="text-xs text-[var(--text-muted)] font-medium ml-1">
+                          {product.rating} ({(((product as any).lifetimeSold !== undefined ? (product as any).lifetimeSold : product.sold) || 0).toLocaleString()})
                         </span>
                       </div>
+                      {product.isVerified && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] py-0 px-1.5 gap-1 border-[var(--color-success)]/20 bg-[var(--color-success)]/5 text-[var(--color-success)]"
+                        >
+                          <BadgeCheck className="w-2.5 h-2.5" />
+                          Verified
+                        </Badge>
+                      )}
+                    </div>
 
-                      <div className="flex items-baseline gap-2 mb-2">
-                        <span className={product.originalPrice && product.originalPrice > product.price ? "text-[22px] font-black text-[#DC2626] leading-none" : "text-[22px] font-black text-[#D97706] leading-none"}>
-                          ₱{product.price.toLocaleString()}
-                        </span>
-                        {product.originalPrice && product.originalPrice > product.price && (
-                          <span className="text-[14px] text-gray-400 line-through font-medium leading-none">
+                    <div className="mt-2 mb-2">
+                      <div className="flex flex-col justify-end min-h-[48px] mb-2">
+                        {product.originalPrice && (
+                          <span className="text-[11px] sm:text-[13px] text-gray-400 line-through font-medium leading-none mb-[3px]">
                             ₱{product.originalPrice.toLocaleString()}
                           </span>
                         )}
+                        <span className={product.originalPrice ? "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#DC2626] leading-none" : "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#D97706] leading-none"}>
+                          ₱{product.price.toLocaleString()}
+                        </span>
                       </div>
 
-                      <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-4">
-                        {(product.sold || 0).toLocaleString()} sold
+                      <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-1 mt-1 h-[14px]">
+                        {(((product as any).lifetimeSold !== undefined ? (product as any).lifetimeSold : product.sold) || 0).toLocaleString()} sold
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-[var(--brand-accent-light)]/50 pb-2">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <p className="text-xs text-[var(--text-primary)] font-semibold truncate flex-1">
-                          {product.seller || "BazaarX Store"}
-                        </p>
-                        {product.isVerified && (
-                          <BadgeCheck className="w-4 h-4 text-[#16A34A] flex-shrink-0" />
-                        )}
-                      </div>
-                      <div className="flex items-center text-[10px] text-gray-500">
-                        <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
-                        <span className="line-clamp-1">{product.location}</span>
-                      </div>
+                    <div className="mt-1.5 text-[11px] text-[var(--text-muted)] font-medium min-h-[2rem] flex items-center">
+                      <MapPin className="w-2.5 h-2.5 mr-1 flex-shrink-0 text-[var(--brand-primary)]" />
+                      <span className="line-clamp-1">{product.location}</span>
+                    </div>
+
+                    <div className="mt-1">
+                      <p className="text-[10px] text-[var(--text-muted)] font-semibold">{product.seller}</p>
                     </div>
 
                     <div className="mt-auto pt-3 flex gap-1.5">
@@ -734,11 +766,16 @@ const SearchPage: React.FC = () => {
                         onClick={(e) => {
                           e.stopPropagation();
                           if (!profile) {
-                            toast({ title: "Login Required", description: "Please sign in.", variant: "destructive" });
+                            toast({
+                              title: "Login Required",
+                              description: "Please sign in to add items to your cart.",
+                              variant: "destructive",
+                            });
                             navigate("/login");
                             return;
                           }
-                          const hasVariants = product.variants && product.variants.length > 0;
+
+                          const hasVariants = (product as any).variants && (product as any).variants.length > 0;
                           const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
                           const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
 
@@ -748,25 +785,37 @@ const SearchPage: React.FC = () => {
                             setShowVariantModal(true);
                             return;
                           }
+
                           addToCart(product as any);
-                          setAddedProduct({ name: product.name, image: product.image });
+                          setAddedProduct({
+                            name: product.name,
+                            image: product.image,
+                          });
                           setShowCartModal(true);
                         }}
                         variant="outline"
                         size="icon"
                         className="flex-shrink-0 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg transition-all active:scale-95 h-8 w-8 p-0"
+                        title="Add to Cart"
+                        aria-label={`Add ${product.name} to cart`}
                       >
                         <ShoppingCart className="w-4 h-4" />
                       </Button>
+
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
                           if (!profile) {
-                            toast({ title: "Login Required", description: "Please sign in.", variant: "destructive" });
+                            toast({
+                              title: "Login Required",
+                              description: "Please sign in to make a purchase.",
+                              variant: "destructive",
+                            });
                             navigate("/login");
                             return;
                           }
-                          const hasVariants = product.variants && product.variants.length > 0;
+
+                          const hasVariants = (product as any).variants && (product as any).variants.length > 0;
                           const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
                           const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
 
@@ -781,15 +830,16 @@ const SearchPage: React.FC = () => {
                               selectedVariant: null,
                               selectedVariantLabel1: null,
                               selectedVariantLabel2: null,
-                              variants: product.variants || [],
-                              variantLabel2Values: product.variantLabel2Values || [],
-                              variantLabel1Values: product.variantLabel1Values || [],
+                              variants: (product as any).variants || [],
+                              variantLabel2Values: (product as any).variantLabel2Values || [],
+                              variantLabel1Values: (product as any).variantLabel1Values || [],
                               stock: product.stock || 99,
                             } as any);
                             setShowBuyNowModal(true);
                           }
                         }}
                         className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-lg transition-all active:scale-95 h-8 text-xs font-bold"
+                        aria-label={`Buy ${product.name} now`}
                       >
                         Buy Now
                       </Button>

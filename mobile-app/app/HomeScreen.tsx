@@ -47,6 +47,8 @@ import { COLORS } from '../src/constants/theme';
 import { discountService } from '../src/services/discountService';
 import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
 import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
+import { categoryService } from '../src/services/categoryService';
+import type { Category } from '../src/types/database.types';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -55,38 +57,39 @@ type Props = CompositeScreenProps<
 
 const { width } = Dimensions.get('window');
 
-const categories: { id: string; name: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
-  { id: 'fashion', name: 'Fashion', icon: 'tshirt-crew' },
-  { id: 'electronics', name: 'Electronics', icon: 'cellphone' },
-  { id: 'beauty', name: 'Health &\nBeauty', icon: 'bottle-tonic-plus' },
-  { id: 'home-garden', name: 'Home &\nLiving', icon: 'sofa' },
-  { id: 'sports', name: 'Sports', icon: 'dumbbell' },
-  { id: 'toys', name: 'Toys &\nGames', icon: 'duck' },
-  { id: 'groceries', name: 'Groceries', icon: 'food-apple' },
-  { id: 'watches', name: 'Watches', icon: 'watch' },
-  { id: 'automotive', name: 'Automotive', icon: 'car' },
-  { id: 'books', name: 'Books', icon: 'book-open-variant' },
-];
-
 const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5; // 5 columns, 20px padding each side, 10px gaps
 
-const CategoryItem = React.memo(({ label, iconName }: { label: string; iconName: keyof typeof MaterialCommunityIcons.glyphMap }) => (
-  <View style={styles.categoryItm}>
-    <View style={[styles.categoryIconBox, { 
-      backgroundColor: '#FFFBF5', // Lighter Parchment
-      shadowColor: COLORS.primary, // Amber Glow
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 6,
-      elevation: 5,
-      borderWidth: 1,
-      borderColor: '#FFE0A3' // Soft Gold
-    }]}>
-      <MaterialCommunityIcons name={iconName} size={28} color={COLORS.primary} />
+const CategoryItem = React.memo(({ label, iconValue }: { label: string; iconValue: string | null }) => {
+  // If it only contains lowercase letters, numbers, and hyphens, it's likely a MaterialCommunityIcon name
+  const isIconName = iconValue ? /^[a-z0-9-]+$/.test(iconValue) : false;
+  const displayValue = iconValue || 'tag';
+
+  return (
+    <View style={styles.categoryItm}>
+      <View style={[styles.categoryIconBox, {
+        backgroundColor: '#FFFBF5', // Lighter Parchment
+        shadowColor: COLORS.primary, // Amber Glow
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 5,
+        borderWidth: 1,
+        borderColor: '#FFE0A3' // Soft Gold
+      }]}>
+        {isIconName ? (
+          <MaterialCommunityIcons
+            name={displayValue as keyof typeof MaterialCommunityIcons.glyphMap}
+            size={28}
+            color={COLORS.primary}
+          />
+        ) : (
+          <Text style={{ fontSize: 22 }}>{displayValue}</Text>
+        )}
+      </View>
+      <Text style={styles.categoryLabel}>{label}</Text>
     </View>
-    <Text style={styles.categoryLabel}>{label}</Text>
-  </View>
-));
+  );
+});
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -124,6 +127,8 @@ export default function HomeScreen({ navigation }: Props) {
   const scrollAnchor = useRef(0);
   const [showLocationRow, setShowLocationRow] = useState(true);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  const [dbCategories, setDbCategories] = useState<Category[]>([]); //
 
   // Debounce search input to avoid re-filtering on every keystroke
   useEffect(() => {
@@ -191,13 +196,18 @@ export default function HomeScreen({ navigation }: Props) {
       setIsLoadingProducts(true);
       setFetchError(null);
 
-      const [productsResult, flashResult, featuredResult, boostedResult, sellersResult] = await Promise.allSettled([
+      const [productsResult, flashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = await Promise.allSettled([
         productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
         discountService.getFlashSaleProducts(),
         featuredProductService.getFeaturedProducts(10),
         adBoostService.getActiveBoostedProducts('featured', 10),
         sellerService.getAllSellers(),
+        categoryService.getActiveCategories(), // Add this call
       ]);
+
+      if (categoriesResult.status === 'fulfilled') {
+        setDbCategories(categoriesResult.value || []); //
+      }
 
       // Products
       if (productsResult.status === 'fulfilled') {
@@ -420,15 +430,17 @@ export default function HomeScreen({ navigation }: Props) {
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
       const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-      allItems.push({ key: `boost-${bp.id}`, mapped: {
-        id: product.id, name: product.name, price: product.price,
-        originalPrice: (product as any).original_price, original_price: (product as any).original_price,
-        primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
-        images: product.images?.map((img: any) => img.image_url) || [],
-        category: product.category?.name, seller: product.seller,
-        rating: avgRating, review_count: reviews.length, stock: totalStock,
-        is_active: !product.disabled_at,
-      }});
+      allItems.push({
+        key: `boost-${bp.id}`, mapped: {
+          id: product.id, name: product.name, price: product.price,
+          originalPrice: (product as any).original_price, original_price: (product as any).original_price,
+          primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+          images: product.images?.map((img: any) => img.image_url) || [],
+          category: product.category?.name, seller: product.seller,
+          rating: avgRating, review_count: reviews.length, stock: totalStock,
+          is_active: !product.disabled_at,
+        }
+      });
     }
 
     for (const fp of featuredProducts) {
@@ -439,15 +451,17 @@ export default function HomeScreen({ navigation }: Props) {
       const reviews = product.reviews || [];
       const avgRating = reviews.length > 0 ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10 : 0;
       const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-      allItems.push({ key: `feat-${(fp as any).id}`, mapped: {
-        id: product.id, name: product.name, price: product.price,
-        originalPrice: product.original_price, original_price: product.original_price,
-        primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
-        images: product.images?.map((img: any) => img.image_url) || [],
-        category: product.category?.name, seller: product.seller,
-        rating: avgRating, review_count: reviews.length, stock: totalStock,
-        is_active: !product.disabled_at,
-      }});
+      allItems.push({
+        key: `feat-${(fp as any).id}`, mapped: {
+          id: product.id, name: product.name, price: product.price,
+          originalPrice: product.original_price, original_price: product.original_price,
+          primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+          images: product.images?.map((img: any) => img.image_url) || [],
+          category: product.category?.name, seller: product.seller,
+          rating: avgRating, review_count: reviews.length, stock: totalStock,
+          is_active: !product.disabled_at,
+        }
+      });
     }
 
     return allItems.slice(0, 10);
@@ -721,9 +735,9 @@ export default function HomeScreen({ navigation }: Props) {
                     key={i}
                     style={[
                       styles.paginationDot,
-                      { 
+                      {
                         backgroundColor: i === activeSlide ? COLORS.primary : '#FDE68A', // Warm Orange vs Pale
-                        width: i === activeSlide ? 20 : 8 
+                        width: i === activeSlide ? 20 : 8
                       }
                     ]}
                   />
@@ -733,9 +747,13 @@ export default function HomeScreen({ navigation }: Props) {
 
 
             <View style={styles.categoryGrid}>
-              {categories.map((item) => (
-                <Pressable key={item.id} style={styles.categoryGridItem} onPress={() => navigation.navigate('Shop', { category: item.id })}>
-                  <CategoryItem label={item.name} iconName={item.icon} />
+              {dbCategories.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={styles.categoryGridItem}
+                  onPress={() => navigation.navigate('Shop', { category: item.id })}
+                >
+                  <CategoryItem label={item.name} iconValue={item.icon} />
                 </Pressable>
               ))}
             </View>
@@ -759,9 +777,9 @@ export default function HomeScreen({ navigation }: Props) {
                   <Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>See More</Text>
                 </Pressable>
               </View>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false} 
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, gap: 12 }}
               >
                 {flashSaleProducts.length > 0 ? (
@@ -881,13 +899,14 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={styles.categoryExpandedContent}>
             <Text style={[styles.categorySectionTitle, { color: COLORS.textHeadline }]}>Shop by Category</Text>
             <View style={styles.categoryGrid}>
-              {categories.map((item) => (
+              {dbCategories.map((item) => (
                 <Pressable
                   key={item.id}
                   style={styles.categoryGridItem}
                   onPress={() => navigation.navigate('Shop', { category: item.id })}
                 >
-                  <CategoryItem label={item.name} iconName={item.icon} />
+                  {/* Change iconName to iconValue here */}
+                  <CategoryItem label={item.name} iconValue={item.icon} />
                 </Pressable>
               ))}
             </View>
@@ -959,7 +978,7 @@ const styles = StyleSheet.create({
   flashSaleTitle: { fontSize: 18, fontWeight: '800', color: '#D97706' },
   timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   timerText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  
+
   carouselContainer: { marginVertical: 10 },
   promoBox: {
     height: 180,

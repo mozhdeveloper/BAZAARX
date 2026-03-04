@@ -8,8 +8,8 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, CheckCircle, Clock, XCircle, Package, AlertCircle, Truck, ShieldAlert, DollarSign } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -155,7 +155,7 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
         <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
           <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Return Details</Text>
+        <Text style={styles.headerTitle}>Return Details</Text>
         <View style={{ width: 40 }} />
       </View>
     </LinearGradient>
@@ -163,16 +163,18 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" />
         <Header />
         <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (fetchError || !returnRequest) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" />
         <Header />
         <View style={styles.center}>
           <AlertCircle size={40} color={COLORS.error} />
@@ -181,7 +183,7 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
             <Text style={styles.retryText}>Go Back</Text>
           </Pressable>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -191,7 +193,8 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
     : null;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       <Header />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -201,7 +204,7 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
           <View style={styles.statusHeader}>
             <View style={styles.statusLeft}>
               <StatusIcon status={returnRequest.status} />
-              <View style={{ marginLeft: 12 }}>
+              <View style={{ marginLeft: 16 }}>
                 <Text style={styles.statusTitle}>Return Status</Text>
                 <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
                   <Text style={[styles.statusText, { color: statusColor }]}>
@@ -450,14 +453,39 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
           </View>
         )}
 
+        {/* Seller Response Card - shown when seller has responded */}
+        {(returnRequest.sellerNote || returnRequest.rejectedReason) && (
+          <View style={[styles.card, { borderColor: returnRequest.status === 'rejected' ? '#FECDD3' : '#FDE68A', borderWidth: 1 }]}>
+            <Text style={styles.sectionTitle}>Seller Response</Text>
+            {returnRequest.rejectedReason && (
+              <View style={{ marginBottom: 10 }}>
+                <Text style={[styles.label, { marginBottom: 4 }]}>Reason for Rejection</Text>
+                <View style={{ backgroundColor: '#FEF2F2', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#FECDD3' }}>
+                  <Text style={{ fontSize: 13, color: '#991B1B', lineHeight: 18, fontStyle: 'italic' }}>
+                    "{returnRequest.rejectedReason}"
+                  </Text>
+                </View>
+              </View>
+            )}
+            {returnRequest.sellerNote && (
+              <View>
+                <Text style={[styles.label, { marginBottom: 4 }]}>Seller Note</Text>
+                <View style={{ backgroundColor: '#FFFBEB', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#FDE68A' }}>
+                  <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18, fontStyle: 'italic' }}>
+                    "{returnRequest.sellerNote}"
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
         {returnRequest.status === 'rejected' && (
           <View style={[styles.card, { backgroundColor: '#FFF1F2', borderColor: '#FECDD3', borderWidth: 1 }]}>
             <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
               <XCircle size={20} color={COLORS.error} />
               <Text style={{ fontSize: 13, color: '#9B1C1C', flex: 1, lineHeight: 18 }}>
-                {returnRequest.rejectedReason
-                  ? `Rejected: ${returnRequest.rejectedReason}`
-                  : 'Your return request was rejected.'}
+                Your return request has been rejected by the seller. You can escalate this case to BAZAAR admin for further review.
               </Text>
             </View>
             <Pressable
@@ -482,7 +510,7 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
         )}
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -501,10 +529,9 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.5)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.textHeadline, letterSpacing: 0.5 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 },
   errorText: { fontSize: 15, color: '#6B7280', textAlign: 'center' },
   retryBtn: { paddingHorizontal: 24, paddingVertical: 12, backgroundColor: COLORS.primary, borderRadius: 12 },

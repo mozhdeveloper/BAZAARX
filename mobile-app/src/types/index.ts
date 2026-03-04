@@ -87,7 +87,10 @@ export interface Product {
   // Flash sale fields
   campaignBadge?: string;
   campaignBadgeColor?: string;
+  campaignName?: string;
   campaignEndsAt?: string | Date;
+  campaignDiscountValue?: number;
+  campaignDiscountType?: string;
 }
 
 export interface ProductVariant {
@@ -162,8 +165,9 @@ export interface Order {
   shippedAt?: string;
   deliveredAt?: string;
   cancelledAt?: string;
-  buyerUiStatus?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed';
+  buyerUiStatus?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
   isReviewed?: boolean;
+  returnRequestId?: string;
   isGift?: boolean;
   isAnonymous?: boolean;
   recipientId?: string;

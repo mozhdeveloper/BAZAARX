@@ -33,7 +33,7 @@ import VisualSearchModal from "../components/VisualSearchModal";
 // import { Checkbox } from "../components/ui/checkbox";
 import { useToast } from "../hooks/use-toast";
 // Hardcoded imports removed for database parity
-import { categories } from "../data/categories";
+import { categoryService } from "@/services/categoryService";
 import { useBuyerStore } from "../stores/buyerStore";
 import { useProductStore } from "../stores/sellerStore";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -50,11 +50,6 @@ import type { ActiveDiscount } from "@/types/discount";
 
 // Flash sale products are now derived from real products in the component
 import { bestSellerProducts } from "../data/products";
-
-const categoryOptions = [
-  "All Categories",
-  ...categories.map((cat) => cat.name),
-];
 
 const sortOptions = [
   { value: "relevance", label: "Default" },
@@ -96,7 +91,7 @@ export default function ShopPage() {
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
-
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
@@ -176,6 +171,20 @@ export default function ShopPage() {
     return () => clearInterval(timer);
   }, [flashEndsAt]);
 
+  // 2. Fetch categories on mount
+  useEffect(() => {
+    categoryService.getActiveCategories()
+      .then(data => {
+        if (data) setCategories(data);
+      })
+      .catch(err => console.error('Failed to fetch categories:', err));
+  }, []);
+
+  const categoryOptions = useMemo(() => [
+    "All Categories",
+    ...categories.map((cat) => cat.name),
+  ], [categories]);
+
   useEffect(() => {
     // Fetch initial products - only approved and active products
     const filters = {
@@ -225,8 +234,15 @@ export default function ShopPage() {
   }, []);
 
   const allProducts = useMemo<ShopProduct[]>(() => {
+    // Create a set of active category names for O(1) lookup
+    const activeCategoryNames = new Set(categories.map(c => c.name));
+
     const dbProducts = sellerProducts
-      .filter((p) => p.approvalStatus === "approved" && p.isActive)
+      .filter((p) =>
+        p.approvalStatus === "approved" &&
+        p.isActive &&
+        activeCategoryNames.has(p.category) // Only count products in active categories
+      )
       .map((p) => ({
         id: p.id,
         name: p.name,
@@ -452,11 +468,17 @@ export default function ShopPage() {
             {/* Flash Sale Section — one block per active campaign */}
             {flashSaleProducts.length > 0 && (() => {
               // Group products by campaign
-              const campaignMap = new Map<string, { name: string; endsAt: string; products: any[] }>();
+              const campaignMap = new Map<string, { name: string; endsAt: string; color: string; seller?: string; products: any[] }>();
               for (const p of flashSaleProducts) {
                 const key = p.campaignId || 'default';
                 if (!campaignMap.has(key)) {
-                  campaignMap.set(key, { name: p.campaignName || 'Flash Sale', endsAt: p.campaignEndsAt || '', products: [] });
+                  campaignMap.set(key, {
+                    name: p.campaignName || 'Flash Sale',
+                    endsAt: p.campaignEndsAt || '',
+                    color: p.campaignBadgeColor || 'var(--brand-primary)',
+                    seller: p.seller,
+                    products: []
+                  });
                 }
                 campaignMap.get(key)!.products.push(p);
               }
@@ -472,15 +494,23 @@ export default function ShopPage() {
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                       <div className="flex items-center gap-4 flex-wrap">
-                        <div>
-                          <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading leading-none">
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
-                              FLASH SALE
-                            </span>
-                          </h2>
-                          <p className="text-sm font-semibold text-gray-600 mt-0.5 tracking-wide">
-                            {campaign.name}
-                          </p>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2
+                              className="text-2xl md:text-3xl font-black uppercase tracking-tight font-heading leading-none"
+                              style={{ color: campaign.color }}
+                            >
+                              {campaign.name}
+                            </h2>
+                            {campaign.seller && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-300 text-xl leading-none">|</span>
+                                <span className="text-gray-500 text-sm">
+                                  {campaign.seller}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* Countdown timer using global timeLeft for earliest campaign */}
@@ -773,7 +803,7 @@ export default function ShopPage() {
                         >
                           <span className={`text-sm ${selectedCategory === cat.name ? "font-bold" : "font-medium"}`}>{cat.name}</span>
                           <span className={`text-xs ${selectedCategory === cat.name ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)] font-normal"}`}>
-                            {allProducts.filter(p => p.category === cat.name).length || Math.floor(Math.random() * 50) + 10}
+                            {allProducts.filter(p => p.category === cat.name).length}
                           </span>
                         </button>
                       ))}

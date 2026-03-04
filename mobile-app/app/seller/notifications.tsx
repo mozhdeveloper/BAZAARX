@@ -125,6 +125,15 @@ export default function SellerNotificationsScreen() {
     }
     if (n.type.includes('order')) {
       (navigation as any).navigate('SellerOrderDetail', { orderId: n.action_data?.orderId });
+    } else if (n.type.includes('return')) {
+      const returnId = (n.action_data as any)?.returnId;
+      if (returnId) {
+        (navigation as any).navigate('ReturnDetail', { returnId });
+      } else {
+        (navigation as any).navigate('SellerOrderDetail', { orderId: (n.action_data as any)?.orderId });
+      }
+    } else if (n.type.includes('message')) {
+      (navigation as any).navigate('Messages');
     }
   };
 
@@ -132,7 +141,11 @@ export default function SellerNotificationsScreen() {
     return notifications.filter((n) => {
       const matchesSearch = !searchQuery || [n.title, n.message].some(f => f.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesStatus = filterStatus === 'All' || (filterStatus === 'Unread' ? !n.is_read : n.is_read);
-      const matchesType = filterType === 'All Types' || n.type.toLowerCase().includes(filterType.toLowerCase().replace(' ', '_'));
+      const matchesType = filterType === 'All Types'
+        || (filterType === 'Orders' && n.type.includes('order'))
+        || (filterType === 'Returns' && n.type.includes('return'))
+        || (filterType === 'Messages' && n.type.includes('message'))
+        || (filterType === 'System' && n.type.includes('system'));
       return matchesSearch && matchesStatus && matchesType;
     });
   }, [notifications, searchQuery, filterStatus, filterType]);
@@ -236,7 +249,7 @@ export default function SellerNotificationsScreen() {
         </View>
       )}
 
-      <SelectionModal visible={showTypeMenu} onClose={() => setShowTypeMenu(false)} title="Select Type" options={['All Types', 'Orders', 'Returns', 'System']} current={filterType} onSelect={(val: string) => { setFilterType(val); setShowTypeMenu(false); }} />
+      <SelectionModal visible={showTypeMenu} onClose={() => setShowTypeMenu(false)} title="Select Type" options={['All Types', 'Orders', 'Returns', 'Messages', 'System']} current={filterType} onSelect={(val: string) => { setFilterType(val); setShowTypeMenu(false); }} />
       <SelectionModal visible={showStatusMenu} onClose={() => setShowStatusMenu(false)} title="Select Status" options={['All', 'Unread', 'Read']} current={filterStatus} onSelect={(val: string) => { setFilterStatus(val); setShowStatusMenu(false); }} />
     </View>
   );

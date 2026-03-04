@@ -4,6 +4,7 @@
  * counter-offers, seller deadlines, escalation, return shipping.
  */
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { notificationService } from './notificationService';
 
 const RETURN_WINDOW_DAYS = 7;
 const SELLER_DEADLINE_HOURS = 48;
@@ -303,6 +304,48 @@ class ReturnService {
       metadata: { resolution_path: resolutionPath, return_type: returnType },
     });
 
+    // 10. Notify seller(s) — only for non-instant returns (instant = auto-approved, no action needed)
+    if (resolutionPath !== 'instant') {
+      try {
+        const { data: orderDetails } = await supabase
+          .from('orders')
+          .select('order_number, buyer_id, order_items(products(seller_id))')
+          .eq('id', orderDbId)
+          .single();
+
+        let buyerName = 'A buyer';
+        if (orderDetails?.buyer_id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', orderDetails.buyer_id)
+            .single();
+          if (profile?.full_name) buyerName = profile.full_name;
+        }
+
+        const sellerIds = new Set<string>();
+        ((orderDetails as any)?.order_items ?? []).forEach((item: any) => {
+          const sid = item?.products?.seller_id;
+          if (sid) sellerIds.add(sid);
+        });
+
+        await Promise.all(
+          [...sellerIds].map((sellerId) =>
+            notificationService.notifySellerReturnRequest({
+              sellerId,
+              orderId: orderDbId,
+              returnId: returnData.id,
+              orderNumber: (orderDetails as any)?.order_number ?? 'N/A',
+              buyerName,
+              reason,
+            })
+          )
+        );
+      } catch (err) {
+        console.warn('[ReturnService] Failed to send return notification:', err);
+      }
+    }
+
     return this.transform(returnData);
   }
 
@@ -492,6 +535,9 @@ class ReturnService {
         note: 'Return approved and refund processed by seller',
         changed_by_role: 'seller',
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, 'approved');
     }
   }
 
@@ -521,7 +567,7 @@ class ReturnService {
     if (ret?.order_id) {
       await supabase
         .from('orders')
-        .update({ shipment_status: 'delivered', updated_at: new Date().toISOString() })
+        .update({ shipment_status: 'received', updated_at: new Date().toISOString() })
         .eq('id', ret.order_id);
       await supabase.from('order_status_history').insert({
         order_id: ret.order_id,
@@ -529,6 +575,9 @@ class ReturnService {
         note: reason || 'Return request rejected by seller',
         changed_by_role: 'seller',
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, 'rejected', reason);
     }
   }
 
@@ -558,6 +607,39 @@ class ReturnService {
         note: `Counter-offer: ₱${amount.toLocaleString()} — ${note}`,
         changed_by_role: 'seller',
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, 'counter_offered');
+    }
+  }
+
+  /**
+   * Helper to notify buyer of return status update
+   */
+  private async notifyBuyerOfReturnUpdate(orderId: string, status: any, message?: string) {
+    try {
+      const { data } = await supabase
+        .from('refund_return_periods')
+        .select('id, order_id, orders(order_number, buyer_id)')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      const ret = data as any;
+
+      if (ret?.orders?.buyer_id) {
+        await notificationService.notifyBuyerReturnStatus({
+          buyerId: ret.orders.buyer_id,
+          orderId,
+          returnId: ret.id,
+          orderNumber: ret.orders.order_number,
+          status,
+          message
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to notify buyer of return update:', err);
     }
   }
 
@@ -741,6 +823,9 @@ class ReturnService {
         note: 'Return received. Refund processed.',
         changed_by_role: 'seller',
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, 'refunded');
     }
   }
 

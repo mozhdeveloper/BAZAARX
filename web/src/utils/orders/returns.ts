@@ -61,13 +61,21 @@ export const mapDbReturnRequestToBuyerReturnRequest = (
   }
 
   return {
+    id: request.id,
     reason,
     solution: "return_refund",
     comments,
     files: [],
     refundAmount: request.refundAmount ?? fallbackRefundAmount,
     submittedAt: new Date(request.createdAt),
-    status,
+    status: request.status,
+    rejectedReason: request.rejectedReason,
+    description: request.description ?? null,
+    evidenceUrls: request.evidenceUrls ?? [],
+    sellerNote: request.sellerNote ?? null,
+    type: request.returnType ?? undefined,
+    resolutionPath: request.resolutionPath ?? undefined,
+    sellerDeadline: request.sellerDeadline ?? undefined,
   };
 };
 
@@ -89,6 +97,7 @@ export const mergeBuyerOrdersWithReturnRequests = (
 
     return {
       ...order,
+      status: 'returned',
       returnRequest: mapDbReturnRequestToBuyerReturnRequest(request, order.total),
     };
   });

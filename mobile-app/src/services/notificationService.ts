@@ -1,12 +1,12 @@
 /**
  * Notification Service
  * Handles all notification-related database operations for mobile app
- * 
- * NOTE: Database has separate notification tables:
+ * * NOTE: Database has separate notification tables:
  * - buyer_notifications (has buyer_id)
- * - seller_notifications (MISSING seller_id - needs schema fix!)
+ * - seller_notifications (has seller_id) // UPDATED: Column exists!
  * - admin_notifications (has admin_id)
  */
+
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
@@ -137,6 +137,7 @@ class NotificationService {
       let query = supabase
         .from(table)
         .select('*')
+        .eq(userIdColumn, userId)
         .order('created_at', { ascending: false })
         .limit(limit);
       
@@ -144,7 +145,11 @@ class NotificationService {
       
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        // Log the specific error message from Supabase/Postgres
+        console.error(`[NotificationService] Supabase Error: ${error.message}`);
+        throw error;
+      }
       
       // Map database response to Notification interface
       const notifications: Notification[] = (data || []).map((item: any) => ({
@@ -220,16 +225,18 @@ class NotificationService {
       const table = getNotificationTable(userType);
       const userIdColumn = getUserIdColumn(userType);
       
-      let query = supabase
+      // Change: Select only the ID to reduce data transfer/overhead
+      const { count, error } = await supabase
         .from(table)
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true }) // Optimization: just check IDs
+        .eq(userIdColumn, userId)
         .is('read_at', null);
-      
-      query = query.eq(userIdColumn, userId);
-      
-      const { count, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        // Log the specific Postgres error code
+        console.error(`[NotificationService] DB Error ${error.code}: ${error.message}`);
+        throw error;
+      }
       return count || 0;
     } catch (error) {
       console.error('[NotificationService] Error getting unread count:', error);
@@ -470,45 +477,6 @@ class NotificationService {
     });
   }
 
-  /**
-   * Notify buyer when their return request status changes
-   */
-  async notifyBuyerReturnStatus(params: {
-    buyerId: string;
-    orderId: string;
-    orderNumber: string;
-    status: 'approved' | 'rejected' | 'refunded';
-    message?: string;
-  }): Promise<Notification | null> {
-    const titleMap: Record<string, string> = {
-      approved: 'Return Approved',
-      rejected: 'Return Rejected',
-      refunded: 'Refund Processed',
-    };
-    const iconMap: Record<string, { icon: string; bg: string }> = {
-      approved: { icon: 'CheckCircle', bg: 'bg-green-500' },
-      rejected: { icon: 'XCircle', bg: 'bg-red-500' },
-      refunded: { icon: 'DollarSign', bg: 'bg-green-500' },
-    };
-    const defaultMsg: Record<string, string> = {
-      approved: `Your return for order #${params.orderNumber} has been approved. Please ship the item back.`,
-      rejected: `Your return for order #${params.orderNumber} was not approved. Contact support for more info.`,
-      refunded: `Your refund for order #${params.orderNumber} has been processed. It will appear in 5–7 business days.`,
-    };
-
-    return this.createNotification({
-      userId: params.buyerId,
-      userType: 'buyer',
-      type: `return_${params.status}`,
-      title: titleMap[params.status] || 'Return Update',
-      message: params.message || defaultMsg[params.status] || `Return status updated to ${params.status}`,
-      icon: iconMap[params.status]?.icon || 'Package',
-      iconBg: iconMap[params.status]?.bg || 'bg-gray-500',
-      actionUrl: `/order/${params.orderNumber}`,
-      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
-      priority: 'high'
-    });
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  SELLER — Review & Return Notifications
@@ -545,6 +513,7 @@ class NotificationService {
   async notifySellerReturnRequest(params: {
     sellerId: string;
     orderId: string;
+    returnId: string;
     orderNumber: string;
     buyerName: string;
     reason: string;
@@ -558,7 +527,7 @@ class NotificationService {
       icon: 'RotateCcw',
       iconBg: 'bg-orange-500',
       actionUrl: '/seller/returns',
-      actionData: { orderId: params.orderId },
+      actionData: { orderId: params.orderId, returnId: params.returnId },
       priority: 'high'
     });
   }
@@ -651,6 +620,38 @@ class NotificationService {
     return () => {
       supabase.removeChannel(channel);
     };
+  }
+
+  /**
+   * Notify buyer when their return request status changes
+   */
+  async notifyBuyerReturnStatus(params: {
+    buyerId: string;
+    orderId: string;
+    returnId: string;
+    orderNumber: string;
+    status: 'approved' | 'rejected' | 'refunded' | 'counter_offered';
+    message?: string;
+  }): Promise<Notification | null> {
+    const titleMap: Record<string, string> = {
+      approved: 'Return Approved',
+      rejected: 'Return Rejected',
+      refunded: 'Refund Processed',
+      counter_offered: 'New Counter Offer',
+    };
+    
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: `return_${params.status}`,
+      title: titleMap[params.status] || 'Return Update',
+      message: params.message || `Your return for order #${params.orderNumber} has been ${params.status.replace('_', ' ')}.`,
+      icon: params.status === 'rejected' ? 'XCircle' : 'CheckCircle',
+      iconBg: params.status === 'rejected' ? 'bg-red-500' : 'bg-green-500',
+      actionUrl: '/ReturnDetail',
+      actionData: { returnId: params.returnId },
+      priority: 'high'
+    });
   }
 }
 

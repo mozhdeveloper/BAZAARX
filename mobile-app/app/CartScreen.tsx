@@ -17,6 +17,7 @@ import { COLORS } from '../src/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
 import { CartItem, Product } from '../src/types';
+import type { ActiveDiscount } from '../src/types/discount';
 import { Alert } from 'react-native';
 
 
@@ -363,19 +364,40 @@ export default function CartScreen({ navigation }: any) {
 
         </View>
       </View>
-      {editingItem && (
-        <VariantSelectionModal
-          visible={showVariantModal}
-          onClose={() => setShowVariantModal(false)}
-          product={editingItem as any} // Cast because CartItem has superset of Product props mostly
-          variants={editingItem.variants} // Pass variants for stock validation
-          initialSelectedVariant={editingItem.selectedVariant}
-          initialQuantity={editingItem.quantity}
-          onConfirm={handleSaveVariant}
-          confirmLabel="Update Cart"
-          hideQuantity={true}
-        />
-      )}
+      {editingItem && (() => {
+        // Build an ActiveDiscount from the stored campaignDiscount on the cart item
+        // so the VariantSelectionModal can display the correct discounted price.
+        const cd = (editingItem as any).campaignDiscount;
+        const editingItemDiscount: ActiveDiscount | null = (cd && cd.discountType && cd.discountValue != null)
+          ? {
+            campaignId: cd.campaignId || '',
+            campaignName: cd.campaignName || '',
+            discountType: cd.discountType,
+            discountValue: Number(cd.discountValue),
+            maxDiscountAmount: cd.maxDiscountAmount != null ? Number(cd.maxDiscountAmount) : undefined,
+            discountedPrice: Number(editingItem.price ?? 0),
+            originalPrice: Number(editingItem.originalPrice ?? 0),
+            badgeText: undefined,
+            badgeColor: undefined,
+            endsAt: new Date(),
+          }
+          : null;
+
+        return (
+          <VariantSelectionModal
+            visible={showVariantModal}
+            onClose={() => setShowVariantModal(false)}
+            product={editingItem as any}
+            variants={editingItem.variants}
+            initialSelectedVariant={editingItem.selectedVariant}
+            initialQuantity={editingItem.quantity}
+            onConfirm={handleSaveVariant}
+            confirmLabel="Update Cart"
+            hideQuantity={true}
+            activeCampaignDiscount={editingItemDiscount}
+          />
+        );
+      })()}
     </View>
   );
 }

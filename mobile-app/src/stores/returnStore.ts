@@ -75,6 +75,7 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
       notificationService.notifySellerReturnRequest({
         sellerId: request.sellerId,
         orderId: request.orderId,
+        returnId: newRequest.id, // <-- Added missing property
         orderNumber: request.orderId,
         buyerName: 'A buyer',
         reason: request.description || request.reason || 'Return requested',
