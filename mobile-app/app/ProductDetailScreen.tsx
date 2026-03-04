@@ -360,13 +360,44 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const effectiveReviewTotal = reviewsTotal > 0
     ? reviewsTotal
     : Number((product as any).reviewCount || (product as any).totalReviews || 0);
-  const regularPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price || 0));
-  const pbPrice = (product as any).original_price ?? (product as any).originalPrice;
-  const originalPrice = typeof pbPrice === 'number' ? pbPrice : parseFloat(String(pbPrice || 0));
+  const storedOriginalPrice = (() => {
+    const pbPrice = (product as any).original_price ?? (product as any).originalPrice;
+    return typeof pbPrice === 'number' ? pbPrice : parseFloat(String(pbPrice || 0));
+  })();
+  const rawBasePrice: number = (() => {
+    if (hasStructuredVariants && selectedVariantInfo.price != null) {
+      return Number(selectedVariantInfo.price);
+    }
+    if (activeCampaignDiscount && storedOriginalPrice > 0) {
+      return storedOriginalPrice;
+    }
+    return Number(product.price ?? 0);
+  })();
+
+  // Apply campaign discount on top of the raw price (mirrors web getCampaignAdjustedPrice)
+  const getCampaignAdjustedPrice = (rawPrice: number): number => {
+    if (!activeCampaignDiscount) return rawPrice;
+    return discountService.calculateLineDiscount(rawPrice, 1, activeCampaignDiscount).discountedUnitPrice;
+  };
+
+  // regularPrice = what the customer pays for the selected variant
+  const regularPrice = getCampaignAdjustedPrice(rawBasePrice);
+
+  // originalPrice = the crossed-out price shown above/beside the sale price
+  // If campaign active: rawBasePrice is the "before discount" price
+  // If no campaign: use storedOriginalPrice (seller-set compare-at price)
+  const originalPrice = activeCampaignDiscount
+    ? rawBasePrice
+    : storedOriginalPrice;
 
   const hasDiscount = !!(originalPrice > 0 && regularPrice > 0 && originalPrice > regularPrice);
+
+  // Badge percent: use actual campaign discountValue for percentage campaigns,
+  // otherwise derive from price arithmetic (e.g. fixed-amount or stored original_price)
   const discountPercent = hasDiscount
-    ? Math.round(((originalPrice - regularPrice) / originalPrice) * 100)
+    ? (activeCampaignDiscount?.discountType === 'percentage' && activeCampaignDiscount.discountValue
+      ? Math.round(activeCampaignDiscount.discountValue)
+      : Math.round(((originalPrice - regularPrice) / originalPrice) * 100))
     : 0;
 
   const soldCount = Number((product as any).sales_count ?? (product as any).sold ?? 0);
@@ -1297,6 +1328,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         onConfirm={handleSharedModalConfirm}
         confirmLabel={variantModalAction === 'cart' ? 'Add to Cart' : 'Buy Now'}
         isBuyNow={variantModalAction === 'buy'}
+        activeCampaignDiscount={activeCampaignDiscount}
       />
 
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />

@@ -62,7 +62,7 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       let discountedPrice = originalPrice;
       const productDiscounts = product.product_discounts || [];
       const now = new Date();
-      
+
       const activeDiscount = productDiscounts.find((pd: any) => {
         const campaign = pd.campaign;
         if (!campaign || campaign.status !== 'active') return false;
@@ -74,14 +74,11 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       if (activeDiscount) {
         const campaign = activeDiscount.campaign;
         const dType = activeDiscount.discount_type || campaign.discount_type;
-        const dValue = activeDiscount.discount_value || campaign.discount_value;
+        const dValue = Number(activeDiscount.discount_value || campaign.discount_value);
 
         if (dType === 'percentage') {
-          discountedPrice = originalPrice * (1 - (dValue / 100));
-          if (campaign.max_discount_amount) {
-            const maxD = parseFloat(String(campaign.max_discount_amount));
-            discountedPrice = Math.max(discountedPrice, originalPrice - maxD);
-          }
+          // No maxDiscountAmount cap — matches calculateLineDiscount and product detail screen
+          discountedPrice = Math.round(originalPrice * (1 - dValue / 100));
         } else if (dType === 'fixed_amount') {
           discountedPrice = Math.max(0, originalPrice - dValue);
         }

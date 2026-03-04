@@ -29,6 +29,8 @@ interface BadgeGroup {
     badge: string;
     products: Product[];
     color: string;
+    campaignName?: string;
+    seller?: string;
 }
 
 export default function FlashSaleScreen({ navigation, route }: Props) {
@@ -83,25 +85,27 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                 seen.add(p.id);
                 return true;
             });
-            
+
             const groups = uniqueData.reduce((acc: any, product: any) => {
                 const badge = product.campaignBadge || 'Flash Sale';
                 if (!acc[badge]) {
                     acc[badge] = {
                         badge,
                         color: product.campaignBadgeColor || COLORS.primary,
+                        campaignName: product.campaignName,
+                        seller: product.seller,
                         products: []
                     };
                 }
                 acc[badge].products.push(product);
                 return acc;
             }, {} as Record<string, BadgeGroup>);
-            
+
             // Sort groups: Flash Sale first or by most products
             const sortedGroups = Object.values(groups)
                 .filter((g: any) => g.products.length > 0)
                 .sort((a: any, b: any) => b.products.length - a.products.length) as BadgeGroup[];
-            
+
             setBadgeGroups(sortedGroups);
 
         } catch (err) {
@@ -176,10 +180,22 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                                 <View key={group.badge} style={styles.badgeSection}>
                                     <View style={styles.sectionHeader}>
                                         <View style={[styles.badgeIndicator, { backgroundColor: group.color }]} />
-                                        <Text style={styles.sectionTitle}>{group.badge}</Text>
+                                        <Text style={styles.sectionTitle} numberOfLines={1}>
+                                            {group.campaignName && (
+                                                <Text style={{ color: group.color }}>
+                                                    {group.campaignName}
+                                                </Text>
+                                            )}
+                                            {group.campaignName && group.seller && (
+                                                <Text style={styles.separatorText}> | </Text>
+                                            )}
+                                            {group.seller && (
+                                                <Text style={styles.sellerNameText}>{group.seller}</Text>
+                                            )}
+                                        </Text>
                                         <View style={styles.sectionLine} />
                                     </View>
-                                    
+
                                     <View style={styles.productGrid}>
                                         {group.products.map((product) => (
                                             <View key={product.id} style={styles.productItem}>
@@ -245,9 +261,9 @@ const styles = StyleSheet.create({
     emptyText: { fontSize: 16, color: '#6B7280' },
     groupsWrapper: { paddingHorizontal: 0 },
     badgeSection: { marginBottom: 32 },
-    sectionHeader: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: CONTAINER_PADDING,
         marginBottom: 16,
         gap: 12,
@@ -258,7 +274,7 @@ const styles = StyleSheet.create({
         borderRadius: 2,
     },
     sectionTitle: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '800',
         color: COLORS.textHeadline,
         textTransform: 'uppercase',
@@ -279,5 +295,16 @@ const styles = StyleSheet.create({
     productItem: {
         width: ITEM_WIDTH,
         marginBottom: 20,
-    }
+    },
+    separatorText: {
+        fontSize: 14,
+        color: '#D1D5DB',
+        fontWeight: '500',
+    },
+    sellerNameText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#6B7280',
+        textTransform: 'none',
+    },
 });

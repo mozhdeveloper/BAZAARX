@@ -87,7 +87,10 @@ export interface Product {
   // Flash sale fields
   campaignBadge?: string;
   campaignBadgeColor?: string;
+  campaignName?: string;
   campaignEndsAt?: string | Date;
+  campaignDiscountValue?: number;
+  campaignDiscountType?: string;
 }
 
 export interface ProductVariant {
