@@ -470,45 +470,6 @@ class NotificationService {
     });
   }
 
-  /**
-   * Notify buyer when their return request status changes
-   */
-  async notifyBuyerReturnStatus(params: {
-    buyerId: string;
-    orderId: string;
-    orderNumber: string;
-    status: 'approved' | 'rejected' | 'refunded';
-    message?: string;
-  }): Promise<Notification | null> {
-    const titleMap: Record<string, string> = {
-      approved: 'Return Approved',
-      rejected: 'Return Rejected',
-      refunded: 'Refund Processed',
-    };
-    const iconMap: Record<string, { icon: string; bg: string }> = {
-      approved: { icon: 'CheckCircle', bg: 'bg-green-500' },
-      rejected: { icon: 'XCircle', bg: 'bg-red-500' },
-      refunded: { icon: 'DollarSign', bg: 'bg-green-500' },
-    };
-    const defaultMsg: Record<string, string> = {
-      approved: `Your return for order #${params.orderNumber} has been approved. Please ship the item back.`,
-      rejected: `Your return for order #${params.orderNumber} was not approved. Contact support for more info.`,
-      refunded: `Your refund for order #${params.orderNumber} has been processed. It will appear in 5–7 business days.`,
-    };
-
-    return this.createNotification({
-      userId: params.buyerId,
-      userType: 'buyer',
-      type: `return_${params.status}`,
-      title: titleMap[params.status] || 'Return Update',
-      message: params.message || defaultMsg[params.status] || `Return status updated to ${params.status}`,
-      icon: iconMap[params.status]?.icon || 'Package',
-      iconBg: iconMap[params.status]?.bg || 'bg-gray-500',
-      actionUrl: `/order/${params.orderNumber}`,
-      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
-      priority: 'high'
-    });
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  SELLER — Review & Return Notifications
@@ -652,6 +613,38 @@ class NotificationService {
     return () => {
       supabase.removeChannel(channel);
     };
+  }
+
+  /**
+   * Notify buyer when their return request status changes
+   */
+  async notifyBuyerReturnStatus(params: {
+    buyerId: string;
+    orderId: string;
+    returnId: string;
+    orderNumber: string;
+    status: 'approved' | 'rejected' | 'refunded' | 'counter_offered';
+    message?: string;
+  }): Promise<Notification | null> {
+    const titleMap: Record<string, string> = {
+      approved: 'Return Approved',
+      rejected: 'Return Rejected',
+      refunded: 'Refund Processed',
+      counter_offered: 'New Counter Offer',
+    };
+    
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: `return_${params.status}`,
+      title: titleMap[params.status] || 'Return Update',
+      message: params.message || `Your return for order #${params.orderNumber} has been ${params.status.replace('_', ' ')}.`,
+      icon: params.status === 'rejected' ? 'XCircle' : 'CheckCircle',
+      iconBg: params.status === 'rejected' ? 'bg-red-500' : 'bg-green-500',
+      actionUrl: '/ReturnDetail',
+      actionData: { returnId: params.returnId },
+      priority: 'high'
+    });
   }
 }
 

@@ -408,40 +408,6 @@ export class NotificationService {
     });
   }
 
-  /**
-   * Notify seller when a buyer submits a return/refund request
-   */
-  async notifySellerReturnRequest(params: {
-    sellerId: string;
-    buyerName: string;
-    orderId: string;
-    returnId: string;
-    returnType: string;
-    refundAmount?: number | null;
-  }): Promise<Notification> {
-    if (!params.sellerId) throw new Error('sellerId is missing');
-
-    const typeLabel =
-      params.returnType === 'refund_only' ? 'Refund' :
-      params.returnType === 'replacement' ? 'Replacement' :
-      'Return & Refund';
-    const amountStr = params.refundAmount
-      ? ` for ₱${params.refundAmount.toFixed(2)}`
-      : '';
-
-    return this.createNotification({
-      userId: params.sellerId,
-      userType: 'seller',
-      type: 'return_request',
-      title: `New ${typeLabel} Request`,
-      message: `${params.buyerName} has submitted a ${typeLabel.toLowerCase()} request${amountStr}.`,
-      icon: 'RotateCcw',
-      iconBg: 'bg-yellow-500',
-      actionUrl: '/seller/returns',
-      actionData: { returnId: params.returnId, orderId: params.orderId },
-      priority: 'high'
-    });
-  }
 
   /**
    * Notify seller when QA approves their product for sample submission
@@ -628,6 +594,73 @@ export class NotificationService {
         rejectedDocuments: docs,
       },
       priority: 'high',
+    });
+  }
+  /**
+   * Notify buyer when their return request status changes
+   */
+  async notifyBuyerReturnStatus(params: {
+    buyerId: string;
+    orderId: string;
+    orderNumber: string;
+    status: 'approved' | 'rejected' | 'refunded' | 'counter_offered';
+    message?: string;
+  }): Promise<Notification> {
+    const titleMap: Record<string, string> = {
+      approved: 'Return Approved',
+      rejected: 'Return Rejected',
+      refunded: 'Refund Processed',
+      counter_offered: 'New Counter Offer',
+    };
+    const iconMap: Record<string, { icon: string; bg: string }> = {
+      approved: { icon: 'CheckCircle', bg: 'bg-green-500' },
+      rejected: { icon: 'XCircle', bg: 'bg-red-500' },
+      refunded: { icon: 'DollarSign', bg: 'bg-green-500' },
+      counter_offered: { icon: 'RotateCcw', bg: 'bg-blue-500' },
+    };
+    const defaultMsg: Record<string, string> = {
+      approved: `Your return for order #${params.orderNumber} has been approved. Please ship the item back.`,
+      rejected: `Your return for order #${params.orderNumber} was not approved. Contact support for more info.`,
+      refunded: `Your refund for order #${params.orderNumber} has been processed. It will appear in 5–7 business days.`,
+      counter_offered: `The seller has sent a counter-offer for your return request on order #${params.orderNumber}.`,
+    };
+
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: `return_${params.status}`,
+      title: titleMap[params.status] || 'Return Update',
+      message: params.message || defaultMsg[params.status] || `Return status updated to ${params.status}`,
+      icon: iconMap[params.status]?.icon || 'Package',
+      iconBg: iconMap[params.status]?.bg || 'bg-gray-500',
+      actionUrl: `/orders?status=returned&viewOrder=${params.orderId}&viewReturn=true`,
+      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
+      priority: 'high'
+    });
+  }
+
+  /**
+   * Notify seller when a buyer submits a return request
+   */
+  async notifySellerReturnRequest(params: {
+    sellerId: string;
+    orderId: string;
+    returnId: string;
+    orderNumber: string;
+    buyerName: string;
+    reason: string;
+  }): Promise<Notification> {
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_return_request',
+      title: 'Return Request',
+      message: `${params.buyerName} requested a return for order #${params.orderNumber}. Reason: ${params.reason}`,
+      icon: 'RotateCcw',
+      iconBg: 'bg-orange-500',
+      actionUrl: `/seller/returns`,
+      actionData: { orderId: params.orderId, returnId: params.returnId },
+      priority: 'high'
     });
   }
 }

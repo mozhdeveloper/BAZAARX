@@ -4,7 +4,7 @@
  * Supports 3 resolution paths, counter-offers, escalation, and return shipping.
  */
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { notificationService } from "@/services/notificationService";
+import { notificationService } from "./notificationService";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -384,7 +384,7 @@ class ReturnService {
           const { data: orderDetails } = await supabase
             .from("orders")
             .select(`
-              buyer:buyers(profiles(first_name, last_name)),
+              buyer:buyer_id(profiles:id(first_name, last_name)),
               order_items(product:products(seller_id))
             `)
             .eq("id", orderDbId)
@@ -409,13 +409,12 @@ class ReturnService {
               buyerName,
               orderId: orderDbId,
               returnId: returnData.id,
-              returnType: params.returnType || "return_refund",
-              refundAmount: params.refundAmount ?? null,
+              orderNumber: (orderDetails as any)?.order_number ?? "N/A",
+              reason: params.reason,
             });
           }
-        } catch (notifErr) {
-          console.error("[returnService] Failed to notify seller of return:", notifErr);
-          // Non-blocking — return submission still succeeds
+        } catch (err) {
+          console.warn("[ReturnService] Failed to send return notification:", err);
         }
       }
 
@@ -575,6 +574,9 @@ class ReturnService {
         note: "Return approved and refund processed",
         changed_by_role: "seller",
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(orderId, "approved");
     } catch (error: any) {
       console.error("Failed to approve return:", error);
       throw new Error(error.message || "Failed to approve return");
@@ -602,7 +604,7 @@ class ReturnService {
 
       await supabase
         .from("orders")
-        .update({ shipment_status: "delivered", updated_at: new Date().toISOString() })
+        .update({ shipment_status: "received", updated_at: new Date().toISOString() })
         .eq("id", orderId);
 
       await supabase.from("order_status_history").insert({
@@ -611,6 +613,9 @@ class ReturnService {
         note: reason || "Return request rejected by seller",
         changed_by_role: "seller",
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(orderId, "rejected", reason);
     } catch (error: any) {
       console.error("Failed to reject return:", error);
       throw new Error(error.message || "Failed to reject return");
@@ -632,6 +637,25 @@ class ReturnService {
       })
       .eq("id", returnId);
     if (error) throw new Error(error.message || "Failed to send counter offer");
+
+    // Notifications
+    const { data: ret } = await supabase
+      .from("refund_return_periods")
+      .select("order_id")
+      .eq("id", returnId)
+      .single();
+
+    if (ret?.order_id) {
+      await supabase.from("order_status_history").insert({
+        order_id: ret.order_id,
+        status: "counter_offer_sent",
+        note: `Counter-offer: ₱${amount.toLocaleString()} — ${note}`,
+        changed_by_role: "seller",
+      });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, "counter_offered");
+    }
   }
 
   // ============================================================================
@@ -774,6 +798,34 @@ class ReturnService {
         note: "Return received, refund processed",
         changed_by_role: "seller",
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, "refunded");
+    }
+  }
+
+  /**
+   * Helper to notify buyer of return status update
+   */
+  private async notifyBuyerOfReturnUpdate(orderId: string, status: any, message?: string) {
+    try {
+      const { data: order } = await supabase
+        .from("orders")
+        .select("order_number, buyer_id")
+        .eq("id", orderId)
+        .single();
+
+      if (order?.buyer_id) {
+        await notificationService.notifyBuyerReturnStatus({
+          buyerId: order.buyer_id,
+          orderId,
+          orderNumber: order.order_number,
+          status,
+          message
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to notify buyer of return update:", err);
     }
   }
 

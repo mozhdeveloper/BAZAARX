@@ -13,6 +13,7 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  RotateCcw,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,7 @@ export function SellerEarnings() {
   const { seller } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [summary, setSummary] = useState<EarningsSummary>({
-    totalEarnings: 0, pendingPayout: 0, availableBalance: 0,
+    totalEarnings: 0, pendingPayout: 0, availableBalance: 0, pendingRefunds: 0,
     totalOrders: 0, ordersThisMonth: 0, earningsThisMonth: 0,
     earningsGrowthPercent: 0,
   });
@@ -156,12 +157,39 @@ export function SellerEarnings() {
                 </div>
               </motion.div>
 
+              {/* Pending Refunds */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] relative overflow-hidden group transition-all duration-300 border-l-4 border-red-500"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-red-50 to-red-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-red-100 transition-colors"></div>
+                <div className="flex items-center justify-between mb-4 relative z-10">
+                  <div className="text-red-600 group-hover:text-red-700 transition-all">
+                    <RotateCcw className="h-5 w-5" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-[var(--text-muted)] text-sm relative z-10">Pending Refunds</h3>
+                  <div className="flex items-end gap-3 mt-1 relative z-10">
+                    <p className="text-2xl font-black text-[var(--text-headline)] font-heading group-hover:text-red-600 transition-all">
+                      ₱{summary.pendingRefunds.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </p>
+                    <div className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600 mb-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                      Held
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+
               {/* Last Payout */}
               {lastPayout && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
+                  transition={{ delay: 0.4 }}
                   className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] relative overflow-hidden group transition-all duration-300"
                 >
                   <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-blue-100 transition-colors"></div>
