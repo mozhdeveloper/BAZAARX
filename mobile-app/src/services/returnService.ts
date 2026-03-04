@@ -4,6 +4,7 @@
  * counter-offers, seller deadlines, escalation, return shipping.
  */
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { notificationService } from './notificationService';
 
 const RETURN_WINDOW_DAYS = 7;
 const SELLER_DEADLINE_HOURS = 48;
@@ -302,6 +303,48 @@ class ReturnService {
       changed_by_role: 'buyer',
       metadata: { resolution_path: resolutionPath, return_type: returnType },
     });
+
+    // 10. Notify seller(s) — only for non-instant returns (instant = auto-approved, no action needed)
+    if (resolutionPath !== 'instant') {
+      try {
+        const { data: orderDetails } = await supabase
+          .from('orders')
+          .select('order_number, buyer_id, order_items(products(seller_id))')
+          .eq('id', orderDbId)
+          .single();
+
+        let buyerName = 'A buyer';
+        if (orderDetails?.buyer_id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', orderDetails.buyer_id)
+            .single();
+          if (profile?.full_name) buyerName = profile.full_name;
+        }
+
+        const sellerIds = new Set<string>();
+        ((orderDetails as any)?.order_items ?? []).forEach((item: any) => {
+          const sid = item?.products?.seller_id;
+          if (sid) sellerIds.add(sid);
+        });
+
+        await Promise.all(
+          [...sellerIds].map((sellerId) =>
+            notificationService.notifySellerReturnRequest({
+              sellerId,
+              orderId: orderDbId,
+              returnId: returnData.id,
+              orderNumber: (orderDetails as any)?.order_number ?? 'N/A',
+              buyerName,
+              reason,
+            })
+          )
+        );
+      } catch (err) {
+        console.warn('[ReturnService] Failed to send return notification:', err);
+      }
+    }
 
     return this.transform(returnData);
   }

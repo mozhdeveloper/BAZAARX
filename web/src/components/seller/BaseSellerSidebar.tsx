@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LogOut, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,8 @@ import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/stores/sellerStore";
 import type { SellerNavLink } from "@/config/sellerLinks";
 import { roleSwitchService } from "@/services/roleSwitchService";
+import { notificationService } from "@/services/notificationService";
+import { chatService } from "@/services/chatService";
 
 type BaseSellerSidebarProps = {
   links: SellerNavLink[];
@@ -65,6 +67,75 @@ export const BaseSellerSidebar = ({
   const [open, setOpen] = useState(false);
   const { seller, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+
+  // Map each seller route to the notification types that are actioned there.
+  // When the seller navigates to one of these pages, those notifications are
+  // considered "seen/acted upon" and are auto-marked as read.
+  const ROUTE_NOTIFICATION_TYPES: Record<string, string[]> = {
+    "/seller/orders":           ["seller_new_order", "order"],
+    "/seller/returns":          ["return", "refund"],
+    "/seller/products":         ["product_approved", "product_rejected", "product_revision_requested"],
+    "/seller/product-status-qa":["product_approved", "product_rejected", "product_revision_requested", "product_sample_request"],
+    "/seller/messages":         ["seller_new_message"],
+    "/seller/store-profile":    ["seller_verification_approved", "seller_verification_rejected", "seller_verification_partial_rejection"],
+    "/seller":                  ["seller_verification_approved", "seller_verification_rejected", "seller_verification_partial_rejection"],
+  };
+
+  useEffect(() => {
+    if (!seller?.id) return;
+
+    const autoReadAndFetch = async () => {
+      try {
+        // Find notification types that match the current page
+        const matchedTypes = Object.entries(ROUTE_NOTIFICATION_TYPES).find(
+          ([route]) => route === "/seller"
+            ? location.pathname === route
+            : location.pathname.startsWith(route)
+        )?.[1] ?? [];
+
+        // Auto-mark matching unread notifications as read
+        if (matchedTypes.length > 0) {
+          const unread = await notificationService.getNotifications(seller.id, "seller", 100);
+          const toRead = unread.filter(
+            (n) => !n.is_read && matchedTypes.some((t) => n.type.includes(t))
+          );
+          await Promise.all(
+            toRead.map((n) => notificationService.markAsRead(n.id, "seller"))
+          );
+        }
+
+        // Re-fetch the real count after auto-reads
+        const count = await notificationService.getUnreadCount(seller.id, "seller");
+        setUnreadCount(count);
+
+        // Fetch unread message count; reset to 0 if currently on messages page
+        if (location.pathname.startsWith("/seller/messages")) {
+          setUnreadMessageCount(0);
+        } else {
+          const msgCount = await chatService.getUnreadCount(seller.id, "seller");
+          setUnreadMessageCount(msgCount);
+        }
+      } catch {
+        // silently ignore
+      }
+    };
+
+    autoReadAndFetch();
+    const interval = setInterval(async () => {
+      try {
+        const count = await notificationService.getUnreadCount(seller.id, "seller");
+        setUnreadCount(count);
+        if (!location.pathname.startsWith("/seller/messages")) {
+          const msgCount = await chatService.getUnreadCount(seller.id, "seller");
+          setUnreadMessageCount(msgCount);
+        }
+      } catch { /* silently ignore */ }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [seller?.id, location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -79,7 +150,15 @@ export const BaseSellerSidebar = ({
         <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pt-1">
           <div className="mt-1 flex flex-col gap-1">
             {links.map((link, idx) => (
-              <SidebarLink key={idx} link={link} />
+              <SidebarLink
+                key={idx}
+                link={link}
+                badge={
+                  link.href === "/seller/notifications" ? unreadCount
+                  : link.href === "/seller/messages" ? unreadMessageCount
+                  : undefined
+                }
+              />
             ))}
           </div>
         </div>
