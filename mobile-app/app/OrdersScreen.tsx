@@ -27,6 +27,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { OrderCard } from '../src/components/OrderCard';
 import ReviewModal from '../src/components/ReviewModal';
+import CancelOrderModal from '../src/components/seller/CancelOrderModal';
 import { orderService } from '../src/services/orderService';
 import { orderMutationService } from '../src/services/orders/orderMutationService';
 import type { CompositeScreenProps } from '@react-navigation/native';
@@ -122,6 +123,10 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   /* Removed unused state: rating, reviewText */
 
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+
   const [selectedStatus, setSelectedStatus] = useState<Order['status'] | 'all'>('all');
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
 
@@ -193,6 +198,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
         setDbOrders([]);
         return;
       }
+
+      console.log('Fetched orders:', data); // Log the fetched orders
+      setDbOrders(data || []);
 
       const mapped: Order[] = (data || []).map((order: any) => {
         const hasReviews = Array.isArray(order.reviews) && order.reviews.length > 0;
@@ -572,35 +580,42 @@ export default function OrdersScreen({ navigation, route }: Props) {
   };
 
   const handleCancelOrder = (order: Order) => {
-    Alert.alert(
-      'Cancel Order',
-      "Are you sure you want to cancel? You won't be charged. You can buy these items again later.",
-      [
-        { text: 'Keep Order', style: 'cancel' },
-        {
-          text: 'Yes, Cancel Order',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await orderMutationService.cancelOrder({
-                orderId: order.id,
-                reason: 'Cancelled by buyer',
-                cancelledBy: user?.id,
-              });
+    setCancellingOrder(order);
+    setShowCancelModal(true);
+  };
 
-              updateOrderStatus(order.id, 'cancelled');
-              setDbOrders(prev => prev.map(o =>
-                o.id === order.id ? { ...o, shipment_status: 'returned' } : o
-              ));
-              Alert.alert('Order Cancelled', 'Your order has been cancelled.');
-            } catch (e: any) {
-              console.error('Error cancelling order:', e);
-              Alert.alert('Error', e?.message || 'Failed to cancel order. Please try again.');
-            }
-          }
-        }
-      ]
-    );
+  const handleConfirmCancel = async (reason: string) => {
+    if (!cancellingOrder) return;
+    const order = cancellingOrder;
+    setIsCancellingOrder(true);
+    try {
+      // Optimistic update
+      setDbOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id ? { ...o, status: 'cancelled', buyerUiStatus: 'cancelled' } : o
+        )
+      );
+
+      await orderMutationService.cancelOrder({
+        orderId: (order as any).orderId || order.id,
+        reason,
+        cancelledBy: user?.id,
+      });
+
+      updateOrderStatus(order.id, 'cancelled');
+      setShowCancelModal(false);
+      setCancellingOrder(null);
+      setActiveTab('cancelled');
+      Alert.alert('Order Cancelled', 'Your order has been cancelled.');
+      await loadOrders();
+    } catch (e: any) {
+      console.error('Error cancelling order:', e);
+      // Rollback optimistic update
+      await loadOrders();
+      Alert.alert('Error', e?.message || 'Failed to cancel order. Please try again.');
+    } finally {
+      setIsCancellingOrder(false);
+    }
   };
 
   const renderOrderCard = (order: Order) => (
@@ -894,6 +909,17 @@ export default function OrdersScreen({ navigation, route }: Props) {
         order={selectedOrder}
         onClose={() => setShowRatingModal(false)}
         onSubmit={handleSubmitReview}
+      />
+
+      {/* CANCEL ORDER MODAL */}
+      <CancelOrderModal
+        visible={showCancelModal}
+        onClose={() => {
+          setShowCancelModal(false);
+          setCancellingOrder(null);
+        }}
+        onConfirm={handleConfirmCancel}
+        isUpdating={isCancellingOrder}
       />
 
     </View>
