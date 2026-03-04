@@ -35,30 +35,30 @@ import { notificationService } from '../src/services/notificationService';
 type Props = NativeStackScreenProps<RootStackParamList, 'ReturnRequest'>;
 
 // ─── Brand tokens (aligned with BAZAAR theme.ts) ──────────────────────────
-const BRAND        = COLORS.primary;        // #D97706 amber
-const BRAND_LIGHT  = COLORS.primarySoft;    // #FFF4EC
-const BRAND_DARK   = COLORS.primaryHover;   // #B45309
-const BG           = COLORS.background;     // #FFFBF0 warm cream
-const HEADLINE     = COLORS.textHeadline;   // #2D2522
-const BODY         = COLORS.textPrimary;    // #5C3D1E
-const MUTED        = COLORS.textMuted;      // #9C8E83
-const BORDER       = '#E8DDD1';             // warm border
-const CARD_BG      = COLORS.surface;        // #FFFFFF
+const BRAND = COLORS.primary;        // #D97706 amber
+const BRAND_LIGHT = COLORS.primarySoft;    // #FFF4EC
+const BRAND_DARK = COLORS.primaryHover;   // #B45309
+const BG = COLORS.background;     // #FFFBF0 warm cream
+const HEADLINE = COLORS.textHeadline;   // #2D2522
+const BODY = COLORS.textPrimary;    // #5C3D1E
+const MUTED = COLORS.textMuted;      // #9C8E83
+const BORDER = '#E8DDD1';             // warm border
+const CARD_BG = COLORS.surface;        // #FFFFFF
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 
 const REASONS: { id: ReturnReason; label: string; description: string; icon: any }[] = [
-  { id: 'damaged',         label: 'Damaged Item',            description: 'Item arrived damaged or broken',               icon: ShieldAlert },
-  { id: 'wrong_item',      label: 'Wrong Item Received',     description: 'Received a different item from what I ordered', icon: Package },
-  { id: 'missing_parts',   label: 'Missing Accessories',     description: 'Package is missing parts or accessories',      icon: Puzzle },
-  { id: 'not_as_described',label: "Doesn't Match Description",description: 'Item does not match the product listing',     icon: FileQuestion },
-  { id: 'other',           label: 'Other Reason',            description: 'Any other issue not listed above',             icon: HelpCircle },
+  { id: 'damaged', label: 'Damaged Item', description: 'Item arrived damaged or broken', icon: ShieldAlert },
+  { id: 'wrong_item', label: 'Wrong Item Received', description: 'Received a different item from what I ordered', icon: Package },
+  { id: 'missing_parts', label: 'Missing Accessories', description: 'Package is missing parts or accessories', icon: Puzzle },
+  { id: 'not_as_described', label: "Doesn't Match Description", description: 'Item does not match the product listing', icon: FileQuestion },
+  { id: 'other', label: 'Other Reason', description: 'Any other issue not listed above', icon: HelpCircle },
 ];
 
 const SOLUTIONS: { id: ReturnType; label: string; description: string; icon: any }[] = [
-  { id: 'return_refund', label: 'Return & Refund', description: 'Send item back and get full refund',  icon: RotateCcw },
-  { id: 'replacement',   label: 'Replacement',     description: 'Receive the same item again',          icon: RefreshCw },
-  { id: 'refund_only',   label: 'Refund Only',     description: 'Keep item and get money back',         icon: Wallet },
+  { id: 'return_refund', label: 'Return & Refund', description: 'Send item back and get full refund', icon: RotateCcw },
+  { id: 'replacement', label: 'Replacement', description: 'Receive the same item again', icon: RefreshCw },
+  { id: 'refund_only', label: 'Refund Only', description: 'Keep item and get money back', icon: Wallet },
 ];
 
 // ─── Section badge ─────────────────────────────────────────────────────────
@@ -153,23 +153,34 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
           evidenceUrls,
         });
 
+        const result = await returnService.submitReturnRequest({
+          orderDbId,
+          reason: reason as ReturnReason,
+          returnType,
+          description: finalDesc,
+          refundAmount,
+          items: itemsToReturn,
+          evidenceUrls,
+        });
+
         // Notify seller about the return (fire-and-forget)
         const sellerUuid = order.items?.[0]?.sellerId || (order as any).sellerInfo?.id;
         if (sellerUuid) {
           notificationService.notifySellerReturnRequest({
             sellerId: sellerUuid,
             orderId: orderDbId,
+            returnId: (result as any)?.id || 'pending', // <-- Extract ID from result or use safe fallback
             orderNumber: (order as any).transactionId || order.id || orderDbId,
             buyerName: user?.name || 'A buyer',
             reason: finalDesc || (reason as string),
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         const resPath = computeResolutionPath(reason as ReturnReason, refundAmount, evidenceUrls.length > 0);
         const estDate = getEstimatedResolutionDate(resPath);
         const pathLabel = resPath === 'instant' ? 'Instant Refund'
           : resPath === 'return_required' ? 'Return Required (ship item back)'
-          : 'Seller Review (response within 48h)';
+            : 'Seller Review (response within 48h)';
 
         Alert.alert('Request Submitted', `Resolution: ${pathLabel}\nEstimated: ${estDate.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}`, [
           { text: 'OK', onPress: () => navigation.goBack() },
