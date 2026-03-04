@@ -408,40 +408,6 @@ export class NotificationService {
     });
   }
 
-  /**
-   * Notify seller when a buyer submits a return/refund request
-   */
-  async notifySellerReturnRequest(params: {
-    sellerId: string;
-    buyerName: string;
-    orderId: string;
-    returnId: string;
-    returnType: string;
-    refundAmount?: number | null;
-  }): Promise<Notification> {
-    if (!params.sellerId) throw new Error('sellerId is missing');
-
-    const typeLabel =
-      params.returnType === 'refund_only' ? 'Refund' :
-      params.returnType === 'replacement' ? 'Replacement' :
-      'Return & Refund';
-    const amountStr = params.refundAmount
-      ? ` for ₱${params.refundAmount.toFixed(2)}`
-      : '';
-
-    return this.createNotification({
-      userId: params.sellerId,
-      userType: 'seller',
-      type: 'return_request',
-      title: `New ${typeLabel} Request`,
-      message: `${params.buyerName} has submitted a ${typeLabel.toLowerCase()} request${amountStr}.`,
-      icon: 'RotateCcw',
-      iconBg: 'bg-yellow-500',
-      actionUrl: '/seller/returns',
-      actionData: { returnId: params.returnId, orderId: params.orderId },
-      priority: 'high'
-    });
-  }
 
   /**
    * Notify seller when QA approves their product for sample submission
@@ -679,6 +645,7 @@ export class NotificationService {
   async notifySellerReturnRequest(params: {
     sellerId: string;
     orderId: string;
+    returnId: string;
     orderNumber: string;
     buyerName: string;
     reason: string;
@@ -692,7 +659,7 @@ export class NotificationService {
       icon: 'RotateCcw',
       iconBg: 'bg-orange-500',
       actionUrl: `/seller/returns`,
-      actionData: { orderId: params.orderId },
+      actionData: { orderId: params.orderId, returnId: params.returnId },
       priority: 'high'
     });
   }
