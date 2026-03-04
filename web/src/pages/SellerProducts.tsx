@@ -278,10 +278,11 @@ export function SellerProducts() {
 
     const handleBulkUpload = async (products: BulkProductData[]) => {
         try {
-            await bulkAddProducts(products); // This now returns a Promise
+            await bulkAddProducts(products);
+
             toast({
                 title: "Bulk Upload Successful",
-                description: `${products.length} products have been added to your inventory.`,
+                description: `${products.length} rows processed. Check your inventory for updates.`,
             });
             setIsBulkUploadOpen(false);
         } catch (error) {

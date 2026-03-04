@@ -972,29 +972,6 @@ export class ProductService {
     }
 
     /**
-     * Fetch all categories from DB
-     */
-    async getCategories(): Promise<Category[]> {
-        if (!isSupabaseConfigured()) {
-            console.warn("Supabase not configured - cannot fetch categories");
-            return [];
-        }
-
-        try {
-            const { data, error } = await supabase
-                .from("categories")
-                .select("*")
-                .order("sort_order", { ascending: true });
-
-            if (error) throw error;
-            return data || [];
-        } catch (error) {
-            console.error("Error fetching categories:", error);
-            return [];
-        }
-    }
-
-    /**
      * Get or create category by name
      * Returns the category_id for the given category name
      */

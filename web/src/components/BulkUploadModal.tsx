@@ -20,13 +20,19 @@ interface BulkUploadModalProps {
 }
 
 export interface BulkProductData {
-  name: string;
-  description: string;
-  price: number;
-  originalPrice?: number;
-  stock: number;
-  category: string;
-  imageUrl: string;
+  "Parent SKU": string;
+  "Product Name": string;
+  "Description": string;
+  "Category": string;
+  "Gallery Images (Product Level)": string;
+  "Attribute 1": string;
+  "Attribute 2": string;
+  "Variant SKU": string;
+  "Option 1 Value": string;
+  "Option 2 Value": string;
+  "Variant Price": string;
+  "Variant Stock": string;
+  "Variant Image (Unique)": string;
 }
 
 interface ValidationError {
@@ -65,12 +71,11 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
   const { toast } = useToast();
 
   const downloadTemplate = useCallback(() => {
-    const csvContent = `name,description,price,originalPrice,stock,category,imageUrl
-iPhone 15 Pro Max,Latest flagship smartphone with A17 Pro chip and titanium design,59999,65999,50,Electronics,https://images.unsplash.com/photo-1592286927505-2ad2049c4c26
-Wireless Earbuds,Premium audio quality with active noise cancellation,2999,3499,100,Electronics,https://images.unsplash.com/photo-1590658268037-6bf12165a8df
-Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,Fashion,https://images.unsplash.com/photo-1595777457583-95e059d581b8`;
+    const headers = "Parent SKU,Product Name,Description,Category,Gallery Images (Product Level),Attribute 1,Attribute 2,Variant SKU,Option 1 Value,Option 2 Value,Variant Price,Variant Stock,Variant Image (Unique)\n";
+    const sample = "SHIRT-001,Premium Tee,100% Cotton,Fashion,url1.jpg|url2.jpg,Size,Color,SHIRT-S-RED,Small,Red,499,50,red-thumb.jpg";
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([headers + sample], { type: "text/csv;charset=utf-8;" });
+
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
@@ -98,12 +103,11 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
 
   const validateCSV = useCallback(
     (
-      data: Record<string, string>[]
-    ): {
-      valid: boolean;
-      products: BulkProductData[];
-      errors: ValidationError[];
-    } => {
+      data: Record<string, string>[]): {
+        valid: boolean;
+        products: BulkProductData[];
+        errors: ValidationError[];
+      } => {
       const errors: ValidationError[] = [];
       const validProducts: BulkProductData[] = [];
 
@@ -122,17 +126,25 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
       }
 
       const headers = Object.keys(data[0]);
+      // UPDATE: Use the new header names for validation
       const requiredColumns = [
-        "name",
-        "description",
-        "price",
-        "stock",
-        "category",
-        "imageUrl",
+        "Parent SKU",
+        "Product Name",
+        "Description",
+        "Category",
+        "Variant SKU",
+        "Variant Price",
+        "Variant Stock"
       ];
-      const missingColumns = requiredColumns.filter(
-        (col) => !headers.includes(col)
-      );
+      const missingColumns = requiredColumns.filter((col) => !headers.includes(col));
+      if (missingColumns.length > 0) {
+        errors.push({
+          row: 0,
+          field: "headers",
+          message: `Missing required columns: ${missingColumns.join(", ")}`,
+        });
+        return { valid: false, products: [], errors };
+      }
 
       if (missingColumns.length > 0) {
         errors.push({
@@ -144,140 +156,43 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
       }
 
       data.forEach((row, index) => {
-        const rowNumber = index + 2; // +2 for header row and 0-index
+        const rowNumber = index + 2;
 
-        // Validate name
-        if (!row.name?.trim()) {
-          errors.push({
-            row: rowNumber,
-            field: "name",
-            message: "Product name is required",
-          });
+        // Validate Product Name
+        if (!row["Product Name"]?.trim()) {
+          errors.push({ row: rowNumber, field: "Product Name", message: "Product name is required" });
           return;
         }
 
-        if (row.name.length > 100) {
-          errors.push({
-            row: rowNumber,
-            field: "name",
-            message: "Product name must be 100 characters or less",
-          });
+        // Validate Price
+        const price = parseFloat(row["Variant Price"]);
+        if (isNaN(price) || price <= 0) {
+          errors.push({ row: rowNumber, field: "Variant Price", message: "Price must be a number greater than 0" });
           return;
         }
 
-        // Validate description
-        if (!row.description?.trim()) {
-          errors.push({
-            row: rowNumber,
-            field: "description",
-            message: "Description is required",
-          });
+        // Validate Stock
+        const stock = parseInt(row["Variant Stock"]);
+        if (isNaN(stock) || stock < 0) {
+          errors.push({ row: rowNumber, field: "Variant Stock", message: "Stock must be a non-negative number" });
           return;
         }
 
-        if (row.description.length > 500) {
-          errors.push({
-            row: rowNumber,
-            field: "description",
-            message: "Description must be 500 characters or less",
-          });
-          return;
-        }
-
-        // Validate price
-        if (!row.price || isNaN(Number(row.price))) {
-          errors.push({
-            row: rowNumber,
-            field: "price",
-            message: "Invalid or missing price (must be a number)",
-          });
-          return;
-        }
-
-        const price = Number(row.price);
-        if (price <= 0) {
-          errors.push({
-            row: rowNumber,
-            field: "price",
-            message: "Price must be greater than 0",
-          });
-          return;
-        }
-
-        // Validate original price (optional)
-        let originalPrice: number | undefined;
-        if (row.originalPrice && row.originalPrice.trim()) {
-          if (isNaN(Number(row.originalPrice))) {
-            errors.push({
-              row: rowNumber,
-              field: "originalPrice",
-              message: "Original price must be a number",
-            });
-            return;
-          }
-          originalPrice = Number(row.originalPrice);
-          if (originalPrice < price) {
-            errors.push({
-              row: rowNumber,
-              field: "originalPrice",
-              message: "Original price must be greater than or equal to price",
-            });
-            return;
-          }
-        }
-
-        // Validate stock
-        if (!row.stock || isNaN(Number(row.stock))) {
-          errors.push({
-            row: rowNumber,
-            field: "stock",
-            message: "Invalid or missing stock (must be a number)",
-          });
-          return;
-        }
-
-        const stock = Number(row.stock);
-        if (stock < 0 || !Number.isInteger(stock)) {
-          errors.push({
-            row: rowNumber,
-            field: "stock",
-            message: "Stock must be a non-negative whole number",
-          });
-          return;
-        }
-
-        // Validate category
-        if (!VALID_CATEGORIES.includes(row.category)) {
-          errors.push({
-            row: rowNumber,
-            field: "category",
-            message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(
-              ", "
-            )}`,
-          });
-          return;
-        }
-
-        // Validate image URL
-        if (!row.imageUrl?.trim() || !isValidURL(row.imageUrl.trim())) {
-          errors.push({
-            row: rowNumber,
-            field: "imageUrl",
-            message:
-              "Invalid or missing image URL (must start with http:// or https://)",
-          });
-          return;
-        }
-
-        // Valid product
+        // Valid product object construction using NEW keys
         validProducts.push({
-          name: row.name.trim(),
-          description: row.description.trim(),
-          price,
-          originalPrice,
-          stock,
-          category: row.category,
-          imageUrl: row.imageUrl.trim(),
+          "Parent SKU": row["Parent SKU"].trim(),
+          "Product Name": row["Product Name"].trim(),
+          "Description": row["Description"]?.trim() || "",
+          "Category": row["Category"].trim(),
+          "Gallery Images (Product Level)": row["Gallery Images (Product Level)"] || "",
+          "Attribute 1": row["Attribute 1"] || "",
+          "Attribute 2": row["Attribute 2"] || "",
+          "Variant SKU": row["Variant SKU"].trim(),
+          "Option 1 Value": row["Option 1 Value"] || "",
+          "Option 2 Value": row["Option 2 Value"] || "",
+          "Variant Price": row["Variant Price"],
+          "Variant Stock": row["Variant Stock"],
+          "Variant Image (Unique)": row["Variant Image (Unique)"] || ""
         });
       });
 
@@ -445,21 +360,14 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
               {/* Product Preview Table */}
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {previewProducts.map((product, index) => (
-                  <div
-                    key={index}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-orange-300 hover:bg-orange-50 transition-colors"
-                  >
+                  <div key={index} className="...">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       {/* Product Image */}
                       <div className="md:col-span-1">
                         <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-24 object-cover rounded-lg bg-gray-100"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              "https://placehold.co/100?text=No+Image";
-                          }}
+                          src={product["Variant Image (Unique)"] || "https://placehold.co/100?text=No+Image"}
+                          alt={product["Product Name"]}
+                          className="..."
                         />
                       </div>
 
@@ -467,66 +375,24 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
                       <div className="md:col-span-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <p className="text-xs text-gray-500 font-semibold uppercase">
-                              Name
-                            </p>
-                            <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                              {product.name}
-                            </p>
+                            <p className="...">Name</p>
+                            <p className="...">{product["Product Name"]}</p>
                           </div>
-
                           <div>
-                            <p className="text-xs text-gray-500 font-semibold uppercase">
-                              Category
-                            </p>
-                            <p className="text-sm font-medium text-gray-900">
-                              {product.category}
-                            </p>
+                            <p className="...">Category</p>
+                            <p className="...">{product["Category"]}</p>
                           </div>
-
                           <div>
-                            <p className="text-xs text-gray-500 font-semibold uppercase">
-                              Price
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-orange-600">
-                                ₱{product.price.toLocaleString()}
-                              </span>
-                              {product.originalPrice && (
-                                <>
-                                  <span className="text-sm text-gray-400 line-through">
-                                    ₱{product.originalPrice.toLocaleString()}
-                                  </span>
-                                  <span className="text-xs font-bold text-green-600">
-                                    {Math.round(
-                                      ((product.originalPrice - product.price) /
-                                        product.originalPrice) *
-                                      100
-                                    )}
-                                    % OFF
-                                  </span>
-                                </>
-                              )}
-                            </div>
+                            <p className="...">Price</p>
+                            <span className="...">₱{parseFloat(product["Variant Price"]).toLocaleString()}</span>
                           </div>
-
                           <div>
-                            <p className="text-xs text-gray-500 font-semibold uppercase">
-                              Stock
-                            </p>
-                            <p className="text-sm font-medium text-gray-900">
-                              {product.stock} unit
-                              {product.stock !== 1 ? "s" : ""}
-                            </p>
+                            <p className="...">Stock</p>
+                            <p className="...">{product["Variant Stock"]} units</p>
                           </div>
-
                           <div className="sm:col-span-2">
-                            <p className="text-xs text-gray-500 font-semibold uppercase">
-                              Description
-                            </p>
-                            <p className="text-sm text-gray-700 line-clamp-2">
-                              {product.description}
-                            </p>
+                            <p className="...">Description</p>
+                            <p className="...">{product["Description"]}</p>
                           </div>
                         </div>
                       </div>
