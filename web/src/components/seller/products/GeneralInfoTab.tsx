@@ -63,8 +63,8 @@ function FileSlot({
                     error
                         ? "border-red-400 bg-red-50"
                         : file
-                        ? "border-orange-300 bg-orange-50"
-                        : "border-gray-200 bg-gray-50 hover:border-orange-300 hover:bg-orange-50/50",
+                            ? "border-orange-300 bg-orange-50"
+                            : "border-gray-200 bg-gray-50 hover:border-orange-300 hover:bg-orange-50/50",
                 )}
                 title={file ? "Replace image" : "Select image"}
             >
@@ -220,9 +220,11 @@ export function GeneralInfoTab({
                         className="block text-sm font-semibold text-gray-800 mb-1"
                     >
                         Display Price (₱) *
-                        <span className="text-xs font-normal text-gray-500 ml-1">
-                            (shown on product card)
-                        </span>
+                        {variantConfigs.length > 0 && (
+                            <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded ml-2 uppercase">
+                                Locked to Variants
+                            </span>
+                        )}
                     </label>
                     <input
                         type="number"
@@ -230,18 +232,20 @@ export function GeneralInfoTab({
                         name="price"
                         value={formData.price}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        // Disable if variants exist; the Cartesian logic already sets a default, 
+                        // but specific prices should be edited per variant item.
+                        disabled={variantConfigs.length > 0}
+                        className={cn(
+                            "w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500",
+                            variantConfigs.length > 0 && "bg-gray-50 cursor-not-allowed opacity-75"
+                        )}
                         placeholder="0"
                         required
                     />
                     {variantConfigs.length > 0 && (
-                        <p className="text-xs text-orange-600 mt-1">
-                            ⓘ Actual prices are set per variant below. This is
-                            the thumbnail/display price.
+                        <p className="text-[11px] text-orange-600 mt-1 font-medium italic">
+                            Edit individual prices in the "Attributes & Variants" tab to change the display range.
                         </p>
-                    )}
-                    {errors.price && (
-                        <p className="text-sm text-red-600">{errors.price}</p>
                     )}
                 </div>
                 <div>
@@ -273,29 +277,26 @@ export function GeneralInfoTab({
                         htmlFor="stock"
                         className="block text-sm font-semibold text-gray-800 mb-1"
                     >
-                        Base Stock Quantity {variantConfigs.length === 0 && "*"}
+                        Total Stock Quantity
                     </label>
                     <input
                         type="number"
                         id="stock"
                         name="stock"
-                        value={formData.stock}
+                        // Use the calculated total if variants exist, otherwise use raw formData
+                        value={variantConfigs.length > 0 ? getTotalVariantStock() : formData.stock}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        disabled={variantConfigs.length > 0}
+                        className={cn(
+                            "w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500",
+                            variantConfigs.length > 0 && "bg-gray-50 cursor-not-allowed opacity-75"
+                        )}
                         placeholder="0"
-                        required={variantConfigs.length === 0}
                     />
                     {variantConfigs.length > 0 && (
-                        <p className="text-xs text-green-700 mt-1">
-                            Base variant stock: {parseInt(formData.stock) || 0} •
-                            Custom variants stock: {getTotalVariantStock()} • Total:
-                            {" "}
-                            {(parseInt(formData.stock) || 0) +
-                                getTotalVariantStock()}
+                        <p className="text-[11px] text-green-700 mt-1 font-medium">
+                            Automatically calculated from {variantConfigs.length} variants.
                         </p>
-                    )}
-                    {errors.stock && (
-                        <p className="text-sm text-red-600">{errors.stock}</p>
                     )}
                 </div>
                 <div>
