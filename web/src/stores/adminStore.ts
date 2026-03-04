@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { notificationService } from '@/services/notificationService';
+import { categoryService } from '@/services/categoryService';
 
 export type SellerDocumentField =
   | 'business_permit_url'
@@ -439,6 +440,7 @@ interface CategoriesState {
   addCategory: (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt' | 'productsCount'>) => Promise<void>;
   updateCategory: (id: string, updates: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
+  toggleCategoryStatus: (id: string, isActive: boolean) => Promise<void>;
   selectCategory: (category: Category | null) => void;
   clearError: () => void;
 }
@@ -457,13 +459,7 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
         set({ isLoading: false, error: 'Supabase not configured' });
         return;
       }
-
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*, products:products(count)')
-        .order('sort_order', { ascending: true });
-
-      if (error) throw error;
+      const data = await categoryService.getAllCategories();
 
       const categories: Category[] = (data || []).map((row: any) => ({
         id: row.id,
@@ -472,9 +468,9 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
         image: row.image_url || '',
         parentId: row.parent_id || undefined,
         slug: row.slug,
-        isActive: !row.disabled_at,
+        isActive: row.is_active, // Map new schema field
         sortOrder: row.sort_order || 0,
-        productsCount: Array.isArray(row.products) ? row.products[0]?.count || 0 : 0,
+        productsCount: Array.isArray(row.products) ? row.products[0]?.count || 0 : row.products?.count || 0,
         createdAt: new Date(row.created_at),
         updatedAt: new Date(row.updated_at)
       }));
@@ -499,6 +495,7 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
           image_url: categoryData.image || null,
           parent_id: categoryData.parentId || null,
           sort_order: categoryData.sortOrder || 0,
+          is_active: categoryData.isActive
         })
         .select()
         .single();
@@ -512,7 +509,7 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
         image: data.image_url || '',
         parentId: data.parent_id || undefined,
         slug: data.slug,
-        isActive: true,
+        isActive: data.is_active,
         sortOrder: data.sort_order || 0,
         productsCount: 0,
         createdAt: new Date(data.created_at),
@@ -540,6 +537,7 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
       if (updates.image !== undefined) dbUpdates.image_url = updates.image;
       if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId || null;
       if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
+      if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
 
       const { error } = await supabase
         .from('categories')
@@ -559,6 +557,25 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
     } catch (err: any) {
       console.error('Failed to update category:', err);
       set({ isLoading: false, error: err.message || 'Failed to update category' });
+    }
+  },
+
+  toggleCategoryStatus: async (id, isActive) => {
+    set({ isLoading: true, error: null });
+    try {
+      await categoryService.updateCategoryStatus(id, isActive);
+      
+      set(state => ({
+        categories: state.categories.map(cat =>
+          cat.id === id
+            ? { ...cat, isActive, updatedAt: new Date() }
+            : cat
+        ),
+        isLoading: false
+      }));
+    } catch (err: any) {
+      console.error('Failed to toggle category status:', err);
+      set({ isLoading: false, error: err.message || 'Failed to toggle status' });
     }
   },
 

@@ -33,7 +33,7 @@ import VisualSearchModal from "../components/VisualSearchModal";
 // import { Checkbox } from "../components/ui/checkbox";
 import { useToast } from "../hooks/use-toast";
 // Hardcoded imports removed for database parity
-import { categories } from "../data/categories";
+import { categoryService } from "@/services/categoryService";
 import { useBuyerStore } from "../stores/buyerStore";
 import { useProductStore } from "../stores/sellerStore";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -50,11 +50,6 @@ import type { ActiveDiscount } from "@/types/discount";
 
 // Flash sale products are now derived from real products in the component
 import { bestSellerProducts } from "../data/products";
-
-const categoryOptions = [
-  "All Categories",
-  ...categories.map((cat) => cat.name),
-];
 
 const sortOptions = [
   { value: "relevance", label: "Default" },
@@ -96,7 +91,7 @@ export default function ShopPage() {
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
-
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
@@ -176,6 +171,20 @@ export default function ShopPage() {
     return () => clearInterval(timer);
   }, [flashEndsAt]);
 
+  // 2. Fetch categories on mount
+  useEffect(() => {
+    categoryService.getActiveCategories()
+      .then(data => {
+        if (data) setCategories(data);
+      })
+      .catch(err => console.error('Failed to fetch categories:', err));
+  }, []);
+
+  const categoryOptions = useMemo(() => [
+    "All Categories",
+    ...categories.map((cat) => cat.name),
+  ], [categories]);
+
   useEffect(() => {
     // Fetch initial products - only approved and active products
     const filters = {
@@ -225,8 +234,15 @@ export default function ShopPage() {
   }, []);
 
   const allProducts = useMemo<ShopProduct[]>(() => {
+    // Create a set of active category names for O(1) lookup
+    const activeCategoryNames = new Set(categories.map(c => c.name));
+
     const dbProducts = sellerProducts
-      .filter((p) => p.approvalStatus === "approved" && p.isActive)
+      .filter((p) =>
+        p.approvalStatus === "approved" &&
+        p.isActive &&
+        activeCategoryNames.has(p.category) // Only count products in active categories
+      )
       .map((p) => ({
         id: p.id,
         name: p.name,
@@ -787,7 +803,7 @@ export default function ShopPage() {
                         >
                           <span className={`text-sm ${selectedCategory === cat.name ? "font-bold" : "font-medium"}`}>{cat.name}</span>
                           <span className={`text-xs ${selectedCategory === cat.name ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)] font-normal"}`}>
-                            {allProducts.filter(p => p.category === cat.name).length || Math.floor(Math.random() * 50) + 10}
+                            {allProducts.filter(p => p.category === cat.name).length}
                           </span>
                         </button>
                       ))}

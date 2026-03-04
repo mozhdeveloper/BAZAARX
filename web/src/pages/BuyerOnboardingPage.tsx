@@ -18,9 +18,8 @@ import { useBuyerStore } from "../stores/buyerStore";
 import { Checkbox } from "../components/ui/checkbox";
 import { addressService } from "../services/addressService";
 import { toast } from "../hooks/use-toast";
-import { categories } from "../data/categories";
-
-
+import { categoryService } from "../services/categoryService";
+import type { Category } from "@/types/database.types";
 
 export default function BuyerOnboardingPage() {
     const navigate = useNavigate();
@@ -33,33 +32,22 @@ export default function BuyerOnboardingPage() {
 
     // Step 2: Categories
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [dbCategories, setDbCategories] = useState<Category[]>([]);
+    const [loadingCategories, setLoadingCategories] = useState(true);
 
-    // Step 3: Address
-    const [addressData, setAddressData] = useState({
-        firstName: profile?.firstName || "",
-        lastName: profile?.lastName || "",
-        phone: profile?.phone || "",
-        street: "",
-        barangay: "",
-        city: "",
-        province: "",
-        region: "",
-        postalCode: "",
-        label: "Home",
-        isDefault: true
-    });
-
-    // Load profile data into address form if available
     useEffect(() => {
-        if (profile) {
-            setAddressData(prev => ({
-                ...prev,
-                firstName: profile.firstName || prev.firstName,
-                lastName: profile.lastName || prev.lastName,
-                phone: profile.phone || prev.phone
-            }));
-        }
-    }, [profile]);
+        const fetchActiveCategories = async () => {
+            try {
+                const data = await categoryService.getActiveCategories();
+                setDbCategories(data);
+            } catch (error) {
+                console.error("Error fetching onboarding categories:", error);
+            } finally {
+                setLoadingCategories(false);
+            }
+        };
+        fetchActiveCategories();
+    }, []);
 
     // Scroll to top on step change
     useEffect(() => {
@@ -103,11 +91,6 @@ export default function BuyerOnboardingPage() {
             setSelectedCategories(prev => [...prev, id]);
         }
     };
-
-    const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setAddressData({ ...addressData, [e.target.name]: e.target.value });
-    };
-
     const handleFinish = () => {
         navigate("/shop");
     };
@@ -251,7 +234,9 @@ export default function BuyerOnboardingPage() {
                                     </div>
 
                                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8 overflow-y-auto pr-1">
-                                        {categories.map(cat => (
+                                        {loadingCategories ? (
+                                            <div className="col-span-full py-10 text-center text-gray-400">Loading categories...</div>
+                                        ) : dbCategories.map(cat => (
                                             <button
                                                 key={cat.id}
                                                 onClick={() => toggleCategory(cat.id)}
@@ -262,7 +247,7 @@ export default function BuyerOnboardingPage() {
                                             >
                                                 <div className="absolute inset-0">
                                                     <img
-                                                        src={cat.image}
+                                                        src={cat.image_url || cat.icon || "/placeholder-category.jpg"} // Use DB image fields
                                                         alt={cat.name}
                                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                     />
