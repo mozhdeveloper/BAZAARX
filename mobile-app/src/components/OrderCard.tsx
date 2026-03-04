@@ -14,6 +14,7 @@ interface OrderCardProps {
   onReceive?: () => void;
   onReview?: () => void;
   onReturn?: () => void;
+  onBuyAgain?: (order: Order) => void;
   onShopPress?: (shopId: string) => void;
 }
 
@@ -25,6 +26,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
   onReceive,
   onReview,
   onReturn,
+  onBuyAgain,
   onShopPress
 }) => {
   const buyerUiStatus = order.buyerUiStatus || (
@@ -33,7 +35,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       : order.status === 'shipped'
         ? 'shipped'
         : order.status === 'delivered'
-          ? 'delivered'
+          ? (order as any).shipment_status === 'received' ? 'received' : 'delivered'
           : order.status === 'cancelled'
             ? 'cancelled'
             : 'pending'
@@ -49,6 +51,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         return '#8B5CF6'; // Violet
       case 'delivered':
         return '#22C55E'; // Green
+      case 'received':
+        return '#3B82F6'; // Blue
       case 'reviewed':
         return '#16A34A';
       case 'returned':
@@ -70,6 +74,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         return 'Shipped';
       case 'delivered':
         return 'Delivered';
+      case 'received':
+        return 'Received';
       case 'reviewed':
         return 'Reviewed';
       case 'returned':
@@ -115,8 +121,8 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
       {/* Header Section */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <Pressable onPress={() => shopId && onShopPress?.(shopId)}>
-            <Text style={styles.shopName}>{shopName} {'>'}</Text>
+          <Pressable style={{ flexShrink: 1 }} onPress={() => shopId && onShopPress?.(shopId)}>
+            <Text style={styles.shopName} numberOfLines={1}>{shopName} {'>'}</Text>
           </Pressable>
           <Text style={[styles.statusText, { color: getStatusColor() }]}>
             {getStatusText()}
@@ -185,7 +191,7 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
 
           <View style={styles.productDetails}>
-            <Text style={styles.productTitle} numberOfLines={1}>
+            <Text style={styles.productTitle} numberOfLines={2}>
             {firstItem.name}
           </Text>
           {/* Display variant information with dynamic labels */}
@@ -251,41 +257,54 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         {order.status === 'shipped' && (
           <>
             {onReceive && (
-              <Pressable style={styles.solidButton} onPress={onReceive}>
-                <Text style={styles.solidButtonText}>Order Received</Text>
+              <Pressable style={[styles.solidButton, { flex: 1, backgroundColor: '#16A34A' }]} onPress={onReceive}>
+                <Text style={styles.solidButtonText}>Confirm Received</Text>
               </Pressable>
             )}
-            <Pressable style={styles.outlineButton} onPress={onPress}>
-              <Text style={styles.outlineButtonText}>View Details</Text>
-            </Pressable>
           </>
         )}
 
-        {order.status === 'delivered' && (
-          <View style={{ flex: 1, gap: 8 }}>
-            {/* Primary action row: Review / View Details */}
-            <View style={styles.buttonRow}>
-              <Pressable
-                style={[styles.outlineButton, { flex: 1 }]}
-                onPress={buyerUiStatus === 'reviewed' ? onPress : onReview}
-              >
-                <Text style={styles.outlineButtonText}>
-                  {buyerUiStatus === 'reviewed' ? 'View Details' : 'Review'}
-                </Text>
+        {order.status === 'delivered' && buyerUiStatus === 'delivered' && (
+          <>
+            {onReceive && (
+              <Pressable style={[styles.solidButton, { flex: 1, backgroundColor: '#16A34A' }]} onPress={onReceive}>
+                <Text style={styles.solidButtonText}>Confirm Received</Text>
               </Pressable>
-              {buyerUiStatus !== 'reviewed' && (
-                <Pressable style={[styles.solidButton, { flex: 1.2 }]} onPress={onPress}>
-                  <Text style={styles.solidButtonText}>View Details</Text>
+            )}
+          </>
+        )}
+
+        {buyerUiStatus === 'received' && (
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={styles.buttonRow}>
+              {onReturn && (
+                <Pressable style={[styles.returnButton, { flex: 1 }]} onPress={onReturn}>
+                  <RotateCcw size={13} color="#B45309" strokeWidth={2.5} />
+                  <Text style={styles.returnButtonText}>Return/Refund</Text>
+                </Pressable>
+              )}
+              {onReview && (
+                <Pressable style={[styles.outlineButton, { flex: 1, borderColor: COLORS.primary }]} onPress={onReview}>
+                  <Text style={[styles.outlineButtonText, { color: COLORS.primary }]}>Write Review</Text>
                 </Pressable>
               )}
             </View>
-            {/* Return/Refund row — only for non-reviewed delivered orders */}
-            {buyerUiStatus !== 'reviewed' && onReturn && (
-              <Pressable style={styles.returnButton} onPress={onReturn}>
-                <RotateCcw size={13} color="#B45309" strokeWidth={2.5} />
-                <Text style={styles.returnButtonText}>Return / Refund</Text>
+            <Pressable style={[styles.solidButton, { width: '100%' }]} onPress={() => onBuyAgain ? onBuyAgain(order) : onPress()}>
+              <Text style={[styles.solidButtonText, { textAlign: 'center' }]}>Buy Again</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {buyerUiStatus === 'reviewed' && (
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={styles.buttonRow}>
+              <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={onPress}>
+                <Text style={styles.outlineButtonText}>View Details</Text>
               </Pressable>
-            )}
+              <Pressable style={[styles.solidButton, { flex: 1.5 }]} onPress={() => onBuyAgain ? onBuyAgain(order) : onPress()}>
+                <Text style={[styles.solidButtonText, { textAlign: 'center' }]}>Buy Again</Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
@@ -349,15 +368,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
     color: '#111827',
+    flexShrink: 1,
   },
   statusText: {
     fontWeight: '500',
     fontSize: 12,
   },
   metadataRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginTop: 6,
+    gap: 4,
   },
   dateText: {
     fontSize: 12,
@@ -374,7 +395,7 @@ const styles = StyleSheet.create({
   productSection: {
     flexDirection: 'row',
     marginBottom: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#F9FAFB',
   },
@@ -426,6 +447,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#111827',
     marginBottom: 4,
+    lineHeight: 18,
+    flexShrink: 1,
   },
   quantityText: {
     fontSize: 12,
@@ -435,7 +458,10 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 4,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F9FAFB',
   },
   summaryText: {
     fontSize: 12,
@@ -464,13 +490,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    borderWidth: 1,
-    borderColor: '#D97706',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
     backgroundColor: '#FFFBEB',
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 4,
+    paddingVertical: 10,
+    borderRadius: 24,
+    minHeight: 40,
   },
   returnButtonText: {
     color: '#B45309',
@@ -478,28 +505,34 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   solidButton: {
-    backgroundColor: COLORS.primary, // Primary Color
-    paddingHorizontal: 16, // Reduced padding for better fit on small screens
-    paddingVertical: 8,
-    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   solidButtonText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   outlineButton: {
     backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 4,
+    paddingVertical: 10,
+    borderRadius: 24,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   outlineButtonText: {
-    color: '#374151',
+    color: '#4B5563',
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   reviewSection: {
     marginTop: 16,

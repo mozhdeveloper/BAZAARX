@@ -43,7 +43,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
-type OrdersTab = 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed';
+type OrdersTab = 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
 
 const normalizeInitialTab = (tab?: string): OrdersTab => {
   const normalized = (tab || 'pending').toLowerCase();
@@ -61,11 +61,12 @@ const normalizeInitialTab = (tab?: string): OrdersTab => {
     normalized === 'confirmed' ||
     normalized === 'shipped' ||
     normalized === 'delivered' ||
+    normalized === 'received' ||
     normalized === 'returned' ||
     normalized === 'cancelled' ||
     normalized === 'reviewed'
   ) {
-    return normalized;
+    return normalized as OrdersTab;
   }
 
   return 'pending';
@@ -76,10 +77,14 @@ const mapBuyerUiStatusFromNormalized = (
   shipmentStatus?: string | null,
   hasCancellationRecord?: boolean,
   isReviewed?: boolean,
-): 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed' => {
+): 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed' => {
   if (isReviewed) return 'reviewed';
 
-  if (shipmentStatus === 'delivered' || shipmentStatus === 'received') {
+  if (shipmentStatus === 'received') {
+    return 'received';
+  }
+
+  if (shipmentStatus === 'delivered') {
     return 'delivered';
   }
 
@@ -211,6 +216,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           confirmed: 'processing',
           shipped: 'shipped',
           delivered: 'delivered',
+          received: 'delivered',
           reviewed: 'delivered',
           returned: 'delivered',
           cancelled: 'cancelled',
@@ -611,8 +617,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
       onPress={() => navigation.navigate('OrderDetail', { order })}
       onCancel={() => handleCancelOrder(order)}
       onReceive={() => handleOrderReceived(order)}
-      onReview={order.buyerUiStatus === 'delivered' ? () => handleReview(order) : undefined}
-      onReturn={order.buyerUiStatus === 'delivered' ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
+      onReview={order.buyerUiStatus === 'received' ? () => handleReview(order) : undefined}
+      onReturn={order.buyerUiStatus === 'received' ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
+      onBuyAgain={handleBuyAgain}
       onShopPress={(shopId) => {
         const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;
         const sellerInfo = dbOrders.find(o => o.id === targetOrder.id)?.sellerInfo || {};
@@ -798,13 +805,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['all', 'pending', 'confirmed', 'shipped', 'delivered', 'returned', 'cancelled', 'reviewed'] as const).map((tab) => {
+          {(['all', 'pending', 'confirmed', 'shipped', 'delivered', 'received', 'returned', 'cancelled', 'reviewed'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
               all: 'All Orders',
               pending: 'Pending',
               confirmed: 'Processing',
               shipped: 'Shipped',
               delivered: 'Delivered',
+              received: 'Received',
               reviewed: 'Reviewed',
               returned: 'Return/Refund',
               cancelled: 'Cancelled'
