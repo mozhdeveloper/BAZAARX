@@ -77,7 +77,11 @@ const mapBuyerUiStatusFromNormalized = (
   shipmentStatus?: string | null,
   hasCancellationRecord?: boolean,
   isReviewed?: boolean,
+  hasReturnRequest?: boolean,
 ): 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed' => {
+  // If there's a return request (pending, rejected, approved), show in returned tab
+  if (hasReturnRequest) return 'returned';
+
   if (isReviewed) return 'reviewed';
 
   if (shipmentStatus === 'received') {
@@ -187,6 +191,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
           vouchers:order_vouchers (
             *,
             voucher:vouchers (code, title, voucher_type)
+          ),
+          return_requests:refund_return_periods (
+            id, status, is_returnable, refund_date
           )
         `)
         .eq('buyer_id', user.id)
@@ -204,11 +211,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
         const hasCancellationRecord =
           (Array.isArray(order.cancellations) && order.cancellations.length > 0) ||
           Boolean(order.cancellation_reason || order.cancelled_at);
+        const hasReturnRequest = Array.isArray(order.return_requests) && order.return_requests.length > 0;
+        const returnRequestId = hasReturnRequest ? order.return_requests[0].id : undefined;
         const buyerUiStatus = mapBuyerUiStatusFromNormalized(
           order.payment_status,
           order.shipment_status,
           hasCancellationRecord,
           hasReviews || Boolean(order.is_reviewed),
+          hasReturnRequest,
         );
 
         const statusByBuyerUiStatus: Record<string, Order['status']> = {
@@ -388,6 +398,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           createdAt: order.created_at,
           buyerUiStatus,
           isReviewed,
+          returnRequestId,
           review: order.reviews && order.reviews.length > 0 ? order.reviews[0] : null,
         } as Order & { review?: any };
       });
@@ -614,7 +625,13 @@ export default function OrdersScreen({ navigation, route }: Props) {
     <OrderCard
       key={order.id}
       order={order}
-      onPress={() => navigation.navigate('OrderDetail', { order })}
+      onPress={() => {
+        if (order.buyerUiStatus === 'returned' && order.returnRequestId) {
+          navigation.navigate('ReturnDetail', { returnId: order.returnRequestId });
+        } else {
+          navigation.navigate('OrderDetail', { order });
+        }
+      }}
       onCancel={() => handleCancelOrder(order)}
       onReceive={() => handleOrderReceived(order)}
       onReview={order.buyerUiStatus === 'received' ? () => handleReview(order) : undefined}

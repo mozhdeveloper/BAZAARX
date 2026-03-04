@@ -705,7 +705,9 @@ export default function OrdersPage() {
                     <div
                       className="space-y-0 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors"
                       onClick={() =>
-                        navigate(`/order/${encodeURIComponent(order.id)}`)
+                        order.status === "returned"
+                          ? setViewReturnDetails(order)
+                          : navigate(`/order/${encodeURIComponent(order.id)}`)
                       }
                     >
                       {order.items.map((item, itemIndex) => (
@@ -1178,22 +1180,19 @@ export default function OrdersPage() {
                       </div>
                       <div>
                         <span className="text-sm font-medium text-gray-700">
-                          Solution:
+                          Return Type:
                         </span>
                         <p className="text-gray-900 capitalize">
-                          {viewReturnDetails.returnRequest.solution.replace(
-                            /_/g,
-                            " ",
-                          )}
+                          {viewReturnDetails.returnRequest.type?.replace(/_/g, " ") || "Refund Only"}
                         </p>
                       </div>
-                      {viewReturnDetails.returnRequest.comments && (
+                      {viewReturnDetails.returnRequest.resolutionPath && (
                         <div>
                           <span className="text-sm font-medium text-gray-700">
-                            Comments:
+                            Resolution Path:
                           </span>
-                          <p className="text-gray-900">
-                            {viewReturnDetails.returnRequest.comments}
+                          <p className="text-gray-900 capitalize">
+                            {viewReturnDetails.returnRequest.resolutionPath.replace(/_/g, " ")}
                           </p>
                         </div>
                       )}
@@ -1202,19 +1201,39 @@ export default function OrdersPage() {
                           Status:
                         </span>
                         <p className={`font-medium ${
-                          viewReturnDetails.returnRequest.status === 'approved' 
+                          ['approved', 'refunded'].includes(viewReturnDetails.returnRequest.status) 
                             ? 'text-green-600' 
                             : viewReturnDetails.returnRequest.status === 'rejected'
                             ? 'text-red-600'
+                            : viewReturnDetails.returnRequest.status === 'escalated'
+                            ? 'text-purple-600'
                             : 'text-orange-600'
                         }`}>
-                          {viewReturnDetails.returnRequest.status === 'approved' 
-                            ? 'Approved / Refunded' 
-                            : viewReturnDetails.returnRequest.status === 'rejected'
-                            ? 'Rejected'
-                            : 'Pending Review'}
+                          {(() => {
+                            const s = viewReturnDetails.returnRequest.status;
+                            if (s === 'approved') return 'Approved';
+                            if (s === 'refunded') return 'Refunded';
+                            if (s === 'rejected') return 'Rejected';
+                            if (s === 'pending') return 'Pending';
+                            if (s === 'seller_review') return 'Under Seller Review';
+                            if (s === 'counter_offered') return 'Counter Offer Received';
+                            if (s === 'escalated') return 'Escalated to Admin';
+                            if (s === 'return_in_transit') return 'Return in Transit';
+                            if (s === 'return_received') return 'Return Received';
+                            return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                          })()}
                         </p>
                       </div>
+                      {viewReturnDetails.returnRequest.status === 'seller_review' && viewReturnDetails.returnRequest.sellerDeadline && (
+                        <div className="bg-blue-50 border border-blue-100 p-2 rounded">
+                          <span className="text-xs font-medium text-blue-700 uppercase tracking-wider">
+                            Seller Deadline
+                          </span>
+                          <p className="text-sm text-blue-800 font-semibold">
+                            {new Date(viewReturnDetails.returnRequest.sellerDeadline).toLocaleString()}
+                          </p>
+                        </div>
+                      )}
                       {viewReturnDetails.returnRequest.status === 'rejected' && viewReturnDetails.returnRequest.rejectedReason && (
                         <div>
                           <span className="text-sm font-medium text-gray-700">
@@ -1248,6 +1267,47 @@ export default function OrdersPage() {
                           {viewReturnDetails.returnRequest.refundAmount.toLocaleString()}
                         </p>
                       </div>
+                      {viewReturnDetails.returnRequest.description && (
+                        <div>
+                          <span className="text-sm font-medium text-gray-700">
+                            Description
+                          </span>
+                          <p className="text-gray-900 bg-gray-50 p-3 rounded-lg mt-1 italic">
+                            "{viewReturnDetails.returnRequest.description}"
+                          </p>
+                        </div>
+                      )}
+                      {viewReturnDetails.returnRequest.evidenceUrls && viewReturnDetails.returnRequest.evidenceUrls.length > 0 && (
+                        <div>
+                          <span className="text-sm font-medium text-gray-700">
+                            Evidence Photos
+                          </span>
+                          <div className="flex gap-2 mt-2 flex-wrap">
+                            {viewReturnDetails.returnRequest.evidenceUrls.map((url: string, idx: number) => (
+                              <img
+                                key={idx}
+                                src={url}
+                                alt={`Evidence ${idx + 1}`}
+                                className="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-pointer hover:ring-2 hover:ring-[var(--brand-accent)] transition-all"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewImage(url);
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {viewReturnDetails.returnRequest.sellerNote && (
+                        <div>
+                          <span className="text-sm font-medium text-gray-700">
+                            Seller Note
+                          </span>
+                          <p className="text-amber-800 italic bg-amber-50 border border-amber-200 p-3 rounded-lg mt-1">
+                            "{viewReturnDetails.returnRequest.sellerNote}"
+                          </p>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <p className="text-gray-600">

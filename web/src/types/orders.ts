@@ -58,14 +58,21 @@ export interface OrderReviewSnapshot {
 }
 
 export interface BuyerReturnRequestSnapshot {
+  id: string;
   reason: string;
   solution: string;
   comments: string;
   files: File[];
   refundAmount: number;
   submittedAt: Date;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'seller_review' | 'counter_offered' | 'approved' | 'rejected' | 'escalated' | 'return_in_transit' | 'return_received' | 'refunded';
   rejectedReason?: string | null;
+  description?: string | null;
+  evidenceUrls?: string[];
+  sellerNote?: string | null;
+  type?: string;
+  resolutionPath?: string;
+  sellerDeadline?: string;
 }
 
 export interface SellerOrderReviewSnapshot {
