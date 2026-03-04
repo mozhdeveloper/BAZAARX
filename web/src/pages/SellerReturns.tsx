@@ -300,7 +300,14 @@ export function SellerReturns() {
                               <span className="text-sm truncate max-w-[150px]">{req.items[0]?.productName || 'N/A'}</span>
                             </div>
                           </TableCell>
-                          <TableCell>₱{req.totalRefundAmount.toLocaleString()}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-bold">₱{req.totalRefundAmount.toLocaleString()}</span>
+                              {['pending', 'seller_review', 'counter_offered', 'return_in_transit', 'return_received'].includes(req.status) && (
+                                <span className="text-[9px] text-red-500 font-medium">Held from balance</span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             {req.resolutionPath && (
                               <Badge variant="outline" className="text-[10px] capitalize">
@@ -371,6 +378,9 @@ export function SellerReturns() {
                     <div>
                       <p className="text-sm font-medium text-gray-500 mb-1">Requested Amount</p>
                       <p className="text-lg font-bold text-orange-600">₱{selectedRequest.totalRefundAmount.toLocaleString()}</p>
+                      {['pending', 'seller_review', 'counter_offered', 'return_in_transit', 'return_received'].includes(selectedRequest.status) && (
+                        <p className="text-[10px] text-red-500 font-semibold uppercase tracking-wider">Currently held from your available balance</p>
+                      )}
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-500 mb-1">Buyer</p>

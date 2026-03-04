@@ -4,6 +4,7 @@
  * counter-offers, seller deadlines, escalation, return shipping.
  */
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { notificationService } from './notificationService';
 
 const RETURN_WINDOW_DAYS = 7;
 const SELLER_DEADLINE_HOURS = 48;
@@ -303,6 +304,37 @@ class ReturnService {
       metadata: { resolution_path: resolutionPath, return_type: returnType },
     });
 
+    // 10. Notifications
+    try {
+      const { data: fullOrder } = await supabase
+        .from('orders')
+        .select(`
+          order_number,
+          buyer:buyers(profiles(first_name, last_name)),
+          order_items!inner(product:products!inner(seller_id))
+        `)
+        .eq('id', orderDbId)
+        .single();
+
+      if (fullOrder) {
+        const sellerId = (fullOrder as any).order_items?.[0]?.product?.seller_id;
+        const buyerProfile = (fullOrder as any).buyer?.profiles;
+        const buyerName = buyerProfile ? `${buyerProfile.first_name || ''} ${buyerProfile.last_name || ''}`.trim() : 'A buyer';
+
+        if (sellerId) {
+          await notificationService.notifySellerReturnRequest({
+            sellerId,
+            orderId: orderDbId,
+            orderNumber: fullOrder.order_number,
+            buyerName,
+            reason: reason
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to send return request notification:', err);
+    }
+
     return this.transform(returnData);
   }
 
@@ -492,6 +524,9 @@ class ReturnService {
         note: 'Return approved and refund processed by seller',
         changed_by_role: 'seller',
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, 'approved');
     }
   }
 
@@ -521,7 +556,7 @@ class ReturnService {
     if (ret?.order_id) {
       await supabase
         .from('orders')
-        .update({ shipment_status: 'delivered', updated_at: new Date().toISOString() })
+        .update({ shipment_status: 'received', updated_at: new Date().toISOString() })
         .eq('id', ret.order_id);
       await supabase.from('order_status_history').insert({
         order_id: ret.order_id,
@@ -529,6 +564,9 @@ class ReturnService {
         note: reason || 'Return request rejected by seller',
         changed_by_role: 'seller',
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, 'rejected', reason);
     }
   }
 
@@ -558,6 +596,39 @@ class ReturnService {
         note: `Counter-offer: ₱${amount.toLocaleString()} — ${note}`,
         changed_by_role: 'seller',
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, 'counter_offered');
+    }
+  }
+
+  /**
+   * Helper to notify buyer of return status update
+   */
+  private async notifyBuyerOfReturnUpdate(orderId: string, status: any, message?: string) {
+    try {
+      const { data } = await supabase
+        .from('refund_return_periods')
+        .select('id, order_id, orders(order_number, buyer_id)')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      const ret = data as any;
+
+      if (ret?.orders?.buyer_id) {
+        await notificationService.notifyBuyerReturnStatus({
+          buyerId: ret.orders.buyer_id,
+          orderId,
+          returnId: ret.id,
+          orderNumber: ret.orders.order_number,
+          status,
+          message
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to notify buyer of return update:', err);
     }
   }
 
@@ -741,6 +812,9 @@ class ReturnService {
         note: 'Return received. Refund processed.',
         changed_by_role: 'seller',
       });
+
+      // Notify Buyer
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, 'refunded');
     }
   }
 

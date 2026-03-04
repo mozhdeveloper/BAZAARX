@@ -8,7 +8,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 export interface EarningsSummary {
   totalEarnings: number;       // Sum of all paid order items for this seller
   pendingPayout: number;       // Sum of order items in delivered/received orders not yet refunded
-  availableBalance: number;    // totalEarnings - refunded amounts
+  pendingRefunds: number;      // Sum of active refund requests (pending/under review)
+  availableBalance: number;    // totalEarnings - refunded amounts - pendingRefunds
   totalOrders: number;         // Count of orders with seller's products
   ordersThisMonth: number;
   earningsThisMonth: number;
@@ -48,7 +49,7 @@ class EarningsService {
   async getEarningsSummary(sellerId: string): Promise<EarningsSummary> {
     if (!isSupabaseConfigured()) {
       return {
-        totalEarnings: 0, pendingPayout: 0, availableBalance: 0,
+        totalEarnings: 0, pendingPayout: 0, pendingRefunds: 0, availableBalance: 0,
         totalOrders: 0, ordersThisMonth: 0, earningsThisMonth: 0,
         earningsGrowthPercent: 0,
       };
@@ -108,14 +109,31 @@ class EarningsService {
         }
       }
 
-      const earningsGrowthPercent = earningsLastMonth > 0
-        ? ((earningsThisMonth - earningsLastMonth) / earningsLastMonth) * 100
-        : earningsThisMonth > 0 ? 100 : 0;
+      // Get active return requests for this seller's products
+      const { data: returnRequests, error: returnsError } = await supabase
+        .from('refund_return_periods')
+        .select(`
+          id, refund_amount, status,
+          order:orders!inner(id, order_items!inner(product:products!inner(seller_id)))
+        `)
+        .eq('order.order_items.product.seller_id', sellerId)
+        .in('status', ['pending', 'seller_review', 'counter_offered', 'return_in_transit', 'return_received']);
+
+      if (returnsError) {
+        console.warn('Failed to fetch return requests for earnings:', returnsError);
+      }
+
+      const pendingRefunds = (returnRequests || []).reduce((sum, req) => sum + (req.refund_amount || 0), 0);
+      
+      const earningsGrowthPercent = earningsLastMonth === 0 
+        ? (earningsThisMonth > 0 ? 100 : 0) 
+        : ((earningsThisMonth - earningsLastMonth) / earningsLastMonth) * 100;
 
       return {
         totalEarnings,
         pendingPayout,
-        availableBalance: totalEarnings - refundedAmount,
+        pendingRefunds,
+        availableBalance: totalEarnings - refundedAmount - pendingRefunds,
         totalOrders: uniqueOrders.size,
         ordersThisMonth: uniqueOrdersThisMonth.size,
         earningsThisMonth,
@@ -124,7 +142,7 @@ class EarningsService {
     } catch (error) {
       console.error('Failed to get earnings summary:', error);
       return {
-        totalEarnings: 0, pendingPayout: 0, availableBalance: 0,
+        totalEarnings: 0, pendingPayout: 0, pendingRefunds: 0, availableBalance: 0,
         totalOrders: 0, ordersThisMonth: 0, earningsThisMonth: 0,
         earningsGrowthPercent: 0,
       };

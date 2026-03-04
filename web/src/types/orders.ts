@@ -65,6 +65,7 @@ export interface BuyerReturnRequestSnapshot {
   refundAmount: number;
   submittedAt: Date;
   status: 'pending' | 'approved' | 'rejected';
+  rejectedReason?: string | null;
 }
 
 export interface SellerOrderReviewSnapshot {

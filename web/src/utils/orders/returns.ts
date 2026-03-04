@@ -68,6 +68,7 @@ export const mapDbReturnRequestToBuyerReturnRequest = (
     refundAmount: request.refundAmount ?? fallbackRefundAmount,
     submittedAt: new Date(request.createdAt),
     status,
+    rejectedReason: request.rejectedReason,
   };
 };
 

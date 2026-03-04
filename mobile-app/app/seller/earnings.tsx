@@ -1,26 +1,135 @@
 // EARNINGS PAGE - Matches web exactly with same data and functionality
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { SellerStackParamList } from './SellerStack';
+import type { RootStackParamList } from '../../App';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Wallet, DollarSign, TrendingUp, Calendar, Clock, Download, CheckCircle, AlertCircle } from 'lucide-react-native';
+import { ArrowLeft, Wallet, DollarSign, TrendingUp, Calendar, Clock, Download, CheckCircle, AlertCircle, RotateCcw } from 'lucide-react-native';
+import { supabase } from '../../src/lib/supabase';
+import { useAuthStore } from '../../src/stores/sellerStore';
+
+interface EarningsSummary {
+  totalEarnings: number;
+  pendingPayout: number;
+  availableBalance: number;
+  pendingRefunds: number;
+  totalOrders: number;
+  earningsGrowthPercent: number;
+}
+
+interface PayoutRecord {
+  id: string;
+  date: string;
+  amount: number;
+  status: string;
+  method: string;
+  reference: string;
+}
 
 export default function EarningsScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { seller } = useAuthStore();
+  
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [summary, setSummary] = useState<EarningsSummary>({
+    totalEarnings: 0, pendingPayout: 0, availableBalance: 0, pendingRefunds: 0,
+    totalOrders: 0, earningsGrowthPercent: 0
+  });
+  const [payoutHistory, setPayoutHistory] = useState<PayoutRecord[]>([]);
 
-  // Demo data - matches web exactly
-  const payoutHistory = [
-    { id: 1, date: '2024-01-15', amount: 25840.50, status: 'completed', method: 'Bank Transfer', reference: 'PYT-2024-001' },
-    { id: 2, date: '2024-01-08', amount: 18920.00, status: 'completed', method: 'Bank Transfer', reference: 'PYT-2024-002' },
-    { id: 3, date: '2024-01-01', amount: 32150.75, status: 'completed', method: 'Bank Transfer', reference: 'PYT-2024-003' },
-  ];
+  const fetchEarningsData = async () => {
+    if (!seller?.id) return;
+    
+    try {
+      // 1. Fetch Order Items for Total Earnings & Pending Payouts
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select(`
+          price, price_discount, quantity, created_at,
+          product:products!inner(seller_id),
+          order:orders!inner(id, payment_status, shipment_status, created_at)
+        `)
+        .eq('product.seller_id', seller.id);
 
-  const totalEarnings = 76911.25;
-  const pendingPayout = 15240.50;
-  const availableBalance = totalEarnings - pendingPayout;
+      if (itemsError) throw itemsError;
+
+      // 2. Fetch Active Return Requests for Pending Refunds
+      const { data: returnRequests, error: returnsError } = await supabase
+        .from('refund_return_periods')
+        .select(`
+          refund_amount, status,
+          order:orders!inner(id, order_items!inner(product:products!inner(seller_id)))
+        `)
+        .eq('order.order_items.product.seller_id', seller.id)
+        .in('status', ['pending', 'seller_review', 'counter_offered', 'return_in_transit', 'return_received']);
+
+      if (returnsError) throw returnsError;
+
+      // Calculate totals
+      let totalEarnings = 0;
+      let pendingPayout = 0;
+      let refundedAmount = 0;
+      const uniqueOrders = new Set();
+
+      (orderItems || []).forEach((item: any) => {
+        const lineTotal = (item.price - (item.price_discount || 0)) * item.quantity;
+        const order = item.order;
+        uniqueOrders.add(order.id);
+
+        if (order.payment_status === 'paid') {
+          totalEarnings += lineTotal;
+          if (['delivered', 'received'].includes(order.shipment_status)) {
+            pendingPayout += lineTotal;
+          }
+        } else if (order.payment_status === 'refunded') {
+          refundedAmount += lineTotal;
+        }
+      });
+
+      const pendingRefunds = (returnRequests || []).reduce((sum, req) => sum + (req.refund_amount || 0), 0);
+
+      setSummary({
+        totalEarnings,
+        pendingPayout,
+        pendingRefunds,
+        availableBalance: totalEarnings - refundedAmount - pendingRefunds,
+        totalOrders: uniqueOrders.size,
+        earningsGrowthPercent: 0 // Placeholder
+      });
+
+      // 3. Payout History (Mocked for now as per web pattern)
+      const weeklyPayouts: PayoutRecord[] = [];
+      // (Implementation matching web service could go here)
+      setPayoutHistory([]);
+
+    } catch (err) {
+      console.error('Failed to fetch earnings:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEarningsData();
+  }, [seller?.id]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchEarningsData();
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#D97706" />
+      </View>
+    );
+  }
+
   const lastPayout = payoutHistory.find(p => p.status === 'completed');
 
   return (
@@ -35,16 +144,20 @@ export default function EarningsScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Earnings Cards */}
         <View style={styles.cardsGrid}>
           <View style={styles.totalCard}>
             <View style={styles.cardHeader}>
               <View style={styles.cardIconOrange}><DollarSign size={24} color="#FFF" strokeWidth={2} /></View>
-              <View style={styles.growthBadge}><TrendingUp size={14} color="#FFF" /><Text style={styles.growthText}>+12.5%</Text></View>
+              <View style={styles.growthBadge}><TrendingUp size={14} color="#FFF" /><Text style={styles.growthText}>+{summary.earningsGrowthPercent}%</Text></View>
             </View>
             <Text style={styles.cardLabel}>Total Earnings</Text>
-            <Text style={styles.cardValueWhite}>₱{totalEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.cardValueWhite}>₱{summary.totalEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</Text>
             <Text style={styles.cardSubtext}>Lifetime earnings from sales</Text>
           </View>
 
@@ -54,8 +167,8 @@ export default function EarningsScreen() {
               <CheckCircle size={20} color="#10B981" />
             </View>
             <Text style={styles.cardLabelGray}>Available Balance</Text>
-            <Text style={styles.cardValueDark}>₱{availableBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</Text>
-            <Text style={styles.cardSubtextGray}>Ready for payout</Text>
+            <Text style={styles.cardValueDark}>₱{summary.availableBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.cardSubtextGray}>Ready for payout (minus pending refunds)</Text>
           </View>
 
           <View style={styles.pendingCard}>
@@ -64,8 +177,19 @@ export default function EarningsScreen() {
               <AlertCircle size={20} color="#F59E0B" />
             </View>
             <Text style={styles.cardLabelGray}>Pending Payout</Text>
-            <Text style={styles.cardValueDark}>₱{pendingPayout.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.cardValueDark}>₱{summary.pendingPayout.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</Text>
             <Text style={styles.cardSubtextGray}>Processing orders</Text>
+          </View>
+
+          {/* Pending Refunds Card */}
+          <View style={[styles.pendingCard, { borderColor: '#F87171', backgroundColor: '#FEF2F2' }]}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.cardIconYellow, { backgroundColor: '#FEE2E2' }]}><RotateCcw size={24} color="#EF4444" strokeWidth={2} /></View>
+              <AlertCircle size={20} color="#EF4444" />
+            </View>
+            <Text style={styles.cardLabelGray}>Pending Refunds</Text>
+            <Text style={styles.cardValueDark}>₱{summary.pendingRefunds.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.cardSubtextGray}>Requests under review</Text>
           </View>
 
           {/* Last Payout Card */}

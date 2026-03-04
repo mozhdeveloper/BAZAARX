@@ -313,6 +313,27 @@ export default function OrdersPage() {
     return Date.now() - orderTime < 120000; // 2 minutes
   };
 
+  // Auto-open return details if query params exist (from notifications)
+  useEffect(() => {
+    const viewOrderId = searchParams.get("viewOrder");
+    const isViewReturn = searchParams.get("viewReturn") === "true";
+
+    if (viewOrderId && isViewReturn && orders.length > 0) {
+      const order = orders.find(o => o.dbId === viewOrderId || o.id === viewOrderId);
+      if (order && order.returnRequest) {
+        setViewReturnDetails(order);
+        setStatusFilter("returned");
+        
+        // Clear params to avoid re-opening on manual tab switch
+        setSearchParams(prev => {
+          prev.delete("viewOrder");
+          prev.delete("viewReturn");
+          return prev;
+        }, { replace: true });
+      }
+    }
+  }, [searchParams, orders, setStatusFilter]);
+
   const statusOptions = [
     { value: "all", label: "All Orders" },
     { value: "pending", label: "Pending" },
@@ -1194,6 +1215,16 @@ export default function OrdersPage() {
                             : 'Pending Review'}
                         </p>
                       </div>
+                      {viewReturnDetails.returnRequest.status === 'rejected' && viewReturnDetails.returnRequest.rejectedReason && (
+                        <div>
+                          <span className="text-sm font-medium text-gray-700">
+                            Seller Response:
+                          </span>
+                          <p className="text-red-600 italic bg-red-50 border border-red-100 p-2 rounded mt-1">
+                            "{viewReturnDetails.returnRequest.rejectedReason}"
+                          </p>
+                        </div>
+                      )}
                       <div>
                         <span className="text-sm font-medium text-gray-700">
                           Submitted:
