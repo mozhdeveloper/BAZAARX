@@ -205,8 +205,7 @@ export class ProductService {
                 .from('order_items')
                 .select('product_id, quantity, order:orders!inner(payment_status, shipment_status, order_type)')
                 .in('product_id', productIds)
-                .eq('order.payment_status', 'paid')
-                .in('order.shipment_status', ['delivered', 'received']);
+                .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
 
             if (soldCountsError) {
                 console.error('[ProductService] Error fetching sold counts:', soldCountsError);
@@ -480,8 +479,7 @@ export class ProductService {
                 .from('order_items')
                 .select('quantity, order:orders!inner(payment_status, shipment_status)')
                 .eq('product_id', id)
-                .eq('order.payment_status', 'paid')
-                .in('order.shipment_status', ['delivered', 'received']);
+                .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
 
             const soldCount = soldCountsData?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
 

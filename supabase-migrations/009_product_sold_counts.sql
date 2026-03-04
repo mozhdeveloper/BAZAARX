@@ -21,8 +21,7 @@ SELECT
 FROM public.products p
 LEFT JOIN public.order_items oi ON oi.product_id = p.id
 LEFT JOIN public.orders o ON o.id = oi.order_id
-  AND o.payment_status = 'paid'
-  AND o.shipment_status IN ('delivered', 'received')
+  AND o.shipment_status IN ('processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received')
 WHERE p.deleted_at IS NULL
 GROUP BY p.id;
 
@@ -73,8 +72,7 @@ BEGIN
   FROM public.order_items oi
   INNER JOIN public.orders o ON o.id = oi.order_id
   WHERE oi.product_id = product_uuid
-    AND o.payment_status = 'paid'
-    AND o.shipment_status IN ('delivered', 'received');
+    AND o.shipment_status IN ('processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received');
   
   RETURN sold_total;
 END;

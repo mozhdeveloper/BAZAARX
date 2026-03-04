@@ -75,9 +75,18 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
-                {product.originalPrice && (
-                    <div className="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm">
-                        {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
+                {product.originalPrice && product.originalPrice > product.price && (
+                    <div
+                        title={product.discountBadgeTooltip}
+                        className="absolute top-3 left-3 bg-[#DC2626] text-white px-2 py-[2px] rounded text-[11px] font-black uppercase tracking-wider z-10 shadow-sm"
+                    >
+                        {typeof product.discountBadgePercent === "number" && product.discountBadgePercent > 0
+                            ? product.discountBadgePercent
+                            : Math.round(
+                                ((product.originalPrice - product.price) /
+                                    product.originalPrice) *
+                                100
+                            )}% OFF
                     </div>
                 )}
             </div>
@@ -102,11 +111,14 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
 
                     <div className="flex items-baseline justify-between gap-1.5 mb-2">
                         <div className="flex items-baseline gap-1.5">
-                            <span className="text-lg font-bold text-[var(--brand-primary)] flex items-start gap-0.5">
+                            <span className={cn(
+                                "text-lg font-black flex items-start gap-0.5",
+                                product.originalPrice && product.originalPrice > product.price ? "text-[#DC2626]" : "text-[#D97706]"
+                            )}>
                                 <span className="text-xs mt-1">₱</span>
                                 {product.price.toLocaleString()}
                             </span>
-                            {product.originalPrice && (
+                            {product.originalPrice && product.originalPrice > product.price && (
                                 <span className="text-[10px] text-gray-400 line-through">
                                     ₱{product.originalPrice.toLocaleString()}
                                 </span>
