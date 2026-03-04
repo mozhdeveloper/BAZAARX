@@ -129,31 +129,6 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </Text>
         </View>
         <View style={styles.metadataRow}>
-          <Text style={styles.dateText}>
-            {(() => {
-              switch (buyerUiStatus) {
-                case 'confirmed':
-                  return order.confirmedAt
-                    ? `Confirmed ${formatDate(order.confirmedAt)}`
-                    : `Placed ${formatDate(order.createdAt)}`;
-                case 'shipped':
-                  return order.shippedAt
-                    ? `Shipped ${formatDate(order.shippedAt)}`
-                    : `Placed ${formatDate(order.createdAt)}`;
-                case 'delivered':
-                case 'reviewed':
-                  return order.deliveredAt
-                    ? `Delivered ${formatDate(order.deliveredAt)}`
-                    : `Placed ${formatDate(order.createdAt)}`;
-                case 'cancelled':
-                  return order.cancelledAt
-                    ? `Cancelled ${formatDate(order.cancelledAt)}`
-                    : `Placed ${formatDate(order.createdAt)}`;
-                default:
-                  return `Placed ${formatDate(order.createdAt)}`;
-              }
-            })()}
-          </Text>
           <Pressable style={styles.orderIdContainer} onPress={handleCopyOrderId}>
             <Text style={styles.orderIdText}>ID: {order.transactionId}</Text>
             <Copy size={12} color="#6B7280" style={{ marginLeft: 4 }} />

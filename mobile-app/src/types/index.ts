@@ -167,6 +167,7 @@ export interface Order {
   cancelledAt?: string;
   buyerUiStatus?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
   isReviewed?: boolean;
+  returnRequestId?: string;
   isGift?: boolean;
   isAnonymous?: boolean;
   recipientId?: string;
