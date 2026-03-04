@@ -11,6 +11,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { categoryService } from './categoryService';
 import type { Product, ProductWithSeller, ProductImage, ProductVariant, Category, Database } from '@/types/database.types';
 
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
@@ -74,31 +75,20 @@ export class ProductService {
 
     if (!categoryId) {
       const categoryName = payload.category || payload.category_name;
-      if (typeof categoryName === 'string' && categoryName.trim().length > 0) {
-        categoryId = await this.getOrCreateCategoryByName(categoryName);
+      if (typeof categoryName === 'string') {
+        categoryId = await categoryService.getOrCreateCategoryByName(categoryName);
       }
     }
 
     if (!categoryId) {
-      const { data: defaultCategory, error } = await supabase
-        .from('categories')
-        .select('id')
-        .order('sort_order', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      categoryId = defaultCategory?.id || null;
+      categoryId = await categoryService.getDefaultCategoryId();
     }
 
     if (!categoryId) {
       throw new Error('Category is required and could not be resolved.');
     }
 
-    const { category, category_name, ...rest } = payload as ProductInsert & {
-      category?: string;
-      category_name?: string;
-    };
+    const { category, category_name, ...rest } = payload;
 
     return {
       ...rest,
@@ -139,74 +129,24 @@ export class ProductService {
         .select(`
           *,
           category:categories!products_category_id_fkey (
-            id,
-            name,
-            slug,
-            parent_id
+            id, name, slug, parent_id, is_active
           ),
-          images:product_images (
-            id,
-            image_url,
-            alt_text,
-            sort_order,
-            is_primary
-          ),
-          variants:product_variants (
-            id,
-            sku,
-            barcode,
-            variant_name,
-            size,
-            color,
-            option_1_value,
-            option_2_value,
-            price,
-            stock,
-            thumbnail_url
-          ),
-          reviews (
-            id,
-            rating
-          ),
-          seller:sellers!products_seller_id_fkey (
-            id,
-            store_name,
-            store_description,
-            avatar_url,
-            owner_name,
-            approval_status,
-            verified_at,
-            business_profile:seller_business_profiles (
-              business_type,
-              city,
-              province
-            )
-          ),
-          product_discounts (
-            id,
-            discount_type,
-            discount_value,
-            sold_count,
-            campaign:discount_campaigns (
-              id,
-              badge_text,
-              badge_color,
-              discount_type,
-              discount_value,
-              max_discount_amount,
-              ends_at,
-              status,
-              starts_at
-            )
-          )
+          images:product_images (*),
+          variants:product_variants (*),
+          reviews (id, rating),
+          seller:sellers!products_seller_id_fkey (*, business_profile:seller_business_profiles (*)),
+          product_discounts (*, campaign:discount_campaigns (*))
         `)
-        .is('deleted_at', null)  // Only non-deleted products
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       // Apply filters
       if (filters?.categoryId) {
         query = query.eq('category_id', filters.categoryId);
       }
+
+      query = query.eq('category.is_active', true);
+
       // Legacy category string support - lookup by name
       if (filters?.category && !filters?.categoryId) {
         // For now, filter on the joined category name
@@ -276,7 +216,7 @@ export class ProductService {
       });
 
       // Transform to add legacy compatibility fields
-      const result = data.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+      const result = data?.map(p => this.transformProduct(p, 0)) || [];
 
       // Store in cache
       this.setCache(cacheKey, result);

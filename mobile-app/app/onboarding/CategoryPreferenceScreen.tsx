@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,9 +19,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { authService } from '../../src/services/authService';
 import { COLORS } from '../../src/constants/theme';
-
-// IMPORT THE NEW DATA FILE HERE
-import { categories, type Category } from '../../src/data/categories';
+import { categoryService } from '../../src/services/categoryService';
+import type { Category } from '../../src/types/database.types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CategoryPreference'>;
 
@@ -33,12 +32,30 @@ const ITEM_WIDTH = (width - (PADDING * 2) - GAP) / COLUMN_count;
 
 export default function CategoryPreferenceScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
+  const [dbCategories, setDbCategories] = useState<Category[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   // Get signup data passed from previous screens
   const { signupData } = route.params || {};
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setIsLoadingCategories(true);
+      try {
+        const categories = await categoryService.getActiveCategories();
+        setDbCategories(categories);
+      } catch (error) {
+        console.error('Failed to load categories:', error);
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const toggleCategory = (id: string) => {
     if (selectedCategories.includes(id)) {
@@ -99,7 +116,7 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
     }
   };
 
-  const filteredCategories = categories.filter(cat =>
+  const filteredCategories = dbCategories.filter(cat =>
     cat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -111,7 +128,7 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
         onPress={() => toggleCategory(item.id)}
       >
         <ImageBackground
-          source={{ uri: safeImageUri(item.image) }}
+          source={{ uri: safeImageUri(item.image_url || 'https://placehold.co/400x400/e5e7eb/6b7280?text=Category') }}
           style={styles.imageBackground}
           imageStyle={{ borderRadius: 12 }}
         >
@@ -163,15 +180,21 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
         </View>
       </LinearGradient>
 
-      <FlatList
-        data={filteredCategories}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        numColumns={COLUMN_count}
-        contentContainerStyle={styles.listContent}
-        columnWrapperStyle={styles.columnWrapper}
-        showsVerticalScrollIndicator={false}
-      />
+      {isLoadingCategories ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredCategories}
+          renderItem={renderItem}
+          keyExtractor={item => item.id}
+          numColumns={COLUMN_count}
+          contentContainerStyle={styles.listContent}
+          columnWrapperStyle={styles.columnWrapper}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       <View style={styles.footer}>
         <View style={styles.progressContainer}>
@@ -200,6 +223,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     backgroundColor: '#FFFFFF',

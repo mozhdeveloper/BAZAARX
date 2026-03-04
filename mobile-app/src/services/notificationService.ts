@@ -1,12 +1,12 @@
 /**
  * Notification Service
  * Handles all notification-related database operations for mobile app
- * 
- * NOTE: Database has separate notification tables:
+ * * NOTE: Database has separate notification tables:
  * - buyer_notifications (has buyer_id)
- * - seller_notifications (MISSING seller_id - needs schema fix!)
+ * - seller_notifications (has seller_id) // UPDATED: Column exists!
  * - admin_notifications (has admin_id)
  */
+
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
@@ -137,6 +137,7 @@ class NotificationService {
       let query = supabase
         .from(table)
         .select('*')
+        .eq(userIdColumn, userId)
         .order('created_at', { ascending: false })
         .limit(limit);
       
@@ -144,7 +145,11 @@ class NotificationService {
       
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        // Log the specific error message from Supabase/Postgres
+        console.error(`[NotificationService] Supabase Error: ${error.message}`);
+        throw error;
+      }
       
       // Map database response to Notification interface
       const notifications: Notification[] = (data || []).map((item: any) => ({
@@ -220,16 +225,18 @@ class NotificationService {
       const table = getNotificationTable(userType);
       const userIdColumn = getUserIdColumn(userType);
       
-      let query = supabase
+      // Change: Select only the ID to reduce data transfer/overhead
+      const { count, error } = await supabase
         .from(table)
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true }) // Optimization: just check IDs
+        .eq(userIdColumn, userId)
         .is('read_at', null);
-      
-      query = query.eq(userIdColumn, userId);
-      
-      const { count, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        // Log the specific Postgres error code
+        console.error(`[NotificationService] DB Error ${error.code}: ${error.message}`);
+        throw error;
+      }
       return count || 0;
     } catch (error) {
       console.error('[NotificationService] Error getting unread count:', error);

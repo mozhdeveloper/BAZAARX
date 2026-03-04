@@ -23,6 +23,7 @@ import LocationModal from '../src/components/LocationModal';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 // Use the service you provided
 import { productService } from '../src/services/productService';
+import { categoryService } from '../src/services/categoryService';
 import { addressService } from '../src/services/addressService';
 import { notificationService } from '../src/services/notificationService';
 import { useAuthStore } from '../src/stores/authStore';
@@ -46,12 +47,13 @@ const { width } = Dimensions.get('window');
 type CategoryChip = {
   id: string;
   name: string;
-  slug: string;
-  key: string;
-  matchKeys: string[];
 };
 
 const PLACEHOLDER_IMAGE = 'https://placehold.co/400x400/e5e7eb/6b7280?text=Product';
+
+const DEFAULT_CATEGORY_CHIPS: CategoryChip[] = [
+  { id: 'all', name: 'All' }
+];
 
 const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
   'home-living': ['home-garden', 'home-and-garden'],
@@ -101,59 +103,6 @@ const expandCategoryAliases = (key: string): string[] => {
   });
 
   return Array.from(expanded).filter(Boolean);
-};
-
-const buildCategoryChip = (raw: { id: string; name: string; slug?: string | null }): CategoryChip => {
-  const normalizedSlug = normalizeCategoryKey(raw.slug || raw.name);
-  const normalizedName = normalizeCategoryKey(raw.name);
-  const key = normalizedSlug || normalizedName || 'all';
-
-  const matchSet = new Set<string>([key, normalizedName].filter(Boolean));
-  [key, normalizedName].forEach((seed) => {
-    expandCategoryAliases(seed).forEach((alias) => matchSet.add(alias));
-  });
-
-  return {
-    id: raw.id,
-    name: raw.name,
-    slug: raw.slug || key,
-    key,
-    matchKeys: Array.from(matchSet),
-  };
-};
-
-const DEFAULT_CATEGORY_CHIPS: CategoryChip[] = FALLBACK_CATEGORY_DATA.map(buildCategoryChip);
-
-const resolveCategoryKey = (input: string | undefined, chips: CategoryChip[]): string => {
-  const normalizedInput = normalizeCategoryKey(input);
-  if (!normalizedInput || normalizedInput === 'all') return 'all';
-
-  const exact = chips.find((chip) => chip.matchKeys.includes(normalizedInput));
-  if (exact) return exact.key;
-
-  const expandedInput = expandCategoryAliases(normalizedInput);
-  const aliased = chips.find((chip) => expandedInput.some((candidate) => chip.matchKeys.includes(candidate)));
-
-  return aliased?.key || 'all';
-};
-
-const categoryMatches = (
-  selectedKey: string,
-  productCategory: string | undefined,
-  chips: CategoryChip[],
-): boolean => {
-  if (selectedKey === 'all') return true;
-
-  const productKey = normalizeCategoryKey(productCategory);
-  if (!productKey) return false;
-
-  const selectedChip = chips.find((chip) => chip.key === selectedKey);
-  if (!selectedChip) return productKey === selectedKey;
-
-  if (selectedChip.matchKeys.includes(productKey)) return true;
-
-  const productAliases = expandCategoryAliases(productKey);
-  return productAliases.some((alias) => selectedChip.matchKeys.includes(alias));
 };
 
 const toNumber = (value: unknown, fallback = 0): number => {
@@ -210,6 +159,7 @@ const normalizeProductForShop = (row: any): Product => {
   const originalPrice = toNumber(originalPriceRaw, 0);
 
   const categoryName = typeof row.category === 'string' ? row.category : row.category?.name || '';
+  const categoryId = row.category_id || (row.category && typeof row.category === 'object' ? row.category.id : undefined);
 
   return {
     ...row,
@@ -220,6 +170,7 @@ const normalizeProductForShop = (row: any): Product => {
     image: primaryImage,
     images: imageUrls.length > 0 ? imageUrls : [primaryImage],
     category: categoryName,
+    category_id: categoryId,
     seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
     isFreeShipping: !!(row.is_free_shipping ?? row.isFreeShipping),
   };
@@ -252,9 +203,7 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const { searchQuery: initialSearchQuery, customResults, category: initialCategory } = route.params || {};
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
-  const [selectedCategory, setSelectedCategory] = useState(() =>
-    resolveCategoryKey(initialCategory, DEFAULT_CATEGORY_CHIPS),
-  );
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
   const [selectedSort, setSelectedSort] = useState('relevance');
 
   const [minPrice, setMinPrice] = useState('0');
@@ -274,8 +223,10 @@ export default function ShopScreen({ navigation, route }: Props) {
   }, [route.params?.searchQuery]);
 
   useEffect(() => {
-    setSelectedCategory(resolveCategoryKey(route.params?.category, categoryChips));
-  }, [route.params?.category, categoryChips]);
+    if (route.params?.category) {
+      setSelectedCategory(route.params.category);
+    }
+  }, [route.params?.category]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -286,7 +237,7 @@ export default function ShopScreen({ navigation, route }: Props) {
             isActive: true,
             approvalStatus: 'approved',
           }),
-          productService.getCategories(),
+          categoryService.getActiveCategories(), // <-- Change this line
           supabase
             .from('sellers')
             .select('id, store_name, verified_at, approval_status')
@@ -303,17 +254,11 @@ export default function ShopScreen({ navigation, route }: Props) {
         }
 
         if (categoriesResult.status === 'fulfilled') {
-          const mappedChips = (categoriesResult.value || []).map((category: any) =>
-            buildCategoryChip({
-              id: category.id,
-              name: category.name,
-              slug: category.slug,
-            }),
-          );
-
-          const chipsWithAll = [DEFAULT_CATEGORY_CHIPS[0], ...mappedChips];
-          const deduped = Array.from(new Map(chipsWithAll.map((chip) => [chip.key, chip])).values());
-          setCategoryChips(deduped.length > 1 ? deduped : DEFAULT_CATEGORY_CHIPS);
+          const mappedChips = (categoriesResult.value || []).map((category: any) => ({
+            id: category.id,
+            name: category.name,
+          }));
+          setCategoryChips([DEFAULT_CATEGORY_CHIPS[0], ...mappedChips]);
         } else {
           console.error('[ShopScreen] Failed loading categories:', categoriesResult.reason);
           setCategoryChips(DEFAULT_CATEGORY_CHIPS);
@@ -431,7 +376,8 @@ export default function ShopScreen({ navigation, route }: Props) {
         productCategory.toLowerCase().includes(normalizedQuery) ||
         productSeller.includes(normalizedQuery);
 
-      const categoryMatch = categoryMatches(selectedCategory, productCategory, categoryChips);
+      // Strict database ID match (or 'all')
+      const categoryMatch = selectedCategory === 'all' || product.category_id === selectedCategory;
       const priceMatch = productPrice >= min && productPrice <= max;
 
       return searchMatch && categoryMatch && priceMatch;
@@ -589,11 +535,11 @@ export default function ShopScreen({ navigation, route }: Props) {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
           {categoryChips.map((cat) => (
             <Pressable
-              key={cat.key}
-              style={[styles.chip, selectedCategory === cat.key && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
-              onPress={() => setSelectedCategory(cat.key)}
+              key={cat.id}
+              style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
+              onPress={() => setSelectedCategory(cat.id)}
             >
-              <Text style={[styles.chipText, selectedCategory === cat.key && { color: '#FFF' }]}>{cat.name}</Text>
+              <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
             </Pressable>
           ))}
         </ScrollView>
