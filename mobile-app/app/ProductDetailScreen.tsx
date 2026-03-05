@@ -180,6 +180,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Structured variants from product_variants table
   const productVariants = product.variants || [];
   const hasStructuredVariants = productVariants.length > 0;
+  const hasAnyStock = productVariants.some((v: any) => Number(v.stock || 0) > 0) || Number(product.stock || 0) > 0;
 
   // Dynamic variant labels from database schema
   // Falls back to "Color"/"Size" for legacy support
@@ -1314,12 +1315,22 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </Pressable>
 
         <View style={styles.actionButtonsContainer}>
-          <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
-            <ShoppingCart size={20} color={COLORS.primary} />
+          <Pressable 
+            style={[styles.addToCartBtn, !hasAnyStock && styles.disabledBtn]} 
+            onPress={handleAddToCart}
+            disabled={!hasAnyStock}
+          >
+            <ShoppingCart size={20} color={hasAnyStock ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
-          <Pressable style={styles.buyNowBtn} onPress={handleBuyNow}>
-            <Text style={styles.buyNowText}>Buy Now</Text>
+          <Pressable 
+            style={[styles.buyNowBtn, !hasAnyStock && styles.disabledBtn]} 
+            onPress={handleBuyNow}
+            disabled={!hasAnyStock}
+          >
+            <Text style={[styles.buyNowText, !hasAnyStock && { color: COLORS.gray400 }]}>
+              {hasAnyStock ? 'Buy Now' : 'Out of Stock'}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -1808,6 +1819,9 @@ const styles = StyleSheet.create({
     borderRadius: 26, backgroundColor: COLORS.primary, // Solid Brand Primary
   },
   buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  disabledBtn: {
+    opacity: 0.5,
+  },
 
   // Wishlist Dropdown
   wishlistDropdown: {
