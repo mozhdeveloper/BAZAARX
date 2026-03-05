@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -20,6 +20,7 @@ import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Product } from '../src/types';
+import { CampaignTimer } from '../src/components/CampaignTimer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FlashSale'>;
 
@@ -38,70 +39,54 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
     const [badgeGroups, setBadgeGroups] = useState<BadgeGroup[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Countdown timer
-    const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
+    const earliestEndsAt = useMemo(() => {
+        if (badgeGroups.length === 0) return null;
+        const times = badgeGroups
+            .map(g => g.products[0]?.campaignEndsAt)
+            .filter(Boolean)
+            .sort();
+        return times[0] || null;
+    }, [badgeGroups]);
 
     useEffect(() => {
         loadProducts();
     }, []);
 
-    useEffect(() => {
-        if (badgeGroups.length === 0) return;
-
-        const updateTimer = () => {
-            const allProducts = badgeGroups.flatMap(g => g.products);
-            const now = new Date().getTime();
-            const endTimes = allProducts
-                .map(p => new Date((p as any).campaignEndsAt).getTime())
-                .filter(t => t > now)
-                .sort((a, b) => a - b);
-
-            if (endTimes.length === 0) {
-                setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
-                return;
-            }
-
-            const diff = endTimes[0] - now;
-            setTimeLeft({
-                hours: Math.floor(diff / (1000 * 60 * 60)),
-                minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
-                seconds: Math.floor((diff % (1000 * 60)) / 1000)
-            });
-        };
-
-        updateTimer();
-        const interval = setInterval(updateTimer, 1000);
-        return () => clearInterval(interval);
-    }, [badgeGroups]);
-
     const loadProducts = async () => {
         try {
             const data = await discountService.getFlashSaleProducts();
+            const campaignFilter = route.params?.campaignId;
 
-            // Deduplicate by product ID — a product may appear in multiple campaigns
             const seen = new Set<string>();
             const uniqueData = (data || []).filter((p: any) => {
+                // Generate the exact same key used in HomeScreen
+                const pKey = p.campaignId || p.campaignName || 'default';
+
+                // If a filter exists, strictly match the key
+                if (campaignFilter && pKey !== campaignFilter) return false;
+
+                // Deduplicate by product ID
                 if (seen.has(p.id)) return false;
                 seen.add(p.id);
                 return true;
             });
 
             const groups = uniqueData.reduce((acc: any, product: any) => {
-                const badge = product.campaignBadge || 'Flash Sale';
-                if (!acc[badge]) {
-                    acc[badge] = {
-                        badge,
+                const key = product.campaignId || product.campaignName || 'default';
+
+                if (!acc[key]) {
+                    acc[key] = {
+                        badge: key,
                         color: product.campaignBadgeColor || COLORS.primary,
-                        campaignName: product.campaignName,
+                        campaignName: product.campaignName || 'Flash Sale',
                         seller: product.seller,
                         products: []
                     };
                 }
-                acc[badge].products.push(product);
+                acc[key].products.push(product);
                 return acc;
             }, {} as Record<string, BadgeGroup>);
 
-            // Sort groups: Flash Sale first or by most products
             const sortedGroups = Object.values(groups)
                 .filter((g: any) => g.products.length > 0)
                 .sort((a: any, b: any) => b.products.length - a.products.length) as BadgeGroup[];
@@ -136,20 +121,6 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                         <Zap size={20} color={COLORS.primary} fill={COLORS.primary} />
                         <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Flash Sale</Text>
                     </View>
-                    <View style={styles.timerRow}>
-                        <Timer size={16} color={COLORS.primary} strokeWidth={2.5} />
-                        <View style={styles.timerBox}>
-                            <Text style={styles.timerDigit}>{pad(timeLeft.hours)}</Text>
-                        </View>
-                        <Text style={styles.timerSep}>:</Text>
-                        <View style={styles.timerBox}>
-                            <Text style={styles.timerDigit}>{pad(timeLeft.minutes)}</Text>
-                        </View>
-                        <Text style={styles.timerSep}>:</Text>
-                        <View style={styles.timerBox}>
-                            <Text style={styles.timerDigit}>{pad(timeLeft.seconds)}</Text>
-                        </View>
-                    </View>
                 </LinearGradient>
 
                 {/* Products Area */}
@@ -159,9 +130,25 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                     contentContainerStyle={styles.scrollContainer}
                 >
                     <View style={styles.heroBox}>
-                        <Zap size={40} color="#EA580C" fill="#EA580C" style={styles.heroZap} />
+                        <View style={styles.zapBadge}>
+                            <Zap size={20} color="#FFF" fill="#FFF" />
+                            <Text style={styles.zapBadgeText}>OFFER ENDS IN</Text>
+                        </View>
+
+                        {/* EMPHASIZED TIMER: Large, high-contrast digits */}
+                        {earliestEndsAt && (
+                            <View style={styles.emphasizedTimerContainer}>
+                                <CampaignTimer
+                                    endsAt={String(earliestEndsAt)}
+                                    variant="large" // Switched to large variant
+                                />
+                            </View>
+                        )}
+
                         <Text style={styles.heroTitle}>Limited Time Deals!</Text>
-                        <Text style={styles.heroSub}>Exclusive offers created directly by verified sellers.</Text>
+                        <Text style={styles.heroSub}>
+                            Exclusive offers created directly by verified sellers.
+                        </Text>
                     </View>
 
                     {loading ? (
@@ -177,25 +164,23 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                     ) : (
                         <View style={styles.groupsWrapper}>
                             {badgeGroups.map((group) => (
+                                /* ADD THE KEY PROP HERE */
                                 <View key={group.badge} style={styles.badgeSection}>
                                     <View style={styles.sectionHeader}>
                                         <View style={[styles.badgeIndicator, { backgroundColor: group.color }]} />
-                                        <Text style={styles.sectionTitle} numberOfLines={1}>
-                                            {group.campaignName && (
-                                                <Text style={{ color: group.color }}>
-                                                    {group.campaignName}
-                                                </Text>
-                                            )}
-                                            {group.campaignName && group.seller && (
-                                                <Text style={styles.separatorText}> | </Text>
-                                            )}
-                                            {group.seller && (
-                                                <Text style={styles.sellerNameText}>{group.seller}</Text>
-                                            )}
-                                        </Text>
-                                        <View style={styles.sectionLine} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.sectionTitle} numberOfLines={1}>
+                                                {group.campaignName}
+                                            </Text>
+                                            <Text style={styles.sellerSubtext}>
+                                                Official Store: <Text style={{ fontWeight: '800', color: '#4B5563' }}>{group.seller}</Text>
+                                            </Text>
+                                        </View>
                                     </View>
 
+                                    {/* If you have a product grid here, ensure the ProductCard 
+               also has a key={product.id} 
+            */}
                                     <View style={styles.productGrid}>
                                         {group.products.map((product) => (
                                             <View key={product.id} style={styles.productItem}>
@@ -235,7 +220,6 @@ const styles = StyleSheet.create({
     backBtn: { padding: 4, marginRight: 12, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
     headerTitle: { fontSize: 22, fontWeight: '900', color: COLORS.textHeadline },
-    timerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF8F0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#FDE68A' },
     timerBox: {
         backgroundColor: COLORS.primary,
         borderRadius: 4,
@@ -249,9 +233,48 @@ const styles = StyleSheet.create({
     scrollContent: { flex: 1 },
     scrollContainer: { paddingBottom: 40 },
     heroBox: {
-        padding: 30,
+        paddingTop: 40,
+        paddingBottom: 20,
         alignItems: 'center',
+        backgroundColor: 'transparent',
     },
+    zapBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#111827',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        gap: 6,
+        marginBottom: 16,
+    },
+    zapBadgeText: {
+        color: '#FFF',
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 1,
+    },
+    emphasizedTimerContainer: {
+        marginBottom: 20,
+        // Add a slight glow effect
+        shadowColor: '#EF4444',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.2,
+        shadowRadius: 15,
+    },
+    timerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    unitBox: { alignItems: 'center', gap: 4 },
+    digitBg: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 5,
+    },
+    digitText: { color: '#FFF', fontSize: 24, fontWeight: '900', fontVariant: ['tabular-nums'] },
+    unitLabel: { fontSize: 8, fontWeight: '800', color: '#991B1B' },
+    separator: { fontSize: 24, fontWeight: '900', color: '#EF4444', marginBottom: 14 },
     heroZap: { marginBottom: 12, shadowColor: '#EA580C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10 },
     heroTitle: { fontSize: 26, fontWeight: '900', color: '#7C2D12', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
     heroSub: { fontSize: 14, color: '#9A3412', textAlign: 'center', paddingHorizontal: 20, fontWeight: '500' },
@@ -266,7 +289,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: CONTAINER_PADDING,
         marginBottom: 16,
-        gap: 12,
+        gap: 10, // Slightly reduced gap
     },
     badgeIndicator: {
         width: 4,
@@ -275,10 +298,9 @@ const styles = StyleSheet.create({
     },
     sectionTitle: {
         fontSize: 16,
-        fontWeight: '800',
+        fontWeight: '900',
         color: COLORS.textHeadline,
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
     },
     sectionLine: {
         flex: 1,
@@ -302,9 +324,15 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     sellerNameText: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#6B7280',
+        fontSize: 14, // Slightly larger
+        fontWeight: '600',
+        color: '#9CA3AF', // Softer gray so the campaign name pops
         textTransform: 'none',
+    },
+    sellerSubtext: {
+        fontSize: 12,
+        color: '#9CA3AF',
+        marginTop: 2,
+        fontWeight: '500',
     },
 });

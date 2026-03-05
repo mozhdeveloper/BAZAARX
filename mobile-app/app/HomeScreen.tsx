@@ -20,6 +20,8 @@ import {
   Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
   MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle, Star,
   Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen, Armchair, SprayCan,
+  Zap,
+  Flame,
 } from 'lucide-react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { LucideIcon } from 'lucide-react-native';
@@ -28,6 +30,7 @@ import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
 import LocationModal from '../src/components/LocationModal';
 import ProductRequestModal from '../src/components/ProductRequestModal';
+import { CampaignTimer } from '../src/components/CampaignTimer';
 // Removed NotificationsModal import
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -86,8 +89,8 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
           elevation: 4,
           overflow: 'hidden',
         }]}>
-          <ExpoImage 
-            source={{ uri: finalImageUri }} 
+          <ExpoImage
+            source={{ uri: finalImageUri }}
             style={{ width: '100%', height: '100%' }}
             contentFit="cover"
             cachePolicy="memory-disk"
@@ -116,8 +119,8 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
           )}
         </LinearGradient>
       )}
-      <Text 
-        style={styles.categoryLabel} 
+      <Text
+        style={styles.categoryLabel}
         numberOfLines={label.trim().includes(' ') ? 2 : 1}
         adjustsFontSizeToFit
         minimumFontScale={0.7}
@@ -156,15 +159,13 @@ export default function HomeScreen({ navigation }: Props) {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeSlide, setActiveSlide] = useState(0);
   const [flashSaleProducts, setFlashSaleProducts] = useState<any[]>([]);
-  const [flashTimer, setFlashTimer] = useState('00:00:00');
-  const [flashCountdown, setFlashCountdown] = useState('00:00:00');
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const scrollAnchor = useRef(0);
   const [showLocationRow, setShowLocationRow] = useState(true);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-
+  const [activeFlashIdx, setActiveFlashIdx] = useState(0);
   const [dbCategories, setDbCategories] = useState<Category[]>([]); //
 
   // Debounce search input to avoid re-filtering on every keystroke
@@ -317,58 +318,6 @@ export default function HomeScreen({ navigation }: Props) {
     };
     loadAllData();
   }, []);
-
-  // Consolidated flash sale countdown timer — single interval handles both campaign timer and block countdown
-  useEffect(() => {
-    // Pre-compute the rolling 3-hour block end time (static for lifecycle of this effect)
-    const getBlockEnd = () => {
-      const now = new Date();
-      const hours = now.getHours();
-      const nextBlock = Math.ceil((hours + 1) / 3) * 3;
-      const end = new Date(now);
-      end.setHours(nextBlock, 0, 0, 0);
-      if (end.getTime() <= now.getTime()) end.setHours(end.getHours() + 3);
-      return end.getTime();
-    };
-    const blockEndTime = getBlockEnd();
-
-    const tick = () => {
-      const now = Date.now();
-
-      // 1. Flash sale campaign timer
-      if (flashSaleProducts.length > 0) {
-        const endTimes = flashSaleProducts
-          .map(p => new Date(p.campaignEndsAt).getTime())
-          .filter(t => t > now)
-          .sort((a, b) => a - b);
-
-        if (endTimes.length === 0) {
-          setFlashTimer('00:00:00');
-        } else {
-          const diff = endTimes[0] - now;
-          const h = Math.floor(diff / (1000 * 60 * 60));
-          const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          const s = Math.floor((diff % (1000 * 60)) / 1000);
-          setFlashTimer(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-        }
-      }
-
-      // 2. Rolling 3-hour block countdown
-      const blockDiff = blockEndTime - now;
-      if (blockDiff <= 0) {
-        setFlashCountdown('00:00:00');
-      } else {
-        const h = Math.floor(blockDiff / (1000 * 60 * 60));
-        const m = Math.floor((blockDiff % (1000 * 60 * 60)) / (1000 * 60));
-        const s = Math.floor((blockDiff % (1000 * 60)) / 1000);
-        setFlashCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-      }
-    };
-
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [flashSaleProducts]);
 
   // --- FETCH NOTIFICATIONS ---
   const loadNotifications = useCallback(async () => {
@@ -811,45 +760,107 @@ export default function HomeScreen({ navigation }: Props) {
               ))}
             </View>
 
-            {/* FLASH SALE SECTION (No Container) */}
-            <LinearGradient
-              colors={['#FFF9F9', '#FFF3F3', '#FFF9F9']} // Very light red tint for Flash Sale
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.flashSaleContainer}
-            >
-              <View style={styles.flashSaleHeader}>
-                <View style={styles.flashSaleTitleRow}>
-                  <Text style={styles.flashSaleTitle}>Flash Sale</Text>
-                  <View style={styles.timerBadge}>
-                    <Timer size={14} color="#FFF" />
-                    <Text style={styles.timerText}>{flashTimer}</Text>
+            {/* FLASH DEALS SCROLLABLE CAROUSEL */}
+            {(() => {
+              const campaignMap = new Map();
+              flashSaleProducts.forEach(p => {
+                // Use campaignName as a fallback key if ID is missing
+                const key = p.campaignId || p.campaignName || 'default';
+
+                if (!campaignMap.has(key)) {
+                  campaignMap.set(key, {
+                    id: key,
+                    name: p.campaignName || 'Flash Sale', // FIX: Changed from p.name to p.campaignName
+                    endsAt: p.campaignEndsAt,
+                    products: []
+                  });
+                }
+                campaignMap.get(key).products.push(p);
+              });
+              const campaigns = Array.from(campaignMap.values());
+
+              if (campaigns.length === 0) return null;
+
+              return (
+                <View style={styles.flashDealsSection}>
+                  {/* Header: Icon moved before Title */}
+                  <View style={styles.flashDealsHeader}>
+                    <View style={styles.flashDealsTitleRow}>
+                      <Zap size={20} color={COLORS.primary} fill={COLORS.primary} />
+                      <Text style={styles.flashDealsTitle}>Flash Deals</Text>
+                    </View>
+                    <Pressable onPress={() => navigation.navigate('FlashSale', { campaignId: campaigns[activeFlashIdx]?.id })}>
+                      <Text style={styles.seeMoreText}>See More</Text>
+                    </Pressable>
+                  </View>
+
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onScroll={(e) => {
+                      const x = e.nativeEvent.contentOffset.x;
+                      const index = Math.round(x / (width - 40));
+                      if (index !== activeFlashIdx) setActiveFlashIdx(index);
+                    }}
+                    scrollEventThrottle={16}
+                  >
+                    {campaigns.map((campaign) => (
+                      <View key={campaign.id} style={[styles.flashDealsCard, { width: width - 40 }]}>
+                        <View style={styles.cardHeaderRow}>
+                          {/* Campaign Name correctly displayed beside Timer */}
+                          <Text style={styles.campaignNameInside} numberOfLines={1}>
+                            {campaign.name}
+                          </Text>
+                          <CampaignTimer endsAt={campaign.endsAt} variant="small" />
+                        </View>
+
+                        <View style={styles.flashProductsList}>
+                          {campaign.products.slice(0, 2).map((product: any) => (
+                            <Pressable
+                              key={product.id}
+                              onPress={() => handleProductPress(product)}
+                              style={styles.wideProductCard}
+                            >
+                              {/* Product Content (Image/Info) */}
+                              <View style={styles.wideProductImageWrapper}>
+                                <ExpoImage
+                                  source={{ uri: product.image || product.primary_image }}
+                                  style={styles.wideProductImage}
+                                  contentFit="cover"
+                                />
+                              </View>
+                              <View style={styles.wideProductInfo}>
+                                <Text style={styles.wideProductName} numberOfLines={1}>{product.name}</Text>
+                                <View style={styles.widePriceRow}>
+                                  <Text style={styles.widePrice}>₱{product.price?.toLocaleString()}</Text>
+                                  <View style={styles.miniAddToCart}>
+                                    <Text style={styles.miniAddToCartText}>+ Cart</Text>
+                                  </View>
+                                </View>
+                                <View style={styles.claimedContainer}>
+                                  <View style={styles.progressBarBg}>
+                                    <View style={[styles.progressBarFill, { width: '45%' }]} />
+                                  </View>
+                                  <Text style={styles.claimedText}>Limited Stock Available</Text>
+                                </View>
+                              </View>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+
+                  {/* Pagination dots remain for visual context */}
+                  <View style={styles.flashPagination}>
+                    {campaigns.map((_, i) => (
+                      <View key={i} style={[styles.flashDot, i === activeFlashIdx && styles.flashDotActive]} />
+                    ))}
                   </View>
                 </View>
-                <Pressable onPress={() => navigation.navigate('FlashSale')}>
-                  <Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>See More</Text>
-                </Pressable>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, gap: 12 }}
-              >
-                {flashSaleProducts.length > 0 ? (
-                  Array.from(new Map(flashSaleProducts.slice(0, 10).map(p => [p.id, p])).values()).map((product) => (
-                    <View key={product.id} style={{ width: 150 }}>
-                      <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
-                    </View>
-                  ))
-                ) : (
-                  popularProducts.slice(0, 5).map((product, i) => (
-                    <View key={`popular-fallback-${product.id}-${i}`} style={{ width: 150 }}>
-                      <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
-                    </View>
-                  ))
-                )}
-              </ScrollView>
-            </LinearGradient>
+              );
+            })()}
 
             {/* FEATURED STORES SECTION */}
             {verifiedStores.length > 0 && (
@@ -1025,18 +1036,52 @@ const styles = StyleSheet.create({
   contentScroll: { flex: 1 },
   // FLASH SALE STYLES
   flashSaleContainer: {
-    marginHorizontal: 0, // Edge-to-edge scroll
-    marginTop: 15,
-    marginBottom: 5,
-    paddingVertical: 20, // Add padding for the gradient backdrop
-    // Removed container styling (bg, shadow, border)
+    marginHorizontal: 0,
+    marginTop: 24, // Increased top margin for breathing room
+    marginBottom: 8,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#FEF08A', // Very subtle gold border to frame the section
   },
-  flashSaleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15 },
-  flashSaleTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  flashSaleTitle: { fontSize: 18, fontWeight: '800', color: '#D97706' },
+  flashSaleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20, // Matched to app padding
+    marginBottom: 16
+  },
+  flashSaleTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10 // Slightly larger gap between title and timer
+  },
+  flashSaleTitle: {
+    fontSize: 20, // Slightly larger
+    fontWeight: '800',
+    color: '#D97706',
+    textTransform: 'capitalize', // Fixes raw names like "nexpm" -> "Nexpm"
+    letterSpacing: -0.5,
+  },
   timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   timerText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+  },
+  campaignNameInside: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#B45309',
+    textTransform: 'uppercase',
+    flex: 1,
+    marginRight: 10,
+  },
   carouselContainer: { marginVertical: 10 },
   promoBox: {
     height: 180,
@@ -1143,5 +1188,222 @@ const styles = StyleSheet.create({
   paginationDot: {
     height: 8,
     borderRadius: 4,
-  }
+  },
+  flashProductsList: {
+    gap: 12,
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: '#F97316',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  discountBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  wideProductCategory: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#F97316',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  wideProductBadges: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 2,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  verifiedBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  flashBadge: {
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  flashBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#F97316',
+  },
+  addToCartBtn: {
+    marginLeft: 'auto',
+    backgroundColor: '#F97316',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  addToCartBtnText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  claimedTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  flashDealsSection: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  flashDealsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  flashDealsTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  flashDealsTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: COLORS.primary, // #FF6A00
+  },
+  campaignNameSubtitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#B45309',
+    marginLeft: 6,
+    textTransform: 'capitalize',
+  },
+  seeMoreText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  flashDealsCard: {
+    backgroundColor: '#FFFBF0',
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    marginRight: 10,
+  },
+  timerRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  boltCircle: {
+    backgroundColor: COLORS.primary,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wideProductCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    flexDirection: 'row',
+    height: 120,
+    marginBottom: 10,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+  },
+  wideProductImageWrapper: {
+    width: '30%',
+  },
+  wideProductImage: {
+    width: '100%',
+    height: '100%',
+  },
+  wideProductInfo: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'space-between',
+  },
+  wideProductName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1F2937',
+  },
+  widePriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  widePrice: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: COLORS.primary,
+  },
+  wideOriginalPrice: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+  },
+  miniAddToCart: {
+    marginLeft: 'auto',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  miniAddToCartText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  claimedContainer: {
+    marginTop: 4,
+  },
+  progressBarBg: {
+    height: 4,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 2,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+  },
+  claimedText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  flashPagination: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  flashDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FED7AA',
+  },
+  flashDotActive: {
+    width: 18,
+    backgroundColor: COLORS.primary,
+  },
 });

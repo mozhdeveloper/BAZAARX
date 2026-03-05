@@ -73,7 +73,7 @@ export type RootStackParamList = {
   OrderDetail: { order: Order };
   SellerOrderDetail: { orderId: string };
   DeliveryTracking: { order: Order };
-  FlashSale: undefined;
+  FlashSale: { campaignId?: string } | undefined;
   FollowingShops: undefined;
   Wishlist: undefined;
   SharedWishlist: { wishlistId?: string; userId?: string };
