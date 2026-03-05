@@ -45,6 +45,7 @@ export interface Category {
   icon: string;
   parentId?: string;
   slug: string;
+  isActive: boolean;
   sortOrder: number;
   productsCount: number;
   createdAt: Date;
@@ -2336,95 +2337,61 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
 
   loadReviews: async () => {
     set({ isLoading: true, error: null });
-
+ 
     try {
-      if (!isSupabaseConfigured()) {
-        set({ isLoading: false, error: 'Supabase not configured' });
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('reviews')
-        .select(`
-          *,
-          product:products(id, name, seller_id, product_images(image_url, is_primary)),
-          buyer:buyers(id, profiles(first_name, last_name, email))
-        `)
-        .order('created_at', { ascending: false })
-        .limit(200);
-
-      if (error) throw error;
-
-      const reviews: Review[] = (data || []).map((row: any) => {
-        const product = row.product;
-        const buyer = row.buyer;
-        const buyerProfile = buyer?.profiles;
-        const productImage = Array.isArray(product?.product_images)
-          ? (product.product_images.find((img: any) => img.is_primary)?.image_url || product.product_images[0]?.image_url || '')
-          : '';
-        const buyerName = buyerProfile
-          ? `${buyerProfile.first_name || ''} ${buyerProfile.last_name || ''}`.trim() || buyerProfile.email || 'Unknown'
-          : 'Unknown';
-
-        // Map DB is_hidden boolean to UI status
-        let status: 'pending' | 'approved' | 'rejected' | 'flagged' = 'approved';
-        if (row.is_hidden) {
-          status = 'flagged';
-        }
-
+      const { reviewService } = await import('../services/reviewService');
+      const data = await reviewService.getAdminReviews(500);
+ 
+      const reviews: Review[] = data.map((row) => {
+        // Map service's isHidden to store's status
+        // Live by default (approved), hidden => flagged
+        const status: 'pending' | 'approved' | 'rejected' | 'flagged' = row.isHidden ? 'flagged' : 'approved';
+ 
         return {
           id: row.id,
-          productId: row.product_id,
-          productName: product?.name || 'Unknown Product',
-          productImage: productImage,
-          buyerId: row.buyer_id,
-          buyerName: buyerName,
-          buyerAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(buyerName)}&background=FF6A00&color=fff`,
-          sellerId: product?.seller_id || '',
-          sellerName: '',
+          productId: row.productId,
+          productName: row.productName || 'Unknown Product',
+          productImage: row.productImage || '',
+          buyerId: row.buyerId,
+          buyerName: row.buyerName || 'Unknown',
+          buyerAvatar: row.buyerAvatar,
+          sellerId: '', 
+          sellerName: '', 
           rating: row.rating,
           title: '',
           content: row.comment || '',
-          images: [],
-          isVerifiedPurchase: row.is_verified_purchase || false,
+          images: row.images || [],
+          isVerifiedPurchase: row.verifiedPurchase || false,
           status,
           moderationNote: undefined,
-          helpfulCount: row.helpful_count || 0,
+          helpfulCount: row.helpfulCount || 0,
           reportCount: 0,
-          createdAt: new Date(row.created_at)
+          createdAt: new Date(row.createdAt)
         };
       });
-
-      const pendingReviews = reviews.filter(r => r.status === 'pending');
-      const flaggedReviews = reviews.filter(r => r.status === 'flagged');
-
-      set({ reviews, pendingReviews, flaggedReviews, isLoading: false });
+ 
+      const filteredFlagged = reviews.filter(r => r.status === 'flagged');
+ 
+      set({ reviews, pendingReviews: [], flaggedReviews: filteredFlagged, isLoading: false });
     } catch (err: any) {
       console.error('Failed to load reviews:', err);
       set({ isLoading: false, error: err.message || 'Failed to load reviews' });
     }
   },
-
+ 
   approveReview: async (id) => {
+    // For post-moderation, "approve" means "make visible/unflag"
     set({ isLoading: true, error: null });
-
     try {
-      const { error } = await supabase
-        .from('reviews')
-        .update({ is_hidden: false, updated_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) throw error;
-
+      const { reviewService } = await import('../services/reviewService');
+      await reviewService.updateReviewHiddenStatus(id, false);
+ 
       set(state => {
         const updatedReviews = state.reviews.map(review =>
-          review.id === id
-            ? { ...review, status: 'approved' as const, moderatedAt: new Date() }
-            : review
+          review.id === id ? { ...review, status: 'approved' as const } : review
         );
         return {
           reviews: updatedReviews,
-          pendingReviews: updatedReviews.filter(r => r.status === 'pending'),
           flaggedReviews: updatedReviews.filter(r => r.status === 'flagged'),
           isLoading: false
         };
@@ -2434,27 +2401,20 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
       set({ isLoading: false, error: err.message || 'Failed to approve review' });
     }
   },
-
+ 
   rejectReview: async (id, reason) => {
+    // For post-moderation, "reject" means "hide/flag"
     set({ isLoading: true, error: null });
-
     try {
-      const { error } = await supabase
-        .from('reviews')
-        .update({ is_hidden: true, updated_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) throw error;
-
+      const { reviewService } = await import('../services/reviewService');
+      await reviewService.updateReviewHiddenStatus(id, true);
+ 
       set(state => {
         const updatedReviews = state.reviews.map(review =>
-          review.id === id
-            ? { ...review, status: 'rejected' as const, moderationNote: reason, moderatedAt: new Date() }
-            : review
+          review.id === id ? { ...review, status: 'flagged' as const, moderationNote: reason } : review
         );
         return {
           reviews: updatedReviews,
-          pendingReviews: updatedReviews.filter(r => r.status === 'pending'),
           flaggedReviews: updatedReviews.filter(r => r.status === 'flagged'),
           isLoading: false
         };
@@ -2467,20 +2427,13 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
 
   flagReview: async (id, reason) => {
     set({ isLoading: true, error: null });
-
     try {
-      const { error } = await supabase
-        .from('reviews')
-        .update({ is_hidden: true, updated_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) throw error;
-
+      const { reviewService } = await import('../services/reviewService');
+      await reviewService.updateReviewHiddenStatus(id, true);
+ 
       set(state => {
         const updatedReviews = state.reviews.map(review =>
-          review.id === id
-            ? { ...review, status: 'flagged' as const, moderationNote: reason }
-            : review
+          review.id === id ? { ...review, status: 'flagged' as const, moderationNote: reason } : review
         );
         return {
           reviews: updatedReviews,
@@ -2493,23 +2446,16 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
       set({ isLoading: false, error: err.message || 'Failed to flag review' });
     }
   },
-
+ 
   unflagReview: async (id) => {
     set({ isLoading: true, error: null });
-
     try {
-      const { error } = await supabase
-        .from('reviews')
-        .update({ is_hidden: false, updated_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) throw error;
-
+      const { reviewService } = await import('../services/reviewService');
+      await reviewService.updateReviewHiddenStatus(id, false);
+ 
       set(state => {
         const updatedReviews = state.reviews.map(review =>
-          review.id === id
-            ? { ...review, status: 'approved' as const, moderationNote: undefined }
-            : review
+          review.id === id ? { ...review, status: 'approved' as const, moderationNote: undefined } : review
         );
         return {
           reviews: updatedReviews,
@@ -2522,20 +2468,13 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
       set({ isLoading: false, error: err.message || 'Failed to unflag review' });
     }
   },
-
+ 
   deleteReview: async (id) => {
     set({ isLoading: true, error: null });
-
     try {
-      // Delete review images first (FK constraint)
-      await supabase.from('review_images').delete().eq('review_id', id);
-      // Delete review votes
-      await supabase.from('review_votes').delete().eq('review_id', id);
-      // Delete the review
-      const { error } = await supabase.from('reviews').delete().eq('id', id);
-
-      if (error) throw error;
-
+      const { reviewService } = await import('../services/reviewService');
+      await reviewService.deleteReviewAdmin(id);
+ 
       set(state => ({
         reviews: state.reviews.filter(r => r.id !== id),
         pendingReviews: state.pendingReviews.filter(r => r.id !== id),

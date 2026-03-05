@@ -31,6 +31,7 @@ export interface ReviewFeedItem {
   variantLabel: string | null;
   variantSnapshot: Record<string, unknown> | null;
   sellerReply: ReviewReplySummary | null;
+  isHidden: boolean;
 }
 
 export interface ReviewStats {
@@ -277,6 +278,7 @@ const mapReviewRowToFeedItem = (review: any): ReviewFeedItem => {
     variantLabel: resolveVariantLabel(review),
     variantSnapshot,
     sellerReply: parseSellerReply(review.seller_reply),
+    isHidden: Boolean(review.is_hidden),
   };
 };
 
@@ -1297,6 +1299,155 @@ export class ReviewService {
     } catch (error) {
       console.error('Error in deleteSellerReply:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get all reviews for admin moderation
+   */
+  async getAdminReviews(limit: number = 200): Promise<ReviewFeedItem[]> {
+    if (!isSupabaseConfigured()) {
+      return this.mockReviews.map((review) => mapReviewRowToFeedItem(review));
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          id,
+          product_id,
+          buyer_id,
+          order_id,
+          order_item_id,
+          variant_snapshot,
+          rating,
+          comment,
+          helpful_count,
+          seller_reply,
+          is_verified_purchase,
+          is_hidden,
+          is_edited,
+          created_at,
+          updated_at,
+          review_images (
+            id,
+            image_url,
+            sort_order,
+            uploaded_at
+          ),
+          buyer:buyers!reviews_buyer_id_fkey (
+            id,
+            avatar_url,
+            profile:profiles!id (
+              *
+            )
+          ),
+          order_item:order_items!reviews_order_item_id_fkey (
+            id,
+            product_name,
+            primary_image_url,
+            variant_id,
+            personalized_options,
+            product:products!order_items_product_id_fkey (
+              id,
+              name,
+              seller_id
+            )
+          ),
+          product:products!reviews_product_id_fkey (
+            id,
+            seller_id,
+            name,
+            images:product_images (
+              image_url,
+              sort_order,
+              is_primary
+            )
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        throw error;
+      }
+
+      return (data || []).map((review) => mapReviewRowToFeedItem(review));
+    } catch (error) {
+      console.error('Error fetching admin reviews:', error);
+      throw new Error('Failed to fetch reviews for moderation');
+    }
+  }
+
+  /**
+   * Update the hidden status of a review (hide/show)
+   */
+  async updateReviewHiddenStatus(reviewId: string, isHidden: boolean): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      const reviewIndex = this.mockReviews.findIndex((r) => r.id === reviewId);
+      if (reviewIndex >= 0) {
+        this.mockReviews[reviewIndex].is_hidden = isHidden;
+        this.mockReviews[reviewIndex].updated_at = new Date().toISOString();
+      }
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .update({
+          is_hidden: isHidden,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reviewId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating review status:', error);
+      throw new Error(`Failed to ${isHidden ? 'hide' : 'show'} review`);
+    }
+  }
+
+  /**
+   * Delete a review (Admin action)
+   */
+  async deleteReviewAdmin(reviewId: string): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      this.mockReviews = this.mockReviews.filter((r) => r.id !== reviewId);
+      return;
+    }
+
+    try {
+      // 1. Delete associated images
+      const { error: imagesError } = await supabase
+        .from('review_images')
+        .delete()
+        .eq('review_id', reviewId);
+
+      if (imagesError) {
+        console.warn('Error deleting review images:', imagesError);
+      }
+
+      // 2. Delete associated votes
+      const { error: votesError } = await supabase
+        .from('review_votes')
+        .delete()
+        .eq('review_id', reviewId);
+
+      if (votesError) {
+        console.warn('Error deleting review votes:', votesError);
+      }
+
+      // 3. Delete the review itself
+      const { error } = await supabase
+        .from('reviews')
+        .delete()
+        .eq('id', reviewId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting review (admin):', error);
+      throw new Error('Failed to delete review');
     }
   }
 }
