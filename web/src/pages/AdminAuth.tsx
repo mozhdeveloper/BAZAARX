@@ -17,7 +17,7 @@ import { Eye, EyeOff, Shield, Lock, Mail, Loader2 } from "lucide-react";
 
 const AdminAuth: React.FC = () => {
   const navigate = useNavigate();
-  const { login, isAuthenticated, isLoading, error, clearError } =
+  const { login, isAuthenticated, isLoading, error, clearError, user } =
     useAdminAuth();
 
   const [formData, setFormData] = useState({
@@ -28,7 +28,8 @@ const AdminAuth: React.FC = () => {
 
   // Redirect if already authenticated
   if (isAuthenticated) {
-    return <Navigate to="/admin" replace />;
+    const redirectPath = user?.role === 'qa_team' ? '/admin/qa-dashboard' : '/admin';
+    return <Navigate to={redirectPath} replace />;
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,7 +135,7 @@ const AdminAuth: React.FC = () => {
                 >
                   <h3 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
                     <Shield className="w-4 h-4" />
-                    Test Admin Accounts
+                    Test Accounts
                   </h3>
                   <div className="space-y-3">
                     {/* Demo Admin */}
@@ -173,6 +174,29 @@ const AdminAuth: React.FC = () => {
                         size="sm"
                         variant="outline"
                         className="border-orange-300 hover:bg-orange-100 text-orange-700"
+                      >
+                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
+                      </Button>
+                    </div>
+                    {/* QA Team */}
+                    <div className="flex items-center justify-between gap-3 p-2 bg-white/60 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-800">QA Team</p>
+                        <p className="text-xs font-mono text-orange-700">qa@gmail.com / password</p>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setFormData({ email: 'qa@gmail.com', password: 'password' });
+                          setTimeout(async () => {
+                            const success = await login('qa@gmail.com', 'password');
+                            if (success) navigate('/admin/qa-dashboard', { replace: true });
+                          }, 300);
+                        }}
+                        disabled={isLoading}
+                        size="sm"
+                        variant="outline"
+                        className="border-indigo-300 hover:bg-indigo-100 text-indigo-700"
                       >
                         {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
                       </Button>

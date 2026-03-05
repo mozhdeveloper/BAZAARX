@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useState, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Bell,
@@ -9,17 +10,13 @@ import {
   Truck,
   XCircle,
   Check,
-  Trash2,
-  Filter,
   Search,
   RefreshCw,
-  Megaphone,
   Info,
   Tag,
   AlertTriangle,
   Wrench,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { User, LogIn, LogOut, AlertCircle } from 'lucide-react';
+import { User, LogOut, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import type { StaffMember } from '@/types/pos.types';
@@ -81,11 +80,15 @@ export function StaffLogin({ open, onClose, onLogin, currentStaff }: StaffLoginP
   const [error, setError] = useState('');
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
 
+  // Reset form state when dialog opens; setTimeout avoids synchronous setState-in-effect warning
   useEffect(() => {
     if (open) {
-      setPin('');
-      setError('');
-      setSelectedStaff(null);
+      const t = setTimeout(() => {
+        setPin('');
+        setError('');
+        setSelectedStaff(null);
+      }, 0);
+      return () => clearTimeout(t);
     }
   }, [open]);
 

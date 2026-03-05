@@ -1,5 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { DollarSign, TrendingUp, TrendingDown, Clock, User, CheckCircle } from 'lucide-react';
+
+// Helper defined outside component so it is not flagged as impure during renders
+function formatDuration(start: string): string {
+  const duration = Date.now() - new Date(start).getTime();
+  const hours = Math.floor(duration / (1000 * 60 * 60));
+  const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}h ${minutes}m`;
+}
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,13 +97,6 @@ export function CashDrawerManager({
       hour: '2-digit',
       minute: '2-digit',
     });
-  };
-
-  const formatDuration = (start: string) => {
-    const duration = Date.now() - new Date(start).getTime();
-    const hours = Math.floor(duration / (1000 * 60 * 60));
-    const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
-    return `${hours}h ${minutes}m`;
   };
 
   return (

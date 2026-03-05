@@ -44,9 +44,7 @@ export function BarcodeScanner({
   const [isBarcodeDetectorSupported, setIsBarcodeDetectorSupported] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Check if BarcodeDetector API is supported (only check once)
   useEffect(() => {
@@ -59,7 +57,10 @@ export function BarcodeScanner({
   const playBeep = (success: boolean = true) => {
     try {
       // Create short beep using Web Audio API
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      interface AudioContextWindow extends Window { webkitAudioContext?: typeof AudioContext; }
+      const AudioCtx = (window as AudioContextWindow).AudioContext || (window as AudioContextWindow).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioContext = new AudioCtx();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
       
@@ -110,14 +111,16 @@ export function BarcodeScanner({
       window.removeEventListener('keypress', handleKeyPress);
       clearTimeout(timeout);
     };
-  }, [open, currentMode]);
+  }, [open, currentMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Camera Scanner: Initialize camera and start detection
   useEffect(() => {
     if (!open || currentMode !== 'camera' || !videoRef.current) return;
 
     let stream: MediaStream;
-    let barcodeDetector: any;
+    interface BarcodeDetectorInstance { detect(source: HTMLVideoElement): Promise<Array<{ rawValue: string }>>; }
+    interface BarcodeDetectorConstructor { new(options: { formats: readonly string[] }): BarcodeDetectorInstance; }
+    let barcodeDetector: BarcodeDetectorInstance | undefined;
 
     const startCamera = async () => {
       try {
@@ -138,7 +141,8 @@ export function BarcodeScanner({
           // Initialize BarcodeDetector if supported
           if (isBarcodeDetectorSupported) {
             try {
-              barcodeDetector = new (window as any).BarcodeDetector({
+              const BarcodeDetectorCtor = (window as unknown as { BarcodeDetector: BarcodeDetectorConstructor }).BarcodeDetector;
+              barcodeDetector = new BarcodeDetectorCtor({
                 formats: SUPPORTED_FORMATS
               });
 
@@ -185,7 +189,7 @@ export function BarcodeScanner({
       }
       setIsScanning(false);
     };
-  }, [open, currentMode, isBarcodeDetectorSupported]);
+  }, [open, currentMode, isBarcodeDetectorSupported]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleScan = async (barcode: string) => {
     // Validate barcode (basic validation - not empty and alphanumeric)
@@ -242,7 +246,7 @@ export function BarcodeScanner({
     }
 
     // Validate barcode format (alphanumeric, dashes, and spaces allowed)
-    if (!/^[A-Za-z0-9\s\-]+$/.test(trimmedBarcode)) {
+    if (!/^[A-Za-z0-9\s-]+$/.test(trimmedBarcode)) {
       setError('Invalid barcode format. Use letters, numbers, dashes, or spaces.');
       playBeep(false);
       return;
@@ -452,7 +456,8 @@ export function BarcodeScanner({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleManualSubmit(e as any);
+                    void handleScan(manualBarcode.trim());
+                    setManualBarcode('');
                   }
                 }}
                 placeholder="Enter SKU, barcode, or product code..."

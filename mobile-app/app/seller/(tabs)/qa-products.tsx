@@ -61,7 +61,7 @@ export default function SellerProductQAScreen() {
     return false;
   });
 
-  const pendingCount = sellerQAProducts.filter((p) => p.status === 'PENDING_DIGITAL_REVIEW').length;
+  const pendingCount = sellerQAProducts.filter((p) => p.status === 'PENDING_DIGITAL_REVIEW' || p.status === 'PENDING_ADMIN_REVIEW').length;
   const waitingCount = sellerQAProducts.filter((p) => p.status === 'WAITING_FOR_SAMPLE').length;
   const reviewCount = sellerQAProducts.filter((p) => p.status === 'IN_QUALITY_REVIEW').length;
   const verifiedCount = sellerQAProducts.filter((p) => p.status === 'ACTIVE_VERIFIED').length;
@@ -71,15 +71,20 @@ export default function SellerProductQAScreen() {
   const getFilteredProducts = () => {
     let filteredQA = sellerQAProducts;
     if (filterStatus !== 'all') {
-      const statusMap: Record<string, ProductQAStatus> = {
-        pending: 'PENDING_DIGITAL_REVIEW',
+      const statusMap: Record<string, ProductQAStatus | ProductQAStatus[]> = {
+        pending: ['PENDING_DIGITAL_REVIEW', 'PENDING_ADMIN_REVIEW'],
         waiting: 'WAITING_FOR_SAMPLE',
         qa: 'IN_QUALITY_REVIEW',
         revision: 'FOR_REVISION',
         verified: 'ACTIVE_VERIFIED',
         rejected: 'REJECTED',
       };
-      filteredQA = filteredQA.filter(p => p.status === statusMap[filterStatus]);
+      const targetStatus = statusMap[filterStatus];
+      if (Array.isArray(targetStatus)) {
+        filteredQA = filteredQA.filter(p => targetStatus.includes(p.status));
+      } else {
+        filteredQA = filteredQA.filter(p => p.status === targetStatus);
+      }
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -109,7 +114,8 @@ export default function SellerProductQAScreen() {
   };
 
   const getStatusColor = (status: ProductQAStatus) => {
-    const colors = {
+    const colors: Record<string, string> = {
+      PENDING_ADMIN_REVIEW: '#6B7280',
       PENDING_DIGITAL_REVIEW: '#F59E0B',
       WAITING_FOR_SAMPLE: '#3B82F6',
       IN_QUALITY_REVIEW: '#8B5CF6',

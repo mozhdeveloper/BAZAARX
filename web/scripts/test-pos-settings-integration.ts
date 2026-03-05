@@ -1,3 +1,4 @@
+/* eslint-disable */
 /**
  * POS Settings Integration Test Suite
  * Tests alignment between database schema, service, and frontend components

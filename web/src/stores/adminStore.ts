@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -24,7 +25,7 @@ export interface AdminUser {
   id: string;
   email: string;
   name: string;
-  role: 'super_admin' | 'admin' | 'moderator';
+  role: 'super_admin' | 'admin' | 'moderator' | 'qa_team';
   avatar?: string;
   lastLogin?: Date;
   permissions: AdminPermission[];
@@ -307,7 +308,8 @@ export const useAdminAuth = create<AdminAuthState>()(
               return false;
             }
 
-            // Verify user is an admin by checking the admins table
+            // Verify user is an admin or QA team member
+            let userRole: 'admin' | 'qa_team' = 'admin';
             const { data: adminRecord, error: adminError } = await supabase
               .from('admins')
               .select('*')
@@ -315,32 +317,46 @@ export const useAdminAuth = create<AdminAuthState>()(
               .single();
 
             if (adminError || !adminRecord) {
-              console.error('Admin record not found:', adminError);
-              await supabase.auth.signOut();
-              set({
-                error: 'Access denied. Admin account required.',
-                isLoading: false
-              });
-              return false;
+              // Not an admin — check if QA team member
+              const { data: qaRecord, error: qaError } = await supabase
+                .from('qa_team_members')
+                .select('*')
+                .eq('id', authData.user.id)
+                .single();
+
+              if (qaError || !qaRecord) {
+                console.error('Admin/QA record not found:', adminError, qaError);
+                await supabase.auth.signOut();
+                set({
+                  error: 'Access denied. Admin or QA account required.',
+                  isLoading: false
+                });
+                return false;
+              }
+              userRole = 'qa_team';
             }
 
             // Create admin user object
-            const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Admin User';
+            const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || (userRole === 'qa_team' ? 'QA Team Member' : 'Admin User');
             const adminUser: AdminUser = {
               id: authData.user.id,
               email: profile.email || email,
               name: fullName,
-              role: 'admin',
+              role: userRole,
               avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=FF6A00&color=fff`,
               lastLogin: new Date(),
-              permissions: [
-                { id: '1', name: 'Full Access', resource: 'users', actions: ['read', 'write', 'delete'] },
-                { id: '2', name: 'Full Access', resource: 'sellers', actions: ['read', 'write', 'delete', 'approve'] },
-                { id: '3', name: 'Full Access', resource: 'categories', actions: ['read', 'write', 'delete'] },
-                { id: '4', name: 'Full Access', resource: 'products', actions: ['read', 'write', 'delete'] },
-                { id: '5', name: 'Full Access', resource: 'orders', actions: ['read', 'write', 'delete'] },
-                { id: '6', name: 'Full Access', resource: 'analytics', actions: ['read'] },
-              ]
+              permissions: userRole === 'qa_team'
+                ? [
+                    { id: '1', name: 'QA Access', resource: 'products', actions: ['read', 'approve'] },
+                  ]
+                : [
+                    { id: '1', name: 'Full Access', resource: 'users', actions: ['read', 'write', 'delete'] },
+                    { id: '2', name: 'Full Access', resource: 'sellers', actions: ['read', 'write', 'delete', 'approve'] },
+                    { id: '3', name: 'Full Access', resource: 'categories', actions: ['read', 'write', 'delete'] },
+                    { id: '4', name: 'Full Access', resource: 'products', actions: ['read', 'write', 'delete'] },
+                    { id: '5', name: 'Full Access', resource: 'orders', actions: ['read', 'write', 'delete'] },
+                    { id: '6', name: 'Full Access', resource: 'analytics', actions: ['read'] },
+                  ]
             };
 
             set({

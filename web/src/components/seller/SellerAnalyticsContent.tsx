@@ -48,7 +48,7 @@ export default function SellerAnalyticsContent({
             { date: "Jun", revenue: 67000, orders: 195 },
             { date: "Jul", revenue: 72000, orders: 210 },
         ],
-        [timeRange]
+        []
     );
 
     const categoryData = useMemo(
@@ -59,7 +59,7 @@ export default function SellerAnalyticsContent({
             { name: "Beauty", value: 15, color: "#f59e0b" },
             { name: "Others", value: 5, color: "#6366f1" },
         ],
-        [timeRange]
+        []
     );
 
     const topProducts = useMemo(
@@ -69,7 +69,7 @@ export default function SellerAnalyticsContent({
             { name: "Laptop Stand Pro", sold: 167, revenue: 334000 },
             { name: "USB-C Hub Adapter", sold: 134, revenue: 268000 },
         ],
-        [timeRange]
+        []
     );
 
     const metrics = useMemo(
@@ -103,7 +103,7 @@ export default function SellerAnalyticsContent({
                 icon: <Eye className="h-5 w-5" />,
             },
         ],
-        [timeRange]
+        []
     );
 
     return (

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Building2, MapPin, Check } from 'lucide-react';
 import {
   Select,
@@ -18,6 +17,7 @@ interface BranchSelectorProps {
 }
 
 // Mock branches - in real app, fetch from Supabase
+// eslint-disable-next-line react-refresh/only-export-components
 export const MOCK_BRANCHES: Branch[] = [
   {
     id: 'branch_1',

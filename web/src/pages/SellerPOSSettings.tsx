@@ -6,26 +6,17 @@ import {
   Calculator,
   Users,
   DollarSign,
-  Scan,
-  Building2,
   Save,
-  ArrowLeft,
   Printer,
-  CreditCard,
-  ShoppingBag,
   Percent,
   FileText,
   UserCog,
   BarChart3,
-  Lock,
   AlertCircle,
-  CheckCircle2,
-  LogOut,
   Loader2,
   Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
 import { useAuthStore } from '@/stores/sellerStore';
 import { Card } from '@/components/ui/card';

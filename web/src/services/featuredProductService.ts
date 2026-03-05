@@ -75,11 +75,13 @@ class FeaturedProductService {
 
       // Filter out expired features
       const now = new Date().toISOString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const filtered = (data || []).filter((fp: any) => !fp.expires_at || fp.expires_at > now);
 
       if (filtered.length === 0) return filtered;
 
       // Fetch real sold counts from the product_sold_counts view (computed from completed orders)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const productIds = filtered.map((fp: any) => fp.product?.id).filter(Boolean);
       const { data: soldCountsData } = await supabase
         .from('product_sold_counts')
@@ -87,11 +89,13 @@ class FeaturedProductService {
         .in('product_id', productIds);
 
       const soldCountsMap = new Map<string, number>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (soldCountsData || []).forEach((row: any) => {
         soldCountsMap.set(row.product_id, row.sold_count || 0);
       });
 
       // Attach sold_count to each product object
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return filtered.map((fp: any) => ({
         ...fp,
         product: {

@@ -104,10 +104,13 @@ const AdminProductRequests = lazy(() => import("./pages/AdminProductRequests"));
 const AdminFlashSales = lazy(() => import("./pages/AdminFlashSales"));
 const AdminPayouts = lazy(() => import("./pages/AdminPayouts"));
 const AdminProfile = lazy(() => import("./pages/AdminProfile"));
-const AdminProductApprovals = lazy(() => import("./pages/AdminProductApprovals"));
+// AdminProductApprovals removed - consolidated into QADashboard
 const AdminTickets = lazy(() => import("./pages/AdminTickets"));
 const AdminTrustedBrands = lazy(() => import("./pages/AdminTrustedBrands"));
 const AdminAnnouncementsPage = lazy(() => import("./pages/AdminAnnouncementsPage"));
+
+// QA Team pages
+const QADashboard = lazy(() => import("./pages/QADashboard"));
 
 function App() {
   return (
@@ -506,10 +509,6 @@ function App() {
           />
           <Route path="/admin/products" element={<AdminProducts />} />
           <Route
-            path="/admin/product-approvals"
-            element={<AdminProductApprovals />}
-          />
-          <Route
             path="/admin/product-requests"
             element={<AdminProductRequests />}
           />
@@ -525,7 +524,8 @@ function App() {
           />
           <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/trusted-brands" element={<AdminTrustedBrands />} />
-          <Route path="/admin/announcements" element={<AdminAnnouncementsPage />} />
+          <Route path="admin/announcements" element={<AdminAnnouncementsPage />} />
+          <Route path="/admin/qa-dashboard" element={<QADashboard />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

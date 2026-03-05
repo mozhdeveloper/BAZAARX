@@ -483,7 +483,7 @@ export interface ProductQA {
   sellerStoreName: string;
   
   // QA Status - Following Web Flow
-  status: 'PENDING_DIGITAL_REVIEW' | 'WAITING_FOR_SAMPLE' | 'IN_QUALITY_REVIEW' | 'ACTIVE_VERIFIED' | 'REJECTED';
+  status: 'PENDING_ADMIN_REVIEW' | 'PENDING_DIGITAL_REVIEW' | 'WAITING_FOR_SAMPLE' | 'IN_QUALITY_REVIEW' | 'ACTIVE_VERIFIED' | 'FOR_REVISION' | 'REJECTED';
   
   // Logistics Method (Seller chooses when submitting sample)
   logisticsMethod?: 'drop_off_courier' | 'company_pickup' | 'meetup';
@@ -521,22 +521,28 @@ export interface ProductQA {
 
 interface AdminProductQAState {
   products: ProductQA[];
+  pendingAdminReview: ProductQA[];
   pendingDigitalReview: ProductQA[];
   waitingForSample: ProductQA[];
   inQualityReview: ProductQA[];
   activeVerified: ProductQA[];
+  forRevision: ProductQA[];
   rejected: ProductQA[];
   isLoading: boolean;
   loadProducts: () => Promise<void>;
   
-  // Stage 1: Digital Review (Admin reviews listing)
+  // Stage 0: Admin Listing Review
+  acceptListing: (id: string) => Promise<void>;
+  rejectListing: (id: string, reason: string) => Promise<void>;
+  
+  // Stage 1: Digital Review (QA Team reviews listing)
   approveForSampleSubmission: (id: string, notes?: string) => Promise<void>;
   rejectDigitalReview: (id: string, reason: string) => Promise<void>;
   
   // Stage 2: Sample Submission (Seller submits sample)
   submitSample: (id: string, logistics: 'drop_off_courier' | 'company_pickup' | 'meetup', address?: string, notes?: string) => Promise<void>;
   
-  // Stage 3: Quality Check (Admin inspects physical product)
+  // Stage 3: Quality Check (QA Team inspects physical product)
   passQualityCheck: (id: string, notes?: string) => Promise<void>;
   failQualityCheck: (id: string, reason: string) => Promise<void>;
 }
@@ -545,10 +551,12 @@ export const useAdminProductQA = create<AdminProductQAState>()(
   persist(
     (set, get) => ({
       products: [],
+      pendingAdminReview: [],
       pendingDigitalReview: [],
       waitingForSample: [],
       inQualityReview: [],
       activeVerified: [],
+      forRevision: [],
       rejected: [],
       isLoading: false,
 
@@ -594,13 +602,49 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
         set({
           products: adminProducts,
+          pendingAdminReview: adminProducts.filter(p => p.status === 'PENDING_ADMIN_REVIEW'),
           pendingDigitalReview: adminProducts.filter(p => p.status === 'PENDING_DIGITAL_REVIEW'),
           waitingForSample: adminProducts.filter(p => p.status === 'WAITING_FOR_SAMPLE'),
           inQualityReview: adminProducts.filter(p => p.status === 'IN_QUALITY_REVIEW'),
           activeVerified: adminProducts.filter(p => p.status === 'ACTIVE_VERIFIED'),
+          forRevision: adminProducts.filter(p => p.status === 'FOR_REVISION'),
           rejected: adminProducts.filter(p => p.status === 'REJECTED'),
           isLoading: false,
         });
+      },
+
+      acceptListing: async (id) => {
+        set({ isLoading: true });
+        try {
+          const productQAStore = useProductQAStore.getState();
+          const product = get().products.find(p => p.id === id);
+          if (product) {
+            const realProductId = product.productId || product.id;
+            await productQAStore.acceptListing(realProductId);
+          }
+        } catch (error) {
+          console.error('Error accepting listing:', error);
+          set({ isLoading: false });
+          throw error;
+        }
+        await get().loadProducts();
+      },
+
+      rejectListing: async (id, reason) => {
+        set({ isLoading: true });
+        try {
+          const productQAStore = useProductQAStore.getState();
+          const product = get().products.find(p => p.id === id);
+          if (product) {
+            const realProductId = product.productId || product.id;
+            await productQAStore.rejectListing(realProductId, reason);
+          }
+        } catch (error) {
+          console.error('Error rejecting listing:', error);
+          set({ isLoading: false });
+          throw error;
+        }
+        await get().loadProducts();
       },
 
       approveForSampleSubmission: async (id, note) => {

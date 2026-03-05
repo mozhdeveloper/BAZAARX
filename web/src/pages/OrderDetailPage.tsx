@@ -10,7 +10,6 @@ import {
   CreditCard,
   MessageCircle,
   Send,
-  Star,
   Download,
   Share2,
   AlertCircle,
@@ -18,11 +17,9 @@ import {
   X,
   RotateCcw,
 } from "lucide-react";
-import { useCartStore, Order } from "../stores/cartStore";
+import { Order } from "../stores/cartStore";
 import { useBuyerStore } from "../stores/buyerStore";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Badge } from "../components/ui/badge";
 import {
   Card,
   CardContent,
@@ -30,7 +27,6 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { orderReadService } from "../services/orders/orderReadService";
-import { orderMutationService } from "../services/orders/orderMutationService";
 import { chatService, Message, Conversation } from "../services/chatService";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
@@ -278,6 +274,7 @@ export default function OrderDetailPage() {
     }).format(date);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "pending":
@@ -297,6 +294,7 @@ export default function OrderDetailPage() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
@@ -516,6 +514,7 @@ export default function OrderDetailPage() {
     const primaryColor: [number, number, number] = [234, 88, 12]; // Orange
     const darkGray: [number, number, number] = [55, 65, 81];
     const lightGray: [number, number, number] = [156, 163, 175];
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const black: [number, number, number] = [0, 0, 0];
 
     // Helper function to center text
@@ -586,7 +585,7 @@ export default function OrderDetailPage() {
     doc.text('Order No:', 25, orderInfoY + 7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...primaryColor);
-    doc.text(order.orderNumber || (dbOrder as any)?.order_number || 'N/A', 55, orderInfoY + 7);
+    doc.text(order.orderNumber || (dbOrder as { order_number?: string })?.order_number || 'N/A', 55, orderInfoY + 7);
 
     doc.setTextColor(...darkGray);
     doc.setFont('helvetica', 'normal');
@@ -801,7 +800,7 @@ export default function OrderDetailPage() {
     doc.rect(0, pageHeight - 5, pageWidth, 5, 'F');
 
     // Save PDF
-    doc.save(`BazaarX_Receipt_${order.orderNumber || (dbOrder as any)?.order_number || order.id}.pdf`);
+    doc.save(`BazaarX_Receipt_${order.orderNumber || (dbOrder as { order_number?: string })?.order_number || order.id}.pdf`);
   };
 
 
@@ -1317,6 +1316,7 @@ export default function OrderDetailPage() {
             orderId={order.dbId || order.id}
             displayOrderId={order.orderNumber || order.id}
             sellerName={storeName}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             items={order.items.map((item: any) => ({
               id: item.id,
               name: item.name,

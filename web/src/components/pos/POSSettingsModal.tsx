@@ -16,7 +16,6 @@ import {
   Printer,
   CreditCard,
   Percent,
-  X,
   Wallet,
   Banknote,
   Volume2,
@@ -208,17 +207,17 @@ export function POSSettingsModal({
                       ].map((method) => (
                         <button
                           key={method.id}
-                          onClick={() => togglePaymentMethod(method.id as any)}
+                          onClick={() => togglePaymentMethod(method.id as 'cash' | 'card' | 'ewallet' | 'bank_transfer')}
                           className={cn(
                             "flex items-center gap-3 p-3 rounded-lg border-2 transition-all",
-                            settings.acceptedPaymentMethods.includes(method.id as any)
+                            settings.acceptedPaymentMethods.includes(method.id as 'cash' | 'card' | 'ewallet' | 'bank_transfer')
                               ? "border-[#FF6A00] bg-orange-50"
                               : "border-gray-200 hover:border-gray-300"
                           )}
                         >
                           <method.icon className={cn(
                             "h-5 w-5",
-                            settings.acceptedPaymentMethods.includes(method.id as any)
+                            settings.acceptedPaymentMethods.includes(method.id as 'cash' | 'card' | 'ewallet' | 'bank_transfer')
                               ? "text-[#FF6A00]"
                               : "text-gray-400"
                           )} />

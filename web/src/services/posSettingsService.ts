@@ -19,18 +19,6 @@
 import { supabase } from '@/lib/supabase';
 import type { POSSettings } from '@/types/pos.types';
 
-// Schema version detection cache - defaults to false for safety
-let schemaHasNewColumns: boolean = false;
-
-/**
- * Invalidate schema cache and force to use base columns
- * Called when we get a 406 error during actual queries
- */
-function forceBaseSchema(): void {
-  schemaHasNewColumns = false;
-  console.log('[POS Settings] Forced to base schema due to 406 error');
-}
-
 /**
  * Actual database column structure (matches Supabase schema)
  */
@@ -127,7 +115,7 @@ function dbToApp(db: DBPOSSettings): POSSettings {
  */
 function appToDb(app: POSSettings, sellerId: string, includeNewColumns = true): Partial<DBPOSSettings> {
   // Convert array to separate payment booleans
-  const hasPaymentMethod = (method: string) => app.acceptedPaymentMethods?.includes(method as any) ?? false;
+  const hasPaymentMethod = (method: string) => app.acceptedPaymentMethods?.includes(method as 'cash' | 'card' | 'ewallet' | 'bank_transfer') ?? false;
 
   const baseSettings = {
     seller_id: sellerId,
@@ -193,7 +181,7 @@ export async function getPOSSettings(sellerId: string): Promise<POSSettings | nu
     if (error) {
       // Handle table not existing or no settings found gracefully
       // 42P01 = table doesn't exist, PGRST116 = no rows
-      if (error.code === 'PGRST116' || error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205' || (error as any).status === 406) {
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205' || (error as { status?: number }).status === 406) {
         // Fallback to localStorage silently
         const localSettings = localStorage.getItem(`pos_settings_${sellerId}`);
         return localSettings ? JSON.parse(localSettings) : null;
@@ -207,6 +195,7 @@ export async function getPOSSettings(sellerId: string): Promise<POSSettings | nu
     }
 
     return dbToApp(data as DBPOSSettings);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     // Check if it's a table-not-exist error (don't log these as errors)
     if (error?.code === '42P01' || error?.code === 'PGRST204' || error?.code === 'PGRST205' || error?.status === 406) {
@@ -243,7 +232,7 @@ export async function savePOSSettings(
       .single();
 
     // Handle table not existing - just use localStorage
-    if (selectError && (selectError.code === '42P01' || selectError.code === 'PGRST204' || selectError.code === 'PGRST205' || (selectError as any).status === 406)) {
+    if (selectError && (selectError.code === '42P01' || selectError.code === 'PGRST204' || selectError.code === 'PGRST205' || (selectError as { status?: number }).status === 406)) {
       console.warn('[POS Settings] Table not found, using localStorage only');
       return settings;
     }
@@ -287,6 +276,7 @@ export async function savePOSSettings(
     }
 
     return dbToApp(result as DBPOSSettings);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     // Check if it's a table-not-exist error (don't log these as errors)
     if (error?.code === '42P01' || error?.code === 'PGRST204' || error?.code === 'PGRST205' || error?.status === 406) {
@@ -356,6 +346,7 @@ export async function checkPOSSettingsTableExists(): Promise<boolean> {
 
     // If no error or PGRST116 (no rows), table exists
     return !error || error.code === 'PGRST116';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     // If error code 42P01, table doesn't exist
     return error?.code !== '42P01';
@@ -368,6 +359,6 @@ export async function checkPOSSettingsTableExists(): Promise<boolean> {
  * For now, this is a placeholder since we always use base schema
  */
 export function resetSchemaCache(): void {
-  schemaHasNewColumns = false; // Always false until migration is applied
+  // Placeholder until migration 010 is applied
   console.log('[POS Settings] Note: Migration 010 not applied yet - using base schema only');
 }

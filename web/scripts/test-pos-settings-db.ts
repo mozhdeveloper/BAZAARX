@@ -1,3 +1,4 @@
+/* eslint-disable */
 /**
  * POS Settings - Supabase Integration Test
  * Tests POS settings CRUD operations with actual database

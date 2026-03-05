@@ -322,6 +322,15 @@ export class AuthService {
   }
 
   /**
+   * Check if user is a QA team member
+   * @param userId - User ID
+   * @returns Promise<boolean>
+   */
+  async isUserQATeam(userId: string): Promise<boolean> {
+    return this.hasRole(userId, 'qa_team');
+  }
+
+  /**
    * Sign in with email and password
    * @param email - User email
    * @param password - User password

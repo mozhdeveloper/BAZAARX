@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
 import {
@@ -18,9 +18,9 @@ import {
   MessageSquare,
   Zap,
   DollarSign,
-  CheckSquare,
   ShieldCheck,
-  Megaphone
+  Megaphone,
+  Shield
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -29,106 +29,159 @@ interface AdminSidebarProps {
 }
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
-  const links = [
+  const { user } = useAdminAuth();
+  const location = useLocation();
+  const isQARole = user?.role === 'qa_team';
+
+  const allLinks = [
     {
       label: 'Dashboard',
       href: '/admin',
-      icon: <LayoutDashboard className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <LayoutDashboard className={`h-5 w-5 flex-shrink-0 ${location.pathname === '/admin' ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Categories',
       href: '/admin/categories',
-      icon: <FolderTree className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <FolderTree className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/categories') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Products',
       href: '/admin/products',
-      icon: <Package className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <Package className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/products') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
-      label: 'Product Approvals',
-      href: '/admin/product-approvals',
-      icon: <CheckSquare className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      label: isQARole ? 'QA Dashboard' : 'Product Approvals',
+      href: '/admin/qa-dashboard',
+      icon: <Shield className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/qa-dashboard') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: true,
     },
     {
       label: 'Product Requests',
       href: '/admin/product-requests',
-      icon: <MessageSquare className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <MessageSquare className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/product-requests') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Flash Sales',
       href: '/admin/flash-sales',
-      icon: <Zap className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <Zap className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/flash-sales') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Seller Approvals',
       href: '/admin/sellers',
-      icon: <UserCheck className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <UserCheck className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/sellers') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Trusted Brands',
       href: '/admin/trusted-brands',
-      icon: <ShieldCheck className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <ShieldCheck className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/trusted-brands') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Buyers',
       href: '/admin/buyers',
-      icon: <Users className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <Users className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/buyers') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Orders',
       href: '/admin/orders',
-      icon: <ShoppingBag className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <ShoppingBag className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/orders') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Payouts',
       href: '/admin/payouts',
-      icon: <DollarSign className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <DollarSign className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/payouts') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Vouchers',
       href: '/admin/vouchers',
-      icon: <Ticket className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <Ticket className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/vouchers') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Reviews',
       href: '/admin/reviews',
-      icon: <Star className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <Star className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/reviews') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Analytics',
       href: '/admin/analytics',
-      icon: <BarChart3 className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <BarChart3 className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/analytics') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Support Tickets',
       href: '/admin/tickets',
-      icon: <MessageSquare className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <MessageSquare className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/tickets') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Announcements',
       href: '/admin/announcements',
-      icon: <Megaphone className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <Megaphone className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/announcements') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     },
     {
       label: 'Settings',
       href: '/admin/settings',
-      icon: <Settings className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+      icon: <Settings className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/settings') ? 'text-primary' : 'text-gray-500'}`} />,
+      qaVisible: false,
     }
   ];
+
+  // QA users only see links marked as qaVisible
+  const links = isQARole ? allLinks.filter(l => l.qaVisible) : allLinks;
 
   return (
     <Sidebar open={open} setOpen={setOpen}>
       <SidebarBody className="justify-between gap-10">
         <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
           {open ? <Logo /> : <LogoIcon />}
-          <div className="mt-8 flex flex-col gap-2">
-            {links.map((link, idx) => (
-              <SidebarLink key={idx} link={link} />
-            ))}
+
+          {/* QA / Admin role badge */}
+          {open && (
+            <div className={`mt-4 mx-1 px-3 py-1.5 rounded-lg flex items-center gap-2 ${
+              isQARole
+                ? 'bg-orange-50 border border-orange-200'
+                : 'bg-gray-100 border border-gray-200'
+            }`}>
+              <Shield className={`w-3.5 h-3.5 ${isQARole ? 'text-primary' : 'text-gray-500'}`} />
+              <span className={`text-xs font-semibold tracking-wide uppercase ${isQARole ? 'text-primary' : 'text-gray-500'}`}>
+                {isQARole ? 'QA Team' : 'Admin'}
+              </span>
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-col gap-1">
+            {links.map((link, idx) => {
+              const isActive = link.href === '/admin'
+                ? location.pathname === '/admin'
+                : location.pathname.startsWith(link.href);
+              return (
+                <div
+                  key={idx}
+                  className={`rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-orange-50 border border-orange-100'
+                      : 'hover:bg-gray-100/70 border border-transparent'
+                  }`}
+                >
+                  <SidebarLink link={link} />
+                </div>
+              );
+            })}
           </div>
         </div>
-        <div>
+        <div className="border-t border-gray-100 pt-3">
           <UserProfile open={open} />
         </div>
       </SidebarBody>

@@ -34,11 +34,11 @@ import AdminDrawer from '../../../src/components/AdminDrawer';
 import { useAdminProductQA } from '../../../src/stores/adminStore';
 import { COLORS } from '../../../src/constants/theme';
 
-type TabType = 'digital' | 'physical' | 'history';
+type TabType = 'listing' | 'digital' | 'physical' | 'history';
 
 export default function AdminProductApprovalsScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<TabType>('digital');
+  const [selectedTab, setSelectedTab] = useState<TabType>('listing');
   const [refreshing, setRefreshing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
@@ -46,12 +46,16 @@ export default function AdminProductApprovalsScreen() {
   const insets = useSafeAreaInsets();
 
   const {
+    pendingAdminReview,
     pendingDigitalReview,
     inQualityReview,
     activeVerified,
+    forRevision,
     rejected,
     isLoading,
     loadProducts,
+    acceptListing,
+    rejectListing,
     approveForSampleSubmission,
     rejectDigitalReview,
     passQualityCheck,
@@ -69,6 +73,32 @@ export default function AdminProductApprovalsScreen() {
     setRefreshing(true);
     await loadProducts();
     setRefreshing(false);
+  };
+
+  const handleAcceptListing = (id: string) => {
+    Alert.alert(
+      'Accept Product Listing',
+      'This will accept the listing and send it to the QA team for digital review.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Accept',
+          onPress: async () => {
+            try {
+              await acceptListing(id);
+              Alert.alert('Success', 'Listing accepted! Sent to QA team for review.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to accept listing');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRejectListing = (id: string) => {
+    setSelectedProduct(id);
+    setRejectModalVisible(true);
   };
 
   const handleApproveForSample = (id: string) => {
@@ -131,7 +161,9 @@ export default function AdminProductApprovalsScreen() {
     }
 
     try {
-      if (selectedTab === 'digital') {
+      if (selectedTab === 'listing') {
+        await rejectListing(selectedProduct, rejectionReason);
+      } else if (selectedTab === 'digital') {
         await rejectDigitalReview(selectedProduct, rejectionReason);
       } else if (selectedTab === 'physical') {
         await failQualityCheck(selectedProduct, rejectionReason);
@@ -147,19 +179,22 @@ export default function AdminProductApprovalsScreen() {
   };
 
   const tabs = [
-    { id: 'digital' as TabType, label: 'Digital Review', count: pendingDigitalReview.length },
-    { id: 'physical' as TabType, label: 'Physical QA Queue', count: inQualityReview.length },
+    { id: 'listing' as TabType, label: 'Listing Review', count: pendingAdminReview.length },
+    { id: 'digital' as TabType, label: 'In QA', count: pendingDigitalReview.length + inQualityReview.length },
+    { id: 'physical' as TabType, label: 'QA Physical', count: inQualityReview.length },
     {
       id: 'history' as TabType,
-      label: 'History/Logs',
+      label: 'History',
       count: activeVerified.length + rejected.length,
     },
   ];
 
   const getProducts = () => {
     switch (selectedTab) {
+      case 'listing':
+        return [...(pendingAdminReview || [])];
       case 'digital':
-        return pendingDigitalReview;
+        return [...pendingDigitalReview, ...inQualityReview];
       case 'physical':
         return inQualityReview;
       case 'history':
@@ -286,6 +321,28 @@ export default function AdminProductApprovalsScreen() {
       )}
 
       {/* Action Footer */}
+      {selectedTab === 'listing' && product.status === 'PENDING_ADMIN_REVIEW' && (
+        <>
+          <View style={styles.actionSeparator} />
+          <View style={styles.actionFooter}>
+            <Pressable
+              style={styles.primaryActionButton}
+              onPress={() => handleAcceptListing(product.id)}
+            >
+              <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
+              <Text style={styles.primaryActionText}>Accept Listing</Text>
+            </Pressable>
+            <Pressable
+              style={styles.secondaryActionButton}
+              onPress={() => handleRejectListing(product.id)}
+            >
+              <X size={18} color="#DC2626" strokeWidth={2.5} />
+              <Text style={styles.secondaryActionText}>Reject</Text>
+            </Pressable>
+          </View>
+        </>
+      )}
+
       {selectedTab === 'digital' && (
         <>
           <View style={styles.actionSeparator} />
@@ -346,16 +403,16 @@ export default function AdminProductApprovalsScreen() {
                 <Menu size={24} color="#FFFFFF" strokeWidth={2.5} />
               </Pressable>
               <View style={styles.headerTitleContainer}>
-                <Text style={styles.headerTitle}>Product QA</Text>
-                <Text style={styles.headerSubtitle}>Quality Approval Center</Text>
+                <Text style={styles.headerTitle}>Product Approvals</Text>
+                <Text style={styles.headerSubtitle}>Listing Review & QA Center</Text>
               </View>
             </View>
             <Pressable style={styles.notificationButton}>
               <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-              {(pendingDigitalReview.length + inQualityReview.length > 0) && (
+              {((pendingAdminReview?.length || 0) + pendingDigitalReview.length + inQualityReview.length > 0) && (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.badgeText}>
-                    {pendingDigitalReview.length + inQualityReview.length}
+                    {(pendingAdminReview?.length || 0) + pendingDigitalReview.length + inQualityReview.length}
                   </Text>
                 </View>
               )}
@@ -406,6 +463,7 @@ export default function AdminProductApprovalsScreen() {
               <Package size={64} color="#CCC" />
               <Text style={styles.emptyTitle}>No Products</Text>
               <Text style={styles.emptyText}>
+                {selectedTab === 'listing' && 'No new product listings to review'}
                 {selectedTab === 'digital' && 'No products pending digital review'}
                 {selectedTab === 'physical' && 'No products in physical QA queue'}
                 {selectedTab === 'history' && 'No reviewed products yet'}

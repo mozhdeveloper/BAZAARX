@@ -40,14 +40,8 @@ export default function SellerBuyerReports() {
     const [selectedReport, setSelectedReport] = useState<BuyerReport | null>(null);
     const [reports, setReports] = useState<BuyerReport[]>([]);
     const [loading, setLoading] = useState(true);
-    const [replyText, setReplyText] = useState('');
 
     const { seller } = useAuthStore();
-
-    // Fetch buyer reports related to seller's products
-    useEffect(() => {
-        fetchBuyerReports();
-    }, [seller?.id]);
 
     const fetchBuyerReports = async () => {
         if (!seller?.id) return;
@@ -81,7 +75,8 @@ export default function SellerBuyerReports() {
             }
 
             // Map to our report format
-            const mappedReports: BuyerReport[] = (tickets || []).map((t: any) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const mappedReports: BuyerReport[] = (tickets || []).map((t: Record<string, any>) => {
                 const user = t.user;
                 const category = t.category;
                 return {
@@ -109,6 +104,11 @@ export default function SellerBuyerReports() {
             setLoading(false);
         }
     };
+
+    // Fetch buyer reports related to seller's products
+    useEffect(() => {
+        fetchBuyerReports();
+    }, [seller?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleRefresh = () => {
         fetchBuyerReports();

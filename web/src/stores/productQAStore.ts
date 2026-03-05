@@ -52,7 +52,11 @@ interface ProductQAStore {
   
   // Actions
   loadProducts: (sellerId?: string | null) => Promise<void>;
+  acceptListing: (productId: string) => Promise<void>;
+  rejectListing: (productId: string, reason: string) => Promise<void>;
   approveForSampleSubmission: (productId: string) => Promise<void>;
+  submitForDigitalReview: (productId: string) => Promise<void>;
+  submitForPhysicalReview: (productId: string, logisticsMethod: string) => Promise<void>;
   submitSample: (productId: string, logisticsMethod: string) => Promise<void>;
   passQualityCheck: (productId: string) => Promise<void>;
   rejectProduct: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
@@ -245,6 +249,48 @@ export const useProductQAStore = create<ProductQAStore>()(
         }
       },
 
+      acceptListing: async (productId: string) => {
+        try {
+          if (isSupabaseConfigured()) {
+            await qaService.acceptListing(productId);
+            await get().loadProducts();
+          } else {
+            set((state) => ({
+              products: state.products.map((p) =>
+                p.id === productId
+                  ? { ...p, status: 'PENDING_DIGITAL_REVIEW' as ProductQAStatus }
+                  : p
+              ),
+            }));
+          }
+          syncToSellerStore(productId, 'accepted');
+        } catch (error) {
+          console.error('Error accepting listing:', error);
+          throw error;
+        }
+      },
+
+      rejectListing: async (productId: string, reason: string) => {
+        try {
+          if (isSupabaseConfigured()) {
+            await qaService.rejectListing(productId, reason);
+            await get().loadProducts();
+          } else {
+            set((state) => ({
+              products: state.products.map((p) =>
+                p.id === productId
+                  ? { ...p, status: 'REJECTED' as ProductQAStatus, rejectionReason: reason }
+                  : p
+              ),
+            }));
+          }
+          syncToSellerStore(productId, 'rejected');
+        } catch (error) {
+          console.error('Error rejecting listing:', error);
+          throw error;
+        }
+      },
+
       approveForSampleSubmission: async (productId: string) => {
         try {
           const product = get().products.find(p => p.id === productId);
@@ -283,6 +329,58 @@ export const useProductQAStore = create<ProductQAStore>()(
         }
       },
 
+      // Seller submits product for digital QA review (PENDING_DIGITAL_REVIEW → IN_QUALITY_REVIEW)
+      submitForDigitalReview: async (productId: string) => {
+        try {
+          const product = get().products.find(p => p.id === productId);
+          if (!product) throw new Error('Product not found');
+
+          if (isSupabaseConfigured()) {
+            await qaService.submitSample(productId, 'Digital Review');
+            await get().loadProducts();
+          } else {
+            set((state) => ({
+              products: state.products.map((p) =>
+                p.id === productId
+                  ? { ...p, status: 'IN_QUALITY_REVIEW' as ProductQAStatus, logistics: 'Digital Review' }
+                  : p
+              ),
+            }));
+          }
+        } catch (error) {
+          console.error('Error submitting for digital review:', error);
+          throw error;
+        }
+      },
+
+      // Seller requests physical sample review (PENDING_DIGITAL_REVIEW → WAITING_FOR_SAMPLE)
+      submitForPhysicalReview: async (productId: string, logisticsMethod: string) => {
+        try {
+          if (!logisticsMethod || logisticsMethod.trim() === '') {
+            throw new Error('Logistics method is required');
+          }
+          const product = get().products.find(p => p.id === productId);
+          if (!product) throw new Error('Product not found');
+
+          if (isSupabaseConfigured()) {
+            await qaService.submitForPhysicalReview(productId, logisticsMethod);
+            await get().loadProducts();
+          } else {
+            set((state) => ({
+              products: state.products.map((p) =>
+                p.id === productId
+                  ? { ...p, status: 'WAITING_FOR_SAMPLE' as ProductQAStatus, logistics: logisticsMethod }
+                  : p
+              ),
+            }));
+          }
+        } catch (error) {
+          console.error('Error submitting for physical review:', error);
+          throw error;
+        }
+      },
+
+      // Confirm physical sample has been sent (WAITING_FOR_SAMPLE → IN_QUALITY_REVIEW)
       submitSample: async (productId: string, logisticsMethod: string) => {
         try {
           if (!logisticsMethod || logisticsMethod.trim() === '') {
@@ -293,7 +391,7 @@ export const useProductQAStore = create<ProductQAStore>()(
             throw new Error('Product not found');
           }
           if (product.status !== 'WAITING_FOR_SAMPLE') {
-            throw new Error('Product must be in WAITING_FOR_SAMPLE status');
+            throw new Error('Product must be in WAITING_FOR_SAMPLE status to confirm sample sent');
           }
 
           // Update database if configured
@@ -548,7 +646,7 @@ export const useProductQAStore = create<ProductQAStore>()(
 // Helper function to sync with seller store (best-effort — admin may not have the product loaded locally)
 function syncToSellerStore(
   productId: string, 
-  approvalStatus: 'pending' | 'approved' | 'rejected',
+  approvalStatus: 'pending' | 'approved' | 'rejected' | 'accepted',
   rejectionReason?: string
 ) {
   try {

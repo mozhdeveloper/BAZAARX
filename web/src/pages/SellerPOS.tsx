@@ -7,7 +7,6 @@ import {
   Trash2,
   ShoppingCart,
   CheckCircle,
-  LogOut,
   CreditCard,
   Scan,
   TrendingUp,
@@ -20,11 +19,9 @@ import {
   Settings,
   User,
   DollarSign,
-  Building2,
   Calculator,
   Volume2,
   VolumeX,
-  Users
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -34,7 +31,6 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
@@ -48,12 +44,12 @@ import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { QuickProductModal } from '@/components/pos/QuickProductModal';
 import { StaffLogin, StaffBadge } from '@/components/pos/StaffLogin';
 import { CashDrawerManager, CashDrawerBadge } from '@/components/pos/CashDrawerManager';
-import { BranchSelector, BranchBadge, MOCK_BRANCHES } from '@/components/pos/BranchSelector';
+import { BranchSelector, MOCK_BRANCHES } from '@/components/pos/BranchSelector';
 import { POSSettingsModal } from '@/components/pos/POSSettingsModal';
 import { getPOSSettings } from '@/services/posSettingsService';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { lookupBarcodeQuick } from '@/services/barcodeService';
-import { playBeepSound, ScannerStatus } from '@/components/ui/BarcodeDisplay';
+import { playBeepSound } from '@/components/ui/BarcodeDisplay';
 import type { POSSettings, StaffMember, CashDrawerSession, Branch } from '@/types/pos.types';
 
 interface CartItem {
@@ -85,8 +81,8 @@ interface ReceiptData {
 export function SellerPOS() {
   const navigate = useNavigate();
   const { seller } = useAuthStore();
-  const { products, fetchProducts, loading } = useProductStore();
-  const { addOfflineOrder, fetchOrders } = useOrderStore();
+  const { products, fetchProducts } = useProductStore();
+  const { fetchOrders } = useOrderStore();
 
   // Fetch seller's products when component mounts
   useEffect(() => {
@@ -100,7 +96,7 @@ export function SellerPOS() {
   const [filterTab, setFilterTab] = useState<'all' | 'low-stock' | 'best-sellers'>('all');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [successOrderId, setSuccessOrderId] = useState('');
+  const [, setSuccessOrderId] = useState('');
   const [note, setNote] = useState('');
   const [buyerEmail, setBuyerEmail] = useState(''); // Optional buyer email for points
   const [isProcessing, setIsProcessing] = useState(false);
@@ -206,13 +202,13 @@ export function SellerPOS() {
         playBeepSound('error');
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller?.id, products, cart, posSettings, soundEnabled, scannerPaused]);
 
   // Initialize hardware barcode scanner
   const {
     isActive: scannerActive,
     lastScan,
-    lastScanTime,
     pause: pauseScanner,
     resume: resumeScanner,
     scanCount
@@ -342,7 +338,8 @@ export function SellerPOS() {
   };
 
   // Handle product created from quick modal
-  const handleQuickProductCreated = (product: any) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleQuickProductCreated = (product: Record<string, any>) => {
     // Refresh products list
     if (seller?.id) {
       fetchProducts({ sellerId: seller.id });
@@ -356,6 +353,7 @@ export function SellerPOS() {
       primaryImageUrl: product.primaryImageUrl || null,
       stock: product.stock || 0,
     };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     addToCart(cartProduct as any);
     playBeepSound('success');
   };

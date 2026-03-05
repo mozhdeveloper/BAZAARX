@@ -1,3 +1,4 @@
+/* eslint-disable */
 /**
  * POS Advanced Features - E2E Test Suite
  * Tests all new POS features (mostly unit tests, no database required)

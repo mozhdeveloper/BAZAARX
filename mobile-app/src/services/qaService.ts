@@ -18,6 +18,7 @@ export type ProductAssessmentStatusType = ProductAssessmentStatus;
 
 // Legacy status type for backwards compatibility
 export type ProductQAStatus =
+  | 'PENDING_ADMIN_REVIEW'
   | 'PENDING_DIGITAL_REVIEW'
   | 'WAITING_FOR_SAMPLE'
   | 'IN_QUALITY_REVIEW'
@@ -27,6 +28,7 @@ export type ProductQAStatus =
 
 // Status mapping from legacy to new
 const LEGACY_TO_NEW_STATUS: Record<ProductQAStatus, ProductAssessmentStatusType> = {
+  'PENDING_ADMIN_REVIEW': 'pending_admin_review',
   'PENDING_DIGITAL_REVIEW': 'pending_digital_review',
   'WAITING_FOR_SAMPLE': 'waiting_for_sample',
   'IN_QUALITY_REVIEW': 'pending_physical_review',
@@ -37,6 +39,7 @@ const LEGACY_TO_NEW_STATUS: Record<ProductQAStatus, ProductAssessmentStatusType>
 
 // Status mapping from new to legacy
 const NEW_TO_LEGACY_STATUS: Record<ProductAssessmentStatusType, ProductQAStatus> = {
+  'pending_admin_review': 'PENDING_ADMIN_REVIEW',
   'pending_digital_review': 'PENDING_DIGITAL_REVIEW',
   'waiting_for_sample': 'WAITING_FOR_SAMPLE',
   'pending_physical_review': 'IN_QUALITY_REVIEW',
@@ -410,7 +413,7 @@ export class QAService {
 
     try {
       const isPremium = await this.isPremiumOutlet(sellerId);
-      const status = isPremium ? 'verified' : 'pending_digital_review';
+      const status = isPremium ? 'verified' : 'pending_admin_review';
       const verifiedAt = isPremium ? new Date().toISOString() : null;
 
       // Upsert so retries are idempotent (unique constraint on product_id)
@@ -684,9 +687,10 @@ export class QAService {
 
       // Map assessment status to product approval_status
       const approvalStatusMap: Record<ProductAssessmentStatusType, string> = {
-        'pending_digital_review': 'pending',
-        'waiting_for_sample': 'pending',
-        'pending_physical_review': 'pending',
+        'pending_admin_review': 'pending',
+        'pending_digital_review': 'accepted',
+        'waiting_for_sample': 'accepted',
+        'pending_physical_review': 'accepted',
         'verified': 'approved',
         'for_revision': 'pending',
         'rejected': 'rejected',
@@ -747,6 +751,69 @@ export class QAService {
       console.error('Error updating QA status:', error);
       throw new Error('Failed to update QA status');
     }
+  }
+
+  /**
+   * Admin accepts listing → moves to QA queue (pending_digital_review)
+   * This is the admin-only action in the new separated flow
+   */
+  async acceptListing(productId: string, adminId?: string): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+
+    try {
+      const { data: assessment } = await supabase
+        .from('product_assessments')
+        .select('id, status')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!assessment) throw new Error('Assessment not found for product');
+
+      const { error: assessError } = await supabase
+        .from('product_assessments')
+        .update({
+          status: 'pending_digital_review',
+          admin_accepted_at: new Date().toISOString(),
+          admin_accepted_by: adminId || null,
+        })
+        .eq('product_id', productId);
+
+      if (assessError) throw assessError;
+
+      const { error: prodError } = await supabase
+        .from('products')
+        .update({
+          approval_status: 'accepted',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', productId);
+
+      if (prodError) throw prodError;
+
+      await supabase.from('product_approvals').insert({
+        assessment_id: assessment.id,
+        description: 'Listing accepted by admin, sent to QA team for review',
+        created_by: adminId || null,
+      });
+
+      console.log(`✅ Listing accepted: ${productId} → pending_digital_review`);
+    } catch (error) {
+      console.error('Error accepting listing:', error);
+      throw new Error('Failed to accept listing');
+    }
+  }
+
+  /**
+   * Admin rejects listing outright
+   */
+  async rejectListing(productId: string, reason: string, adminId?: string): Promise<void> {
+    return this.updateQAStatus(productId, 'REJECTED', {
+      rejectionReason: reason,
+      rejectionStage: 'digital',
+      adminId,
+    });
   }
 
   /**

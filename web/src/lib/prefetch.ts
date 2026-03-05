@@ -8,6 +8,6 @@
  *     Proceed to Checkout
  *   </Button>
  */
-export function prefetchRoute(factory: () => Promise<any>): void {
+export function prefetchRoute(factory: () => Promise<unknown>): void {
   void factory();
 }

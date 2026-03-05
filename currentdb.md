@@ -453,7 +453,7 @@ CREATE TABLE public.product_approvals (
   created_by uuid,
   CONSTRAINT product_approvals_pkey PRIMARY KEY (id),
   CONSTRAINT product_approvals_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT product_approvals_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
+  CONSTRAINT product_approvals_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.product_assessment_logistics (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -463,12 +463,12 @@ CREATE TABLE public.product_assessment_logistics (
   created_by uuid,
   CONSTRAINT product_assessment_logistics_pkey PRIMARY KEY (id),
   CONSTRAINT product_assessment_logistics_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT product_assessment_logistics_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
+  CONSTRAINT product_assessment_logistics_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.product_assessments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL UNIQUE,
-  status text NOT NULL DEFAULT 'pending_digital_review'::text CHECK (status = ANY (ARRAY['pending_digital_review'::text, 'waiting_for_sample'::text, 'pending_physical_review'::text, 'verified'::text, 'for_revision'::text, 'rejected'::text])),
+  status text NOT NULL DEFAULT 'pending_digital_review'::text CHECK (status = ANY (ARRAY['pending_admin_review'::text, 'pending_digital_review'::text, 'waiting_for_sample'::text, 'pending_physical_review'::text, 'verified'::text, 'for_revision'::text, 'rejected'::text])),
   submitted_at timestamp with time zone NOT NULL DEFAULT now(),
   verified_at timestamp with time zone,
   revision_requested_at timestamp with time zone,
@@ -476,10 +476,13 @@ CREATE TABLE public.product_assessments (
   created_by uuid,
   assigned_to uuid,
   notes text,
+  admin_accepted_at timestamp with time zone,
+  admin_accepted_by uuid,
   CONSTRAINT product_assessments_pkey PRIMARY KEY (id),
   CONSTRAINT product_assessments_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
   CONSTRAINT product_assessments_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
-  CONSTRAINT product_assessments_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES auth.users(id)
+  CONSTRAINT product_assessments_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES auth.users(id),
+  CONSTRAINT product_assessments_admin_accepted_by_fkey FOREIGN KEY (admin_accepted_by) REFERENCES public.admins(id)
 );
 CREATE TABLE public.product_discounts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -518,7 +521,7 @@ CREATE TABLE public.product_rejections (
   CONSTRAINT product_rejections_pkey PRIMARY KEY (id),
   CONSTRAINT product_rejections_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
   CONSTRAINT product_rejections_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT product_rejections_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
+  CONSTRAINT product_rejections_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.product_requests (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -545,7 +548,7 @@ CREATE TABLE public.product_revisions (
   created_by uuid,
   CONSTRAINT product_revisions_pkey PRIMARY KEY (id),
   CONSTRAINT product_revisions_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
-  CONSTRAINT product_revisions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
+  CONSTRAINT product_revisions_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.product_tags (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -582,7 +585,7 @@ CREATE TABLE public.products (
   brand text,
   sku text UNIQUE,
   specifications jsonb DEFAULT '{}'::jsonb,
-  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'reclassified'::text])),
+  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'accepted'::text, 'approved'::text, 'rejected'::text, 'reclassified'::text])),
   variant_label_1 text,
   variant_label_2 text,
   price numeric NOT NULL CHECK (price >= 0::numeric),
@@ -621,6 +624,32 @@ CREATE TABLE public.push_tokens (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT push_tokens_pkey PRIMARY KEY (id),
   CONSTRAINT push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.qa_review_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  assessment_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  reviewer_id uuid NOT NULL,
+  action text NOT NULL,
+  notes text,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT qa_review_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT qa_review_logs_assessment_id_fkey FOREIGN KEY (assessment_id) REFERENCES public.product_assessments(id),
+  CONSTRAINT qa_review_logs_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT qa_review_logs_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.qa_team_members (
+  id uuid NOT NULL,
+  display_name text,
+  specialization text,
+  is_active boolean NOT NULL DEFAULT true,
+  max_concurrent_reviews integer NOT NULL DEFAULT 10,
+  permissions jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT qa_team_members_pkey PRIMARY KEY (id),
+  CONSTRAINT qa_team_members_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.refund_return_periods (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -910,10 +939,19 @@ CREATE TABLE public.ticket_messages (
   CONSTRAINT ticket_messages_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.support_tickets(id),
   CONSTRAINT ticket_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.user_presence (
+  user_id uuid NOT NULL,
+  user_type text NOT NULL,
+  seller_id uuid,
+  is_online boolean DEFAULT false,
+  last_active_at timestamp with time zone DEFAULT now(),
+  connected_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_presence_pkey PRIMARY KEY (user_id, user_type)
+);
 CREATE TABLE public.user_roles (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
-  role text NOT NULL CHECK (role = ANY (ARRAY['buyer'::text, 'seller'::text, 'admin'::text])),
+  role text NOT NULL CHECK (role = ANY (ARRAY['buyer'::text, 'seller'::text, 'admin'::text, 'qa_team'::text])),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT user_roles_pkey PRIMARY KEY (id),
   CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)

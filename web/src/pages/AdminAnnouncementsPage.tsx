@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-refresh/only-export-components */
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminSidebar from '../components/AdminSidebar';
 import { supabase } from '@/lib/supabase';

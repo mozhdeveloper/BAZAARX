@@ -5,12 +5,13 @@ import { qaService, QAProductWithDetails, ProductQAStatus as QAStatus } from '..
 import { safeImageUri } from '../utils/imageUtils';
 
 export type ProductQAStatus = 
-  | 'PENDING_DIGITAL_REVIEW'    // Step 1: Needs Admin Digital Approval
+  | 'PENDING_ADMIN_REVIEW'        // Step 0: Needs Admin to Accept Listing
+  | 'PENDING_DIGITAL_REVIEW'    // Step 1: Needs QA Digital Review
   | 'WAITING_FOR_SAMPLE'         // Step 2: Needs Seller to Send Sample
-  | 'IN_QUALITY_REVIEW'          // Step 3: Sample with Admin (Physical QA)
+  | 'IN_QUALITY_REVIEW'          // Step 3: Sample with QA Team (Physical QA)
   | 'ACTIVE_VERIFIED'            // Step 4: Live & Verified
   | 'FOR_REVISION'               // Needs seller to revise/update
-  | 'REJECTED';                  // Rejected by admin
+  | 'REJECTED';                  // Rejected
 
 export interface QAProduct {
   id: string;
@@ -42,6 +43,8 @@ interface ProductQAStore {
   
   // Actions
   loadProducts: (sellerId?: string) => Promise<void>;
+  acceptListing: (productId: string) => Promise<void>;
+  rejectListing: (productId: string, reason: string) => Promise<void>;
   approveForSampleSubmission: (productId: string) => Promise<void>;
   submitSample: (productId: string, logisticsMethod: string) => Promise<void>;
   passQualityCheck: (productId: string) => Promise<void>;
@@ -160,6 +163,52 @@ export const useProductQAStore = create<ProductQAStore>()(
         } catch (error) {
           console.error('Error loading QA products:', error);
           set({ error: 'Failed to load products', isLoading: false });
+        }
+      },
+
+      acceptListing: async (productId: string) => {
+        set({ isLoading: true });
+        try {
+          const product = get().products.find(p => p.productId === productId);
+          if (!product) throw new Error('Product not found');
+
+          await qaService.acceptListing(productId);
+
+          set((state) => ({
+            products: state.products.map((p) =>
+              p.productId === productId
+                ? { ...p, status: 'PENDING_DIGITAL_REVIEW' as ProductQAStatus }
+                : p
+            ),
+            isLoading: false,
+          }));
+        } catch (error) {
+          console.error('Error accepting listing:', error);
+          set({ isLoading: false, error: error instanceof Error ? error.message : 'Unknown error' });
+          throw error;
+        }
+      },
+
+      rejectListing: async (productId: string, reason: string) => {
+        set({ isLoading: true });
+        try {
+          const product = get().products.find(p => p.productId === productId);
+          if (!product) throw new Error('Product not found');
+
+          await qaService.rejectListing(productId, reason);
+
+          set((state) => ({
+            products: state.products.map((p) =>
+              p.productId === productId
+                ? { ...p, status: 'REJECTED' as ProductQAStatus, rejectionReason: reason, rejectionStage: 'digital' as const }
+                : p
+            ),
+            isLoading: false,
+          }));
+        } catch (error) {
+          console.error('Error rejecting listing:', error);
+          set({ isLoading: false, error: error instanceof Error ? error.message : 'Unknown error' });
+          throw error;
         }
       },
 

@@ -7,14 +7,14 @@
 // ENUMS
 // ============================================================================
 
-export type UserRole = 'buyer' | 'seller' | 'admin';
+export type UserRole = 'buyer' | 'seller' | 'admin' | 'qa_team';
 export type ApprovalStatus =
   | 'pending'
   | 'verified'
   | 'approved'
   | 'rejected'
   | 'needs_resubmission';
-export type ProductApprovalStatus = 'pending' | 'approved' | 'rejected' | 'reclassified';
+export type ProductApprovalStatus = 'pending' | 'accepted' | 'approved' | 'rejected' | 'reclassified';
 export type OrderType = 'ONLINE' | 'OFFLINE';
 
 export type PaymentStatus = 'pending_payment' | 'paid' | 'refunded' | 'partially_refunded';
@@ -31,6 +31,7 @@ export type ShipmentStatus =
   | 'returned';
 
 export type ProductAssessmentStatus =
+  | 'pending_admin_review'
   | 'pending_digital_review'
   | 'waiting_for_sample'
   | 'pending_physical_review'
@@ -142,6 +143,17 @@ export interface SellerVerificationDocuments {
 
 export interface Admin {
   id: string;
+  permissions: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QATeamMember {
+  id: string;
+  display_name: string | null;
+  specialization: string | null;
+  is_active: boolean;
+  max_concurrent_reviews: number;
   permissions: Record<string, unknown>;
   created_at: string;
   updated_at: string;

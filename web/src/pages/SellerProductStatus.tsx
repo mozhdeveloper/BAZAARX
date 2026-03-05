@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { handleImageError } from '@/utils/imageUtils';
-import { motion } from 'framer-motion';
 import {
   Package,
   XCircle,
   AlertCircle,
   Search,
-  BadgeCheck,
   RefreshCw,
   User,
   Store,
+  Camera,
+  Truck,
+  CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
+import { handleImageError } from '@/utils/imageUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -29,10 +30,12 @@ const SellerProductStatus = () => {
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [logisticsMethod, setLogisticsMethod] = useState<string>('');
+  const [reviewStep, setReviewStep] = useState<'choose' | 'physical'>('choose');
+  const [selectedProductStatus, setSelectedProductStatus] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'waiting' | 'qa' | 'revision' | 'verified' | 'rejected'>('all');
 
-  const { products: qaProducts, submitSample, loadProducts, isLoading } = useProductQAStore();
+  const { products: qaProducts, submitSample, submitForDigitalReview, submitForPhysicalReview, loadProducts, isLoading } = useProductQAStore();
   const { toast } = useToast();
   const { seller } = useAuthStore();
   const { products: sellerProducts } = useProductStore();
@@ -53,8 +56,8 @@ const SellerProductStatus = () => {
   const activeSellerProducts = sellerProducts.filter((p) => p.isActive);
 
   // Calculate counts
-  const pendingCount = sellerQAProducts.filter(p => p.status === 'PENDING_DIGITAL_REVIEW').length;
-  const waitingCount = sellerQAProducts.filter(p => p.status === 'WAITING_FOR_SAMPLE').length;
+  const pendingCount = sellerQAProducts.filter(p => p.status === 'PENDING_ADMIN_REVIEW').length;
+  const waitingCount = sellerQAProducts.filter(p => p.status === 'WAITING_FOR_SAMPLE' || p.status === 'PENDING_DIGITAL_REVIEW').length;
   const qaQueueCount = sellerQAProducts.filter(p => p.status === 'IN_QUALITY_REVIEW').length;
   const revisionCount = sellerQAProducts.filter(p => p.status === 'FOR_REVISION').length;
   const verifiedCount = sellerQAProducts.filter(p => p.status === 'ACTIVE_VERIFIED').length;
@@ -84,11 +87,11 @@ const SellerProductStatus = () => {
     if (filterStatus !== 'all') {
       switch (filterStatus) {
         case 'pending':
-          filteredQA = filteredQA.filter(p => p.status === 'PENDING_DIGITAL_REVIEW');
+          filteredQA = filteredQA.filter(p => p.status === 'PENDING_ADMIN_REVIEW');
           filteredSeller = [];
           break;
         case 'waiting':
-          filteredQA = filteredQA.filter(p => p.status === 'WAITING_FOR_SAMPLE');
+          filteredQA = filteredQA.filter(p => p.status === 'WAITING_FOR_SAMPLE' || p.status === 'PENDING_DIGITAL_REVIEW');
           filteredSeller = [];
           break;
         case 'qa':
@@ -135,31 +138,67 @@ const SellerProductStatus = () => {
 
   const allFilteredProducts = [...filteredQAProducts, ...nonQASellerProducts];
 
-  const handleSubmitSample = () => {
-    if (!selectedProduct || !logisticsMethod) {
-      toast({
-        title: 'Error',
-        description: 'Please select a logistics method',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const openSubmitModal = (productId: string, productStatus?: string) => {
+    setSelectedProduct(productId);
+    setSelectedProductStatus(productStatus || '');
+    // For WAITING_FOR_SAMPLE, skip the choice step — seller already chose physical
+    setReviewStep(productStatus === 'WAITING_FOR_SAMPLE' ? 'physical' : 'choose');
+    setLogisticsMethod('');
+    setSubmitModalOpen(true);
+  };
 
+  const handleDigitalReview = async () => {
+    if (!selectedProduct) return;
     try {
-      submitSample(selectedProduct, logisticsMethod);
+      await submitForDigitalReview(selectedProduct);
       toast({
-        title: 'Sample Submitted Successfully',
-        description: 'Your product sample has been submitted for physical QA review.',
-        duration: 3000,
+        title: 'Digital Review Submitted',
+        description: 'Your product has been queued for digital QA review. Our team will review your photos and listing details.',
+        duration: 4000,
       });
       setSubmitModalOpen(false);
       setSelectedProduct(null);
+      setReviewStep('choose');
+      setSelectedProductStatus('');
+    } catch (error) {
+      console.error('Error submitting digital review:', error);
+      toast({ title: 'Submission Failed', description: 'Failed to submit. Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleSubmitSample = async () => {
+    if (!selectedProduct || !logisticsMethod) {
+      toast({ title: 'Error', description: 'Please select a logistics method', variant: 'destructive' });
+      return;
+    }
+    try {
+      if (selectedProductStatus === 'PENDING_DIGITAL_REVIEW') {
+        // Seller chose physical review — move product to WAITING_FOR_SAMPLE with logistics saved
+        await submitForPhysicalReview(selectedProduct, logisticsMethod);
+        toast({
+          title: 'Physical Review Scheduled',
+          description: 'Please send your product sample using the chosen logistics method. We will notify you once received.',
+          duration: 4000,
+        });
+      } else {
+        // WAITING_FOR_SAMPLE — seller confirms physical sample has been dispatched
+        await submitSample(selectedProduct, logisticsMethod);
+        toast({
+          title: 'Sample Submitted Successfully',
+          description: 'Your product sample has been submitted for physical QA review.',
+          duration: 3000,
+        });
+      }
+      setSubmitModalOpen(false);
+      setSelectedProduct(null);
       setLogisticsMethod('');
+      setReviewStep('choose');
+      setSelectedProductStatus('');
     } catch (error) {
       console.error('Error submitting sample:', error);
       toast({
         title: 'Submission Failed',
-        description: error instanceof Error ? error.message : 'Failed to submit sample. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to submit. Please try again.',
         variant: 'destructive',
       });
     }
@@ -197,7 +236,7 @@ const SellerProductStatus = () => {
                     {statusOptions.map((option) => (
                       <button
                         key={option.value}
-                        onClick={() => setFilterStatus(option.value as any)}
+                        onClick={() => setFilterStatus(option.value as typeof filterStatus)}
                         className={cn(
                           "px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all duration-300",
                           filterStatus === option.value
@@ -279,6 +318,10 @@ const SellerProductStatus = () => {
                                 <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
                                   Rejected
                                 </Badge>
+                              ) : (product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED' ? (
+                                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                  Awaiting Sample
+                                </Badge>
                               ) : (
                                 <Badge variant="outline" className="h-5 px-2 text-[10px] uppercase tracking-wide">{product.approvalStatus || 'Unknown'}</Badge>
                               )}
@@ -296,6 +339,20 @@ const SellerProductStatus = () => {
                           <div className="flex-shrink-0">
                             <p className="text-lg font-bold text-[var(--secondary-foreground)]">₱{product.price.toLocaleString()}</p>
                           </div>
+
+                          {/* Submit for QA button — shown when admin has accepted listing */}
+                          {((product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED') && (
+                            <div className="flex-shrink-0 ml-2">
+                              <Button
+                                size="sm"
+                                onClick={() => openSubmitModal(product.id, 'PENDING_DIGITAL_REVIEW')}
+                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-orange-200"
+                              >
+                                Submit for QA
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -320,9 +377,13 @@ const SellerProductStatus = () => {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <h3 className="font-semibold text-[var(--secondary-foreground)] truncate">{product.name}</h3>
-                                {product.status === 'PENDING_DIGITAL_REVIEW' ? (
-                                  <Badge className="text-orange-600 bg-orange-50 hover:bg-orange-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Pending Review
+                                {product.status === 'PENDING_ADMIN_REVIEW' ? (
+                                  <Badge className="text-gray-600 bg-gray-100 hover:bg-gray-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                    Pending Admin Review
+                                  </Badge>
+                                ) : product.status === 'PENDING_DIGITAL_REVIEW' ? (
+                                  <Badge className="text-amber-600 bg-amber-50 hover:bg-amber-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                    Awaiting Sample
                                   </Badge>
                                 ) : product.status === 'IN_QUALITY_REVIEW' ? (
                                   <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50 h-5 px-2 text-[10px] uppercase tracking-wide">
@@ -363,18 +424,27 @@ const SellerProductStatus = () => {
                               <p className="text-lg font-bold text-[var(--secondary-foreground)]">₱{product.price.toLocaleString()}</p>
                             </div>
 
-                            {/* Action (Only for waiting sample) */}
+                            {/* Action buttons */}
                             {product.status === 'WAITING_FOR_SAMPLE' && (
                               <div className="flex-shrink-0 ml-4">
                                 <Button
                                   size="sm"
-                                  onClick={() => {
-                                    setSelectedProduct(product.id);
-                                    setSubmitModalOpen(true);
-                                  }}
+                                  onClick={() => openSubmitModal(product.id, product.status)}
                                   className="bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-full px-4"
                                 >
-                                  Submit Sample
+                                  Confirm Sample Sent
+                                </Button>
+                              </div>
+                            )}
+                            {product.status === 'PENDING_DIGITAL_REVIEW' && (
+                              <div className="flex-shrink-0 ml-4">
+                                <Button
+                                  size="sm"
+                                  onClick={() => openSubmitModal(product.id, product.status)}
+                                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-orange-200"
+                                >
+                                  Submit for QA
+                                  <ArrowRight className="w-3.5 h-3.5" />
                                 </Button>
                               </div>
                             )}
@@ -402,101 +472,155 @@ const SellerProductStatus = () => {
         </div>
       </div>
 
-      {/* Sample Submission Modal */}
-      <Dialog open={submitModalOpen} onOpenChange={setSubmitModalOpen}>
-        <DialogContent>
+      {/* QA Submission Modal */}
+      <Dialog open={submitModalOpen} onOpenChange={(open) => {
+        setSubmitModalOpen(open);
+        if (!open) { setReviewStep('choose'); setLogisticsMethod(''); setSelectedProductStatus(''); }
+      }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Submit Product Sample</DialogTitle>
+            <DialogTitle>
+              {reviewStep === 'choose' ? 'Submit for QA Review' : 'Physical Sample Submission'}
+            </DialogTitle>
             <DialogDescription>
-              Choose how you'll send your product sample for quality verification
+              {reviewStep === 'choose'
+                ? 'Choose how you\'d like to submit your product for quality review'
+                : 'Select how you\'ll send your product sample to our facility'}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 space-y-4">
-            <Label className="mb-3 block">Logistics Method</Label>
-            <RadioGroup value={logisticsMethod} onValueChange={setLogisticsMethod}>
-              <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <RadioGroupItem value="Drop-off by Courier" id="courier" />
-                <Label htmlFor="courier" className="cursor-pointer flex-1">
-                  <div className="font-medium">Drop-off by Courier</div>
-                  <div className="text-sm text-gray-500">
-                    Send product sample via courier service to our QA facility
-                  </div>
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-orange-50 cursor-pointer relative group">
-                <RadioGroupItem value="Onsite Visit" id="onsite" />
-                <Label htmlFor="onsite" className="cursor-pointer flex-1">
-                  <div className="font-medium">Onsite Visit</div>
-                  <div className="text-sm text-gray-500">
-                    Visit our QA facility in person to submit your product sample
-                  </div>
-                </Label>
-                {/* Hover alert for extra fee */}
-                <div className="absolute -top-20 left-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  <Alert className="bg-orange-50 border-orange-200">
-                    <AlertCircle className="h-4 w-4 text-orange-600" />
-                    <AlertDescription className="text-orange-800 text-sm">
-                      Onsite visits require an additional processing fee of ₱200
-                    </AlertDescription>
-                  </Alert>
+          {reviewStep === 'choose' ? (
+            <div className="py-2 space-y-3">
+              {/* Digital Review option */}
+              <button
+                onClick={handleDigitalReview}
+                className="w-full flex items-start gap-4 p-4 border-2 border-blue-100 rounded-xl hover:border-blue-400 hover:bg-blue-50/50 transition-all text-left group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-200 transition-colors">
+                  <Camera className="w-5 h-5 text-blue-600" />
                 </div>
-              </div>
-            </RadioGroup>
-
-            {/* Show courier address when courier is selected */}
-            {logisticsMethod === 'Drop-off by Courier' && (
-              <Alert className="bg-blue-50 border-blue-200">
-                <Package className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-blue-800">
-                  <div className="font-medium mb-1">Send your product to:</div>
-                  <div className="text-sm">
-                    BazaarX QA Facility<br />
-                    Unit 2B, Tech Hub Building<br />
-                    1234 Innovation Drive, BGC, Taguig City<br />
-                    Metro Manila, 1630
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900">Digital Review</div>
+                  <div className="text-sm text-gray-500 mt-0.5">Our QA team reviews your listing photos and product details online. Fastest option — no shipping needed.</div>
+                  <div className="mt-2">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                      <CheckCircle2 className="w-3 h-3" /> Free · 1–2 business days
+                    </span>
                   </div>
-                </AlertDescription>
-              </Alert>
-            )}
+                </div>
+                <ArrowRight className="w-4 h-4 text-gray-400 self-center flex-shrink-0 group-hover:text-blue-500 transition-colors" />
+              </button>
 
-            {/* Show onsite address when onsite is selected */}
-            {logisticsMethod === 'Onsite Visit' && (
-              <Alert className="bg-orange-50 border-orange-200">
-                <Store className="h-4 w-4 text-orange-600" />
-                <AlertDescription className="text-orange-800">
-                  <div className="font-medium mb-1">Visit us at:</div>
-                  <div className="text-sm">
-                    BazaarX QA Facility<br />
-                    Unit 2B, Tech Hub Building<br />
-                    1234 Innovation Drive, BGC, Taguig City<br />
-                    <span className="font-medium">Operating Hours:</span> Mon-Fri, 9AM-5PM<br />
-                    <span className="font-medium text-orange-900">Processing Fee: ₱200</span>
+              {/* Physical Sample option */}
+              <button
+                onClick={() => setReviewStep('physical')}
+                className="w-full flex items-start gap-4 p-4 border-2 border-orange-100 rounded-xl hover:border-orange-400 hover:bg-orange-50/50 transition-all text-left group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-200 transition-colors">
+                  <Truck className="w-5 h-5 text-orange-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900">Physical Sample</div>
+                  <div className="text-sm text-gray-500 mt-0.5">Send a physical product sample to our QA facility for hands-on inspection.</div>
+                  <div className="mt-2">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">
+                      <Package className="w-3 h-3" /> Shipping required · 3–5 business days
+                    </span>
                   </div>
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-gray-400 self-center flex-shrink-0 group-hover:text-orange-500 transition-colors" />
+              </button>
+            </div>
+          ) : (
+            <div className="py-4 space-y-4">
+              <Label className="mb-3 block">Logistics Method</Label>
+              <RadioGroup value={logisticsMethod} onValueChange={setLogisticsMethod}>
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <RadioGroupItem value="Drop-off by Courier" id="courier" />
+                  <Label htmlFor="courier" className="cursor-pointer flex-1">
+                    <div className="font-medium">Drop-off by Courier</div>
+                    <div className="text-sm text-gray-500">
+                      Send product sample via courier service to our QA facility
+                    </div>
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-orange-50 cursor-pointer relative group">
+                  <RadioGroupItem value="Onsite Visit" id="onsite" />
+                  <Label htmlFor="onsite" className="cursor-pointer flex-1">
+                    <div className="font-medium">Onsite Visit</div>
+                    <div className="text-sm text-gray-500">
+                      Visit our QA facility in person to submit your product sample
+                    </div>
+                  </Label>
+                  <div className="absolute -top-20 left-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    <Alert className="bg-orange-50 border-orange-200">
+                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                      <AlertDescription className="text-orange-800 text-sm">
+                        Onsite visits require an additional processing fee of ₱200
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                </div>
+              </RadioGroup>
+
+              {logisticsMethod === 'Drop-off by Courier' && (
+                <Alert className="bg-blue-50 border-blue-200">
+                  <Package className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800">
+                    <div className="font-medium mb-1">Send your product to:</div>
+                    <div className="text-sm">
+                      BazaarX QA Facility<br />
+                      Unit 2B, Tech Hub Building<br />
+                      1234 Innovation Drive, BGC, Taguig City<br />
+                      Metro Manila, 1630
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {logisticsMethod === 'Onsite Visit' && (
+                <Alert className="bg-orange-50 border-orange-200">
+                  <Store className="h-4 w-4 text-orange-600" />
+                  <AlertDescription className="text-orange-800">
+                    <div className="font-medium mb-1">Visit us at:</div>
+                    <div className="text-sm">
+                      BazaarX QA Facility<br />
+                      Unit 2B, Tech Hub Building<br />
+                      1234 Innovation Drive, BGC, Taguig City<br />
+                      <span className="font-medium">Operating Hours:</span> Mon-Fri, 9AM-5PM<br />
+                      <span className="font-medium text-orange-900">Processing Fee: ₱200</span>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
 
           <DialogFooter>
             <Button
               variant="ghost"
               onClick={() => {
-                setSubmitModalOpen(false);
-                setLogisticsMethod('');
+                if (reviewStep === 'physical') {
+                  setReviewStep('choose');
+                  setLogisticsMethod('');
+                } else {
+                  setSubmitModalOpen(false);
+                }
               }}
               className="rounded-xl hover:bg-gray-100 text-gray-600"
             >
-              Cancel
+              {reviewStep === 'physical' ? 'Back' : 'Cancel'}
             </Button>
-            <Button
-              onClick={handleSubmitSample}
-              disabled={!logisticsMethod}
-              className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl transition-all"
-            >
-              Submit Sample
-            </Button>
+            {reviewStep === 'physical' && (
+              <Button
+                onClick={handleSubmitSample}
+                disabled={!logisticsMethod}
+                className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl transition-all"
+              >
+                Submit Sample
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
