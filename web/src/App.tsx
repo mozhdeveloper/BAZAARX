@@ -7,7 +7,7 @@ import { ChatBubble } from "./components/ChatBubbleAI";
 import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
 import TrackingForm from "./components/TrackingForm";
 import PageLoader from "./components/PageLoader";
-
+import { usePresence } from './hooks/usePresence';
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
 // ---------------------------------------------------------------------------
@@ -113,6 +113,9 @@ const AdminAnnouncementsPage = lazy(() => import("./pages/AdminAnnouncementsPage
 const QADashboard = lazy(() => import("./pages/QADashboard"));
 
 function App() {
+  // 👉 NEW: This single line powers the entire global presence system!
+  usePresence();
+
   return (
     <>
       <Router>
