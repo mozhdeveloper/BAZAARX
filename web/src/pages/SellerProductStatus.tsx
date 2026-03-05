@@ -249,7 +249,7 @@ const SellerProductStatus = () => {
                   </div>
                 ) : (
                   <>
-                    {filteredSellerProducts.map((product) => (
+                    {nonQASellerProducts.map((product) => (
                       <div key={`seller-${product.id}`} className="p-5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
                         <div className="flex items-center gap-5">
                           {/* Product Image */}
@@ -301,8 +301,8 @@ const SellerProductStatus = () => {
                     ))}
 
                     {/* Show QA products */}
-                    {filteredQAProducts.map((product) => (
-                      <div key={product.assessmentId || `qa-${product.id}`}>
+                    {filteredQAProducts.map((product, index) => (
+                      <div key={`qa-${product.id}-${index}`}>
                         <div className="p-5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
                           <div className="flex items-center gap-5">
                             {/* Product Image */}

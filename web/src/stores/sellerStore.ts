@@ -6,6 +6,8 @@ import { authService } from "@/services/authService";
 import { productService } from "@/services/productService";
 import { orderService } from "@/services/orderService";
 import { orderReadService } from "@/services/orders/orderReadService";
+import { bulkUploadService } from "@/services/BulkUploadService";
+import { BulkProductData } from "@/components/BulkUploadModal";
 import { orderMutationService } from "@/services/orders/orderMutationService";
 import { mapDbProductToSellerProduct } from "@/utils/productMapper";
 import { getSafeImageUrl } from "@/utils/imageUtils";
@@ -259,17 +261,7 @@ interface ProductStore {
             "id" | "createdAt" | "updatedAt" | "sales" | "rating" | "reviews"
         >,
     ) => Promise<void>;
-    bulkAddProducts: (
-        products: Array<{
-            name: string;
-            description: string;
-            price: number;
-            originalPrice?: number;
-            stock: number;
-            category: string;
-            imageUrl: string;
-        }>,
-    ) => void;
+    bulkAddProducts: (products: BulkProductData[]) => Promise<{ success: number; failed: number }>;
     updateProduct: (
         id: string,
         updates: Partial<SellerProduct>,
@@ -1238,179 +1230,50 @@ export const useProductStore = create<ProductStore>()(
                     get().checkLowStock();
 
                     // Also add to QA flow store
-                    try {
-                        const qaStore = useProductQAStore.getState();
-                        await qaStore.addProductToQA({
-                            id: newProduct.id,
-                            name: newProduct.name,
-                            vendor:
-                                authStoreState.seller?.storeName || authStoreState.seller?.name || "Unknown Vendor",
-                            sellerId: resolvedSellerId, // Pass seller ID for proper filtering
-                            price: newProduct.price,
-                            // Use original submitted category (name string) since newProduct
-                            // is mapped from DB which stores category_id, not the name
-                            category: product.category || newProduct.category,
-                            image:
-                                newProduct.images[0] ||
-                                "https://placehold.co/100?text=Product",
-                        });
-                    } catch (qaError) {
-                        console.error(
-                            "Error adding product to QA flow:",
-                            qaError,
-                        );
-                    }
+                    // try {
+                    //     const qaStore = useProductQAStore.getState();
+                    //     await qaStore.addProductToQA({
+                    //         id: newProduct.id,
+                    //         name: newProduct.name,
+                    //         vendor:
+                    //             authStoreState.seller?.storeName || authStoreState.seller?.name || "Unknown Vendor",
+                    //         sellerId: resolvedSellerId, // Pass seller ID for proper filtering
+                    //         price: newProduct.price,
+                    //         // Use original submitted category (name string) since newProduct
+                    //         // is mapped from DB which stores category_id, not the name
+                    //         category: product.category || newProduct.category,
+                    //         image:
+                    //             newProduct.images[0] ||
+                    //             "https://placehold.co/100?text=Product",
+                    //     });
+                    // } catch (qaError) {
+                    //     console.error(
+                    //         "Error adding product to QA flow:",
+                    //         qaError,
+                    //     );
+                    // }
                 } catch (error) {
                     console.error("Error adding product:", error);
                     throw error;
                 }
             },
 
-            bulkAddProducts: async (bulkProducts) => {
+            bulkAddProducts: async (bulkProducts: BulkProductData[]) => {
                 try {
                     const authStore = useAuthStore.getState();
-                    const qaStore = useProductQAStore.getState();
-                    const sellerId = isSupabaseConfigured()
-                        ? authStore.seller?.id || fallbackSellerId
-                        : authStore.seller?.id || "seller-1";
+                    const sellerId = authStore.seller?.id || fallbackSellerId;
 
-                    const resolvedSellerId = sellerId ?? "";
-
-                    if (isSupabaseConfigured() && !resolvedSellerId) {
-                        throw new Error(
-                            "Missing seller ID for bulk upload. Please log in.",
-                        );
+                    if (!sellerId) {
+                        throw new Error("Missing seller ID for bulk upload. Please log in.");
                     }
 
-                    let addedProducts: SellerProduct[] = [];
-
-                    if (isSupabaseConfigured()) {
-                        // Resolve all unique categories first
-                        const uniqueCategories = [
-                            ...new Set(bulkProducts.map((p) => p.category)),
-                        ];
-                        const categoryMap: Record<string, string> = {};
-                        for (const catName of uniqueCategories) {
-                            const catId =
-                                await productService.getOrCreateCategoryByName(
-                                    catName,
-                                );
-                            if (catId) categoryMap[catName] = catId;
-                        }
-
-                        const productsToInsert = bulkProducts
-                            .filter((p) => categoryMap[p.category]) // Only products with valid categories
-                            .map((p) =>
-                                buildProductInsert(
-                                    {
-                                        name: p.name,
-                                        description: p.description,
-                                        price: p.price,
-                                        originalPrice: p.originalPrice,
-                                        stock: p.stock,
-                                        category: p.category,
-                                        images: [p.imageUrl],
-                                        isActive: true,
-                                        sellerId: resolvedSellerId,
-                                        vendorSubmittedCategory: p.category,
-                                    } as any,
-                                    resolvedSellerId,
-                                    categoryMap[p.category],
-                                ),
-                            );
-
-                        const dbProducts =
-                            await productService.createProducts(
-                                productsToInsert,
-                            );
-                        if (!dbProducts)
-                            throw new Error(
-                                "Failed to create products in database",
-                            );
-                        addedProducts = dbProducts.map(
-                            mapDbProductToSellerProduct,
-                        );
-                    } else {
-                        // Mock implementation
-                        addedProducts = bulkProducts.map((productData) => {
-                            const timestamp = Date.now();
-                            const randomId = Math.random()
-                                .toString(36)
-                                .substr(2, 9);
-                            return {
-                                id: `prod-${timestamp}-${randomId}`,
-                                name: productData.name,
-                                description: productData.description,
-                                price: productData.price,
-                                originalPrice: productData.originalPrice,
-                                stock: productData.stock,
-                                category: productData.category,
-                                images: [productData.imageUrl],
-                                sizes: [],
-                                colors: [],
-                                isActive: true,
-                                sellerId: resolvedSellerId,
-                                createdAt: new Date().toISOString(),
-                                updatedAt: new Date().toISOString(),
-                                sales: 0,
-                                rating: 0,
-                                reviews: 0,
-                                approvalStatus: "pending",
-                                vendorSubmittedCategory: productData.category,
-                            };
-                        });
-                    }
-
-                    const newLedgerEntries: InventoryLedgerEntry[] =
-                        addedProducts.map((p) => ({
-                            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                            timestamp: new Date().toISOString(),
-                            productId: p.id,
-                            productName: p.name,
-                            changeType: "ADDITION",
-                            quantityBefore: 0,
-                            quantityChange: p.stock,
-                            quantityAfter: p.stock,
-                            reason: "STOCK_REPLENISHMENT",
-                            referenceId: p.id,
-                            userId: resolvedSellerId || "SYSTEM",
-                            notes: "Initial stock from bulk upload",
-                        }));
-
-                    // Add to QA flow store
-                    addedProducts.forEach((p) => {
-                        try {
-                            qaStore.addProductToQA({
-                                id: p.id,
-                                name: p.name,
-                                description: p.description,
-                                vendor:
-                                    authStore.seller?.storeName || authStore.seller?.name || "Unknown Vendor",
-                                sellerId: resolvedSellerId, // Pass seller ID for proper filtering
-                                price: p.price,
-                                originalPrice: p.originalPrice,
-                                category: p.category,
-                                image: p.images[0],
-                            });
-                        } catch (qaError) {
-                            console.error(
-                                "Error adding product to QA flow:",
-                                qaError,
-                            );
-                        }
-                    });
-
-                    // Add all products and ledger entries at once
-                    set((state) => ({
-                        products: [...state.products, ...addedProducts],
-                        inventoryLedger: [
-                            ...state.inventoryLedger,
-                            ...newLedgerEntries,
-                        ],
-                    }));
-
-                    // Check for low stock on new products
-                    get().checkLowStock();
+                    // Call the new relational service we created
+                    const results = await bulkUploadService.processBulkUpload(bulkProducts, sellerId);
+                    
+                    // Refresh the products list to show new items
+                    await get().fetchProducts({ sellerId });
+                    
+                    return results;
                 } catch (error) {
                     console.error("Error bulk adding products:", error);
                     throw error;

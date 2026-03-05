@@ -1,9 +1,8 @@
-
 import { VariantItem } from "./VariantItem";
-import { UnsavedVariantItem } from "./UnsavedVariantItem";
 import { VariantConfig } from "@/types";
 import { Package } from "lucide-react";
 
+// 1. Removed newVariant from the interface
 interface VariantListProps {
   variantConfigs: VariantConfig[];
   firstAttributeName: string;
@@ -15,20 +14,19 @@ interface VariantListProps {
     stock: string;
   };
   editingVariantId: string | null;
-  newVariant: Partial<VariantConfig>;
-  updateVariantConfig: (id: string, field: keyof VariantConfig, value: string | number) => void;
+  updateVariantConfig: (id: string, field: string, value: any) => void;
   cancelEditVariant: () => void;
   startEditVariant: (variant: VariantConfig) => void;
   deleteVariant: (id: string) => void;
 }
 
+// 2. Removed newVariant from the component parameters
 export function VariantList({
   variantConfigs,
   firstAttributeName,
   secondAttributeName,
   formData,
   editingVariantId,
-  newVariant,
   updateVariantConfig,
   cancelEditVariant,
   startEditVariant,
@@ -39,8 +37,8 @@ export function VariantList({
 
   return (
     <>
-      {baseStock > 0 && (
-        <div className="bg-white rounded-lg border border-green-200 p-3 shadow-sm">
+      {baseStock > 0 && variantConfigs.length === 0 && (
+        <div className="bg-white rounded-lg border border-green-200 p-3 shadow-sm mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg border border-green-200 bg-green-50 overflow-hidden flex items-center justify-center flex-shrink-0">
@@ -67,8 +65,8 @@ export function VariantList({
         </div>
       )}
 
-      {/* Existing Variants List */}
-      {variantConfigs.length > 0 && (
+      {/* Auto-Generated Variants List */}
+      {variantConfigs.length > 0 ? (
         <div className="space-y-2">
           {variantConfigs.map((variant) => (
             <VariantItem
@@ -85,11 +83,10 @@ export function VariantList({
             />
           ))}
         </div>
-      )}
-
-      {/* Unsaved Variant Preview (when list is empty) */}
-      {variantConfigs.length === 0 && (
-        <UnsavedVariantItem newVariant={newVariant} />
+      ) : (
+        <div className="text-center py-6 text-sm text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+          Add attributes above to auto-generate variants.
+        </div>
       )}
     </>
   );

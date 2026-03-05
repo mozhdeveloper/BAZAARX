@@ -278,10 +278,11 @@ export function SellerProducts() {
 
     const handleBulkUpload = useCallback(async (products: BulkProductData[]) => {
         try {
-            await bulkAddProducts(products); // This now returns a Promise
+            await bulkAddProducts(products);
+
             toast({
                 title: "Bulk Upload Successful",
-                description: `${products.length} products have been added to your inventory.`,
+                description: `${products.length} rows processed. Check your inventory for updates.`,
             });
             setIsBulkUploadOpen(false);
         } catch (error) {
@@ -826,6 +827,7 @@ export function AddProduct() {
         price: number;
         sku: string;
         image: string;
+        file?: File | null;
     }
 
     const [formData, setFormData] = useState({
@@ -900,6 +902,85 @@ export function AddProduct() {
         };
         fetchCategories();
     }, []);
+
+    useEffect(() => {
+        const v1 = formData.variantLabel1Values;
+        const v2 = formData.variantLabel2Values;
+        const basePrice = parseInt(formData.price) || 0;
+        const baseName = formData.name || "ITEM";
+
+        // If the user hasn't added any variation tags yet, we don't auto-generate.
+        if (v1.length === 0 && v2.length === 0) {
+            // Optional: If you want to wipe variants when all tags are removed, 
+            // uncomment the line below:
+            // setVariantConfigs([]); 
+            return;
+        }
+
+        setVariantConfigs((prevConfigs) => {
+            const newConfigs: VariantConfig[] = [];
+
+            // 1. Map out the ideal Cartesian product matrix
+            const combos: { val1: string; val2: string }[] = [];
+            if (v1.length > 0 && v2.length > 0) {
+                v1.forEach((val1) => {
+                    v2.forEach((val2) => {
+                        combos.push({ val1, val2 });
+                    });
+                });
+            } else if (v1.length > 0) {
+                v1.forEach((val1) => combos.push({ val1, val2: "" }));
+            } else if (v2.length > 0) {
+                v2.forEach((val2) => combos.push({ val1: "", val2 }));
+            }
+
+            // 2. Diff against existing configs (Smart Merge)
+            let hasChanges = false;
+
+            combos.forEach(({ val1, val2 }) => {
+                const existing = prevConfigs.find(
+                    (c) => c.variantLabel1Value === val1 && c.variantLabel2Value === val2
+                );
+
+                if (existing) {
+                    // Match found: Preserve the seller's custom stock, price, etc.
+                    newConfigs.push(existing);
+                } else {
+                    // No match found: Generate a fresh combination
+                    hasChanges = true;
+                    newConfigs.push({
+                        id: generateVariantId(),
+                        variantLabel1Value: val1,
+                        variantLabel2Value: val2,
+                        stock: 0, // Default new variants to 0 stock
+                        price: basePrice, // Inherit base price
+                        sku: `${baseName.substring(0, 3).toUpperCase()}-${val1 || "DEF"}-${val2 || "DEF"}`.replace(/\s+/g, "-"),
+                        image: "",
+                    });
+                }
+            });
+
+            // 3. Detect orphans (tags the user deleted)
+            if (prevConfigs.length !== newConfigs.length) {
+                hasChanges = true;
+            }
+
+            // Only trigger a state update if the matrix actually changed
+            return hasChanges ? newConfigs : prevConfigs;
+        });
+    }, [formData.variantLabel1Values, formData.variantLabel2Values]);
+
+    useEffect(() => {
+        if (variantConfigs.length > 0) {
+            const minPrice = Math.min(...variantConfigs.map(v => v.price));
+            if (minPrice !== Infinity && minPrice.toString() !== formData.price) {
+                setFormData(prev => ({
+                    ...prev,
+                    price: minPrice.toString()
+                }));
+            }
+        }
+    }, [variantConfigs]);
 
     const [newVariant, setNewVariant] = useState<Partial<VariantConfig>>({
         variantLabel1Value: "",
@@ -1183,11 +1264,36 @@ export function AddProduct() {
 
         try {
             const baseStock = parseInt(formData.stock) || 0;
-            const customVariantStock = getTotalVariantStock();
+
+            // 1. Prepare Variant Data & Handle Image Uploads
+            const updatedVariants = await Promise.all(
+                variantConfigs.map(async (variant) => {
+                    // If there's a local file, upload it first
+                    if (variant.file && seller?.id) {
+                        try {
+                            const [uploadedUrl] = await uploadProductImages(
+                                [variant.file],
+                                seller.id,
+                                `variant-${variant.id}`
+                            );
+                            return { ...variant, image: uploadedUrl, file: undefined };
+                        } catch (error) {
+                            console.error(`Failed to upload image for variant ${variant.id}:`, error);
+                            return { ...variant, file: undefined }; // Fallback to no image
+                        }
+                    }
+                    // If no new file, just return the variant as is (preserving existing URL if any)
+                    const { file, ...rest } = variant;
+                    return rest;
+                })
+            );
+
+            const customVariantStock = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
             const totalStock = baseStock + customVariantStock;
 
+            // 2. Handle Base Variant logic
             const baseVariant =
-                variantConfigs.length > 0 && baseStock > 0
+                updatedVariants.length > 0 && baseStock > 0
                     ? {
                         id: `base-${Date.now()}`,
                         variantLabel1Value: "",
@@ -1200,86 +1306,44 @@ export function AddProduct() {
                     : null;
 
             const variantsForSubmit =
-                variantConfigs.length > 0
-                    ? [...(baseVariant ? [baseVariant] : []), ...variantConfigs]
+                updatedVariants.length > 0
+                    ? [...(baseVariant ? [baseVariant] : []), ...updatedVariants]
                     : undefined;
 
+            // 3. Upload Main Product Images (URLs + Files)
+            const filesToUpload = imageFiles.filter((f): f is File => f !== null);
+            let uploadedMainUrls: string[] = [];
+
+            if (filesToUpload.length > 0 && seller?.id) {
+                const tempProductId = crypto.randomUUID();
+                uploadedMainUrls = await uploadProductImages(filesToUpload, seller.id, tempProductId);
+            }
+
+            const allImages = [
+                ...formData.images.filter((img) => img.trim() !== ""),
+                ...uploadedMainUrls,
+            ];
+
+            // 4. Assemble Final Product Payload
             const productData = {
                 name: formData.name.trim(),
                 description: formData.description.trim(),
                 price: parseInt(formData.price),
-                originalPrice: formData.originalPrice
-                    ? parseInt(formData.originalPrice)
-                    : undefined,
+                originalPrice: formData.originalPrice ? parseInt(formData.originalPrice) : undefined,
                 stock: totalStock,
                 category: formData.category,
-                images: formData.images.filter((img) => img.trim() !== ""),
+                images: allImages,
                 variantLabel1Values: formData.variantLabel1Values,
                 variantLabel2Values: formData.variantLabel2Values,
                 isActive: true,
                 sellerId: seller?.id || "",
-                // Pass custom variant label names for the products table
-                variantLabel1:
-                    firstAttributeName !== "Variations"
-                        ? firstAttributeName
-                        : undefined,
-                variantLabel2:
-                    secondAttributeName !== "Colors"
-                        ? secondAttributeName
-                        : undefined,
-                // Pass variant configurations for database creation
+                variantLabel1: firstAttributeName !== "Variations" ? firstAttributeName : undefined,
+                variantLabel2: secondAttributeName !== "Colors" ? secondAttributeName : undefined,
                 variants: variantsForSubmit,
             };
 
-            // Upload any file-based images and merge with URL images
-            const filesToUpload = imageFiles.filter((f): f is File => f !== null);
-            let uploadedUrls: string[] = [];
-            if (filesToUpload.length > 0 && seller?.id) {
-                try {
-                    const tempProductId = crypto.randomUUID();
-                    uploadedUrls = await uploadProductImages(
-                        filesToUpload,
-                        seller.id,
-                        tempProductId,
-                    );
-                    if (uploadedUrls.length === 0) {
-                        throw new Error("Image upload failed. Please check your storage permissions or try using URL mode instead.");
-                    }
-                } catch (uploadError) {
-                    console.error("Image upload failed:", uploadError);
-                    toast({
-                        title: "Upload Failed",
-                        description: uploadError instanceof Error
-                            ? uploadError.message
-                            : "Could not upload images. Please try using URL mode or contact support.",
-                        variant: "destructive",
-                    });
-                    setIsSubmitting(false);
-                    return;
-                }
-            }
-
-            // Final image array: existing URLs + newly uploaded URLs
-            const allImages = [
-                ...formData.images.filter((img) => img.trim() !== ""),
-                ...uploadedUrls,
-            ];
-
-            if (allImages.length === 0) {
-                toast({
-                    title: "Images Required",
-                    description: "Please add at least one product image (URL or file).",
-                    variant: "destructive",
-                });
-                setIsSubmitting(false);
-                return;
-            }
-
-            productData.images = allImages;
-
             await addProduct(productData);
 
-            // Show success message
             toast({
                 title: "Product Added",
                 description: `${formData.name} has been successfully submitted for review.`,
@@ -1287,7 +1351,11 @@ export function AddProduct() {
             navigate("/seller/products");
         } catch (error) {
             console.error("Failed to add product:", error);
-            alert("Failed to add product. Please try again.");
+            toast({
+                title: "Error",
+                description: "Failed to add product. Please check your connection and try again.",
+                variant: "destructive",
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -1371,13 +1439,12 @@ export function AddProduct() {
 
                                     <div className="flex items-end gap-2 border-t border-dashed border-gray-100 pt-4">
                                         <span className="text-3xl font-black text-[var(--text-headline)] font-heading">
-                                            ₱{parseInt(formData.price || "0").toLocaleString()}
+                                            {variantConfigs.length > 1 &&
+                                                Math.min(...variantConfigs.map(v => v.price)) !== Math.max(...variantConfigs.map(v => v.price))
+                                                ? `₱${Math.min(...variantConfigs.map(v => v.price)).toLocaleString()} - ₱${Math.max(...variantConfigs.map(v => v.price)).toLocaleString()}`
+                                                : `₱${parseInt(formData.price || "0").toLocaleString()}`
+                                            }
                                         </span>
-                                        {formData.originalPrice && (
-                                            <span className="text-sm text-gray-400 line-through font-medium mb-1.5 ml-1">
-                                                ₱{parseInt(formData.originalPrice).toLocaleString()}
-                                            </span>
-                                        )}
                                     </div>
 
                                     {(formData.variantLabel1Values.length > 0 || formData.variantLabel2Values.length > 0) && (
