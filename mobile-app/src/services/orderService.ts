@@ -1267,7 +1267,28 @@ export class OrderService {
       );
 
       if (!hasSellerProduct) {
-        throw new Error('Access denied: You do not own products in this order');
+        // Fallback: check ownership via a direct products query in case the FK hint join failed
+        const productIds = (order.order_items || [])
+          .map((item: any) => item.product_id)
+          .filter(Boolean);
+
+        if (productIds.length > 0) {
+          const { data: ownedProducts } = await supabase
+            .from('products')
+            .select('id')
+            .in('id', productIds)
+            .eq('seller_id', sellerId);
+
+          if (ownedProducts && ownedProducts.length > 0) {
+            console.log('[OrderService] Ownership verified via fallback query');
+          } else {
+            console.error('[OrderService] Ownership check failed. sellerId:', sellerId,
+              'product seller_ids:', (order.order_items || []).map((i: any) => i.product?.seller_id));
+            throw new Error('Access denied: You do not own products in this order');
+          }
+        } else {
+          throw new Error('Access denied: You do not own products in this order');
+        }
       }
 
       // Check current status allows shipping
@@ -1418,7 +1439,28 @@ export class OrderService {
       );
 
       if (!hasSellerProduct) {
-        throw new Error('Access denied: You do not own products in this order');
+        // Fallback: check ownership via a direct products query in case the FK hint join failed
+        const productIds = (order.order_items || [])
+          .map((item: any) => item.product_id)
+          .filter(Boolean);
+
+        if (productIds.length > 0) {
+          const { data: ownedProducts } = await supabase
+            .from('products')
+            .select('id')
+            .in('id', productIds)
+            .eq('seller_id', sellerId);
+
+          if (ownedProducts && ownedProducts.length > 0) {
+            console.log('[OrderService] Ownership verified via fallback query (delivered)');
+          } else {
+            console.error('[OrderService] Ownership check failed (delivered). sellerId:', sellerId,
+              'product seller_ids:', (order.order_items || []).map((i: any) => i.product?.seller_id));
+            throw new Error('Access denied: You do not own products in this order');
+          }
+        } else {
+          throw new Error('Access denied: You do not own products in this order');
+        }
       }
 
       if (order.shipment_status !== 'shipped') {

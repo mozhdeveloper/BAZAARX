@@ -3,62 +3,140 @@ import { ReturnRequest, ReturnStatus, ReturnReason, ReturnType } from '../types'
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { notificationService } from '../services/notificationService';
+import { returnService, MobileReturnRequest } from '../services/returnService';
 
 interface ReturnStore {
-  returnRequests: ReturnRequest[];
+  returnRequests: ReturnRequest[]; // Buyer returns (legacy/sync)
+  sellerReturns: MobileReturnRequest[]; // Real seller returns from Supabase
+  isLoading: boolean;
+  error: string | null;
+
+  // Actions
   createReturnRequest: (request: Omit<ReturnRequest, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'history'>) => void;
   updateReturnStatus: (id: string, status: ReturnStatus, note?: string, by?: 'buyer' | 'seller' | 'admin') => void;
+  
+  // Real Seller Actions (Sync with returnService)
+  fetchSellerReturns: (sellerId: string) => Promise<void>;
+  approveReturn: (id: string) => Promise<void>;
+  rejectReturn: (id: string, reason?: string) => Promise<void>;
+  counterOfferReturn: (id: string, amount: number, note: string) => Promise<void>;
+  requestItemBack: (id: string) => Promise<void>;
+  confirmReturnReceived: (id: string) => Promise<void>;
+  
+  // Getters
   getReturnRequestsByOrder: (orderId: string) => ReturnRequest[];
   getReturnRequestsByUser: (userId: string) => ReturnRequest[];
   getReturnRequestsBySeller: (sellerId: string) => ReturnRequest[];
   getReturnRequestById: (id: string) => ReturnRequest | undefined;
+  getSellerReturnById: (id: string) => MobileReturnRequest | undefined;
 }
 
-// Dummy data
-const dummyReturnRequests: ReturnRequest[] = [
-  {
-    id: 'ret_1',
-    orderId: '1',
-    userId: 'user_1',
-    sellerId: 'dummy_seller_1',
-    items: [
-      {
-        itemId: '1',
-        quantity: 1,
-      },
-    ],
-    reason: 'defective',
-    description: 'The left earbud is not charging.',
-    images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400'],
-    type: 'return_refund',
-    status: 'pending_review',
-    amount: 2499,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    history: [
-      {
-        status: 'pending_review',
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        by: 'buyer',
-        note: 'Request initiated',
-      },
-    ],
-  },
-];
-
 export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
-  returnRequests: dummyReturnRequests,
+  returnRequests: [],
+  sellerReturns: [],
+  isLoading: false,
+  error: null,
+
+  fetchSellerReturns: async (sellerId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const returns = await returnService.getReturnRequestsBySeller(sellerId);
+      set({ sellerReturns: returns, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch returns', isLoading: false });
+    }
+  },
+
+  approveReturn: async (id: string) => {
+    set({ isLoading: true });
+    try {
+      await returnService.approveReturn(id);
+      set((state) => ({
+        sellerReturns: state.sellerReturns.map((r) =>
+          r.id === id ? { ...r, status: 'approved', refundDate: new Date().toISOString() } : r
+        ),
+        isLoading: false,
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to approve return', isLoading: false });
+      throw err;
+    }
+  },
+
+  rejectReturn: async (id: string, reason?: string) => {
+    set({ isLoading: true });
+    try {
+      await returnService.rejectReturn(id, reason);
+      set((state) => ({
+        sellerReturns: state.sellerReturns.map((r) =>
+          r.id === id ? { ...r, status: 'rejected', rejectedReason: reason || 'Rejected by seller' } : r
+        ),
+        isLoading: false,
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to reject return', isLoading: false });
+      throw err;
+    }
+  },
+
+  counterOfferReturn: async (id: string, amount: number, note: string) => {
+    set({ isLoading: true });
+    try {
+      await returnService.counterOfferReturn(id, amount, note);
+      set((state) => ({
+        sellerReturns: state.sellerReturns.map((r) =>
+          r.id === id ? { ...r, status: 'counter_offered', counterOfferAmount: amount, sellerNote: note } : r
+        ),
+        isLoading: false,
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to send counter offer', isLoading: false });
+      throw err;
+    }
+  },
+
+  requestItemBack: async (id: string) => {
+    set({ isLoading: true });
+    try {
+      await returnService.requestItemBack(id);
+      set((state) => ({
+        sellerReturns: state.sellerReturns.map((r) =>
+          r.id === id ? { ...r, status: 'return_in_transit', resolutionPath: 'return_required' } : r
+        ),
+        isLoading: false,
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to request item back', isLoading: false });
+      throw err;
+    }
+  },
+
+  confirmReturnReceived: async (id: string) => {
+    set({ isLoading: true });
+    try {
+      await returnService.confirmReturnReceived(id);
+      set((state) => ({
+        sellerReturns: state.sellerReturns.map((r) =>
+          r.id === id ? { ...r, status: 'refunded', returnReceivedAt: new Date().toISOString(), refundDate: new Date().toISOString() } : r
+        ),
+        isLoading: false,
+      }));
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to confirm return received', isLoading: false });
+      throw err;
+    }
+  },
 
   createReturnRequest: (request) => {
     const newRequest: ReturnRequest = {
       ...request,
       id: `ret_${Date.now()}`,
-      status: 'pending_review',
+      status: 'pending_review' as any,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       history: [
         {
-          status: 'pending_review',
+          status: 'pending_review' as any,
           timestamp: new Date().toISOString(),
           by: 'buyer',
           note: 'Request initiated',
@@ -70,15 +148,15 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
       returnRequests: [newRequest, ...state.returnRequests],
     }));
 
-    // Notify seller about the return request (fire-and-forget)
+    // Notify seller (legacy flow)
     if (request.sellerId) {
       notificationService.notifySellerReturnRequest({
         sellerId: request.sellerId,
         orderId: request.orderId,
-        returnId: newRequest.id, // <-- Added missing property
+        returnId: newRequest.id,
         orderNumber: request.orderId,
         buyerName: 'A buyer',
-        reason: request.description || request.reason || 'Return requested',
+        reason: (request.description || request.reason || 'Return requested') as any,
       }).catch(() => {});
     }
   },
@@ -90,12 +168,12 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
         if (req.id === id) {
           return {
             ...req,
-            status,
+            status: status as any,
             updatedAt: new Date().toISOString(),
             history: [
               ...req.history,
               {
-                status,
+                status: status as any,
                 timestamp: new Date().toISOString(),
                 note,
                 by,
@@ -107,14 +185,14 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
       }),
     }));
 
-    // Notify buyer about return status change (approved/rejected/refunded)
+    // Notify buyer (legacy flow)
     if (request && ['approved', 'rejected', 'refunded'].includes(status)) {
       notificationService.notifyBuyerReturnStatus({
         buyerId: request.userId,
         orderId: request.orderId,
         returnId: request.id,
         orderNumber: request.orderId,
-        status: status as 'approved' | 'rejected' | 'refunded',
+        status: status as any,
         message: note,
       }).catch(() => {});
     }
@@ -134,6 +212,10 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
   
   getReturnRequestById: (id) => {
     return get().returnRequests.find((req) => req.id === id);
+  },
+
+  getSellerReturnById: (id) => {
+    return get().sellerReturns.find((req) => req.id === id);
   },
 }),
   {

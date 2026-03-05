@@ -143,16 +143,6 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
         let evidenceUrls: string[] = [];
         if (images.length > 0) evidenceUrls = await returnService.uploadEvidence(orderDbId, images);
 
-        await returnService.submitReturnRequest({
-          orderDbId,
-          reason: reason as ReturnReason,
-          returnType,
-          description: finalDesc,
-          refundAmount,
-          items: itemsToReturn,
-          evidenceUrls,
-        });
-
         const result = await returnService.submitReturnRequest({
           orderDbId,
           reason: reason as ReturnReason,

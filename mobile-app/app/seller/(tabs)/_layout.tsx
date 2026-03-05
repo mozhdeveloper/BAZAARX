@@ -58,6 +58,7 @@ export default function SellerTabsLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="analytics"
         options={{

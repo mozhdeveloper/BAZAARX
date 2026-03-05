@@ -97,6 +97,7 @@ export default function SellerTabs() {
           },
         }}
       />
+
       <Tab.Screen
         name="POS Lite"
         component={SellerPOSScreen}
