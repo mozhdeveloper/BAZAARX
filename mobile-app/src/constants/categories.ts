@@ -1,0 +1,14 @@
+export const CURATED_CATEGORY_IMAGES: Record<string, string> = {
+  'electronics': 'https://images.unsplash.com/photo-1498049794561-7780e7231661?q=80&w=300&auto=format&fit=crop',
+  'fashion': 'https://images.unsplash.com/photo-1445205170230-053b830c6050?q=80&w=300&auto=format&fit=crop',
+  'clothing': 'https://images.unsplash.com/photo-1445205170230-053b830c6050?q=80&w=300&auto=format&fit=crop',
+  'home-decor': 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?q=80&w=300&auto=format&fit=crop',
+  'health-beauty': 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?q=80&w=300&auto=format&fit=crop',
+  'toys-games': 'https://images.unsplash.com/photo-1533038590840-1cde6e668a91?q=80&w=300&auto=format&fit=crop',
+  'sports-outdoors': 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=300&auto=format&fit=crop',
+  'groceries': 'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=300&auto=format&fit=crop',
+  'gadgets': 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=300&auto=format&fit=crop',
+  'accessories': 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=300&auto=format&fit=crop',
+  'apparel': 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=300&auto=format&fit=crop',
+  'men-s-apparel': 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=300&auto=format&fit=crop',
+};

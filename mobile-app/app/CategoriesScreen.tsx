@@ -5,7 +5,6 @@ import {
   FlatList,
   TextInput,
   Pressable,
-  Image,
   StyleSheet,
   Dimensions,
   ActivityIndicator,
@@ -18,6 +17,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
+import { safeImageUri } from '../src/utils/imageUtils';
+import { Image as ExpoImage } from 'expo-image';
+import { CURATED_CATEGORY_IMAGES } from '../src/constants/categories';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Categories'>;
 
@@ -48,13 +50,68 @@ const CARD_GAP = 12;
 const CARD_WIDTH = (width - 32 - CARD_GAP) / 2;
 
 const GRADIENT_PAIRS: [string, string][] = [
-  ['#FFF9F0', '#FFE0A3'],
-  ['#EFF6FF', '#BFDBFE'],
-  ['#FFF0F5', '#FFC0CB'],
-  ['#F0FFF4', '#A7F3D0'],
-  ['#F5F3FF', '#DDD6FE'],
-  ['#FFFBEB', '#FDE68A'],
+  ['#FFFBF0', '#FFE0A3'], // Brand Primaries
+  ['#FFF9F0', '#FFEDD5'], // Peach/Amber
+  ['#FFF7ED', '#FFDBBB'], // Soft Orange
+  ['#FFFEF9', '#FFF1CC'], // Pale Gold
+  ['#FFF9EB', '#FEF3C7'], // Amber Light
+  ['#FFFFFF', '#FFF4EC'], // Primary Soft
 ];
+
+const CategoryCard = React.memo(({ item, index, onPress }: { item: Category; index: number; onPress: (slug: string) => void }) => {
+  const gradient = GRADIENT_PAIRS[index % GRADIENT_PAIRS.length];
+  const [imageError, setImageError] = useState(false);
+
+  const curatedFallback = useMemo(() => {
+    const key = item.name.toLowerCase().replace(/[']/g, '').replace(/\s+/g, '-');
+    return CURATED_CATEGORY_IMAGES[key] || null;
+  }, [item.name]);
+
+  const finalImageUri = (!imageError && item.image) ? safeImageUri(item.image) : curatedFallback;
+
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      onPress={() => onPress(item.slug)}
+    >
+      <View style={styles.imageContainer}>
+        {finalImageUri ? (
+          <ExpoImage
+            source={{ uri: finalImageUri }}
+            style={styles.cardImage}
+            contentFit="cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <LinearGradient colors={gradient} style={styles.cardImageFallback}>
+            <FolderOpen size={36} color={COLORS.textPrimary} />
+          </LinearGradient>
+        )}
+      </View>
+      <View style={styles.cardBody}>
+        <Text 
+          style={styles.cardName} 
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
+          {item.name}
+        </Text>
+        {item.description ? (
+          <Text style={styles.cardDesc} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+        <View style={styles.countRow}>
+          <Package size={12} color={COLORS.textMuted} />
+          <Text style={styles.countText}>
+            {item.productsCount.toLocaleString()} products
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+});
 
 export default function CategoriesScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -81,7 +138,14 @@ export default function CategoriesScreen({ navigation }: Props) {
           parentId: row.parent_id || null,
           productsCount: Array.isArray(row.products) ? row.products[0]?.count || 0 : 0,
         }));
-        setCategories(mapped);
+        // Deduplicate by name or slug
+        const unique = mapped.reduce((acc: Category[], curr) => {
+          if (!acc.find(c => (c.slug && c.slug === curr.slug) || c.name.toLowerCase() === curr.name.toLowerCase())) {
+            acc.push(curr);
+          }
+          return acc;
+        }, []);
+        setCategories(unique);
       } catch (err) {
         console.error('[CategoriesScreen] Failed to load categories:', err);
       } finally {
@@ -113,49 +177,9 @@ export default function CategoriesScreen({ navigation }: Props) {
   );
 
   const renderItem = useCallback(
-    ({ item, index }: { item: Category; index: number }) => {
-      const gradient = GRADIENT_PAIRS[index % GRADIENT_PAIRS.length];
-      return (
-        <Pressable
-          style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-          onPress={() => handleCategoryPress(item.slug)}
-        >
-          <View style={styles.imageContainer}>
-            {item.image ? (
-              <Image
-                source={{ uri: item.image }}
-                style={styles.cardImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <LinearGradient colors={gradient} style={styles.cardImageFallback}>
-                <FolderOpen size={36} color={COLORS.primary} />
-              </LinearGradient>
-            )}
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.45)']}
-              style={styles.imageOverlay}
-            />
-            <Text style={styles.cardName} numberOfLines={2}>
-              {item.name}
-            </Text>
-          </View>
-          <View style={styles.cardBody}>
-            {item.description ? (
-              <Text style={styles.cardDesc} numberOfLines={2}>
-                {item.description}
-              </Text>
-            ) : null}
-            <View style={styles.countRow}>
-              <Package size={12} color={COLORS.textMuted} />
-              <Text style={styles.countText}>
-                {item.productsCount.toLocaleString()} products
-              </Text>
-            </View>
-          </View>
-        </Pressable>
-      );
-    },
+    ({ item, index }: { item: Category; index: number }) => (
+      <CategoryCard item={item} index={index} onPress={handleCategoryPress} />
+    ),
     [handleCategoryPress],
   );
 
@@ -225,7 +249,7 @@ export default function CategoriesScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -238,14 +262,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: COLORS.textHeadline,
+    color: COLORS.textPrimary,
   },
   searchWrapper: {
     flexDirection: 'row',
@@ -286,10 +310,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
     elevation: 3,
   },
   cardPressed: {
@@ -315,17 +339,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   cardName: {
-    position: 'absolute',
-    bottom: 8,
-    left: 10,
-    right: 10,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    lineHeight: 18,
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
+    lineHeight: 20,
+    marginBottom: 4,
   },
   cardBody: {
     padding: 10,

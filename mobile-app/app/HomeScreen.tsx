@@ -7,7 +7,6 @@ import {
   Pressable,
   StyleSheet,
   Modal,
-  Image,
   Dimensions,
   StatusBar,
   Alert,
@@ -48,6 +47,9 @@ import { discountService } from '../src/services/discountService';
 import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
 import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 import { categoryService } from '../src/services/categoryService';
+import { safeImageUri } from '../src/utils/imageUtils';
+import { Image as ExpoImage } from 'expo-image';
+import { CURATED_CATEGORY_IMAGES } from '../src/constants/categories';
 import type { Category } from '../src/types/database.types';
 
 type Props = CompositeScreenProps<
@@ -55,38 +57,73 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
+// 5 columns, 20px padding each side, 10px gaps
 const { width } = Dimensions.get('window');
+const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5;
 
-const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5; // 5 columns, 20px padding each side, 10px gaps
-
-const CategoryItem = React.memo(({ label, iconValue }: { label: string; iconValue: string | null }) => {
-  // If it only contains lowercase letters, numbers, and hyphens, it's likely a MaterialCommunityIcon name
+const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string; iconValue: string | null; imageUrl?: string | null }) => {
+  const [imageError, setImageError] = useState(false);
   const isIconName = iconValue ? /^[a-z0-9-]+$/.test(iconValue) : false;
   const displayValue = iconValue || 'tag';
 
+  // Find a curated fallback based on name or slug if provided imageUrl fails or is missing
+  const curatedFallback = useMemo(() => {
+    const key = label.toLowerCase().replace(/[']/g, '').replace(/\s+/g, '-');
+    return CURATED_CATEGORY_IMAGES[key] || null;
+  }, [label]);
+
+  const finalImageUri = (!imageError && imageUrl) ? safeImageUri(imageUrl) : curatedFallback;
+
   return (
     <View style={styles.categoryItm}>
-      <View style={[styles.categoryIconBox, {
-        backgroundColor: '#FFFBF5', // Lighter Parchment
-        shadowColor: COLORS.primary, // Amber Glow
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-        elevation: 5,
-        borderWidth: 1,
-        borderColor: '#FFE0A3' // Soft Gold
-      }]}>
-        {isIconName ? (
-          <MaterialCommunityIcons
-            name={displayValue as keyof typeof MaterialCommunityIcons.glyphMap}
-            size={28}
-            color={COLORS.primary}
+      {finalImageUri ? (
+        <View style={[styles.categoryIconBox, {
+          backgroundColor: 'transparent',
+          shadowColor: COLORS.primary,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 10,
+          elevation: 4,
+          overflow: 'hidden',
+        }]}>
+          <ExpoImage 
+            source={{ uri: finalImageUri }} 
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            onError={() => setImageError(true)}
           />
-        ) : (
-          <Text style={{ fontSize: 22 }}>{displayValue}</Text>
-        )}
-      </View>
-      <Text style={styles.categoryLabel}>{label}</Text>
+        </View>
+      ) : (
+        <LinearGradient
+          colors={['#FFFFFF', '#FFFBF0']}
+          style={[styles.categoryIconBox, {
+            shadowColor: COLORS.primary,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 10,
+            elevation: 4,
+          }]}
+        >
+          {isIconName ? (
+            <MaterialCommunityIcons
+              name={displayValue as keyof typeof MaterialCommunityIcons.glyphMap}
+              size={28}
+              color={COLORS.textPrimary}
+            />
+          ) : (
+            <Text style={{ fontSize: 24 }}>{displayValue}</Text>
+          )}
+        </LinearGradient>
+      )}
+      <Text 
+        style={styles.categoryLabel} 
+        numberOfLines={label.trim().includes(' ') ? 2 : 1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+      >
+        {label}
+      </Text>
     </View>
   );
 });
@@ -206,7 +243,15 @@ export default function HomeScreen({ navigation }: Props) {
       ]);
 
       if (categoriesResult.status === 'fulfilled') {
-        setDbCategories(categoriesResult.value || []); //
+        const rawCategories = categoriesResult.value || [];
+        // Deduplicate by name or slug
+        const unique = rawCategories.reduce((acc: Category[], curr) => {
+          if (!acc.find(c => (c.slug && c.slug === curr.slug) || c.name.toLowerCase() === curr.name.toLowerCase())) {
+            acc.push(curr);
+          }
+          return acc;
+        }, []);
+        setDbCategories(unique);
       }
 
       // Products
@@ -726,7 +771,7 @@ export default function HomeScreen({ navigation }: Props) {
                       </View>
                     </View>
                     <View style={styles.promoImgPart}>
-                      <Image source={{ uri: slide.image }} style={styles.promoImg} resizeMode="contain" />
+                      <ExpoImage source={{ uri: slide.image }} style={styles.promoImg} contentFit="contain" />
                     </View>
                   </Pressable>
                 ))}
@@ -748,20 +793,20 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
 
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 12, marginBottom: 4 }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textHeadline }}>Categories</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 12, marginBottom: 12 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Categories</Text>
               <Pressable onPress={() => navigation.navigate('Categories' as any)}>
                 <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>See All</Text>
               </Pressable>
             </View>
             <View style={styles.categoryGrid}>
-              {dbCategories.map((item) => (
+              {dbCategories.slice(0, 10).map((item) => (
                 <Pressable
                   key={item.id}
                   style={styles.categoryGridItem}
                   onPress={() => navigation.navigate('Shop', { category: item.id })}
                 >
-                  <CategoryItem label={item.name} iconValue={item.icon} />
+                  <CategoryItem label={item.name} iconValue={item.icon} imageUrl={item.image_url} />
                 </Pressable>
               ))}
             </View>
@@ -821,7 +866,7 @@ export default function HomeScreen({ navigation }: Props) {
                       <View style={styles.storeHeader}>
                         <View style={styles.storeLogo}>
                           {store.logo && store.logo !== '🏪' ? (
-                            <Image source={{ uri: store.logo }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                            <ExpoImage source={{ uri: store.logo }} style={{ width: 40, height: 40, borderRadius: 20 }} />
                           ) : (
                             <Text style={{ fontSize: 20 }}>🏪</Text>
                           )}
@@ -839,7 +884,7 @@ export default function HomeScreen({ navigation }: Props) {
                       </View>
                       <View style={styles.storeProducts}>
                         {(store.products || []).slice(0, 3).map((url: string, i: number) => (
-                          <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
+                          <ExpoImage key={i} source={{ uri: url }} style={styles.storeProductThumb} />
                         ))}
                       </View>
                     </Pressable>
@@ -1040,8 +1085,8 @@ const styles = StyleSheet.create({
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 10, gap: 10 },
   categoryGridItem: { width: CATEGORY_ITEM_WIDTH, alignItems: 'center' },
   categoryItm: { alignItems: 'center', gap: 6 },
-  categoryIconBox: { width: CATEGORY_ITEM_WIDTH - 4, height: CATEGORY_ITEM_WIDTH - 4, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  categoryLabel: { fontSize: 11, color: COLORS.textPrimary, fontWeight: '600', textAlign: 'center', lineHeight: 14, marginTop: 6 },
+  categoryIconBox: { width: CATEGORY_ITEM_WIDTH - 2, height: CATEGORY_ITEM_WIDTH - 2, borderRadius: (CATEGORY_ITEM_WIDTH - 2) / 2, justifyContent: 'center', alignItems: 'center' },
+  categoryLabel: { fontSize: 11, color: COLORS.textHeadline, fontWeight: '700', textAlign: 'center', lineHeight: 14, marginTop: 10 },
   itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
   section: { paddingHorizontal: 20, marginVertical: 5 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },

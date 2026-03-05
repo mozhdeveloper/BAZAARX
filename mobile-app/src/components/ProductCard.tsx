@@ -154,17 +154,17 @@ const styles = StyleSheet.create({
   },
   discountBadge: {
     position: 'absolute',
-    top: 10,
-    left: 10,
+    top: 8,
+    left: 8,
     backgroundColor: '#DC2626', // Red
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
     zIndex: 10,
   },
   discountText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '800',
   },
   flashBadge: {
