@@ -72,11 +72,12 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
 
   const downloadTemplate = useCallback(() => {
     const headers = "Parent SKU,Product Name,Description,Category,Gallery Images (Product Level),Attribute 1,Attribute 2,Variant SKU,Option 1 Value,Option 2 Value,Variant Price,Variant Stock,Variant Image (Unique)\n";
-    const sample = "SHIRT-001,Premium Tee,100% Cotton,Fashion,url1.jpg|url2.jpg,Size,Color,SHIRT-S-RED,Small,Red,499,50,red-thumb.jpg";
+    const row1 = "ELEC-LAMP-01,LED Desk Lamp,Adjustable brightness reading lamp,Electronics,lamp.jpg,,,LAMP-DEF,,,599,30,\n";
+    const row2 = "APP-TEE-05,Classic Cotton T-Shirt,100% breathable cotton basic tee,Apparel,shirt.jpg,Size,Color,TEE-05-SM-WHT,Small,White,299,50,white-tee.jpg\n";
+    const row3 = "APP-TEE-05,Classic Cotton T-Shirt,100% breathable cotton basic tee,Apparel,shirt.jpg,Size,Color,TEE-05-MD-WHT,Medium,White,299,45,white-tee.jpg\n";
+    const row4 = "APP-TEE-05,Classic Cotton T-Shirt,100% breathable cotton basic tee,Apparel,shirt.jpg,Size,Color,TEE-05-LG-BLK,Large,Black,349,20,black-tee.jpg";
 
-    const blob = new Blob([headers + sample], { type: "text/csv;charset=utf-8;" });
-
-    const link = document.createElement("a");
+    const blob = new Blob([headers + row1 + row2 + row3 + row4], { type: "text/csv;charset=utf-8;" }); const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
     link.setAttribute("download", "product-upload-template.csv");
@@ -327,6 +328,35 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
     disabled: isUploading || showPreview,
   });
 
+  const groupedPreview = React.useMemo(() => {
+    const groups = new Map<string, any>();
+
+    previewProducts.forEach(p => {
+      const sku = p["Parent SKU"];
+      if (!groups.has(sku)) {
+        groups.set(sku, {
+          parentSku: sku,
+          name: p["Product Name"],
+          category: p["Category"],
+          description: p["Description"],
+          // Grab the first image from the gallery string
+          imageUrl: p["Gallery Images (Product Level)"]?.split(/[|,]/)[0]?.trim() || "",
+          variants: []
+        });
+      }
+
+      const variantName = [p["Option 1 Value"], p["Option 2 Value"]].filter(Boolean).join(" - ") || "Default";
+      groups.get(sku).variants.push({
+        name: variantName,
+        sku: p["Variant SKU"],
+        price: parseFloat(p["Variant Price"]) || 0,
+        stock: parseInt(p["Variant Stock"]) || 0
+      });
+    });
+
+    return Array.from(groups.values());
+  }, [previewProducts]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
@@ -358,41 +388,58 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
               </div>
 
               {/* Product Preview Table */}
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {previewProducts.map((product, index) => (
-                  <div key={index} className="...">
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                {groupedPreview.map((group, index) => (
+                  <div
+                    key={index}
+                    className="border border-gray-200 rounded-lg p-4 hover:border-orange-300 hover:bg-orange-50 transition-colors"
+                  >
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       {/* Product Image */}
                       <div className="md:col-span-1">
                         <img
-                          src={product["Variant Image (Unique)"] || "https://placehold.co/100?text=No+Image"}
-                          alt={product["Product Name"]}
-                          className="..."
+                          src={group.imageUrl || "https://placehold.co/100?text=No+Image"}
+                          alt={group.name}
+                          className="w-full h-24 object-cover rounded-lg bg-gray-100"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://placehold.co/100?text=No+Image";
+                          }}
                         />
                       </div>
 
                       {/* Product Details */}
                       <div className="md:col-span-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                           <div>
-                            <p className="...">Name</p>
-                            <p className="...">{product["Product Name"]}</p>
+                            <p className="text-xs text-gray-500 font-semibold uppercase">Name</p>
+                            <p className="text-sm font-medium text-gray-900 line-clamp-1">{group.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">SKU: {group.parentSku}</p>
                           </div>
                           <div>
-                            <p className="...">Category</p>
-                            <p className="...">{product["Category"]}</p>
-                          </div>
-                          <div>
-                            <p className="...">Price</p>
-                            <span className="...">₱{parseFloat(product["Variant Price"]).toLocaleString()}</span>
-                          </div>
-                          <div>
-                            <p className="...">Stock</p>
-                            <p className="...">{product["Variant Stock"]} units</p>
+                            <p className="text-xs text-gray-500 font-semibold uppercase">Category</p>
+                            <p className="text-sm font-medium text-gray-900">{group.category}</p>
                           </div>
                           <div className="sm:col-span-2">
-                            <p className="...">Description</p>
-                            <p className="...">{product["Description"]}</p>
+                            <p className="text-xs text-gray-500 font-semibold uppercase">Description</p>
+                            <p className="text-sm text-gray-700 line-clamp-1">{group.description}</p>
+                          </div>
+                        </div>
+
+                        {/* Variants as Pills */}
+                        <div className="border-t border-gray-100 pt-3">
+                          <p className="text-xs text-gray-500 font-semibold uppercase mb-2">
+                            Variants ({group.variants.length})
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {group.variants.map((v: any, vIdx: number) => (
+                              <div key={vIdx} className="bg-white border border-gray-200 rounded-md px-3 py-1.5 text-xs shadow-sm flex items-center gap-2">
+                                <span className="font-medium text-gray-800">{v.name}</span>
+                                <span className="text-gray-300">|</span>
+                                <span className="font-bold text-orange-600">₱{v.price.toLocaleString()}</span>
+                                <span className="text-gray-300">|</span>
+                                <span className="text-gray-600">{v.stock} pcs</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>
