@@ -413,7 +413,6 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
       <VisualSearchModal
         isOpen={showVisualSearchModal}
         onClose={() => setShowVisualSearchModal(false)}
-        products={[...trendingProducts, ...bestSellerProducts, ...newArrivals]}
         onRequestProduct={() => {
           setShowVisualSearchModal(false);
           setShowRequestModal(true);

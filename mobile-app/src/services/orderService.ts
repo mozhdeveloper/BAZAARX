@@ -1133,8 +1133,9 @@ export class OrderService {
     try {
       // Get order first to get buyer info
       const order = await this.getOrderById(orderId);
+
       if (!order) {
-        throw new Error('Order not found');
+        throw new Error('Order not found', { cause: { orderId } });
       }
 
       // Map legacy status to new payment_status + shipment_status
@@ -1569,21 +1570,32 @@ export class OrderService {
       const nowIso = new Date().toISOString();
       const normalizedReason = reason?.trim() || null;
 
+      // Check if the orderId is a valid UUID
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+
+      // Fetch the order based on the ID or order number
       const { data: existingOrder, error: fetchError } = await supabase
         .from('orders')
         .select('id, payment_status')
-        .eq('id', orderId)
+        .eq(isUuid ? 'id' : 'order_number', orderId)
         .single();
 
-      if (fetchError || !existingOrder) {
+      if (fetchError) {
+        console.error('Error fetching order:', fetchError);
+        throw new Error('Order not found');
+      }
+
+      if (!existingOrder) {
+        console.error('Order not found for ID:', orderId);
         throw new Error('Order not found');
       }
 
       const nextPaymentStatus: PaymentStatus =
-        existingOrder.payment_status === 'paid' ||
-          existingOrder.payment_status === 'partially_refunded'
+        existingOrder.payment_status === 'paid' || existingOrder.payment_status === 'partially_refunded'
           ? 'refunded'
           : 'pending_payment';
+
+      console.log('Updating order with new payment status:', nextPaymentStatus);
 
       const { error: updateError } = await supabase
         .from('orders')
@@ -1593,23 +1605,29 @@ export class OrderService {
           notes: normalizedReason,
           updated_at: nowIso,
         })
-        .eq('id', orderId);
+        .eq('id', existingOrder.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error updating order:', updateError);
+        throw updateError;
+      }
 
       const { error: cancellationError } = await supabase
         .from('order_cancellations')
         .insert({
-          order_id: orderId,
+          order_id: existingOrder.id,
           reason: normalizedReason,
           cancelled_at: nowIso,
           cancelled_by: cancelledBy || null,
         });
 
-      if (cancellationError) throw cancellationError;
+      if (cancellationError) {
+        console.error('Error inserting cancellation record:', cancellationError);
+        throw cancellationError;
+      }
 
       await supabase.from('order_status_history').insert({
-        order_id: orderId,
+        order_id: existingOrder.id,
         status: 'cancelled',
         note: normalizedReason || 'Order cancelled',
         changed_by: cancelledBy || null,
