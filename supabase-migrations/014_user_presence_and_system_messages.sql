@@ -140,3 +140,5 @@ BEGIN
   LIMIT 1;
 END;
 $$ LANGUAGE plpgsql;
+
+ALTER PUBLICATION supabase_realtime ADD TABLE public.user_presence;
