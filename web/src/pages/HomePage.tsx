@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from "react";
 import { BazaarHero } from "../components/ui/bazaar-hero";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
-
+import { CampaignCountdown } from '../components/shop/CampaignCountdown';
 import { FloatingNavigation } from "@/components/ui/floating-navigation";
 
 // Lazy load heavy scroll-animated components
@@ -68,20 +68,6 @@ const HomePage: React.FC = () => {
   const [flashSaleProducts, setFlashSaleProducts] = React.useState<any[]>([]);
   const [flashLoading, setFlashLoading] = React.useState(true);
   const [flashEndsAt, setFlashEndsAt] = React.useState<string | null>(null);
-  const [countdown, setCountdown] = React.useState('');
-
-  // Compute flash sale end date: next 3-hour block from now
-  const flashSaleEndDate = React.useMemo(() => {
-    const now = new Date();
-    const hours = now.getHours();
-    const nextBlock = Math.ceil((hours + 1) / 3) * 3; // next 3hr mark
-    const end = new Date(now);
-    end.setHours(nextBlock, 0, 0, 0);
-    if (end.getTime() <= now.getTime()) {
-      end.setHours(end.getHours() + 3);
-    }
-    return end;
-  }, []);
 
   React.useEffect(() => {
     const loadFlashSales = async () => {
@@ -94,7 +80,7 @@ const HomePage: React.FC = () => {
             .map((p: any) => p.campaignEndsAt)
             .filter(Boolean)
             .sort()
-            [0];
+          [0];
           if (earliest) setFlashEndsAt(earliest);
         }
       } catch (e) {
@@ -105,22 +91,6 @@ const HomePage: React.FC = () => {
     };
     loadFlashSales();
   }, []);
-
-  // Countdown timer
-  React.useEffect(() => {
-    if (!flashEndsAt) return;
-    const tick = () => {
-      const diff = new Date(flashEndsAt).getTime() - Date.now();
-      if (diff <= 0) { setCountdown('Ended'); return; }
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setCountdown(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [flashEndsAt]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--brand-wash)' }}>
@@ -188,13 +158,11 @@ const HomePage: React.FC = () => {
         <Suspense fallback={<SectionLoader />}>
           <div id="bazaar-flash-sales">
             {/* Countdown Banner */}
-            {countdown && countdown !== 'Ended' && (
+            {flashEndsAt && (
               <div style={{ background: 'linear-gradient(90deg,#b91c1c,#ef4444)', color: '#fff' }}
                 className="w-full flex items-center justify-center gap-4 py-3 text-sm font-bold tracking-wide">
                 <span>⚡ FLASH SALE ENDS IN</span>
-                <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: '1.1rem', letterSpacing: '0.1em' }}>
-                  {countdown}
-                </span>
+                <CampaignCountdown endsAt={flashEndsAt} variant="banner" />
               </div>
             )}
             <ProductRail
