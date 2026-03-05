@@ -16,6 +16,7 @@ export type SellerStackParamList = {
   Reviews: undefined;
   Notifications: undefined;
   ReturnDetail: { returnId: string };
+  Returns: undefined;
   SellerOrderDetail: { orderId: string };
   TicketList: undefined;
   SellerHelpCenter: undefined;
@@ -45,6 +46,7 @@ export default function SellerStack() {
       <Stack.Screen name="Reviews" getComponent={() => require('./reviews').default} />
       <Stack.Screen name="Notifications" getComponent={() => require('./notifications').default} />
       <Stack.Screen name="ReturnDetail" getComponent={() => require('./ReturnDetailScreen').default} />
+      <Stack.Screen name="Returns" getComponent={() => require('./(tabs)/returns').default} />
       <Stack.Screen name="SellerOrderDetail" getComponent={() => require('./OrderDetailScreen').default} />
       <Stack.Screen name="TicketList" getComponent={() => require('../tickets/TicketListScreen').default} />
       <Stack.Screen name="SellerHelpCenter" getComponent={() => require('./SellerHelpCenterScreen').default} />

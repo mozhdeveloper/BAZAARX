@@ -219,8 +219,8 @@ class ReturnService {
 
     if (orderError || !order) throw new Error('Order not found. Please refresh and try again.');
 
-    if (order.shipment_status !== 'delivered' && order.shipment_status !== 'received') {
-      throw new Error('Only delivered or received orders can be returned.');
+    if (order.shipment_status !== 'delivered' && order.shipment_status !== 'received' && order.shipment_status !== 'shipped') {
+      throw new Error('Only shipped, delivered, or received orders can be returned.');
     }
 
     // 2. Check return window

@@ -388,19 +388,38 @@ export default function SellerOrdersScreen() {
         </Pressable>
       </View>
 
+      {/* Status Tabs */}
+      <View style={styles.statusTabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusTabsScroll}>
+          {(['all', 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'] as const).map((s) => {
+            const isActive = filters.status === s;
+            const config = s === 'all' ? { color: '#D97706', label: 'All' } : getStatusConfig(s);
+            return (
+              <Pressable
+                key={s}
+                style={[styles.statusTab, isActive && styles.statusTabActive]}
+                onPress={() => setFilters(prev => ({ ...prev, status: s }))}
+              >
+                <Text style={[styles.statusTabText, isActive && styles.statusTabTextActive]}>
+                  {s === 'all' ? 'All' : config.label.charAt(0) + config.label.slice(1).toLowerCase()}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       {/* Active Filters Summary */}
-      {(activeFilterCount > 0) && (
+      {(filters.channel !== 'all' || filters.dateLabel !== 'All Time') && (
         <View style={styles.summaryRow}>
           <Text style={styles.summaryText}>
             Showing:
-            {/* UPDATED: Dynamically show date range if custom is selected */}
             <Text style={{ fontWeight: '700' }}>
               {filters.dateLabel === 'Custom Range' && filters.startDate && filters.endDate
                 ? ` ${filters.startDate.toLocaleDateString()} - ${filters.endDate.toLocaleDateString()}`
                 : ` ${filters.dateLabel}`
               }
             </Text>
-            {filters.status !== 'all' && <Text> • {filters.status.toUpperCase()}</Text>}
             {filters.channel !== 'all' && <Text> • {filters.channel.toUpperCase()}</Text>}
           </Text>
           <Pressable onPress={() => setFilters({ status: 'all', channel: 'all', dateLabel: 'All Time', startDate: null, endDate: null })}>
@@ -582,9 +601,28 @@ const styles = StyleSheet.create({
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
   // Summary Row
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 10, marginBottom: 5 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 4, marginBottom: 5 },
   summaryText: { fontSize: 12, color: '#6B7280' },
   clearText: { fontSize: 12, color: '#D97706', fontWeight: '600' },
+
+  // Status Tabs
+  statusTabsContainer: { marginTop: 12 },
+  statusTabsScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 4 },
+  statusTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  statusTabActive: { backgroundColor: '#D97706', borderColor: '#D97706' },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusTabText: { fontSize: 13, fontWeight: '600', color: '#4B5563' },
+  statusTabTextActive: { color: '#FFF', fontWeight: '700' },
 
   // List
   scrollViewContent: { paddingBottom: 40, paddingTop: 10 },

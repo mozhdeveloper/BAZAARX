@@ -6,6 +6,7 @@ import { orderService } from '../services/orderService';
 import { orderReadService } from '../services/orders/orderReadService';
 import { orderMutationService } from '../services/orders/orderMutationService';
 import { authService } from '../services/authService';
+import { useAuthStore } from './sellerStore';
 import type { POSOrderCreateResult, SellerOrderSnapshot } from '../types/orders';
 import { mapSellerUiToNormalizedStatus } from '../utils/orders/status';
 
@@ -681,12 +682,14 @@ export const useOrderStore = create<OrderStore>()(
           ),
         }));
 
-        // Get seller ID from session/cache
-        const session = await authService.getSession();
-        const sellerId = session?.user?.id;
+        // Get seller ID from the seller profile store (sellers table ID)
+        // This matches the web approach: useAuthStore.getState().seller?.id
+        // We must NOT use authService.getSession().user.id because
+        // auth.users.id can differ from sellers.id
+        const sellerId = useAuthStore.getState().seller?.id;
 
         if (!sellerId) {
-          throw new Error('Not authenticated');
+          throw new Error('Not authenticated as seller');
         }
 
         try {
@@ -737,11 +740,11 @@ export const useOrderStore = create<OrderStore>()(
           ),
         }));
 
-        const session = await authService.getSession();
-        const sellerId = session?.user?.id;
+        // Get seller ID from the seller profile store (sellers table ID)
+        const sellerId = useAuthStore.getState().seller?.id;
 
         if (!sellerId) {
-          throw new Error('Not authenticated');
+          throw new Error('Not authenticated as seller');
         }
 
         try {

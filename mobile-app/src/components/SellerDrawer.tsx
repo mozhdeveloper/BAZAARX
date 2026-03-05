@@ -33,6 +33,7 @@ import {
   Bell,
   LifeBuoy,
   Megaphone,
+  RotateCcw,
 } from 'lucide-react-native';
 import { useSellerStore } from '../stores/sellerStore';
 import { useAuthStore } from '../stores/authStore';
@@ -158,13 +159,14 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
       items: [
         { icon: Bell, label: 'Notifications', route: 'Notifications' },
         { icon: MessageSquare, label: 'Messages', route: 'Messages' },
+        { icon: RotateCcw, label: 'Returns', route: 'Returns' },
         { icon: Star, label: 'Reviews', route: 'Reviews' },
       ],
     },
     {
       label: 'Account',
       items: [
-        { icon: Settings, label: 'Settings', route: 'Settings', inTab: true },
+        { icon: Settings, label: 'Settings', route: 'Settings' },
         { icon: LifeBuoy, label: 'Help Center', route: 'SellerHelpCenter' },
       ],
     },
