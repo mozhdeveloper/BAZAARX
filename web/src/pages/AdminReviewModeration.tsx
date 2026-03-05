@@ -40,7 +40,6 @@ import {
   ThumbsUp,
   MessageCircle,
   ShieldCheck,
-  Clock,
   Loader2
 } from 'lucide-react';
 
@@ -49,7 +48,6 @@ const AdminReviewModeration: React.FC = () => {
   const {
     reviews,
     selectedReview,
-    pendingReviews,
     flaggedReviews,
     isLoading,
     loadReviews,
@@ -63,7 +61,7 @@ const AdminReviewModeration: React.FC = () => {
 
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('flagged');
+  const [activeTab, setActiveTab] = useState('all');
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
@@ -90,9 +88,7 @@ const AdminReviewModeration: React.FC = () => {
   };
 
   const approvedReviews = getFilteredReviews('approved');
-  const rejectedReviews = getFilteredReviews('rejected');
   const allFilteredReviews = getFilteredReviews();
-  const filteredPending = getFilteredReviews('pending');
   const filteredFlagged = getFilteredReviews('flagged');
 
   const handleApprove = async () => {
@@ -278,31 +274,6 @@ const AdminReviewModeration: React.FC = () => {
               View Details
             </Button>
 
-            {review.status === 'pending' && (
-              <>
-                <Button
-                  size="sm"
-                  onClick={() => approveReview(review.id)}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <CheckCircle className="w-4 h-4 mr-1" />
-                  Approve
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    selectReview(review);
-                    setShowRejectDialog(true);
-                  }}
-                  className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <XCircle className="w-4 h-4 mr-1" />
-                  Reject
-                </Button>
-              </>
-            )}
-
             {review.status === 'flagged' && (
               <Button
                 size="sm"
@@ -310,7 +281,7 @@ const AdminReviewModeration: React.FC = () => {
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <CheckCircle className="w-4 h-4 mr-1" />
-                Unflag & Approve
+                Unflag & Restore
               </Button>
             )}
 
@@ -372,7 +343,7 @@ const AdminReviewModeration: React.FC = () => {
         <div className="flex-1 overflow-auto">
           <div className="max-w-7xl mx-auto px-8 py-8">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -401,26 +372,6 @@ const AdminReviewModeration: React.FC = () => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Pending Review</p>
-                        <p className="text-2xl font-bold text-gray-900">{pendingReviews.length}</p>
-                      </div>
-                      <div className="w-12 h-12 rounded-lg bg-yellow-100 flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-yellow-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
                         <p className="text-sm text-gray-600 mb-1">Flagged Reviews</p>
                         <p className="text-2xl font-bold text-gray-900">{flaggedReviews.length}</p>
                       </div>
@@ -435,7 +386,7 @@ const AdminReviewModeration: React.FC = () => {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
+                transition={{ delay: 0.2 }}
               >
                 <Card>
                   <CardContent className="p-6">
@@ -471,20 +422,14 @@ const AdminReviewModeration: React.FC = () => {
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="mb-6">
-                <TabsTrigger value="pending">
-                  Pending ({filteredPending.length})
-                </TabsTrigger>
-                <TabsTrigger value="flagged">
-                  Flagged ({filteredFlagged.length})
-                </TabsTrigger>
-                <TabsTrigger value="approved">
-                  Approved ({approvedReviews.length})
-                </TabsTrigger>
-                <TabsTrigger value="rejected">
-                  Rejected ({rejectedReviews.length})
-                </TabsTrigger>
                 <TabsTrigger value="all">
                   All ({allFilteredReviews.length})
+                </TabsTrigger>
+                <TabsTrigger value="approved">
+                  Live ({approvedReviews.length})
+                </TabsTrigger>
+                <TabsTrigger value="flagged">
+                  Flagged/Hidden ({filteredFlagged.length})
                 </TabsTrigger>
               </TabsList>
 
@@ -494,19 +439,39 @@ const AdminReviewModeration: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  <TabsContent value="pending">
+                  <TabsContent value="all">
                     <div className="space-y-4">
-                      {filteredPending.length === 0 ? (
+                      {allFilteredReviews.length === 0 ? (
                         <Card>
                           <CardContent className="p-12 text-center">
-                            <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No pending reviews</h3>
-                            <p className="text-gray-600">All reviews have been moderated</p>
+                            <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No reviews found</h3>
+                            <p className="text-gray-600">Try adjusting your search or filters</p>
                           </CardContent>
                         </Card>
                       ) : (
                         <AnimatePresence>
-                          {filteredPending.map((review) => (
+                          {allFilteredReviews.map((review) => (
+                            <ReviewCard key={review.id} review={review} />
+                          ))}
+                        </AnimatePresence>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="approved">
+                    <div className="space-y-4">
+                      {approvedReviews.length === 0 ? (
+                        <Card>
+                          <CardContent className="p-12 text-center">
+                            <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No live reviews</h3>
+                            <p className="text-gray-600">Reviews will appear here once submitted</p>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        <AnimatePresence>
+                          {approvedReviews.map((review) => (
                             <ReviewCard key={review.id} review={review} />
                           ))}
                         </AnimatePresence>
@@ -521,7 +486,7 @@ const AdminReviewModeration: React.FC = () => {
                           <CardContent className="p-12 text-center">
                             <Flag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                             <h3 className="text-lg font-semibold text-gray-900 mb-2">No flagged reviews</h3>
-                            <p className="text-gray-600">No reviews require attention</p>
+                            <p className="text-gray-600">No reviews have been hidden</p>
                           </CardContent>
                         </Card>
                       ) : (
@@ -533,39 +498,183 @@ const AdminReviewModeration: React.FC = () => {
                       )}
                     </div>
                   </TabsContent>
-
-                  <TabsContent value="approved">
-                    <div className="space-y-4">
-                      <AnimatePresence>
-                        {approvedReviews.map((review) => (
-                          <ReviewCard key={review.id} review={review} />
-                        ))}
-                      </AnimatePresence>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="rejected">
-                    <div className="space-y-4">
-                      <AnimatePresence>
-                        {rejectedReviews.map((review) => (
-                          <ReviewCard key={review.id} review={review} />
-                        ))}
-                      </AnimatePresence>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="all">
-                    <div className="space-y-4">
-                      <AnimatePresence>
-                        {allFilteredReviews.map((review) => (
-                          <ReviewCard key={review.id} review={review} />
-                        ))}
-                      </AnimatePresence>
-                    </div>
-                  </TabsContent>
                 </>
               )}
             </Tabs>
+
+            {/* Review Details Dialog */}
+            <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Review Details</DialogTitle>
+                  <DialogDescription>
+                    Comprehensive information about this customer review.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {selectedReview && (
+                  <div className="space-y-6 py-4">
+                    <div className="flex items-start gap-4">
+                      <img
+                        src={selectedReview.productImage}
+                        alt=""
+                        className="w-20 h-20 object-cover rounded-lg"
+                      />
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{selectedReview.productName}</h4>
+                        <p className="text-sm text-gray-600">ID: {selectedReview.id}</p>
+                        <div className="mt-2 text-sm">
+                          {getStatusBadge(selectedReview.status)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <Label className="text-gray-500">Buyer</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <img src={selectedReview.buyerAvatar} alt="" className="w-6 h-6 rounded-full" />
+                          <span className="text-sm font-medium">{selectedReview.buyerName}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-gray-500">Date Submitted</Label>
+                        <p className="text-sm mt-1">
+                          {new Date(selectedReview.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-gray-500">Rating & Content</Label>
+                      <div className="mt-1">
+                        {renderStars(selectedReview.rating)}
+                        {selectedReview.title && (
+                          <p className="font-semibold mt-2">{selectedReview.title}</p>
+                        )}
+                        <p className="text-gray-700 mt-1 italic">"{selectedReview.content}"</p>
+                      </div>
+                    </div>
+
+                    {selectedReview.images && selectedReview.images.length > 0 && (
+                      <div>
+                        <Label className="text-gray-500">Review Images</Label>
+                        <div className="flex gap-2 mt-2">
+                          {selectedReview.images.map((img: string, i: number) => (
+                            <img key={i} src={img} alt="" className="w-24 h-24 object-cover rounded-lg border" />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedReview.moderationNote && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <Label className="text-yellow-900">Moderation Note</Label>
+                        <p className="text-sm text-yellow-700 mt-1">{selectedReview.moderationNote}</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span className="flex items-center gap-1">
+                        <ThumbsUp className="w-4 h-4" />
+                        {selectedReview.helpfulCount} helpful votes
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
+                    Close
+                  </Button>
+                  {selectedReview?.status === 'approved' && (
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        setShowDetailsDialog(false);
+                        setShowFlagDialog(true);
+                      }}
+                    >
+                      <Flag className="w-4 h-4 mr-2" />
+                      Flag Review
+                    </Button>
+                  )}
+                  {selectedReview?.status === 'flagged' && (
+                    <Button
+                      className="bg-blue-600 hover:bg-blue-700"
+                      onClick={() => {
+                        handleUnflag(selectedReview.id);
+                        setShowDetailsDialog(false);
+                      }}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Unflag & Restore
+                    </Button>
+                  )}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Flag Review Dialog */}
+            <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Flag Review</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to flag this review? It will be hidden from the product page.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reason">Reason for flagging</Label>
+                    <Textarea
+                      id="reason"
+                      placeholder="e.g., Inappropriate language, spam, incorrect product..."
+                      value={moderationReason}
+                      onChange={(e) => setModerationReason(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowFlagDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    disabled={!moderationReason || isLoading}
+                    onClick={handleFlag}
+                  >
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Flag className="w-4 h-4 mr-2" />}
+                    Flag & Hide
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation */}
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the review
+                    and remove all associated data from our servers.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                    Delete Permanently
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </div>
