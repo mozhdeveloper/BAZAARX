@@ -1,6 +1,7 @@
 /**
  * Order Notification Service
  * Sends chat messages to buyers when order status changes
+ * Includes deduplication to prevent duplicate notifications
  */
 
 import { supabase } from '../lib/supabase';
@@ -52,6 +53,44 @@ export const ORDER_STATUS_MESSAGES: Record<string, StatusMessage> = {
 };
 
 class OrderNotificationService {
+  // Deduplication tracker: orderId_status → timestamp of last sent notification
+  private sentNotifications = new Map<string, number>();
+  private DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minute window to prevent duplicates
+
+  /**
+   * Check if notification was already sent recently
+   * Prevents duplicate notifications within 5-minute window
+   */
+  private isDuplicateNotification(orderId: string, status: string): boolean {
+    const key = `${orderId}_${status}`;
+    const lastSent = this.sentNotifications.get(key);
+    
+    if (!lastSent) return false;
+    
+    const isDuplicate = Date.now() - lastSent < this.DEDUP_WINDOW_MS;
+    return isDuplicate;
+  }
+
+  /**
+   * Mark notification as sent for deduplication tracking
+   */
+  private markNotificationSent(orderId: string, status: string): void {
+    const key = `${orderId}_${status}`;
+    this.sentNotifications.set(key, Date.now());
+  }
+
+  /**
+   * Clean up old entries from dedup tracker (older than 10 minutes)
+   */
+  private cleanupOldEntries(): void {
+    const now = Date.now();
+    for (const [key, timestamp] of this.sentNotifications.entries()) {
+      if (now - timestamp > 10 * 60 * 1000) {
+        this.sentNotifications.delete(key);
+      }
+    }
+  }
+
   /**
    * Send status update notification to buyer via chat
    */
@@ -64,6 +103,12 @@ class OrderNotificationService {
     customMessage?: string
   ): Promise<boolean> {
     try {
+      // Check for duplicate notification (deduplication)
+      if (this.isDuplicateNotification(orderId, newStatus)) {
+        console.log(`[OrderNotification] Duplicate suppressed: ${orderId}_${newStatus}`);
+        return true; // Return success to prevent error logging
+      }
+
       // Get or create conversation between buyer and seller
       const conversation = await chatService.getOrCreateConversation(buyerId, sellerId);
       
@@ -100,8 +145,11 @@ class OrderNotificationService {
         return false;
       }
 
-      // Also store in order notification log for tracking
-      await this.logNotification(orderId, newStatus, messageContent);
+      // Mark as sent for deduplication
+      this.markNotificationSent(orderId, newStatus);
+
+      // Cleanup old entries periodically
+      this.cleanupOldEntries();
 
       console.log(`[OrderNotification] Sent ${newStatus} notification for order ${orderId}`);
       return true;

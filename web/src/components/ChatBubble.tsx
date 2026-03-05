@@ -74,6 +74,9 @@ export function ChatBubble() {
 
       setIsLoading(true);
       try {
+        // Track user activity when loading conversation
+        chatService.trackUserActivity(profile.id);
+
         // If seller-initiated (has buyerId), use buyerId and sellerId correctly
         const buyerId = chatTarget.buyerId || profile.id;
         const sellerId = chatTarget.buyerId ? chatTarget.sellerId : chatTarget.sellerId;
@@ -336,22 +339,47 @@ export function ChatBubble() {
           {/* Header */}
           <div className="bg-[var(--brand-primary)] px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {chatTarget?.sellerAvatar ? (
-                <img
-                  src={chatTarget.sellerAvatar}
-                  alt={chatTarget.sellerName}
-                  className="w-10 h-10 rounded-full border-2 border-white/30 object-cover"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                  <Store className="w-5 h-5 text-white" />
-                </div>
-              )}
+              <div className="relative">
+                {chatTarget?.sellerAvatar ? (
+                  <img
+                    src={chatTarget.sellerAvatar}
+                    alt={chatTarget.sellerName}
+                    className="w-10 h-10 rounded-full border-2 border-white/30 object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                    <Store className="w-5 h-5 text-white" />
+                  </div>
+                )}
+                {/* Online Status Indicator - High Contrast Dark Teal */}
+                {conversation?.seller_is_online && (
+                  <>
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-teal-600 rounded-full border-2 border-white shadow-md"
+                    />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-teal-700" />
+                  </>
+                )}
+                {!conversation?.seller_is_online && (
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-gray-400 rounded-full border-2 border-white shadow-md" />
+                )}
+              </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-white font-semibold text-sm truncate">
-                  {chatTarget?.sellerName || 'Chat with Seller'}
-                </h3>
-                <p className="text-white/80 text-xs">Usually replies within minutes</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-white font-semibold text-sm truncate">
+                    {chatTarget?.sellerName || 'Chat with Seller'}
+                  </h3>
+                  {conversation?.seller_is_online && (
+                    <span className="text-xs font-medium text-teal-100 bg-teal-700/40 px-2 py-0.5 rounded-full">
+                      Online
+                    </span>
+                  )}
+                </div>
+                <p className="text-white/80 text-xs">
+                  {conversation?.seller_is_online ? 'Active now' : 'Usually replies within minutes'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-1">

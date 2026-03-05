@@ -28,8 +28,10 @@ import {
 } from 'lucide-react-native';
 import { Alert } from 'react-native';
 import { chatService, Conversation as ChatConversation, Message as ChatMessage } from '../../src/services/chatService';
+import { presenceService } from '../../src/services/presenceService';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useSellerStore } from '../../src/stores/sellerStore';
+import OnlineStatusIndicator from '../../src/components/OnlineStatusIndicator';
 
 export default function MessagesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
@@ -43,25 +45,20 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
+  const [isBuyerOnline, setIsBuyerOnline] = useState(false);
 
-  // Real conversations and messages from database
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
-  // Load real conversations from database
   const loadConversations = useCallback(async () => {
-    // Use seller.id from sellerStore (the seller's UUID), not user.id from authStore
     const sellerId = seller?.id;
     if (!sellerId) {
-      console.log('[SellerMessages] No seller ID available');
       setLoading(false);
       return;
     }
 
-    console.log('[SellerMessages] Loading conversations for seller:', sellerId);
     try {
       const convs = await chatService.getSellerConversations(sellerId);
-      console.log('[SellerMessages] Loaded conversations:', convs.length);
       setConversations(convs);
     } catch (error) {
       console.error('[SellerMessages] Error loading conversations:', error);
@@ -75,7 +72,19 @@ export default function MessagesScreen() {
     loadConversations();
   }, [loadConversations]);
 
-  // Load messages when conversation is selected
+  const activeConversation = conversations.find((c) => c.id === selectedConversation);
+
+  useEffect(() => {
+    if (!activeConversation?.buyer_id) return;
+    
+    const unsubscribe = presenceService.subscribeToPresence(
+      activeConversation.buyer_id,
+      (presence) => setIsBuyerOnline(presence?.is_online || false)
+    );
+
+    return unsubscribe;
+  }, [activeConversation?.buyer_id]);
+
   useEffect(() => {
     if (!selectedConversation) return;
 
@@ -83,7 +92,6 @@ export default function MessagesScreen() {
       const msgs = await chatService.getMessages(selectedConversation);
       setMessages(msgs);
       
-      // Mark as read
       if (seller?.id) {
         await chatService.markAsRead(selectedConversation, seller.id, 'seller');
       }
@@ -92,22 +100,23 @@ export default function MessagesScreen() {
     loadMessages();
   }, [selectedConversation, seller?.id]);
 
-  // Subscribe to new messages
   useEffect(() => {
     if (!selectedConversation) return;
 
     const unsubscribe = chatService.subscribeToMessages(
       selectedConversation,
       (newMsg) => {
-        // Prevent duplicates
         setMessages(prev => {
           const exists = prev.some(msg => msg.id === newMsg.id);
           if (exists) return prev;
           return [...prev, newMsg];
         });
         
-        if (newMsg.sender_type === 'buyer' && seller?.id) {
-          chatService.markAsRead(selectedConversation, seller.id, 'seller');
+        if (newMsg.sender_type === 'buyer') {
+          setIsBuyerOnline(true);
+          if (seller?.id) {
+            chatService.markAsRead(selectedConversation, seller.id, 'seller');
+          }
         }
       }
     );
@@ -119,8 +128,6 @@ export default function MessagesScreen() {
     setRefreshing(true);
     loadConversations();
   };
-
-  const activeConversation = conversations.find((c) => c.id === selectedConversation);
 
   const handleEscalate = () => {
     if (!activeConversation) return;
@@ -157,13 +164,12 @@ export default function MessagesScreen() {
     try {
       const result = await chatService.sendMessage(
         selectedConversation,
-        seller.id,  // Use seller ID from sellerStore, not user.id from authStore
+        seller.id,
         'seller',
         newMessage.trim()
       );
       if (result) {
         setNewMessage('');
-        // Message will be added via realtime subscription
       }
     } catch (error) {
       console.error('[SellerMessages] Error sending message:', error);
@@ -192,10 +198,8 @@ export default function MessagesScreen() {
   };
 
   if (!selectedConversation) {
-    // Conversations List View
     return (
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.headerContainer}>
           <View style={[styles.headerTop, { marginTop: insets.top }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -206,7 +210,6 @@ export default function MessagesScreen() {
             </View>
           </View>
 
-          {/* Search Bar */}
           <View style={{ marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, height: 48 }}>
             <Search size={20} color="#9CA3AF" strokeWidth={2} />
             <TextInput
@@ -284,7 +287,6 @@ export default function MessagesScreen() {
     );
   }
 
-  // Chat View
   const activeBuyerName = activeConversation?.buyer_name || 'Buyer';
 
   return (
@@ -293,7 +295,6 @@ export default function MessagesScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      {/* Chat Header */}
       <View style={[styles.chatHeader, { paddingTop: insets.top + 16 }]}>
         <View style={styles.chatHeaderContent}>
           <View style={styles.chatHeaderLeft}>
@@ -310,10 +311,14 @@ export default function MessagesScreen() {
             </View>
             <View>
               <Text style={styles.chatBuyerName}>{activeBuyerName}</Text>
-              <View style={styles.onlineStatus}>
-                <View style={styles.onlineDot} />
-                <Text style={styles.onlineText}>Online</Text>
-              </View>
+              <OnlineStatusIndicator
+                isOnline={isBuyerOnline}
+                size="sm"
+                showLabel={true}
+                showIcon={false}
+                showBorder={true}
+                showAnimation={true}
+              />
             </View>
           </View>
           <View style={styles.chatHeaderActions}>
@@ -327,7 +332,6 @@ export default function MessagesScreen() {
         </View>
       </View>
 
-      {/* Messages */}
       <ScrollView
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
@@ -367,7 +371,6 @@ export default function MessagesScreen() {
         )}
       </ScrollView>
 
-      {/* Input Area */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}>
         <Pressable style={styles.attachButton}>
           <ImageIcon size={20} color="#6B7280" strokeWidth={2} />
@@ -401,255 +404,47 @@ export default function MessagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFBF0',
-  },
-  headerContainer: {
-    backgroundColor: '#FFF4EC',
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 20,
-    paddingBottom: 20,
-    marginBottom: 10,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    zIndex: 10,
-  },
-  headerTop: { 
-      marginBottom: 10,
-      justifyContent: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#FFFBF0' },
+  headerContainer: { backgroundColor: '#FFF4EC', paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, paddingBottom: 20, marginBottom: 10, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, zIndex: 10 },
+  headerTop: { marginBottom: 10, justifyContent: 'center' },
   headerIconButton: { padding: 4 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '500',
-  },
-  conversationsList: {
-    flex: 1,
-  },
-  backButton: {
-    padding: 4,
-  },
-  conversationItem: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    gap: 12,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#D97706',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  conversationContent: {
-    flex: 1,
-    gap: 4,
-  },
-  conversationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  buyerName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  conversationTime: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    fontWeight: '500',
-  },
-  conversationFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  lastMessage: {
-    flex: 1,
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  unreadBadge: {
-    backgroundColor: '#D97706',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-    marginLeft: 8,
-  },
-  unreadText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  chatHeader: {
-    backgroundColor: '#FFF4EC',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 20,
-    elevation: 3,
-  },
-  chatHeaderContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  chatHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  chatAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(217, 119, 6, 0.15)', // Amber tint
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chatAvatarText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-  chatBuyerName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  onlineStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  onlineText: {
-    fontSize: 11,
-    color: '#4B5563',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
-  chatHeaderActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  iconButton: {
-    padding: 6,
-  },
-  messagesContainer: {
-    flex: 1,
-    backgroundColor: '#FFF4EC',
-  },
-  messagesContent: {
-    padding: 16,
-    gap: 12,
-  },
-  messageBubble: {
-    maxWidth: '70%',
-    borderRadius: 16,
-    padding: 12,
-  },
-  messageSeller: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#D97706',
-    borderTopRightRadius: 4,
-  },
-  messageBuyer: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderTopLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  messageTextSeller: {
-    color: '#FFFFFF',
-  },
-  messageTextBuyer: {
-    color: '#1F2937',
-  },
-  messageTime: {
-    fontSize: 10,
-    marginTop: 4,
-  },
-  messageTimeSeller: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  messageTimeBuyer: {
-    color: '#9CA3AF',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 8,
-  },
-  attachButton: {
-    padding: 8,
-  },
-  messageInput: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 14,
-    maxHeight: 100,
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#D97706',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#D97706',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.2)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: '#FFFFFF', fontWeight: '500' },
+  conversationsList: { flex: 1 },
+  backButton: { padding: 4 },
+  conversationItem: { flexDirection: 'row', padding: 16, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 12 },
+  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#D97706', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
+  conversationContent: { flex: 1, gap: 4 },
+  conversationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  buyerName: { fontSize: 15, fontWeight: '700', color: '#1F2937' },
+  conversationTime: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
+  conversationFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  lastMessage: { flex: 1, fontSize: 13, color: '#6B7280' },
+  unreadBadge: { backgroundColor: '#D97706', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, marginLeft: 8 },
+  unreadText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
+  chatHeader: { backgroundColor: '#FFF4EC', paddingHorizontal: 16, paddingBottom: 12, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, elevation: 3 },
+  chatHeaderContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  chatHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  chatAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(217, 119, 6, 0.15)', alignItems: 'center', justifyContent: 'center' },
+  chatAvatarText: { fontSize: 16, fontWeight: '700', color: '#D97706' },
+  chatBuyerName: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
+  chatHeaderActions: { flexDirection: 'row', gap: 8 },
+  iconButton: { padding: 6 },
+  messagesContainer: { flex: 1, backgroundColor: '#FFF4EC' },
+  messagesContent: { padding: 16, gap: 12 },
+  messageBubble: { maxWidth: '70%', borderRadius: 16, padding: 12 },
+  messageSeller: { alignSelf: 'flex-end', backgroundColor: '#D97706', borderTopRightRadius: 4 },
+  messageBuyer: { alignSelf: 'flex-start', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderTopLeftRadius: 4 },
+  messageText: { fontSize: 14, lineHeight: 20 },
+  messageTextSeller: { color: '#FFFFFF' },
+  messageTextBuyer: { color: '#1F2937' },
+  messageTime: { fontSize: 10, marginTop: 4 },
+  messageTimeSeller: { color: 'rgba(255, 255, 255, 0.7)' },
+  messageTimeBuyer: { color: '#9CA3AF' },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingHorizontal: 16, paddingTop: 12, gap: 8 },
+  attachButton: { padding: 8 },
+  messageInput: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, maxHeight: 100 },
+  sendButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#D97706', alignItems: 'center', justifyContent: 'center', shadowColor: '#D97706', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
 });

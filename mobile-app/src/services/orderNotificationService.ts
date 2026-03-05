@@ -1,6 +1,7 @@
 /**
  * Order Notification Service
  * Sends chat messages to buyers when order status changes
+ * Prevents duplicate system messages using deduplication table
  */
 
 import { supabase } from '../lib/supabase';
@@ -53,7 +54,69 @@ export const ORDER_STATUS_MESSAGES: Record<string, StatusMessage> = {
 
 class OrderNotificationService {
   /**
-   * Send status update notification to buyer via chat
+   * Check if notification already sent for this order/status
+   */
+  private async hasNotificationBeenSent(
+    orderId: string,
+    status: string,
+    conversationId: string
+  ): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('message_deduplication_log')
+        .select('id')
+        .eq('order_id', orderId)
+        .eq('status', status)
+        .eq('conversation_id', conversationId)
+        .limit(1)
+        .single();
+
+      if (error && error.code === 'PGRST116') {
+        // Not found - safe to send
+        return false;
+      }
+
+      if (error) {
+        console.warn('[OrderNotification] Error checking dedup log:', error);
+        // Default to safe (don't send) on error
+        return true;
+      }
+
+      return !!data;
+    } catch (e) {
+      console.error('[OrderNotification] Exception checking dedup:', e);
+      // Safe default - don't send on error
+      return true;
+    }
+  }
+
+  /**
+   * Log notification to prevent duplicates
+   */
+  private async logNotificationSent(
+    orderId: string,
+    status: string,
+    conversationId: string,
+    messageId: string
+  ): Promise<void> {
+    try {
+      await supabase
+        .from('message_deduplication_log')
+        .insert({
+          order_id: orderId,
+          status: status,
+          conversation_id: conversationId,
+          message_id: messageId,
+          sent_at: new Date().toISOString(),
+        });
+    } catch (e) {
+      console.warn('[OrderNotification] Error logging notification:', e);
+    }
+  }
+
+  /**
+   * Send status update notification to buyer via chat (system message)
+   * Deduplicates based on order_id + status to ensure once-per-event
    */
   async sendStatusUpdateNotification(
     orderId: string,
@@ -72,6 +135,20 @@ class OrderNotificationService {
         return false;
       }
 
+      // Check if already sent for this order/status
+      const alreadySent = await this.hasNotificationBeenSent(
+        orderId,
+        newStatus,
+        conversation.id
+      );
+
+      if (alreadySent) {
+        console.log(
+          `[OrderNotification] Skipping duplicate notification for order ${orderId} status ${newStatus}`
+        );
+        return false;
+      }
+
       const statusConfig = ORDER_STATUS_MESSAGES[newStatus];
       
       if (!statusConfig) {
@@ -87,21 +164,25 @@ class OrderNotificationService {
         messageContent += `\n\n📦 Tracking Number: ${trackingNumber}`;
       }
 
-      // Send message as seller
-      const message = await chatService.sendMessage(
+      // Send as system message with metadata
+      const message = await chatService.sendSystemMessage(
         conversation.id,
         sellerId,
-        'seller',
-        messageContent
+        messageContent,
+        newStatus,
+        {
+          order_id: orderId,
+          tracking_number: trackingNumber,
+        }
       );
 
       if (!message) {
-        console.error('[OrderNotification] Failed to send message');
+        console.error('[OrderNotification] Failed to send system message');
         return false;
       }
 
-      // Also store in order notification log for tracking
-      await this.logNotification(orderId, newStatus, messageContent);
+      // Log the message send to prevent duplicates
+      await this.logNotificationSent(orderId, newStatus, conversation.id, message.id);
 
       return true;
     } catch (error) {
@@ -141,34 +222,6 @@ class OrderNotificationService {
     } catch (error) {
       console.error('[OrderNotification] Error sending system notification:', error);
       return false;
-    }
-  }
-
-  /**
-   * Log notification for tracking purposes
-   */
-  private async logNotification(
-    orderId: string,
-    status: string,
-    message: string
-  ): Promise<void> {
-    try {
-      // Check if order_notifications table exists, if not just log to console
-      const { error } = await supabase
-        .from('order_status_history')
-        .update({
-          metadata: { notification_sent: true, notification_message: message }
-        })
-        .eq('order_id', orderId)
-        .eq('status', status)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (error) {
-        // Table might not have the right columns
-      }
-    } catch (error) {
-      // Non-critical
     }
   }
 

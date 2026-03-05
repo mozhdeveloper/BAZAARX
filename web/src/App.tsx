@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import "./styles/globals.css";
 import { Toaster } from "./components/ui/toaster";
@@ -7,6 +7,9 @@ import { ChatBubble } from "./components/ChatBubbleAI";
 import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
 import TrackingForm from "./components/TrackingForm";
 import PageLoader from "./components/PageLoader";
+import { presenceService } from "./services/presenceService";
+import { useAuthStore as useSellerAuthStore } from "./stores/sellerStore";
+import { supabase } from "./lib/supabase";
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
@@ -112,10 +115,113 @@ const AdminAnnouncementsPage = lazy(() => import("./pages/AdminAnnouncementsPage
 // QA Team pages
 const QADashboard = lazy(() => import("./pages/QADashboard"));
 
+// ============================================================================
+// MISSION 1: Global Presence Initializer (FIXED)
+// This component initializes user presence ONLY when authenticated.
+// Presence is tied strictly to Supabase auth state, NOT to store profile.
+// Users appear online immediately after login and offline after logout.
+// ============================================================================
+function PresenceInitializer() {
+  const { seller } = useSellerAuthStore();
+  const [buyerSession, setBuyerSession] = useState<any>(null);
+  const sellerRefRef = useRef<any>(null);
+  const buyerRefRef = useRef<any>(null);
+
+  // CRITICAL FIX: Track buyer authentication state from Supabase
+  // This ensures presence does NOT activate for unauthenticated users
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('[PresenceInitializer] Auth event:', event, 'Session:', session?.user?.id);
+        
+        if (event === 'SIGNED_IN' && session?.user?.id) {
+          // User authenticated - load buyer profile
+          setBuyerSession(session.user);
+        } else if (event === 'SIGNED_OUT' || !session) {
+          // User logged out - clear session
+          setBuyerSession(null);
+        }
+      }
+    );
+
+    // Check current auth state on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) {
+        console.log('[PresenceInitializer] Current buyer session found:', session.user.id);
+        setBuyerSession(session.user);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Seller presence initialization with proper account switching
+  useEffect(() => {
+    if (seller?.id) {
+      // FIX: Stop any previous seller's heartbeat before starting new one
+      if (sellerRefRef.current?.id && sellerRefRef.current.id !== seller.id) {
+        console.log('[PresenceInitializer] Stopping previous seller:', sellerRefRef.current.id);
+        presenceService.stopHeartbeat(sellerRefRef.current.id, 'seller');
+      }
+      
+      sellerRefRef.current = seller;
+      presenceService.startHeartbeat(seller.id, 'seller');
+      console.log('[PresenceInitializer] Started seller presence:', seller.id);
+      
+      return () => {
+        // FIX: Use ref to get the actual seller ID at cleanup time
+        if (sellerRefRef.current?.id) {
+          console.log('[PresenceInitializer] Stopping seller presence on cleanup:', sellerRefRef.current.id);
+          presenceService.stopHeartbeat(sellerRefRef.current.id, 'seller');
+        }
+      };
+    } else if (sellerRefRef.current?.id) {
+      // FIX: Handle seller logout
+      const prevId = sellerRefRef.current.id;
+      console.log('[PresenceInitializer] Seller logged out:', prevId);
+      presenceService.stopHeartbeat(prevId, 'seller');
+      sellerRefRef.current = null;
+    }
+  }, [seller?.id]);
+
+  // Buyer presence initialization - ONLY for authenticated users
+  useEffect(() => {
+    if (buyerSession?.id) {
+      // CRITICAL: Only start presence for authenticated users
+      // FIX: Stop any previous buyer's heartbeat before starting new one
+      if (buyerRefRef.current?.id && buyerRefRef.current.id !== buyerSession.id) {
+        console.log('[PresenceInitializer] Stopping previous buyer:', buyerRefRef.current.id);
+        presenceService.stopHeartbeat(buyerRefRef.current.id, 'buyer');
+      }
+      
+      buyerRefRef.current = buyerSession;
+      presenceService.startHeartbeat(buyerSession.id, 'buyer');
+      console.log('[PresenceInitializer] Started buyer presence (authenticated):', buyerSession.id);
+      
+      return () => {
+        // FIX: Use ref to get the actual buyer ID at cleanup time
+        if (buyerRefRef.current?.id) {
+          console.log('[PresenceInitializer] Stopping buyer presence on cleanup:', buyerRefRef.current.id);
+          presenceService.stopHeartbeat(buyerRefRef.current.id, 'buyer');
+        }
+      };
+    } else if (buyerRefRef.current?.id) {
+      // FIX: Handle buyer logout - CRITICAL for landing page fix
+      const prevId = buyerRefRef.current.id;
+      console.log('[PresenceInitializer] Buyer logged out:', prevId);
+      presenceService.stopHeartbeat(prevId, 'buyer');
+      buyerRefRef.current = null;
+    }
+  }, [buyerSession?.id]);
+
+  return null; // This is just a presence manager, no UI
+}
+
 function App() {
   return (
     <>
       <Router>
+        <PresenceInitializer />
         <ScrollToTop />
         <ChatBubble />
         <Suspense fallback={<PageLoader />}>

@@ -686,6 +686,9 @@ export interface Conversation {
   last_message_at?: string;
   buyer_unread_count?: number;
   seller_unread_count?: number;
+  // Real-time presence
+  seller_online?: boolean;
+  seller_last_active_at?: string;
 }
 
 export interface Message {
@@ -696,6 +699,30 @@ export interface Message {
   content: string;
   image_url: string | null;
   is_read: boolean;
+  is_system_message?: boolean;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface UserPresence {
+  id: string;
+  user_id: string;
+  user_type: 'buyer' | 'seller';
+  seller_id?: string | null;
+  last_active_at: string;
+  is_online: boolean;
+  connected_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MessageDeduplicationLog {
+  id: string;
+  order_id: string;
+  status: string;
+  conversation_id: string;
+  message_id: string;
+  sent_at: string;
   created_at: string;
 }
 

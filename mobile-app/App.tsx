@@ -7,6 +7,10 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, Store, ShoppingCart, MessageCircle, User } from 'lucide-react-native';
+import { supabase } from './src/lib/supabase';
+import { useAuthStore } from './src/stores/authStore';
+import { presenceService } from './src/services/presenceService';
+import { LogBox } from 'react-native';
 import type { CartItem } from './src/types';
 
 // ---------------------------------------------------------------------------
@@ -186,12 +190,6 @@ function MainTabs() {
   );
 }
 
-import { supabase } from './src/lib/supabase';
-import { useAuthStore } from './src/stores/authStore';
-import { LogBox } from 'react-native';
-
-// ... (existing imports)
-
 export default function App() {
   React.useEffect(() => {
     // Suppress refresh token errors - they're handled automatically by auth service
@@ -210,6 +208,66 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // ============================================================================
+  // MISSION 1: Global Presence Initializer for Mobile (ENHANCED)
+  // This hook initializes user presence ONLY when authenticated.
+  // Presence is tied to auth store user state with verification.
+  // Users appear online immediately after login and offline after logout.
+  // ============================================================================
+  const currentUserRef = React.useRef<typeof useAuthStore.getState().user>(null);
+
+  const subscribeToAuth = React.useCallback(() => {
+    // Subscribe to auth store changes to reactive presence updates
+    return useAuthStore.subscribe(
+      (state) => state.user,
+      (user, previousUser) => {
+        console.log('[PresenceInitializer-Mobile] User change:', previousUser?.id, '->', user?.id);
+        
+        // FIX: Handle account switching by stopping previous heartbeat first
+        if (previousUser?.id && (!user?.id || previousUser.id !== user.id)) {
+          const prevUserType = (previousUser as any).userType || 'buyer';
+          console.log('[PresenceInitializer-Mobile] Stopping heartbeat for:', previousUser.id);
+          presenceService.stopHeartbeat(previousUser.id, prevUserType);
+        }
+
+        // CRITICAL FIX: Only start heartbeat if user has authentication token
+        // This prevents presence from activating for unauthenticated users
+        if (user?.id && user.token && (!previousUser?.id || previousUser.id !== user.id)) {
+          const userType = (user as any).userType || 'buyer';
+          console.log('[PresenceInitializer-Mobile] Starting heartbeat for authenticated user:', user.id);
+          presenceService.startHeartbeat(user.id, userType);
+        }
+
+        // Update ref for cleanup
+        currentUserRef.current = user;
+      }
+    );
+  }, []);
+
+  React.useEffect(() => {
+    // Subscribe to store changes
+    const unsubscribe = subscribeToAuth();
+
+    // Also check current auth state immediately
+    const currentUser = useAuthStore.getState().user;
+    if (currentUser?.id && currentUser.token) {
+      const userType = (currentUser as any).userType || 'buyer';
+      console.log('[PresenceInitializer-Mobile] Current authenticated user found:', currentUser.id);
+      presenceService.startHeartbeat(currentUser.id, userType);
+      currentUserRef.current = currentUser;
+    }
+
+    // FIX: Cleanup function properly uses the ref to get the actual logged-in user
+    return () => {
+      if (unsubscribe) unsubscribe();
+      if (currentUserRef.current?.id) {
+        const userType = (currentUserRef.current as any).userType || 'buyer';
+        console.log('[PresenceInitializer-Mobile] Cleanup: stopping heartbeat for:', currentUserRef.current.id);
+        presenceService.stopHeartbeat(currentUserRef.current.id, userType);
+      }
+    };
+  }, [subscribeToAuth]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
