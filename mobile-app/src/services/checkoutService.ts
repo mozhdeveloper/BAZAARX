@@ -89,7 +89,10 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         const productIdsForStock = items.map(i => i.id).filter(Boolean) as string[];
         
         let allVariants: { id: string; product_id: string; stock: number }[] = [];
+        let allProducts: { id: string; stock: number }[] = [];
+        
         if (productIdsForStock.length > 0) {
+            // Fetch variants
             const { data: variantsData, error: variantError } = await supabase
                 .from('product_variants')
                 .select('id, product_id, stock')
@@ -100,24 +103,52 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             } else {
                 allVariants = variantsData || [];
             }
+
+            // Also fetch base product stock for products without variants
+            const { data: productsData, error: productError } = await supabase
+                .from('products')
+                .select('id, stock')
+                .in('id', productIdsForStock);
+
+            if (productError) {
+                console.warn('[Checkout] Batch product stock check error:', productError.message);
+            } else {
+                allProducts = productsData || [];
+            }
         }
 
         // Validate stock per item using the batched result
         for (const item of items) {
             if (!item.id) continue;
+            
             const itemVariants = allVariants.filter(v => v.product_id === item.id);
-            if (itemVariants.length === 0) continue;
+            const productStock = allProducts.find(p => p.id === item.id)?.stock || 0;
 
-            let availableStock = 0;
-            if (item.selectedVariant?.variantId) {
-                const selectedVariant = itemVariants.find(v => v.id === item.selectedVariant?.variantId);
-                availableStock = selectedVariant?.stock || 0;
+            // If product has variants, validate using variants
+            if (itemVariants.length > 0) {
+                let availableStock = 0;
+                if (item.selectedVariant?.variantId) {
+                    const selectedVariant = itemVariants.find(v => v.id === item.selectedVariant?.variantId);
+
+                    if (!selectedVariant) {
+                        console.warn(`[Checkout] Variant ${item.selectedVariant.variantId} not found for product ${item.name}`);
+                        throw new Error(`Selected variant for "${item.name}" is no longer available. Please remove and re-add to cart.`);
+                    }
+
+                    availableStock = selectedVariant?.stock || 0;
+                } else {
+                    // No variant selected, use sum of all variant stocks
+                    availableStock = itemVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+                }
+
+                if (availableStock < item.quantity) {
+                    throw new Error(`Insufficient stock for ${item.name}. Only ${availableStock} available.`);
+                }
             } else {
-                availableStock = itemVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
-            }
-
-            if (availableStock < item.quantity) {
-                throw new Error(`Insufficient stock for ${item.name}. Only ${availableStock} available.`);
+                // Product has no variants, validate against base product stock
+                if (productStock < item.quantity) {
+                    throw new Error(`Insufficient stock for ${item.name}. Only ${productStock} available.`);
+                }
             }
         }
 

@@ -500,22 +500,24 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
           {/* ACTION BTN */}
           {(() => {
             const isSelectionValid = (hasOption1 ? !!selectedOption1 : true) && (hasOption2 ? !!selectedOption2 : true);
+            const isOutOfStock = Number(activeVariantInfo.stock || 0) <= 0;
+            const canConfirm = isSelectionValid && !isOutOfStock;
             return (
               <Pressable
                 style={[
                   styles.confirmBtn,
-                  isSelectionValid
+                  canConfirm
                     ? { backgroundColor: COLORS.primary, borderColor: COLORS.primary }
                     : { backgroundColor: COLORS.background, borderColor: COLORS.gray300, borderWidth: 1 }
                 ]}
                 onPress={handleConfirm}
-                disabled={!isSelectionValid}
+                disabled={!canConfirm}
               >
                 <Text style={[
                   styles.confirmText,
-                  isSelectionValid ? { color: '#FFF' } : { color: COLORS.gray400 }
+                  canConfirm ? { color: '#FFF' } : { color: COLORS.gray400 }
                 ]}>
-                  {confirmLabel}
+                  {isOutOfStock ? 'Out of Stock' : confirmLabel}
                 </Text>
               </Pressable>
             );
