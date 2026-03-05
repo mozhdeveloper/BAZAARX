@@ -47,6 +47,7 @@ import { getSafeImageUrl } from "../utils/imageUtils";
 // import { useProductQAStore } from "../stores/productQAStore";
 import { ShopProduct } from "../types/shop";
 import type { ActiveDiscount } from "@/types/discount";
+import { CampaignCountdown } from "../components/shop/CampaignCountdown";
 
 // Flash sale products are now derived from real products in the component
 import { bestSellerProducts } from "../data/products";
@@ -118,8 +119,6 @@ export default function ShopPage() {
 
   // Real flash sale products and accurate countdown
   const [flashSaleProducts, setFlashSaleProducts] = useState<any[]>([]);
-  const [flashEndsAt, setFlashEndsAt] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
   // Featured products
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
@@ -131,11 +130,6 @@ export default function ShopPage() {
       .then((data) => {
         if (data && data.length > 0) {
           setFlashSaleProducts(data);
-          const earliest = data
-            .map((p: any) => p.campaignEndsAt)
-            .filter(Boolean)
-            .sort()[0];
-          if (earliest) setFlashEndsAt(earliest);
         }
       })
       .catch((e) => console.error('Failed to load flash sales:', e));
@@ -150,26 +144,6 @@ export default function ShopPage() {
       setBoostedProducts(data);
     }).catch(e => console.error('Failed to load boosted products:', e));
   }, []);
-
-  // Accurate countdown timer driven by real campaignEndsAt
-  useEffect(() => {
-    if (!flashEndsAt) return;
-    const tick = () => {
-      const diff = new Date(flashEndsAt).getTime() - Date.now();
-      if (diff <= 0) {
-        setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
-        return;
-      }
-      setTimeLeft({
-        hours: Math.floor(diff / 3600000),
-        minutes: Math.floor((diff % 3600000) / 60000),
-        seconds: Math.floor((diff % 60000) / 1000),
-      });
-    };
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [flashEndsAt]);
 
   // 2. Fetch categories on mount
   useEffect(() => {
@@ -483,11 +457,12 @@ export default function ShopPage() {
             {/* Flash Sale Section — one block per active campaign */}
             {flashSaleProducts.length > 0 && (() => {
               // Group products by campaign
-              const campaignMap = new Map<string, { name: string; endsAt: string; color: string; seller?: string; products: any[] }>();
+              const campaignMap = new Map<string, { id: string; name: string; endsAt: string; color: string; seller?: string; products: any[] }>();
               for (const p of flashSaleProducts) {
                 const key = p.campaignId || 'default';
                 if (!campaignMap.has(key)) {
                   campaignMap.set(key, {
+                    id: key,
                     name: p.campaignName || 'Flash Sale',
                     endsAt: p.campaignEndsAt || '',
                     color: p.campaignBadgeColor || 'var(--brand-primary)',
@@ -528,30 +503,12 @@ export default function ShopPage() {
                           </div>
                         </div>
 
-                        {/* Countdown timer using global timeLeft for earliest campaign */}
-                        {endsAt && (
-                          <div className="flex items-center gap-2 shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-timer"><line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" /></svg>
-                            <div className="flex items-center gap-1.5 font-bold font-mono text-base">
-                              <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                                {String(timeLeft.hours).padStart(2, '0')}
-                              </div>
-                              <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
-                              <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                                {String(timeLeft.minutes).padStart(2, '0')}
-                              </div>
-                              <span className="text-[#EA580C] text-lg leading-none pb-0.5">:</span>
-                              <div className="bg-[#EA580C] text-white rounded-md w-8 h-8 flex items-center justify-center shadow-inner">
-                                {String(timeLeft.seconds).padStart(2, '0')}
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                        {endsAt && <CampaignCountdown endsAt={endsAt} variant="default" />}
                       </div>
 
                       <div className="flex items-center gap-3 self-end sm:self-auto">
                         <Link
-                          to="/flash-sales"
+                          to={`/flash-sales?campaign=${campaign.id}`}
                           className="group flex items-center gap-2 text-[var(--brand-accent)] font-medium text-sm hover:text-[var(--brand-primary-dark)] transition-colors"
                         >
                           <span>View All</span>
