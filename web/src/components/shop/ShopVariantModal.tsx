@@ -65,7 +65,7 @@ export default function ShopVariantModal({
                     name: product.name,
                     price: variant?.price || product.price,
                     originalPrice: (variant as any)?.originalPrice || product.originalPrice,
-                    image: variant?.image || product.image,
+                    image: variant?.image || variant?.thumbnail_url || product.image,
                     sellerId: product.sellerId,
                     rating: product.rating,
                     totalReviews: 100,
@@ -106,7 +106,7 @@ export default function ShopVariantModal({
                     const quickOrderItem: any = {
                         ...productBase,
                         images: product.images || [product.image],
-                        image: variant?.image || product.image || (variant as any)?.thumbnail_url,
+                        image: variant?.image || variant?.thumbnail_url || product.image,
                         seller,
                         selectedVariant: normalizedVariant,
                     };
@@ -127,7 +127,7 @@ export default function ShopVariantModal({
 
                     onAddToCartSuccess(
                         product.name,
-                        variant?.image || product.image
+variant?.image || variant?.thumbnail_url || product.image
                     );
                 }
             }}
