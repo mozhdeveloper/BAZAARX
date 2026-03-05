@@ -824,7 +824,16 @@ export class QAService {
   }
 
   /**
-   * Submit sample (Seller action)
+   * Seller chooses physical review: records logistics and moves to WAITING_FOR_SAMPLE
+   */
+  async submitForPhysicalReview(productId: string, logisticsMethod: string): Promise<void> {
+    return this.updateQAStatus(productId, 'WAITING_FOR_SAMPLE', {
+      logistics: logisticsMethod,
+    });
+  }
+
+  /**
+   * Submit sample (Seller confirms physical sample sent → IN_QUALITY_REVIEW)
    */
   async submitSample(productId: string, logisticsMethod: string): Promise<void> {
     return this.updateQAStatus(productId, 'IN_QUALITY_REVIEW', {

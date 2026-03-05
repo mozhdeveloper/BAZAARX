@@ -46,6 +46,8 @@ interface ProductQAStore {
   acceptListing: (productId: string) => Promise<void>;
   rejectListing: (productId: string, reason: string) => Promise<void>;
   approveForSampleSubmission: (productId: string) => Promise<void>;
+  submitForDigitalReview: (productId: string) => Promise<void>;
+  submitForPhysicalReview: (productId: string, logisticsMethod: string) => Promise<void>;
   submitSample: (productId: string, logisticsMethod: string) => Promise<void>;
   passQualityCheck: (productId: string) => Promise<void>;
   rejectProduct: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
@@ -240,6 +242,57 @@ export const useProductQAStore = create<ProductQAStore>()(
           }));
         } catch (error) {
           console.error('Error approving product:', error);
+          set({ isLoading: false, error: error instanceof Error ? error.message : 'Unknown error' });
+          throw error;
+        }
+      },
+
+      // Seller submits product for digital QA review (PENDING_DIGITAL_REVIEW → IN_QUALITY_REVIEW)
+      submitForDigitalReview: async (productId: string) => {
+        set({ isLoading: true });
+        try {
+          const product = get().products.find(p => p.productId === productId);
+          if (!product) throw new Error('Product not found');
+
+          await qaService.submitSample(productId, 'Digital Review');
+
+          set((state) => ({
+            products: state.products.map((p) =>
+              p.productId === productId
+                ? { ...p, status: 'IN_QUALITY_REVIEW' as ProductQAStatus, logistics: 'Digital Review' }
+                : p
+            ),
+            isLoading: false,
+          }));
+        } catch (error) {
+          console.error('Error submitting for digital review:', error);
+          set({ isLoading: false, error: error instanceof Error ? error.message : 'Unknown error' });
+          throw error;
+        }
+      },
+
+      // Seller chooses physical review (PENDING_DIGITAL_REVIEW → WAITING_FOR_SAMPLE)
+      submitForPhysicalReview: async (productId: string, logisticsMethod: string) => {
+        set({ isLoading: true });
+        try {
+          if (!logisticsMethod || logisticsMethod.trim() === '') {
+            throw new Error('Logistics method is required');
+          }
+          const product = get().products.find(p => p.productId === productId);
+          if (!product) throw new Error('Product not found');
+
+          await qaService.submitForPhysicalReview(productId, logisticsMethod);
+
+          set((state) => ({
+            products: state.products.map((p) =>
+              p.productId === productId
+                ? { ...p, status: 'WAITING_FOR_SAMPLE' as ProductQAStatus, logistics: logisticsMethod }
+                : p
+            ),
+            isLoading: false,
+          }));
+        } catch (error) {
+          console.error('Error submitting for physical review:', error);
           set({ isLoading: false, error: error instanceof Error ? error.message : 'Unknown error' });
           throw error;
         }
