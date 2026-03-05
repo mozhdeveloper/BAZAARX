@@ -68,7 +68,7 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
           {/* Product Image */}
           <div className="relative h-56 bg-gradient-to-br from-gray-100 to-gray-50 overflow-hidden">
             <img
-              src={selectedVariant?.image || product.image}
+              src={selectedVariant?.thumbnail_url || selectedVariant?.image || product.image}
               alt={product.name}
               className="w-full h-full object-contain p-4"
             />

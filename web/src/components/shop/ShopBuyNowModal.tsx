@@ -54,7 +54,7 @@ export default function ShopBuyNowModal({ isOpen, onClose, product }: ShopBuyNow
                     name: product.name,
                     price: variant?.price || product.price,
                     originalPrice: (variant as any)?.originalPrice || product.originalPrice,
-                    image: variant?.image || product.image,
+                    image: variant?.image || variant?.thumbnail_url || product.image,
                     images: product.images || [product.image],
                     seller: {
                         id: product.sellerId,
