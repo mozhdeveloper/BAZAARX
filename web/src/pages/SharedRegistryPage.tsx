@@ -9,23 +9,27 @@ const SharedRegistryPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [registry, setRegistry] = useState<any>(null);
-  const { registries, setQuickOrder } = useBuyerStore();
+  const { registries, setQuickOrder, loadRegistries } = useBuyerStore();
+
+  // Fetch registries from backend on mount
+  useEffect(() => {
+    loadRegistries();
+    console.log("SharedRegistryPage: loadRegistries called");
+  }, [loadRegistries]);
 
   // Mock data if not found in store (for demo purposes if sharing across "browsers" isn't synced)
   // In a real app, this would fetch from backend by ID/slug
 
   useEffect(() => {
     if (id) {
-      // Try to find in store first
+      // Try to find in store after registries are loaded
       const found = registries.find(
         (r) => r.id === id || r.title.toLowerCase().replace(/\s+/g, "-") === id,
       );
-
       if (found) {
         setRegistry(found);
       } else {
         // Fallback mock for demo if not found in local state
-        // This simulates "viewing someone else's registry"
         setRegistry({
           id: "demo-1",
           title: id.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
