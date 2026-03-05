@@ -6,7 +6,6 @@ import { orderService } from '../services/orderService';
 import { orderReadService } from '../services/orders/orderReadService';
 import { orderMutationService } from '../services/orders/orderMutationService';
 import { authService } from '../services/authService';
-import { useAuthStore } from './sellerStore';
 import type { POSOrderCreateResult, SellerOrderSnapshot } from '../types/orders';
 import { mapSellerUiToNormalizedStatus } from '../utils/orders/status';
 
@@ -683,10 +682,12 @@ export const useOrderStore = create<OrderStore>()(
         }));
 
         // Get seller ID from the seller profile store (sellers table ID)
-        // This matches the web approach: useAuthStore.getState().seller?.id
+        // Lazy require breaks the sellerStore <-> orderStore require cycle.
         // We must NOT use authService.getSession().user.id because
-        // auth.users.id can differ from sellers.id
-        const sellerId = useAuthStore.getState().seller?.id;
+        // auth.users.id can differ from sellers.id (sellers table ID)
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { useAuthStore } = require('./sellerStore');
+        const sellerId = (useAuthStore.getState().seller?.id) as string | undefined;
 
         if (!sellerId) {
           throw new Error('Not authenticated as seller');
@@ -741,7 +742,10 @@ export const useOrderStore = create<OrderStore>()(
         }));
 
         // Get seller ID from the seller profile store (sellers table ID)
-        const sellerId = useAuthStore.getState().seller?.id;
+        // Lazy require breaks the sellerStore <-> orderStore require cycle.
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { useAuthStore } = require('./sellerStore');
+        const sellerId = (useAuthStore.getState().seller?.id) as string | undefined;
 
         if (!sellerId) {
           throw new Error('Not authenticated as seller');
