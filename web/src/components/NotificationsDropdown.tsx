@@ -13,6 +13,11 @@ import {
   CheckCircle,
   XCircle,
   ShoppingBag,
+  Megaphone,
+  Info,
+  Tag,
+  AlertTriangle,
+  Wrench,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCartStore } from "@/stores/cartStore";
@@ -26,33 +31,42 @@ import { cn } from "@/lib/utils";
 
 // --- Helper Functions ---
 
-function getNotificationStyles(type: string) {
+/**
+ * Returns icon + optional background class for a notification.
+ * Pass actionData so announcement sub-types (info/promo/urgent/maintenance) render correctly.
+ */
+function getNotificationStyles(type: string, actionData?: any) {
   const t = type.toLowerCase();
 
-  if (t.includes("delivered") || t.includes("shipped") || t === "shipped") {
-    return {
-      icon: <Truck className="w-5 h-5 text-orange-500" />,
-    };
-  }
-  if (t.includes("placed") || t.includes("confirmed") || t === "seller_confirmed") {
-    return {
-      icon: <CheckCircle className="w-5 h-5 text-green-500" />,
-    };
-  }
-  if (t.includes("cancelled")) {
-    return {
-      icon: <XCircle className="w-5 h-5 text-red-600" />,
-    };
-  }
-  if (t.includes("processing")) {
-    return {
-      icon: <Package className="w-5 h-5 text-blue-500" />,
-    };
+  // Announcement — use sub-type from action_data for specific icon
+  if (t === "announcement") {
+    const subType: string = (actionData as any)?.announcement_type ?? "info";
+    switch (subType) {
+      case "urgent":
+        return { icon: <AlertTriangle className="w-5 h-5 text-red-500" />, bg: "bg-red-50" };
+      case "maintenance":
+        return { icon: <Wrench className="w-5 h-5 text-yellow-500" />, bg: "bg-yellow-50" };
+      case "promo":
+        return { icon: <Tag className="w-5 h-5 text-green-500" />, bg: "bg-green-50" };
+      default: // info
+        return { icon: <Info className="w-5 h-5 text-blue-500" />, bg: "bg-blue-50" };
+    }
   }
 
-  return {
-    icon: <Bell className="w-5 h-5 text-gray-600" />,
-  };
+  if (t.includes("delivered") || t.includes("shipped") || t === "shipped") {
+    return { icon: <Truck className="w-5 h-5 text-orange-500" />, bg: undefined };
+  }
+  if (t.includes("placed") || t.includes("confirmed") || t === "seller_confirmed") {
+    return { icon: <CheckCircle className="w-5 h-5 text-green-500" />, bg: undefined };
+  }
+  if (t.includes("cancelled")) {
+    return { icon: <XCircle className="w-5 h-5 text-red-600" />, bg: undefined };
+  }
+  if (t.includes("processing")) {
+    return { icon: <Package className="w-5 h-5 text-blue-500" />, bg: undefined };
+  }
+
+  return { icon: <Bell className="w-5 h-5 text-gray-600" />, bg: undefined };
 }
 
 function getTimeAgo(timestamp: Date): string {
@@ -143,6 +157,20 @@ export function NotificationsDropdown() {
     }
     setOpen(false);
 
+    // Announcement — go to dedicated announcements page, or the admin-set action_url
+    if (n.type === "announcement") {
+      if (n.action_url) {
+        if (n.action_url.startsWith("http")) {
+          window.open(n.action_url, "_blank", "noreferrer");
+        } else {
+          navigate(n.action_url);
+        }
+      } else {
+        navigate("/announcements");
+      }
+      return;
+    }
+
     const data = n.action_data as any;
     if (data?.orderNumber) {
       navigate(`/order/${data.orderNumber}`);
@@ -224,21 +252,21 @@ export function NotificationsDropdown() {
             <div className="flex flex-col">
               {/* DB Notifications */}
               {dbNotifications.map((n) => {
-                const style = getNotificationStyles(n.type);
+                const style = getNotificationStyles(n.type, n.action_data);
                 return (
                   <div
                     key={n.id}
                     onClick={() => handleNotificationClickDb(n)}
                     className={cn(
                       "group flex gap-4 p-4 border-b border-[var(--muted)] cursor-pointer transition-all",
-                      // Apply specific hover color requested: #FFD4A3
                       "hover:bg-[#eeeeee]",
                       !n.is_read ? "bg-white" : "bg-gray-50"
                     )}
                   >
                     {/* Icon Box */}
                     <div className={cn(
-                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center",
+                      style.bg ?? "bg-gray-100"
                     )}>
                       {style.icon}
                     </div>

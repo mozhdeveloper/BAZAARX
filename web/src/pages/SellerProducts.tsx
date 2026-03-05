@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -107,7 +107,7 @@ export function SellerProducts() {
         }
     }, [seller?.id, fetchProducts]);
 
-    const handleToggleFeature = async (productId: string) => {
+    const handleToggleFeature = useCallback(async (productId: string) => {
         if (!seller?.id) return;
         const isFeatured = featuredProductIds.has(productId);
         try {
@@ -135,12 +135,12 @@ export function SellerProducts() {
         } catch {
             toast({ title: 'Error', description: 'Something went wrong.', variant: 'destructive' });
         }
-    };
+    }, [seller?.id, featuredProductIds, toast]);
 
 
 
-    // Find this block in your SellerProducts component
-    const filteredProducts = products.filter((product) => {
+    // Memoized filtered products to avoid recomputing on every render
+    const filteredProducts = useMemo(() => products.filter((product) => {
         // 1. Check if the product belongs to the currently logged-in seller
         const matchesSeller = product.sellerId === seller?.id;
 
@@ -158,9 +158,9 @@ export function SellerProducts() {
 
         // Only return true if it belongs to the seller AND matches search/filters
         return matchesSeller && matchesSearch && matchesFilter;
-    });
+    }), [products, searchQuery, filterStatus, seller?.id]);
 
-    const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+    const handleToggleStatus = useCallback(async (id: string, currentStatus: boolean) => {
         try {
             await updateProduct(id, { isActive: !currentStatus });
             toast({
@@ -177,14 +177,14 @@ export function SellerProducts() {
                 variant: "destructive",
             });
         }
-    };
+    }, [updateProduct, toast]);
 
-    const handleDeleteClick = (id: string) => {
+    const handleDeleteClick = useCallback((id: string) => {
         setProductToDelete(id);
         setIsDeleteDialogOpen(true);
-    };
+    }, []);
 
-    const handleConfirmDelete = async () => {
+    const handleConfirmDelete = useCallback(async () => {
         if (productToDelete) {
             try {
                 await deleteProduct(productToDelete);
@@ -203,9 +203,9 @@ export function SellerProducts() {
                 });
             }
         }
-    };
+    }, [productToDelete, deleteProduct, toast]);
 
-    const handleEditClick = (product: SellerProduct) => {
+    const handleEditClick = useCallback((product: SellerProduct) => {
         setEditingProduct(product);
         setEditFormData({
             name: product.name,
@@ -224,9 +224,9 @@ export function SellerProducts() {
             })),
         );
         setIsEditDialogOpen(true);
-    };
+    }, []);
 
-    const handleSaveEdit = async () => {
+    const handleSaveEdit = useCallback(async () => {
         if (editingProduct) {
             try {
                 // If there are variants, update them via productService
@@ -274,9 +274,9 @@ export function SellerProducts() {
                 });
             }
         }
-    };
+    }, [editingProduct, editVariants, editFormData, updateProduct, fetchProducts, seller?.id, toast]);
 
-    const handleBulkUpload = async (products: BulkProductData[]) => {
+    const handleBulkUpload = useCallback(async (products: BulkProductData[]) => {
         try {
             await bulkAddProducts(products); // This now returns a Promise
             toast({
@@ -292,7 +292,7 @@ export function SellerProducts() {
                 variant: "destructive",
             });
         }
-    };
+    }, [bulkAddProducts, toast]);
 
     return (
         <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">

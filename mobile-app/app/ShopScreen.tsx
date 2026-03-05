@@ -446,16 +446,69 @@ export default function ShopScreen({ navigation, route }: Props) {
     </View>
   ), [handleProductPress]);
 
-  const emptyComponent = useMemo(() => (
-    !isLoading ? (
+  // Unified empty/loading component for FlatList
+  const listEmptyComponent = useMemo(() => {
+    if (isLoading) return <ActivityIndicator color={BRAND_COLOR} style={{ marginTop: 50 }} />;
+    return (
       <View style={[styles.productsSection, { marginTop: 20 }]}>
         <View style={styles.emptyBox}>
           <Text style={styles.emptyTitle}>No products found</Text>
           <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
         </View>
       </View>
-    ) : null
-  ), [isLoading]);
+    );
+  }, [isLoading]);
+
+  // Scrollable header: category chips + featured stores
+  const listHeaderComponent = useMemo(() => (
+    <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+        {categoryChips.map((cat) => (
+          <Pressable
+            key={cat.id}
+            style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
+            onPress={() => setSelectedCategory(cat.id)}
+          >
+            <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      {verifiedStores.length > 0 && searchQuery.trim() === '' && (
+        <View style={styles.storesSection}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Featured Stores</Text>
+            <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Verified Shops' })}>
+              <Text style={{ color: BRAND_COLOR, fontWeight: '700' }}>See All</Text>
+            </Pressable>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
+            {verifiedStores.map((store) => (
+              <Pressable key={store.id} style={styles.storeCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
+                <View style={styles.storeHeader}>
+                  <View style={styles.storeLogo}><Text style={{ fontSize: 20 }}>🏬</Text></View>
+                  <View style={styles.storeInfo}>
+                    <View style={styles.storeNameRow}>
+                      <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
+                      {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
+                    </View>
+                    <View style={styles.ratingRow}>
+                      <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
+                      <Text style={styles.ratingText}>{store.rating}</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.storeProducts}>
+                  {store.products.map((url, i) => (
+                    <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
+                  ))}
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  ), [categoryChips, selectedCategory, verifiedStores, searchQuery, navigation]);
 
   return (
     <View
@@ -531,78 +584,24 @@ export default function ShopScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-          {categoryChips.map((cat) => (
-            <Pressable
-              key={cat.id}
-              style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
-              onPress={() => setSelectedCategory(cat.id)}
-            >
-              <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {isLoading ? (
-          <ActivityIndicator color={BRAND_COLOR} style={{ marginTop: 50 }} />
-        ) : (
-          <>
-            {verifiedStores.length > 0 && searchQuery.trim() === '' && (
-              <View style={styles.storesSection}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>Featured Stores</Text>
-                  <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Verified Shops' })}>
-                    <Text style={{ color: BRAND_COLOR, fontWeight: '700' }}>See All</Text>
-                  </Pressable>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
-                  {verifiedStores.map((store) => (
-                    <Pressable key={store.id} style={styles.storeCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
-                      <View style={styles.storeHeader}>
-                        <View style={styles.storeLogo}><Text style={{ fontSize: 20 }}>🏬</Text></View>
-                        <View style={styles.storeInfo}>
-                          <View style={styles.storeNameRow}>
-                            <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-                            {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
-                          </View>
-                          <View style={styles.ratingRow}>
-                            <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
-                            <Text style={styles.ratingText}>{store.rating}</Text>
-                          </View>
-                        </View>
-                      </View>
-                      <View style={styles.storeProducts}>
-                        {store.products.map((url, i) => (
-                          <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
-                        ))}
-                      </View>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            <View style={styles.productsSection}>
-              <FlatList
-                data={filteredProducts}
-                keyExtractor={keyExtractor}
-                numColumns={2}
-                initialNumToRender={8}
-                maxToRenderPerBatch={10}
-                windowSize={7}
-                removeClippedSubviews={true}
-                scrollEnabled={false}
-                updateCellsBatchingPeriod={100}
-                columnWrapperStyle={styles.productsGrid}
-                renderItem={renderProductItem}
-                ListEmptyComponent={emptyComponent}
-              />
-            </View>
-          </>
-        )}
-        <View style={{ height: 100 }} />
-      </ScrollView>
+      {/* Product list as root scroll — enables virtualization */}
+      <FlatList
+        data={isLoading ? [] : filteredProducts}
+        keyExtractor={keyExtractor}
+        numColumns={2}
+        ListHeaderComponent={listHeaderComponent}
+        ListFooterComponent={<View style={{ height: 100 }} />}
+        ListEmptyComponent={listEmptyComponent}
+        initialNumToRender={8}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={100}
+        columnWrapperStyle={[styles.productsGrid, { paddingHorizontal: 20 }]}
+        contentContainerStyle={{ paddingTop: 15 }}
+        renderItem={renderProductItem}
+        showsVerticalScrollIndicator={false}
+      />
 
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
 

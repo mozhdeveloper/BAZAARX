@@ -98,6 +98,7 @@ export type RootStackParamList = {
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
+  Categories: undefined;
   AddProduct: undefined;
   Chat: {
     conversation: any; // Using any to avoid circular dependency or import issues, but ideally Conversation type
@@ -323,6 +324,7 @@ export default function App() {
             <Stack.Screen name="TermsOfService" getComponent={() => require('./app/TermsOfServiceScreen').default} />
             <Stack.Screen name="AddProduct" getComponent={() => require('./src/components/seller/AddProductScreen').default} />
             <Stack.Screen name="Chat" getComponent={() => require('./src/components/ChatScreen').default} />
+            <Stack.Screen name="Categories" getComponent={() => require('./app/CategoriesScreen').default} />
             <Stack.Screen name="AdminStack" getComponent={() => require('./app/admin/AdminStack').default} options={{ headerShown: false }} />
           </Stack.Navigator>
         </NavigationContainer>

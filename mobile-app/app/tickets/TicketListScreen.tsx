@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator, Image, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Plus, MessageCircle, Store } from 'lucide-react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
@@ -75,7 +75,7 @@ export default function TicketListScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: Ticket }) => (
+  const renderItem = useCallback(({ item }: { item: Ticket }) => (
     <Pressable 
       style={styles.ticketCard}
       onPress={() => navigation.navigate('TicketDetail', { ticketId: item.id })}
@@ -106,7 +106,9 @@ export default function TicketListScreen() {
             </Text>
         </View>
     </Pressable>
-  );
+  ), [navigation]);
+
+  const keyExtractor = useCallback((item: Ticket) => item.id, []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -147,9 +149,13 @@ export default function TicketListScreen() {
         <FlatList
             data={tickets}
             renderItem={renderItem}
-            keyExtractor={item => item.id}
+            keyExtractor={keyExtractor}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            windowSize={5}
+            removeClippedSubviews={true}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
             }

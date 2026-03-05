@@ -112,6 +112,7 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
       notificationService.notifyBuyerReturnStatus({
         buyerId: request.userId,
         orderId: request.orderId,
+        returnId: request.id,
         orderNumber: request.orderId,
         status: status as 'approved' | 'rejected' | 'refunded',
         message: note,

@@ -1,0 +1,277 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { Link, useNavigate } from 'react-router-dom';
+import { FolderTree, Package, Search, Loader2 } from 'lucide-react';
+import Header from '../components/Header';
+import { BazaarFooter } from '../components/ui/bazaar-footer';
+import { Input } from '../components/ui/input';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+
+// ── Types ────────────────────────────────────────────────────────────
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  slug: string;
+  parentId: string | null;
+  productsCount: number;
+}
+
+const GRADIENT_COLORS = [
+  'from-orange-50 to-amber-100',
+  'from-blue-50 to-indigo-100',
+  'from-pink-50 to-rose-100',
+  'from-green-50 to-emerald-100',
+  'from-purple-50 to-violet-100',
+  'from-yellow-50 to-amber-100',
+] as const;
+
+// ── Component ────────────────────────────────────────────────────────
+const CategoriesPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Fetch categories from DB — all columns match the categories table
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!isSupabaseConfigured()) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('id, name, description, image_url, slug, parent_id, sort_order, products:products(count)')
+          .order('sort_order', { ascending: true });
+
+        if (error) throw error;
+
+        const cats: Category[] = (data || []).map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          description: row.description || '',
+          image: row.image_url || '',
+          slug: row.slug,
+          parentId: row.parent_id || null,
+          productsCount: Array.isArray(row.products) ? row.products[0]?.count || 0 : 0,
+        }));
+        setCategories(cats);
+      } catch (err) {
+        console.error('Failed to load categories:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  // Filter by search
+  const filtered = useMemo(() => {
+    if (!searchTerm.trim()) return categories;
+    const q = searchTerm.toLowerCase();
+    return categories.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.description.toLowerCase().includes(q)
+    );
+  }, [categories, searchTerm]);
+
+  // Separate top-level and sub-categories
+  const topLevel = useMemo(() => filtered.filter((c) => !c.parentId), [filtered]);
+  const subCategories = useMemo(() => filtered.filter((c) => !!c.parentId), [filtered]);
+
+  const handleCategoryClick = (slug: string) => {
+    navigate(`/shop?category=${encodeURIComponent(slug)}`);
+  };
+
+  return (
+    <div className="min-h-screen bg-transparent">
+      <Header />
+
+      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 pt-0 flex flex-col gap-2">
+        {/* Page Navigation */}
+        <div className="flex items-center justify-center gap-10 pt-1 pb-1">
+          <Link
+            to="/shop"
+            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Shop
+          </Link>
+          <Link
+            to="/categories"
+            className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
+          >
+            Categories
+          </Link>
+          <Link
+            to="/collections"
+            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Collections
+          </Link>
+          <Link
+            to="/stores"
+            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Stores
+          </Link>
+          <Link
+            to="/registry"
+            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Registry & Gifting
+          </Link>
+        </div>
+
+        {/* Hero */}
+        <div className="py-24 bg-hero-gradient backdrop-blur-md shadow-md rounded-3xl">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center px-4"
+          >
+            <h1 className="text-4xl md:text-6xl font-black text-[var(--text-headline)] mb-2 tracking-tight font-primary">
+              Browse by
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
+                Category
+              </span>
+            </h1>
+            <p className="text-medium text-[var(--text-primary)] max-w-2xl mx-auto font-medium">
+              Explore products organized by category — find exactly what you're looking for.
+            </p>
+          </motion.div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8">
+        {/* Search */}
+        <div className="relative max-w-md mx-auto mb-10">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="Search categories…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+          </div>
+        )}
+
+        {/* Content */}
+        {!loading && (
+          <>
+            {filtered.length === 0 ? (
+              <div className="text-center py-16">
+                <FolderTree className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-700 mb-1">No categories found</h3>
+                <p className="text-sm text-gray-500">
+                  {searchTerm ? 'Try a different search term.' : 'No categories are available yet.'}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Top-level categories */}
+                {topLevel.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 mb-10">
+                    {topLevel.map((category, index) => (
+                      <CategoryCard
+                        key={category.id}
+                        category={category}
+                        index={index}
+                        onClick={handleCategoryClick}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Sub-categories */}
+                {subCategories.length > 0 && (
+                  <>
+                    <h2 className="text-lg font-semibold text-gray-800 mb-4">Sub-categories</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+                      {subCategories.map((category, index) => (
+                        <CategoryCard
+                          key={category.id}
+                          category={category}
+                          index={index + topLevel.length}
+                          onClick={handleCategoryClick}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      <BazaarFooter />
+    </div>
+  );
+};
+
+// ── Category Card ────────────────────────────────────────────────────
+interface CardProps {
+  category: Category;
+  index: number;
+  onClick: (slug: string) => void;
+}
+
+const CategoryCard: React.FC<CardProps> = ({ category, index, onClick }) => (
+  <motion.button
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.3, delay: index * 0.04 }}
+    onClick={() => onClick(category.slug)}
+    className="group text-left rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+  >
+    {/* Image */}
+    <div className="relative h-40 overflow-hidden">
+      {category.image ? (
+        <img
+          src={category.image}
+          alt={category.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+            const fb = e.currentTarget.parentElement?.querySelector('.img-fb') as HTMLElement | null;
+            if (fb) fb.style.display = 'flex';
+          }}
+        />
+      ) : null}
+      <div
+        className={`img-fb w-full h-full items-center justify-center bg-gradient-to-br ${GRADIENT_COLORS[index % GRADIENT_COLORS.length]} ${category.image ? 'hidden' : 'flex'}`}
+      >
+        <FolderTree className="w-10 h-10 text-orange-300" />
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+      <h3 className="absolute bottom-3 left-3 right-3 text-white font-bold text-base leading-tight drop-shadow">
+        {category.name}
+      </h3>
+    </div>
+
+    {/* Footer */}
+    <div className="px-3 py-3">
+      {category.description && (
+        <p className="text-xs text-gray-500 line-clamp-2 mb-2">{category.description}</p>
+      )}
+      <div className="flex items-center gap-1 text-xs text-gray-400">
+        <Package className="w-3.5 h-3.5" />
+        <span>{category.productsCount.toLocaleString()} products</span>
+      </div>
+    </div>
+  </motion.button>
+);
+
+export default CategoriesPage;

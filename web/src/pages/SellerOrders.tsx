@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -195,7 +195,7 @@ export function SellerOrders() {
     }
   };
 
-  const baseFilteredOrders = orders.filter((order) => {
+  const baseFilteredOrders = useMemo(() => orders.filter((order) => {
     const normalizedSearch = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !normalizedSearch ||
@@ -208,22 +208,22 @@ export function SellerOrders() {
       filterStatus === "all" || order.status === filterStatus;
 
     return matchesSearch && matchesFilter;
-  });
+  }), [orders, searchQuery, filterStatus]);
 
-  const channelCounts = {
+  const channelCounts = useMemo(() => ({
     all: baseFilteredOrders.length,
     online: baseFilteredOrders.filter((o) => o.type === "ONLINE").length,
     pos: baseFilteredOrders.filter((o) => o.type === "OFFLINE").length,
-  };
+  }), [baseFilteredOrders]);
 
-  const filteredOrders = baseFilteredOrders.filter((order) => {
+  const filteredOrders = useMemo(() => baseFilteredOrders.filter((order) => {
     const matchesChannel =
       channelFilter === "all" ||
       (channelFilter === "online" && order.type === "ONLINE") ||
       (channelFilter === "pos" && order.type === "OFFLINE");
 
     return matchesChannel;
-  });
+  }), [baseFilteredOrders, channelFilter]);
 
   // Pagination derived values
   const totalOrders = filteredOrders.length;
@@ -231,10 +231,10 @@ export function SellerOrders() {
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginationStart = totalOrders === 0 ? 0 : (safeCurrentPage - 1) * ORDERS_PER_PAGE + 1;
   const paginationEnd = Math.min(safeCurrentPage * ORDERS_PER_PAGE, totalOrders);
-  const paginatedOrders = filteredOrders.slice(
+  const paginatedOrders = useMemo(() => filteredOrders.slice(
     (safeCurrentPage - 1) * ORDERS_PER_PAGE,
     safeCurrentPage * ORDERS_PER_PAGE,
-  );
+  ), [filteredOrders, safeCurrentPage]);
 
   // Reset to page 1 whenever filters change
   const handleSearchChange = (value: string) => {
@@ -257,7 +257,7 @@ export function SellerOrders() {
     setCurrentPage(1);
   };
 
-  const handleStatusUpdate = async (
+  const handleStatusUpdate = useCallback(async (
     orderId: string,
     newStatus: "confirmed" | "cancelled",
   ) => {
@@ -285,9 +285,9 @@ export function SellerOrders() {
       console.error("Failed to update order status:", error);
       alert("Failed to update order status. Please try again.");
     }
-  };
+  }, [updateOrderStatus]);
 
-  const orderStats = {
+  const orderStats = useMemo(() => ({
     total: orders.length,
     pending: orders.filter((o) => o.status === "pending").length,
     delivered: orders.filter((o) => o.status === "delivered").length,
@@ -297,7 +297,7 @@ export function SellerOrders() {
         new Date().toDateString();
       return o.type === "OFFLINE" && isToday;
     }).length,
-  };
+  }), [orders]);
 
   return (
     <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">

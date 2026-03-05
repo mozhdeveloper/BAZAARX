@@ -213,7 +213,7 @@ describe('ShopScreen optimizations', () => {
   });
 
   test('has memoized empty component via useMemo', () => {
-    expect(src).toMatch(/const emptyComponent\s*=\s*useMemo/);
+    expect(src).toMatch(/const (emptyComponent|listEmptyComponent)\s*=\s*useMemo/);
   });
 });
 

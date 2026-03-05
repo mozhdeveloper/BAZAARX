@@ -93,7 +93,7 @@ const AdminOrders: React.FC = () => {
           created_at,
           notes,
           address_id,
-          profiles:buyer_id(first_name, last_name, email, phone),
+          buyer:buyer_id(profile:id(first_name, last_name, email, phone)),
           order_items(id, product_name, price, quantity, price_discount, product_id, products(seller_id, sellers(store_name))),
           shipping_addresses:address_id(city, province)
         `)
@@ -117,7 +117,8 @@ const AdminOrders: React.FC = () => {
 
         // Get seller name from first item
         const sellerName = o.order_items?.[0]?.products?.sellers?.store_name || 'Unknown';
-        const buyerName = o.profiles ? `${o.profiles.first_name || ''} ${o.profiles.last_name || ''}`.trim() : 'Unknown';
+        const profile = o.buyer?.profile;
+        const buyerName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Unknown';
         const address = o.shipping_addresses ? `${o.shipping_addresses.city || ''}, ${o.shipping_addresses.province || ''}` : 'N/A';
 
         return {
@@ -125,8 +126,8 @@ const AdminOrders: React.FC = () => {
           orderNumber: o.order_number || o.id.substring(0, 8),
           buyer: {
             name: buyerName,
-            email: o.profiles?.email || '',
-            phone: o.profiles?.phone || '',
+            email: profile?.email || '',
+            phone: profile?.phone || '',
           },
           seller: { name: sellerName, email: '' },
           items,

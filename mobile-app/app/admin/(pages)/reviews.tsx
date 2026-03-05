@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Image } from 'react-native';
 import { ArrowLeft, Star, Search, CheckCircle, XCircle, Flag, ThumbsUp } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -17,12 +17,12 @@ export default function AdminReviewsScreen() {
     loadReviews();
   }, []);
 
-  const filteredReviews = reviews.filter(review => {
+  const filteredReviews = useMemo(() => reviews.filter(review => {
     const matchesSearch = review.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          review.buyerName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === 'all' ? true : review.status === filterStatus;
     return matchesSearch && matchesFilter;
-  });
+  }), [reviews, searchTerm, filterStatus]);
 
   const getStatusBadge = (status: string) => {
     const config = {

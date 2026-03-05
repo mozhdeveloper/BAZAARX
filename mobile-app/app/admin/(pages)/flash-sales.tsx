@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, TextInput } from 'react-native';
 import { ArrowLeft, Zap, Search, Calendar, TrendingUp } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -17,11 +17,11 @@ export default function AdminFlashSalesScreen() {
     loadFlashSales();
   }, []);
 
-  const filteredFlashSales = flashSales.filter(sale => {
+  const filteredFlashSales = useMemo(() => flashSales.filter(sale => {
     const matchesSearch = sale.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = filterStatus === 'all' ? true : sale.status === filterStatus;
     return matchesSearch && matchesFilter;
-  });
+  }), [flashSales, searchQuery, filterStatus]);
 
   const getStatusBadge = (status: string) => {
     const config = {

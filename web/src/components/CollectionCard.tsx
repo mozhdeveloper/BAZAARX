@@ -31,6 +31,8 @@ const CollectionCard: React.FC<CollectionCardProps> = ({ collection, index = 0 }
           <motion.img
             src={collection.image}
             alt={collection.name}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
           />
         </div>
@@ -64,4 +66,4 @@ const CollectionCard: React.FC<CollectionCardProps> = ({ collection, index = 0 }
   );
 };
 
-export default CollectionCard;
+export default React.memo(CollectionCard);

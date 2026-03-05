@@ -24,6 +24,32 @@ import type {
 type ProductInsert = Database["public"]["Tables"]["products"]["Insert"];
 type ProductUpdate = Database["public"]["Tables"]["products"]["Update"];
 
+// ---------------------------------------------------------------------------
+// TTL cache (60 s) — avoids redundant Supabase round-trips on hot pages
+// ---------------------------------------------------------------------------
+const PRODUCT_CACHE_TTL = 60_000;
+interface ProductCacheEntry<T> { data: T; expiresAt: number; }
+const _productCache = new Map<string, ProductCacheEntry<unknown>>();
+
+function _getProductCache<T>(key: string): T | null {
+    const entry = _productCache.get(key) as ProductCacheEntry<T> | undefined;
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) { _productCache.delete(key); return null; }
+    return entry.data;
+}
+
+function _setProductCache<T>(key: string, data: T): void {
+    _productCache.set(key, { data, expiresAt: Date.now() + PRODUCT_CACHE_TTL });
+}
+
+export function invalidateProductCache(pattern?: string): void {
+    if (!pattern) { _productCache.clear(); return; }
+    for (const key of _productCache.keys()) {
+        if (key.includes(pattern)) _productCache.delete(key);
+    }
+}
+// ---------------------------------------------------------------------------
+
 export class ProductService {
     private static instance: ProductService;
 
@@ -60,6 +86,11 @@ export class ProductService {
             console.warn("Supabase not configured - cannot fetch products");
             return [];
         }
+
+        // Cache check
+        const cacheKey = `products:${JSON.stringify(filters || {})}`;
+        const cached = _getProductCache<ProductWithSeller[]>(cacheKey);
+        if (cached) return cached;
 
         try {
             // New normalized query with proper joins including reviews and seller
@@ -219,7 +250,9 @@ export class ProductService {
             });
 
             // Transform to add legacy compatibility fields
-            return data.map((p) => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+            const result = data.map((p) => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
+            _setProductCache(cacheKey, result);
+            return result;
         } catch (error) {
             console.error("Error fetching products:", error);
             throw new Error(
@@ -406,6 +439,11 @@ export class ProductService {
             return null;
         }
 
+        // Cache check
+        const cacheKey = `product:${id}`;
+        const cached = _getProductCache<ProductWithSeller>(cacheKey);
+        if (cached) return cached;
+
         try {
             const { data, error } = await supabase
                 .from("products")
@@ -483,7 +521,9 @@ export class ProductService {
 
             const soldCount = soldCountsData?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
 
-            return this.transformProduct(data, soldCount);
+            const result = this.transformProduct(data, soldCount);
+            _setProductCache(cacheKey, result);
+            return result;
         } catch (error) {
             console.error("Error fetching product:", error);
             throw new Error("Failed to fetch product details.");
@@ -509,6 +549,7 @@ export class ProductService {
             if (!data)
                 throw new Error("No data returned upon product creation");
 
+            invalidateProductCache();
             return data;
         } catch (error) {
             console.error("Error creating product:", error);
@@ -561,6 +602,8 @@ export class ProductService {
             if (error) throw error;
             if (!data) throw new Error("Product not found or update failed");
 
+            invalidateProductCache(id);
+            invalidateProductCache('products:');
             return data;
         } catch (error) {
             console.error("Error updating product:", error);
@@ -584,6 +627,9 @@ export class ProductService {
                 .eq("id", id);
 
             if (error) throw error;
+
+            invalidateProductCache(id);
+            invalidateProductCache('products:');
         } catch (error) {
             console.error("Error deleting product:", error);
             throw new Error("Failed to delete product.");

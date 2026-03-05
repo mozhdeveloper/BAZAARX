@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -87,7 +87,7 @@ export default function AdminSupportScreen({ navigation }: Props) {
     setRefreshing(false);
   }, [loadTickets]);
 
-  const filtered = tickets.filter((t) => {
+  const filtered = useMemo(() => tickets.filter((t) => {
     const matchStatus = activeFilter === 'all' || t.status === activeFilter;
     const q = search.toLowerCase();
     const matchSearch =
@@ -96,7 +96,7 @@ export default function AdminSupportScreen({ navigation }: Props) {
       t.id.toLowerCase().includes(q) ||
       (t.categoryName || '').toLowerCase().includes(q);
     return matchStatus && matchSearch;
-  });
+  }), [tickets, activeFilter, search]);
 
   const openCount = tickets.filter((t) => t.status === 'open').length;
   const inProgressCount = tickets.filter((t) => t.status === 'in_progress').length;

@@ -32,6 +32,12 @@ const CollectionsPage: React.FC = () => {
             Shop
           </Link>
           <Link
+            to="/categories"
+            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Categories
+          </Link>
+          <Link
             to="/collections"
             className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
           >

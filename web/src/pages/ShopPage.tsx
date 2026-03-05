@@ -393,6 +393,15 @@ export default function ShopPage() {
     return filtered;
   }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating]);
 
+  // O(n) category count map — avoids O(n×m) repeated .filter() in JSX
+  const categoryCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of allProducts) {
+      map.set(p.category, (map.get(p.category) || 0) + 1);
+    }
+    return map;
+  }, [allProducts]);
+
   const resetFilters = () => {
     setSearchQuery("");
     setSelectedSort("relevance");
@@ -423,6 +432,12 @@ export default function ShopPage() {
               className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
             >
               Shop
+            </Link>
+            <Link
+              to="/categories"
+              className="text-sm text-[var(--text-muted)] font-medium hover:text-[var(--brand-primary)] transition-all duration-300"
+            >
+              Categories
             </Link>
             <Link
               to="/collections"
@@ -803,7 +818,7 @@ export default function ShopPage() {
                         >
                           <span className={`text-sm ${selectedCategory === cat.name ? "font-bold" : "font-medium"}`}>{cat.name}</span>
                           <span className={`text-xs ${selectedCategory === cat.name ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)] font-normal"}`}>
-                            {allProducts.filter(p => p.category === cat.name).length}
+                            {categoryCountMap.get(cat.name) ?? 0}
                           </span>
                         </button>
                       ))}

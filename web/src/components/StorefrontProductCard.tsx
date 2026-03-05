@@ -73,6 +73,8 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
                 <img
                     src={product.image}
                     alt={product.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
                 {product.originalPrice && product.originalPrice > product.price && (
@@ -161,4 +163,4 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
     );
 };
 
-export default StorefrontProductCard;
+export default React.memo(StorefrontProductCard);

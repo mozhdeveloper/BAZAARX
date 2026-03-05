@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -55,7 +55,7 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
     }
   }, [user?.id]);
 
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = useCallback(({ item }: { item: any }) => {
     return (
       <Pressable
         style={styles.card}
@@ -87,7 +87,9 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
         </View>
       </Pressable>
     );
-  };
+  }, [navigation]);
+
+  const keyExtractor = useCallback((item: any) => item.id, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -116,9 +118,13 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
         <FlatList
           data={returnRequests}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </SafeAreaView>

@@ -19,7 +19,8 @@ import {
   Zap,
   DollarSign,
   CheckSquare,
-  ShieldCheck
+  ShieldCheck,
+  Megaphone
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -103,6 +104,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
       label: 'Support Tickets',
       href: '/admin/tickets',
       icon: <MessageSquare className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Announcements',
+      href: '/admin/announcements',
+      icon: <Megaphone className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
     },
     {
       label: 'Settings',

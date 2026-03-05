@@ -366,6 +366,74 @@ export default function ChatSupportScreen({ navigation }: Props) {
   // Reversed for inverted FlatList (newest at bottom = index 0 in reversed)
   const reversedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
+  const keyExtractor = useCallback((msg: Message) => msg.id, []);
+
+  const renderItem = useCallback(({ item: msg }: { item: Message }) => (
+    <View>
+      <View
+        style={[
+          styles.messageBubbleRow,
+          msg.sender === 'user' && styles.messageBubbleRowUser,
+        ]}
+      >
+        {msg.sender === 'bot' && (
+          <View style={styles.avatarSmall}>
+            <Bot size={14} color="#FFF" />
+          </View>
+        )}
+        <View
+          style={[
+            styles.bubble,
+            msg.sender === 'user' ? styles.bubbleUser : styles.bubbleBot,
+          ]}
+        >
+          <Text
+            style={[
+              styles.bubbleText,
+              msg.sender === 'user' && styles.bubbleTextUser,
+            ]}
+          >
+            {formatText(msg.text)}
+          </Text>
+          <Text style={[styles.timestamp, msg.sender === 'user' && styles.timestampUser]}>
+            {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </View>
+        {msg.sender === 'user' && (
+          <View style={[styles.avatarSmall, styles.avatarUser]}>
+            <User size={14} color="#FFF" />
+          </View>
+        )}
+      </View>
+
+      {/* Quick replies */}
+      {msg.quickReplies && msg.quickReplies.length > 0 && (
+        <View style={styles.quickRepliesContainer}>
+          {msg.quickReplies.map((qr: string) => (
+            <Pressable
+              key={qr}
+              style={({ pressed }) => [
+                styles.quickReplyChip,
+                qr === 'Talk to an Agent 🎫' && styles.quickReplyChipAgent,
+                pressed && styles.quickReplyChipPressed,
+              ]}
+              onPress={() => handleQuickReply(qr)}
+            >
+              <Text
+                style={[
+                  styles.quickReplyText,
+                  qr === 'Talk to an Agent 🎫' && styles.quickReplyTextAgent,
+                ]}
+              >
+                {qr}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
+  ), [handleQuickReply]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
@@ -405,7 +473,7 @@ export default function ChatSupportScreen({ navigation }: Props) {
         <FlatList
           ref={scrollRef}
           data={reversedMessages}
-          keyExtractor={(msg) => msg.id}
+          keyExtractor={keyExtractor}
           inverted
           style={styles.messageList}
           contentContainerStyle={styles.messageContentInverted}
@@ -425,71 +493,7 @@ export default function ChatSupportScreen({ navigation }: Props) {
               </View>
             </View>
           ) : null}
-          renderItem={({ item: msg }) => (
-            <View>
-              <View
-                style={[
-                  styles.messageBubbleRow,
-                  msg.sender === 'user' && styles.messageBubbleRowUser,
-                ]}
-              >
-                {msg.sender === 'bot' && (
-                  <View style={styles.avatarSmall}>
-                    <Bot size={14} color="#FFF" />
-                  </View>
-                )}
-                <View
-                  style={[
-                    styles.bubble,
-                    msg.sender === 'user' ? styles.bubbleUser : styles.bubbleBot,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.bubbleText,
-                      msg.sender === 'user' && styles.bubbleTextUser,
-                    ]}
-                  >
-                    {formatText(msg.text)}
-                  </Text>
-                  <Text style={[styles.timestamp, msg.sender === 'user' && styles.timestampUser]}>
-                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                </View>
-                {msg.sender === 'user' && (
-                  <View style={[styles.avatarSmall, styles.avatarUser]}>
-                    <User size={14} color="#FFF" />
-                  </View>
-                )}
-              </View>
-
-              {/* Quick replies */}
-              {msg.quickReplies && msg.quickReplies.length > 0 && (
-                <View style={styles.quickRepliesContainer}>
-                  {msg.quickReplies.map((qr: string) => (
-                    <Pressable
-                      key={qr}
-                      style={({ pressed }) => [
-                        styles.quickReplyChip,
-                        qr === 'Talk to an Agent 🎫' && styles.quickReplyChipAgent,
-                        pressed && styles.quickReplyChipPressed,
-                      ]}
-                      onPress={() => handleQuickReply(qr)}
-                    >
-                      <Text
-                        style={[
-                          styles.quickReplyText,
-                          qr === 'Talk to an Agent 🎫' && styles.quickReplyTextAgent,
-                        ]}
-                      >
-                        {qr}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
+          renderItem={renderItem}
         />
 
         {/* Talk to Agent Banner */}

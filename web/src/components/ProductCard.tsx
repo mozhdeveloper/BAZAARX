@@ -37,6 +37,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
         <img
           src={product.image}
           alt={product.name}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           onError={(e) => {
             (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
@@ -150,4 +152,4 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
   );
 };
 
-export default ProductCard;
+export default React.memo(ProductCard);

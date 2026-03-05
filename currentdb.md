@@ -57,6 +57,24 @@ CREATE TABLE public.ai_messages (
   CONSTRAINT ai_messages_pkey PRIMARY KEY (id),
   CONSTRAINT ai_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.ai_conversations(id)
 );
+CREATE TABLE public.announcements (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  admin_id uuid NOT NULL,
+  title text NOT NULL,
+  message text NOT NULL,
+  type text NOT NULL DEFAULT 'info'::text CHECK (type = ANY (ARRAY['info'::text, 'promo'::text, 'urgent'::text, 'maintenance'::text])),
+  audience text NOT NULL DEFAULT 'all'::text CHECK (audience = ANY (ARRAY['all'::text, 'buyers'::text, 'sellers'::text])),
+  image_url text,
+  action_url text,
+  action_data jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  scheduled_at timestamp with time zone,
+  expires_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT announcements_pkey PRIMARY KEY (id),
+  CONSTRAINT announcements_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admins(id)
+);
 CREATE TABLE public.buyer_notifications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   buyer_id uuid NOT NULL,
@@ -127,6 +145,7 @@ CREATE TABLE public.categories (
   sort_order integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  is_active boolean NOT NULL DEFAULT true,
   CONSTRAINT categories_pkey PRIMARY KEY (id),
   CONSTRAINT categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.categories(id)
 );
@@ -593,6 +612,16 @@ CREATE TABLE public.profiles (
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
+CREATE TABLE public.push_tokens (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  token text NOT NULL UNIQUE,
+  platform text NOT NULL CHECK (platform = ANY (ARRAY['ios'::text, 'android'::text, 'web'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT push_tokens_pkey PRIMARY KEY (id),
+  CONSTRAINT push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.refund_return_periods (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL,
@@ -602,6 +631,23 @@ CREATE TABLE public.refund_return_periods (
   refund_amount numeric CHECK (refund_amount >= 0::numeric),
   refund_date timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'seller_review'::text, 'counter_offered'::text, 'approved'::text, 'rejected'::text, 'escalated'::text, 'return_in_transit'::text, 'return_received'::text, 'refunded'::text])),
+  return_type text NOT NULL DEFAULT 'return_refund'::text CHECK (return_type = ANY (ARRAY['return_refund'::text, 'refund_only'::text, 'replacement'::text])),
+  resolution_path text NOT NULL DEFAULT 'seller_review'::text CHECK (resolution_path = ANY (ARRAY['instant'::text, 'seller_review'::text, 'return_required'::text])),
+  items_json jsonb,
+  evidence_urls ARRAY DEFAULT '{}'::text[],
+  description text,
+  seller_note text,
+  rejected_reason text,
+  counter_offer_amount numeric CHECK (counter_offer_amount >= 0::numeric),
+  seller_deadline timestamp with time zone,
+  escalated_at timestamp with time zone,
+  resolved_at timestamp with time zone,
+  resolved_by text,
+  return_label_url text,
+  return_tracking_number text,
+  buyer_shipped_at timestamp with time zone,
+  return_received_at timestamp with time zone,
   CONSTRAINT refund_return_periods_pkey PRIMARY KEY (id),
   CONSTRAINT refund_return_periods_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
 );

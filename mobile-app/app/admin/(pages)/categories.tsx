@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, TextInput, TouchableOpacity, Modal } from 'react-native';
 import { ArrowLeft, FolderTree, Search, Package, CheckCircle, XCircle, Plus, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -27,14 +27,14 @@ export default function AdminCategoriesScreen() {
     loadCategories();
   }, []);
 
-  const filteredCategories = categories.filter(category => {
+  const filteredCategories = useMemo(() => categories.filter(category => {
     const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          category.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || 
                          (statusFilter === 'active' && category.isActive) ||
                          (statusFilter === 'inactive' && !category.isActive);
     return matchesSearch && matchesStatus;
-  });
+  }), [categories, searchTerm, statusFilter]);
 
   const getStatusBadge = (isActive: boolean) => {
     return isActive ? (

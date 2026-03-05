@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
@@ -108,7 +108,7 @@ export default function OrdersPage() {
     return isBuyerOrderWithinReturnWindow(order as any);
   };
 
-  const handleReturnSubmit = async (data: BuyerReturnSubmissionPayload) => {
+  const handleReturnSubmit = useCallback(async (data: BuyerReturnSubmissionPayload) => {
     const validationError = validateBuyerReturnSubmissionPayload(data);
     if (validationError) {
       toast({
@@ -164,7 +164,7 @@ export default function OrdersPage() {
         duration: 5000,
       });
     }
-  };
+  }, [updateOrderWithReturnRequest, toast]);
 
   const loadBuyerOrders = useCallback(async () => {
     if (!profile?.id) return;
@@ -191,7 +191,7 @@ export default function OrdersPage() {
     }
   }, [hydrateBuyerOrders, profile?.id]);
 
-  const handleCancelOrder = async () => {
+  const handleCancelOrder = useCallback(async () => {
     if (!orderToCancel?.dbId || !cancelReason) return;
 
     const reason = cancelReason === "Other" ? otherReason : cancelReason;
@@ -228,9 +228,9 @@ export default function OrdersPage() {
       setCancelReason("");
       setOtherReason("");
     }
-  };
+  }, [orderToCancel, cancelReason, otherReason, profile?.id, updateOrderStatus, loadBuyerOrders, toast]);
 
-  const handleConfirmReceived = async () => {
+  const handleConfirmReceived = useCallback(async () => {
     if (!orderToConfirmReceived?.dbId || !profile?.id) {
       toast({
         title: "Error",
@@ -282,7 +282,7 @@ export default function OrdersPage() {
     } finally {
       setIsConfirmingReceived(false);
     }
-  };
+  }, [orderToConfirmReceived, profile?.id, orders, hydrateBuyerOrders, loadBuyerOrders, toast]);
 
   // Show success message for newly created orders
   const newOrderId = (
@@ -367,7 +367,7 @@ export default function OrdersPage() {
     return `${orderId}-${itemId}-${variantId}-${index}`;
   };
 
-  const filteredOrders = orders
+  const filteredOrders = useMemo(() => orders
     .filter((order) => {
       const matchesSearch =
         order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -382,7 +382,8 @@ export default function OrdersPage() {
 
       return matchesSearch && matchesStatus;
     })
-    .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt)); // Sort newest first
+    .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt)),
+  [orders, searchQuery, statusFilter]); // Sort newest first
 
   const formatDate = (date: Date | string) => {
     const dateObj = date instanceof Date ? date : new Date(date);

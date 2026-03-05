@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "../hooks/use-toast";
@@ -36,10 +36,27 @@ import { productService } from "../services/productService";
 import { discountService } from "@/services/discountService";
 import { ProductWithSeller } from "../types/database.types";
 import type { ActiveDiscount } from "@/types/discount";
-import { ProductReviews } from "@/components/reviews/ProductReviews";
-import { CreateRegistryModal } from "../components/CreateRegistryModal";
-import { CartModal } from "../components/ui/cart-modal";
-import { BuyNowModal } from "../components/ui/buy-now-modal";
+// Lazily loaded — these are only needed on interaction or scroll, not initial render
+const ProductReviews = lazy(() =>
+    import("@/components/reviews/ProductReviews").then((m) => ({
+        default: m.ProductReviews,
+    }))
+);
+const CreateRegistryModal = lazy(() =>
+    import("../components/CreateRegistryModal").then((m) => ({
+        default: m.CreateRegistryModal,
+    }))
+);
+const CartModal = lazy(() =>
+    import("../components/ui/cart-modal").then((m) => ({
+        default: m.CartModal,
+    }))
+);
+const BuyNowModal = lazy(() =>
+    import("../components/ui/buy-now-modal").then((m) => ({
+        default: m.BuyNowModal,
+    }))
+);
 import {
     mapDbProductToNormalizedLegacy,
     mapSellerProductToNormalized,
@@ -1100,11 +1117,13 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         )}
 
                         {activeTab === "Reviews" && (
-                            <ProductReviews
-                                productId={normalizedProduct.id}
-                                rating={productData.rating}
-                                reviewCount={productData.reviewCount}
-                            />
+                            <Suspense fallback={<div className="py-8 text-center text-gray-400 text-sm">Loading reviews...</div>}>
+                                <ProductReviews
+                                    productId={normalizedProduct.id}
+                                    rating={productData.rating}
+                                    reviewCount={productData.reviewCount}
+                                />
+                            </Suspense>
                         )}
 
                         {activeTab === "Support" && (
@@ -1203,70 +1222,78 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 </div>
             )}
             {/* Create Registry Modal */}
-            <CreateRegistryModal
-                isOpen={isCreateRegistryModalOpen}
-                onClose={() => setIsCreateRegistryModalOpen(false)}
-                hideBrowseLink={true}
-                onCreate={({ name, category }) => {
-                    const newRegistry = {
-                        id: `reg-${Date.now()}`,
-                        title: name,
-                        sharedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                        imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
-                        category: category,
-                        products: []
-                    };
-                    createRegistry(newRegistry);
+            {isCreateRegistryModalOpen && (
+                <Suspense fallback={null}>
+                    <CreateRegistryModal
+                        isOpen={isCreateRegistryModalOpen}
+                        onClose={() => setIsCreateRegistryModalOpen(false)}
+                        hideBrowseLink={true}
+                        onCreate={({ name, category }) => {
+                            const newRegistry = {
+                                id: `reg-${Date.now()}`,
+                                title: name,
+                                sharedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                                imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
+                                category: category,
+                                products: []
+                            };
+                            createRegistry(newRegistry);
 
-                    // Close create modal and reopen registry selection modal
-                    setIsCreateRegistryModalOpen(false);
-                    setShowRegistryModal(true);
+                            // Close create modal and reopen registry selection modal
+                            setIsCreateRegistryModalOpen(false);
+                            setShowRegistryModal(true);
 
-                    toast({
-                        title: "Registry Created",
-                        description: `${name} has been created successfully.`,
-                    });
-                }}
-            />
+                            toast({
+                                title: "Registry Created",
+                                description: `${name} has been created successfully.`,
+                            });
+                        }}
+                    />
+                </Suspense>
+            )}
 
             {/* Cart Modal */}
             {addedProductInfo && (
-                <CartModal
-                    isOpen={showCartModal}
-                    onClose={() => setShowCartModal(false)}
-                    productName={addedProductInfo.name}
-                    productImage={addedProductInfo.image}
-                    cartItemCount={cartItems.length}
-                />
+                <Suspense fallback={null}>
+                    <CartModal
+                        isOpen={showCartModal}
+                        onClose={() => setShowCartModal(false)}
+                        productName={addedProductInfo.name}
+                        productImage={addedProductInfo.image}
+                        cartItemCount={cartItems.length}
+                    />
+                </Suspense>
             )}
 
             {/* Buy Now Modal */}
             {normalizedProduct && (
-                <BuyNowModal
-                    isOpen={showBuyNowModal}
-                    onClose={() => setShowBuyNowModal(false)}
-                    product={{
-                        id: normalizedProduct.id,
-                        name: productData.name,
-                        price: productData.price,
-                        originalPrice: productData.originalPrice,
-                        image:
-                            productData.images?.[0] ||
-                            normalizedProduct.image ||
-                            "",
-                        images: productData.images,
-                        variantLabel2Values:
-                            productData.label2Options?.map(
-                                (c: any) => c.name || c,
-                            ) || [],
-                        variantLabel1Values: productData.label1Options || [],
-                        variants: productData.variants || [],
-                        stock: normalizedProduct.stock || 100,
-                    }}
-                    onConfirm={(qty, variant) => {
-                        proceedToCheckout(qty, variant);
-                    }}
-                />
+                <Suspense fallback={null}>
+                    <BuyNowModal
+                        isOpen={showBuyNowModal}
+                        onClose={() => setShowBuyNowModal(false)}
+                        product={{
+                            id: normalizedProduct.id,
+                            name: productData.name,
+                            price: productData.price,
+                            originalPrice: productData.originalPrice,
+                            image:
+                                productData.images?.[0] ||
+                                normalizedProduct.image ||
+                                "",
+                            images: productData.images,
+                            variantLabel2Values:
+                                productData.label2Options?.map(
+                                    (c: any) => c.name || c,
+                                ) || [],
+                            variantLabel1Values: productData.label1Options || [],
+                            variants: productData.variants || [],
+                            stock: normalizedProduct.stock || 100,
+                        }}
+                        onConfirm={(qty, variant) => {
+                            proceedToCheckout(qty, variant);
+                        }}
+                    />
+                </Suspense>
             )}
         </div>
     );

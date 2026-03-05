@@ -42,9 +42,9 @@ export interface Category {
   name: string;
   description: string;
   image: string;
+  icon: string;
   parentId?: string;
   slug: string;
-  isActive: boolean;
   sortOrder: number;
   productsCount: number;
   createdAt: Date;
@@ -466,9 +466,10 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
         name: row.name,
         description: row.description || '',
         image: row.image_url || '',
+        icon: row.icon || '',
         parentId: row.parent_id || undefined,
         slug: row.slug,
-        isActive: row.is_active, // Map new schema field
+        isActive: row.is_active,
         sortOrder: row.sort_order || 0,
         productsCount: Array.isArray(row.products) ? row.products[0]?.count || 0 : row.products?.count || 0,
         createdAt: new Date(row.created_at),
@@ -493,6 +494,7 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
           slug: categoryData.slug,
           description: categoryData.description || null,
           image_url: categoryData.image || null,
+          icon: categoryData.icon || null,
           parent_id: categoryData.parentId || null,
           sort_order: categoryData.sortOrder || 0,
           is_active: categoryData.isActive
@@ -507,6 +509,7 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
         name: data.name,
         description: data.description || '',
         image: data.image_url || '',
+        icon: data.icon || '',
         parentId: data.parent_id || undefined,
         slug: data.slug,
         isActive: data.is_active,
@@ -534,7 +537,8 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
       if (updates.name !== undefined) dbUpdates.name = updates.name;
       if (updates.slug !== undefined) dbUpdates.slug = updates.slug;
       if (updates.description !== undefined) dbUpdates.description = updates.description;
-      if (updates.image !== undefined) dbUpdates.image_url = updates.image;
+      if (updates.image !== undefined) dbUpdates.image_url = updates.image || null;
+      if (updates.icon !== undefined) dbUpdates.icon = updates.icon || null;
       if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId || null;
       if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
       if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
@@ -1925,7 +1929,7 @@ export const useAdminStats = create<AdminStatsState>((set) => ({
       // Recent activity from recent orders and sellers
       const { data: recentOrders } = await supabase
         .from('orders')
-        .select('id, order_number, created_at, buyer_id, profiles:buyer_id(first_name, last_name)')
+        .select('id, order_number, created_at, buyer_id, buyer:buyer_id(profile:id(first_name, last_name))')
         .order('created_at', { ascending: false })
         .limit(3);
 
@@ -1938,7 +1942,8 @@ export const useAdminStats = create<AdminStatsState>((set) => ({
       const activity: Array<{ id: string; type: 'order' | 'seller_registration' | 'product_listing' | 'dispute'; description: string; timestamp: Date; status: 'success' | 'warning' | 'error' }> = [];
 
       (recentOrders || []).forEach((o: any) => {
-        const buyerName = o.profiles ? `${o.profiles.first_name || ''} ${o.profiles.last_name || ''}`.trim() : 'Unknown';
+        const profile = o.buyer?.profile;
+        const buyerName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Unknown';
         activity.push({
           id: o.id,
           type: 'order',

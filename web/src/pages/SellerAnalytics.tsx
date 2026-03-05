@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, lazy, Suspense } from "react";
 import {
     TrendingUp,
     TrendingDown,
@@ -27,6 +27,9 @@ import {
     Cell
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { ChartSkeleton } from "@/components/skeletons/ChartSkeleton";
+
+const SellerAnalyticsContent = lazy(() => import("@/components/seller/SellerAnalyticsContent"));
 
 export function SellerAnalytics() {
     const { seller } = useAuthStore();
@@ -38,7 +41,9 @@ export function SellerAnalytics() {
     return (
         <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
             <SellerSidebar />
-            <AnalyticsContent timeRange={timeRange} setTimeRange={setTimeRange} />
+            <Suspense fallback={<div className="flex-1 p-8 space-y-6 overflow-auto"><ChartSkeleton /><ChartSkeleton /></div>}>
+                <SellerAnalyticsContent timeRange={timeRange} setTimeRange={setTimeRange} />
+            </Suspense>
         </div>
     );
 }
@@ -54,8 +59,8 @@ interface AnalyticsContentProps {
 
 const AnalyticsContent = ({ timeRange, setTimeRange }: AnalyticsContentProps) => {
 
-    // Sample data for charts
-    const revenueData = [
+    // Memoized chart data — only recomputed when timeRange changes
+    const revenueData = useMemo(() => [
         { date: 'Jan', revenue: 45000, orders: 120 },
         { date: 'Feb', revenue: 52000, orders: 145 },
         { date: 'Mar', revenue: 48000, orders: 132 },
@@ -63,24 +68,24 @@ const AnalyticsContent = ({ timeRange, setTimeRange }: AnalyticsContentProps) =>
         { date: 'May', revenue: 55000, orders: 156 },
         { date: 'Jun', revenue: 67000, orders: 195 },
         { date: 'Jul', revenue: 72000, orders: 210 }
-    ];
+    ], [timeRange]);
 
-    const categoryData = [
+    const categoryData = useMemo(() => [
         { name: 'Electronics', value: 35, color: '#3b82f6' },
         { name: 'Fashion', value: 25, color: '#ef4444' },
         { name: 'Home & Living', value: 20, color: '#10b981' },
         { name: 'Beauty', value: 15, color: '#f59e0b' },
         { name: 'Others', value: 5, color: '#6366f1' }
-    ];
+    ], [timeRange]);
 
-    const topProducts = [
+    const topProducts = useMemo(() => [
         { name: 'Premium Wireless Headphones', sold: 245, revenue: 735000 },
         { name: 'Smart Watch Series 5', sold: 189, revenue: 567000 },
         { name: 'Laptop Stand Pro', sold: 167, revenue: 334000 },
         { name: 'USB-C Hub Adapter', sold: 134, revenue: 268000 }
-    ];
+    ], [timeRange]);
 
-    const metrics = [
+    const metrics = useMemo(() => [
         {
             title: 'Total Revenue',
             value: '₱842,560',
@@ -109,7 +114,7 @@ const AnalyticsContent = ({ timeRange, setTimeRange }: AnalyticsContentProps) =>
             trend: 'down',
             icon: <Eye className="h-5 w-5" />
         }
-    ];
+    ], [timeRange]);
 
     return (
         <div className="flex flex-1 w-full overflow-hidden">

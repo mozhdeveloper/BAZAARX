@@ -350,6 +350,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setReviewFilters(prev => ({ ...prev, variantId: newVariantId || undefined }));
   };
 
+  // Memoized O(1) variant name — avoids .find() scan on productVariants every render
+  const activeVariantName = useMemo(() =>
+    activeVariantFilter
+      ? productVariants.find((v: any) => v.id === activeVariantFilter)?.variant_name || 'Selected Variant'
+      : null
+  , [activeVariantFilter, productVariants]);
+
   const toggleImageFilter = () => {
     const newWithImages = !activeImageFilter;
     setActiveImageFilter(newWithImages);
@@ -1177,7 +1184,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 >
                   <Text style={[styles.filterChipText, activeVariantFilter !== null && styles.filterChipTextActive]}>
                     {activeVariantFilter
-                      ? productVariants.find((v: any) => v.id === activeVariantFilter)?.variant_name || 'Selected Variant'
+                      ? activeVariantName
                       : 'All Variants'}
                   </Text>
                   <ChevronDown size={14} color={activeVariantFilter !== null ? '#FFF' : '#4B5563'} />

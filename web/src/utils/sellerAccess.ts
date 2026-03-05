@@ -18,6 +18,7 @@ const UNVERIFIED_ALLOWED_PATH_SET = new Set<string>([
   "/seller/profile",
   "/seller/store-profile",
   "/seller/notifications",
+  "/seller/announcements",
   "/seller/help-center",
   "/seller/settings",
   "/seller/unverified",

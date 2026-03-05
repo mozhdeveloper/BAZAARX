@@ -117,7 +117,7 @@ export default function SellerNotificationsScreen() {
     await notificationService.markAllAsRead(seller.id, 'seller');
   };
 
-  const handlePress = async (n: Notification) => {
+  const handlePress = useCallback(async (n: Notification) => {
     if (!n.is_read) {
       // Optimistic update: card only marks as read when tapped
       setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
@@ -135,7 +135,7 @@ export default function SellerNotificationsScreen() {
     } else if (n.type.includes('message')) {
       (navigation as any).navigate('Messages');
     }
-  };
+  }, [navigation]);
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((n) => {
@@ -150,9 +150,9 @@ export default function SellerNotificationsScreen() {
     });
   }, [notifications, searchQuery, filterStatus, filterType]);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.is_read).length, [notifications]);
 
-  const renderItem = ({ item }: { item: Notification }) => (
+  const renderItem = useCallback(({ item }: { item: Notification }) => (
     <Pressable
       onPress={() => handlePress(item)}
       style={({ pressed }) => [
@@ -175,7 +175,9 @@ export default function SellerNotificationsScreen() {
         <Text style={styles.timeText}>{new Date(item.created_at).toLocaleDateString()}</Text>
       </View>
     </Pressable>
-  );
+  ), [handlePress]);
+
+  const keyExtractor = useCallback((item: Notification) => item.id, []);
 
   return (
     <View style={styles.container}>
@@ -234,7 +236,7 @@ export default function SellerNotificationsScreen() {
       <FlatList
         data={filteredNotifications}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D97706']} />}
         ListEmptyComponent={loading ? <ActivityIndicator size="large" color="#D97706" style={{ marginTop: 40 }} /> : null}

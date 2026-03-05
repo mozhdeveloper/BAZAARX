@@ -746,6 +746,12 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
 
 
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 12, marginBottom: 4 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textHeadline }}>Categories</Text>
+              <Pressable onPress={() => navigation.navigate('Categories' as any)}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>See All</Text>
+              </Pressable>
+            </View>
             <View style={styles.categoryGrid}>
               {dbCategories.map((item) => (
                 <Pressable
@@ -897,7 +903,12 @@ export default function HomeScreen({ navigation }: Props) {
           </>
         ) : (
           <View style={styles.categoryExpandedContent}>
-            <Text style={[styles.categorySectionTitle, { color: COLORS.textHeadline }]}>Shop by Category</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+              <Text style={[styles.categorySectionTitle, { color: COLORS.textHeadline, marginBottom: 0 }]}>Shop by Category</Text>
+              <Pressable onPress={() => navigation.navigate('Categories' as any)}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>Browse All</Text>
+              </Pressable>
+            </View>
             <View style={styles.categoryGrid}>
               {dbCategories.map((item) => (
                 <Pressable

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput } from 'react-native';
 import { ArrowLeft, MessageSquare, Search, ThumbsUp, MessageCircle, TrendingUp } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -17,12 +17,12 @@ export default function AdminProductRequestsScreen() {
     loadRequests();
   }, []);
 
-  const filteredRequests = requests.filter(request => {
+  const filteredRequests = useMemo(() => requests.filter(request => {
     const matchesSearch = request.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          request.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = filterStatus === 'all' ? true : request.status === filterStatus;
     return matchesSearch && matchesFilter;
-  });
+  }), [requests, searchQuery, filterStatus]);
 
   const getStatusBadge = (status: string) => {
     const config = {

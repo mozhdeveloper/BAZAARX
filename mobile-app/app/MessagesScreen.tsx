@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   StatusBar,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -103,10 +103,14 @@ export default function MessagesScreen() {
     return unique;
   }, [conversations]);
 
-  const filteredConversations = uniqueConversations.filter(conv =>
-    (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (conv.last_message || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Memoized: avoids re-filtering on every keystroke-unrelated re-render
+  const filteredConversations = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return uniqueConversations.filter(conv =>
+      (conv.seller_store_name || '').toLowerCase().includes(q) ||
+      (conv.last_message || '').toLowerCase().includes(q)
+    );
+  }, [uniqueConversations, searchQuery]);
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -220,6 +224,8 @@ export default function MessagesScreen() {
                   <Image
                     source={{ uri: conv.seller_avatar }}
                     style={styles.avatarImage}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
                   />
                 ) : (
                   <Store size={20} color="#FFFFFF" />

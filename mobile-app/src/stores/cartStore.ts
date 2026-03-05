@@ -361,8 +361,10 @@ export const useCartStore = create<CartStore>()(
         if (!cartItemIds || cartItemIds.length === 0) return;
 
         const previousItems = get().items;
+        // O(n+m) — build a Set so each item lookup is O(1) instead of O(m)
+        const removeSet = new Set(cartItemIds);
         set(state => ({
-          items: state.items.filter(i => !cartItemIds.includes(i.cartItemId) && !cartItemIds.includes(i.id))
+          items: state.items.filter(i => !removeSet.has(i.cartItemId) && !removeSet.has(i.id))
         }));
 
         try {

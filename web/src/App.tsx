@@ -22,6 +22,7 @@ const lazyNamed = <T extends Record<string, any>>(
 const HomePage = lazy(() => import("./pages/HomePage"));
 const SellerLandingPage = lazy(() => import("./pages/SellerLandingPage"));
 const ShopPage = lazy(() => import("./pages/ShopPage"));
+const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
 const CollectionsPage = lazy(() => import("./pages/CollectionsPage"));
 const StoresPage = lazy(() => import("./pages/StoresPage"));
@@ -84,6 +85,8 @@ const SellerPOSSettings = lazy(() => import("./pages/SellerPOSSettings"));
 const SellerHelpCenter = lazy(() => import("./pages/SellerHelpCenter"));
 const SellerMyTickets = lazy(() => import("./pages/SellerMyTickets"));
 const SellerBuyerReports = lazy(() => import("./pages/SellerBuyerReports"));
+const SellerAnnouncementsPage = lazy(() => import("./pages/SellerAnnouncementsPage"));
+const BuyerAnnouncementsPage = lazy(() => import("./pages/BuyerAnnouncementsPage"));
 
 // Admin pages (default exports)
 const AdminAuth = lazy(() => import("./pages/AdminAuth"));
@@ -104,6 +107,7 @@ const AdminProfile = lazy(() => import("./pages/AdminProfile"));
 const AdminProductApprovals = lazy(() => import("./pages/AdminProductApprovals"));
 const AdminTickets = lazy(() => import("./pages/AdminTickets"));
 const AdminTrustedBrands = lazy(() => import("./pages/AdminTrustedBrands"));
+const AdminAnnouncementsPage = lazy(() => import("./pages/AdminAnnouncementsPage"));
 
 function App() {
   return (
@@ -127,6 +131,8 @@ function App() {
             }
           />
           <Route path="/shop" element={<ShopPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/announcements" element={<BuyerAnnouncementsPage />} />
           <Route path="/flash-sales" element={<FlashSalesPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
@@ -474,6 +480,14 @@ function App() {
               </ProtectedSellerRoute>
             }
           />
+          <Route
+            path="/seller/announcements"
+            element={
+              <ProtectedSellerRoute>
+                <SellerAnnouncementsPage />
+              </ProtectedSellerRoute>
+            }
+          />
 
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminAuth />} />
@@ -511,6 +525,7 @@ function App() {
           />
           <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/trusted-brands" element={<AdminTrustedBrands />} />
+          <Route path="/admin/announcements" element={<AdminAnnouncementsPage />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

@@ -13,6 +13,11 @@ import {
   Filter,
   Search,
   RefreshCw,
+  Megaphone,
+  Info,
+  Tag,
+  AlertTriangle,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
@@ -34,7 +39,16 @@ import {
 import { getSellerAccessTier, isPathAllowedForTier } from "@/utils/sellerAccess";
 
 
-function getNotificationIcon(type: string) {
+function getNotificationIcon(type: string, actionData?: any) {
+  if (type === "announcement") {
+    const subType: string = (actionData as any)?.announcement_type ?? "info";
+    switch (subType) {
+      case "urgent":      return <AlertTriangle className="w-5 h-5 text-red-500" />;
+      case "maintenance": return <Wrench className="w-5 h-5 text-yellow-500" />;
+      case "promo":       return <Tag className="w-5 h-5 text-green-500" />;
+      default:            return <Info className="w-5 h-5 text-blue-500" />;
+    }
+  }
   if (type === "seller_new_order")
     return <ShoppingBag className="w-5 h-5 text-green-600" />;
   if (type.includes("confirmed"))
@@ -50,7 +64,16 @@ function getNotificationIcon(type: string) {
   return <Bell className="w-5 h-5 text-gray-600" />;
 }
 
-function getNotificationBgColor(type: string) {
+function getNotificationBgColor(type: string, actionData?: any) {
+  if (type === "announcement") {
+    const subType: string = (actionData as any)?.announcement_type ?? "info";
+    switch (subType) {
+      case "urgent":      return "bg-red-50";
+      case "maintenance": return "bg-yellow-50";
+      case "promo":       return "bg-green-50";
+      default:            return "bg-blue-50";
+    }
+  }
   if (type === "seller_new_order") return "bg-green-50";
   if (type.includes("confirmed")) return "bg-blue-50";
   if (type.includes("shipped")) return "bg-orange-50";
@@ -131,6 +154,7 @@ export function SellerNotifications() {
         if (filterType === "returns" && !n.type.includes("return") && n.type !== "return_request") return false;
         if (filterType === "reviews" && !n.type.includes("review")) return false;
         if (filterType === "messages" && n.type !== "seller_new_message") return false;
+        if (filterType === "announcements" && n.type !== "announcement") return false;
       }
 
       // Status filter
@@ -166,6 +190,23 @@ export function SellerNotifications() {
     // Mark as read
     if (!n.is_read) {
       await handleMarkAsRead(n.id);
+    }
+
+    // Announcement — go to seller announcements page, or the admin-set action_url
+    if (n.type === "announcement") {
+      if (n.action_url) {
+        const actionPath = n.action_url.split("?")[0];
+        if (n.action_url.startsWith("http")) {
+          window.open(n.action_url, "_blank", "noreferrer");
+        } else if (!isPathAllowedForTier(actionPath, accessTier)) {
+          navigate(accessTier === "blocked" ? "/seller/account-blocked" : "/seller/unverified");
+        } else {
+          navigate(n.action_url);
+        }
+      } else {
+        navigate("/seller/announcements");
+      }
+      return;
     }
 
     // Extract Order ID or Number from action_data
@@ -254,6 +295,7 @@ export function SellerNotifications() {
                     <SelectItem value="returns" className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg">Returns</SelectItem>
                     <SelectItem value="reviews" className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg">Reviews</SelectItem>
                     <SelectItem value="messages" className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg">Messages</SelectItem>
+                    <SelectItem value="announcements" className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg">Announcements</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -328,6 +370,11 @@ export function SellerNotifications() {
                           }`}
                       >
                         <div className="flex items-start gap-4">
+
+                          {/* Icon */}
+                          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${getNotificationBgColor(notification.type, notification.action_data)}`}>
+                            {getNotificationIcon(notification.type, notification.action_data)}
+                          </div>
 
                           {/* Content */}
                           <div className="flex-1 min-w-0">

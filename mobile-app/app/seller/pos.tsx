@@ -1008,7 +1008,6 @@ export default function POSScreen() {
             <View style={styles.variantModalHeader}>
               <Text style={styles.variantModalTitle}>Select Options</Text>
               <TouchableOpacity
-                style={styles.modalClose}
                 onPress={() => {
                   setShowProductModal(false);
                   setSelectedProduct(null);
@@ -2035,9 +2034,10 @@ const styles = StyleSheet.create({
   // Variant Modal Styles
   variantModalContent: {
     backgroundColor: '#FFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 24,
     padding: 24,
+    width: '100%',
+    maxWidth: 400,
     maxHeight: '80%',
   },
   variantModalHeader: {

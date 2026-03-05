@@ -332,6 +332,32 @@ const mapNormalizedToBuyerUiStatus = (
     return "pending";
 };
 
+// ---------------------------------------------------------------------------
+// TTL cache (30 s) — avoids redundant order fetches on hot seller/buyer pages
+// ---------------------------------------------------------------------------
+const ORDER_CACHE_TTL = 30_000;
+interface OrderCacheEntry<T> { data: T; expiresAt: number; }
+const _orderCache = new Map<string, OrderCacheEntry<unknown>>();
+
+function _getOrderCache<T>(key: string): T | null {
+    const entry = _orderCache.get(key) as OrderCacheEntry<T> | undefined;
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) { _orderCache.delete(key); return null; }
+    return entry.data;
+}
+
+function _setOrderCache<T>(key: string, data: T): void {
+    _orderCache.set(key, { data, expiresAt: Date.now() + ORDER_CACHE_TTL });
+}
+
+export function invalidateOrderCache(pattern?: string): void {
+    if (!pattern) { _orderCache.clear(); return; }
+    for (const key of _orderCache.keys()) {
+        if (key.includes(pattern)) _orderCache.delete(key);
+    }
+}
+// ---------------------------------------------------------------------------
+
 export class OrderService {
     private mockOrders: Order[] = [];
 
@@ -750,6 +776,7 @@ export class OrderService {
 
             if (itemsError) throw itemsError;
 
+            invalidateOrderCache();
             return insertedOrder;
         } catch (error) {
             console.error("Error creating order:", error);
@@ -784,6 +811,11 @@ export class OrderService {
                     ),
                 }));
         }
+
+        // Cache check (skip when date range is specified to ensure fresh data)
+        const cacheKey = `buyer_orders:${buyerId}:${startDate?.toISOString() ?? ''}:${endDate?.toISOString() ?? ''}`;
+        const cached = _getOrderCache<Order[]>(cacheKey);
+        if (cached) return cached;
 
         try {
             // Step 1: Initialize the query
@@ -891,7 +923,7 @@ export class OrderService {
             if (error) throw error;
 
             // Step 4: Map results (remains the same)
-            return (data || []).map((order: any) => {
+            const buyerResult = (data || []).map((order: any) => {
                 const fallbackAddress = parseLegacyShippingAddressFromNotes(order.notes);
                 const recipient = order.recipient || {};
                 const shippingAddr = order.shipping_address || {};
@@ -982,6 +1014,8 @@ export class OrderService {
                     shipping_country: "Philippines",
                 } as Order;
             });
+            _setOrderCache(cacheKey, buyerResult);
+            return buyerResult;
         } catch (error) {
             console.error("Error fetching buyer orders:", error);
             throw new Error("Failed to fetch orders");
@@ -1001,6 +1035,11 @@ export class OrderService {
                 return isSeller && created >= startDate && created <= endDate;
             });
         }
+
+        // Cache check
+        const sellerCacheKey = `seller_orders:${sellerId}:${startDate?.toISOString() ?? ''}:${endDate?.toISOString() ?? ''}`;
+        const cachedSeller = _getOrderCache<Order[]>(sellerCacheKey);
+        if (cachedSeller) return cachedSeller;
 
         try {
             // Step 1: Get all product IDs for this seller
@@ -1117,7 +1156,7 @@ export class OrderService {
             if (ordersError) throw ordersError;
 
             // Map to Order format with computed totals
-            return (orders || []).map((order) => {
+            const sellerResult = (orders || []).map((order) => {
                 const allItems = order.order_items || [];
                 const sellerItems = allItems.filter((item: any) =>
                     productIds.includes(item.product_id),
@@ -1225,6 +1264,8 @@ export class OrderService {
                     shipping_country: "Philippines",
                 };
             });
+            _setOrderCache(sellerCacheKey, sellerResult);
+            return sellerResult;
         } catch (error) {
             console.error("Error fetching seller orders:", error);
             throw new Error("Failed to fetch orders");
@@ -1564,6 +1605,7 @@ export class OrderService {
                     });
             }
 
+            invalidateOrderCache();
             return true;
         } catch (error) {
             console.error("Error updating order status:", error);
@@ -2007,6 +2049,7 @@ export class OrderService {
                 },
             });
 
+            invalidateOrderCache();
             return true;
         } catch (error) {
             console.error("Error cancelling order:", error);

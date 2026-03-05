@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -102,7 +102,7 @@ export default function AdminDashboardScreen() {
     },
   ];
 
-  const unreadCount = notifications.filter(n => n.unread).length;
+  const unreadCount = useMemo(() => notifications.filter(n => n.unread).length, [notifications]);
 
   // Reload dashboard every time screen comes into focus (e.g., when switching accounts)
   useFocusEffect(

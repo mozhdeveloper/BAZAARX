@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, TextInput, Modal } from 'react-native';
 import { ArrowLeft, Users, Search, ShoppingBag, DollarSign, CheckCircle, Ban, UserX, Phone, Mail, MapPin, Eye, X, Calendar, Star, XCircle as CancelIcon, RotateCcw } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -23,13 +23,13 @@ export default function AdminBuyersScreen() {
     loadBuyers();
   }, []);
 
-  const filteredBuyers = buyers.filter(buyer => {
+  const filteredBuyers = useMemo(() => buyers.filter(buyer => {
     const matchesSearch = buyer.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          buyer.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          buyer.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || buyer.status === statusFilter;
     return matchesSearch && matchesStatus;
-  });
+  }), [buyers, searchTerm, statusFilter]);
 
   const getStatusBadge = (status: string) => {
     const config = {

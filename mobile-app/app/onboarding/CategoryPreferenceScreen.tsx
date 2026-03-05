@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -57,13 +57,13 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
     fetchCategories();
   }, []);
 
-  const toggleCategory = (id: string) => {
+  const toggleCategory = useCallback((id: string) => {
     if (selectedCategories.includes(id)) {
       setSelectedCategories(prev => prev.filter(catId => catId !== id));
     } else {
       setSelectedCategories(prev => [...prev, id]);
     }
-  };
+  }, [selectedCategories]);
 
   const handleFinishOnboarding = async () => {
     // Validation: Ensure at least 3 categories are selected
@@ -116,11 +116,13 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
     }
   };
 
-  const filteredCategories = dbCategories.filter(cat =>
+  const filteredCategories = useMemo(() => dbCategories.filter(cat =>
     cat.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ), [dbCategories, searchQuery]);
 
-  const renderItem = ({ item }: { item: Category }) => {
+  const keyExtractor = useCallback((item: Category) => item.id, []);
+
+  const renderItem = useCallback(({ item }: { item: Category }) => {
     const isSelected = selectedCategories.includes(item.id);
     return (
       <Pressable
@@ -147,7 +149,7 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
         </ImageBackground>
       </Pressable>
     );
-  };
+  }, [selectedCategories, toggleCategory]);
 
   return (
     <View style={styles.container}>
@@ -188,7 +190,7 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
         <FlatList
           data={filteredCategories}
           renderItem={renderItem}
-          keyExtractor={item => item.id}
+          keyExtractor={keyExtractor}
           numColumns={COLUMN_count}
           contentContainerStyle={styles.listContent}
           columnWrapperStyle={styles.columnWrapper}

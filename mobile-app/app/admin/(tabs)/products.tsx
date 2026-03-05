@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -47,7 +47,7 @@ export default function AdminProductsScreen() {
     }, [])
   );
 
-  const filteredProducts = products.filter(product => {
+  const filteredProducts = useMemo(() => products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.sellerName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
@@ -55,7 +55,7 @@ export default function AdminProductsScreen() {
                            (verifiedFilter === 'verified' && product.isVerified) ||
                            (verifiedFilter === 'unverified' && !product.isVerified);
     return matchesSearch && matchesStatus && matchesVerified;
-  });
+  }), [products, searchTerm, statusFilter, verifiedFilter]);
 
   const getStatusConfig = (status: string) => {
     const configs = {

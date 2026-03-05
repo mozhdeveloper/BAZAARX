@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -84,7 +84,7 @@ export default function OnboardingScreen({ navigation }: Props) {
     navigation.replace('Login');
   };
 
-  const renderItem = ({ item }: { item: typeof slides[0] }) => {
+  const renderItem = useCallback(({ item }: { item: typeof slides[0] }) => {
     const Icon = item.icon;
     return (
       <View style={styles.slide}>
@@ -100,7 +100,9 @@ export default function OnboardingScreen({ navigation }: Props) {
         <Text style={styles.description}>{item.description}</Text>
       </View>
     );
-  };
+  }, []);
+
+  const keyExtractor = useCallback((item: typeof slides[0]) => item.id, []);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -120,7 +122,7 @@ export default function OnboardingScreen({ navigation }: Props) {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         bounces={false}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
       />

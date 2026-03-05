@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, Pressable, StatusBar, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, StatusBar, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Store, MapPin, Star, Users, CheckCircle2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -57,12 +58,12 @@ export default function AllStoresScreen() {
     // Use real stores if available, fallback to official stores (which might be empty or mock)
     const displayStores = realStores.length > 0 ? realStores : officialStores;
 
-    const renderStoreItem = ({ item }: { item: any }) => (
+    const renderStoreItem = useCallback(({ item }: { item: any }) => (
         <Pressable 
             style={styles.shopCard} 
             onPress={() => navigation.navigate('StoreDetail', { store: item })}
         >
-            <Image source={{ uri: safeImageUri(item.banner, PLACEHOLDER_BANNER) }} style={styles.shopImage} />
+            <Image source={{ uri: safeImageUri(item.banner, PLACEHOLDER_BANNER) }} style={styles.shopImage} contentFit="cover" cachePolicy="memory-disk" />
             <View style={styles.overlay} />
             <View style={styles.logoContainer}>
                 <Text style={{ fontSize: 24 }}>{item.logo}</Text>
@@ -106,7 +107,9 @@ export default function AllStoresScreen() {
                 </Pressable>
             </View>
         </Pressable>
-    );
+    ), [navigation]);
+
+    const keyExtractor = useCallback((item: any) => item.id, []);
 
     return (
         <View style={styles.container}>
@@ -140,9 +143,13 @@ export default function AllStoresScreen() {
                 <FlatList
                     data={displayStores}
                     renderItem={renderStoreItem}
-                    keyExtractor={item => item.id}
+                    keyExtractor={keyExtractor}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
+                    initialNumToRender={6}
+                    maxToRenderPerBatch={6}
+                    windowSize={5}
+                    removeClippedSubviews={true}
                 />
             )}
         </View>

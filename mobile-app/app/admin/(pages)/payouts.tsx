@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -30,12 +30,12 @@ export default function PayoutsScreen() {
     loadPayouts();
   }, []);
 
-  const filteredPayouts = payouts.filter(payout => {
+  const filteredPayouts = useMemo(() => payouts.filter(payout => {
     const matchesSearch = payout.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          payout.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || payout.status === statusFilter;
     return matchesSearch && matchesStatus;
-  });
+  }), [payouts, searchTerm, statusFilter]);
 
   const handleMarkPaidClick = (payout: Payout) => {
     setSelectedPayout(payout);

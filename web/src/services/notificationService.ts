@@ -596,6 +596,7 @@ export class NotificationService {
       priority: 'high',
     });
   }
+
   /**
    * Notify buyer when their return request status changes
    */
@@ -662,6 +663,78 @@ export class NotificationService {
       actionData: { orderId: params.orderId, returnId: params.returnId },
       priority: 'high'
     });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Announcement fan-out helpers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch active (non-expired) announcements for a given user type.
+   * Used by buyer/seller notification pages or banner components.
+   */
+  async getActiveAnnouncements(
+    userType: 'buyer' | 'seller' | 'all' = 'all'
+  ): Promise<{
+    id: string;
+    title: string;
+    message: string;
+    type: string;
+    audience: string;
+    image_url?: string | null;
+    action_url?: string | null;
+    created_at: string;
+  }[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      let query = supabase
+        .from('announcements')
+        .select('id, title, message, type, audience, image_url, action_url, created_at')
+        .eq('is_active', true)
+        .or('expires_at.is.null,expires_at.gt.now()')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (userType !== 'all') {
+        query = query.in('audience', ['all', `${userType}s`]);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.warn('[NotificationService] getActiveAnnouncements error:', error);
+        return [];
+      }
+      return data ?? [];
+    } catch (err) {
+      console.error('[NotificationService] getActiveAnnouncements exception:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Register or upsert a push token for the signed-in user.
+   * Call this after Expo push permission grant in mobile.
+   */
+  async registerPushToken(params: {
+    userId: string;
+    token: string;
+    platform: 'ios' | 'android' | 'web';
+  }): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { error } = await supabase.from('push_tokens').upsert(
+        {
+          user_id: params.userId,
+          token: params.token,
+          platform: params.platform,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'token' }
+      );
+      if (error) console.warn('[NotificationService] registerPushToken error:', error);
+    } catch (err) {
+      console.error('[NotificationService] registerPushToken exception:', err);
+    }
   }
 }
 

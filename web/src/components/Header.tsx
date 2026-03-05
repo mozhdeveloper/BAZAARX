@@ -24,6 +24,7 @@ import {
   bestSellerProducts,
   newArrivals,
 } from "../data/products";
+import { prefetchRoute } from "@/lib/prefetch";
 
 interface HeaderProps {
   transparentOnTop?: boolean;
@@ -179,6 +180,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
             {/* Cart */}
             <button
               onClick={() => navigate("/enhanced-cart")}
+              onMouseEnter={() => prefetchRoute(() => import("../pages/EnhancedCartPage"))}
               className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname === "/enhanced-cart"
                 ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
                 : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"

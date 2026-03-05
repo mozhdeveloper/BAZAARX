@@ -161,25 +161,30 @@ export default function CartScreen({ navigation }: any) {
 
   const isAllSelected = items.length > 0 && selectedIds.length === items.length;
 
-  const toggleSelectItem = (id: string) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
-    );
-  };
+  // O(1) membership lookup — replaces O(n) Array.includes() calls in render
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  const toggleSellerGroup = (sellerProducts: typeof items) => {
+  const toggleSelectItem = useCallback((id: string) => {
+    setSelectedIds(prev =>
+      selectedSet.has(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
+    );
+  }, [selectedSet]);
+
+  const toggleSellerGroup = useCallback((sellerProducts: typeof items) => {
     const sellerItemIds = sellerProducts.map(item => item.cartItemId);
-    const isSellerFullySelected = sellerItemIds.every(id => selectedIds.includes(id));
+    const isSellerFullySelected = sellerItemIds.every(id => selectedSet.has(id));
 
     if (isSellerFullySelected) {
-      setSelectedIds(prev => prev.filter(id => !sellerItemIds.includes(id)));
+      const removeSet = new Set(sellerItemIds);
+      setSelectedIds(prev => prev.filter(id => !removeSet.has(id)));
     } else {
       setSelectedIds(prev => {
-        const newIds = sellerItemIds.filter(id => !prev.includes(id));
+        const prevSet = new Set(prev);
+        const newIds = sellerItemIds.filter(id => !prevSet.has(id));
         return [...prev, ...newIds];
       });
     }
-  };
+  }, [selectedSet]);
 
   const handleCheckout = async () => {
     if (selectedIds.length === 0) return;
@@ -252,7 +257,7 @@ export default function CartScreen({ navigation }: any) {
       >
         {/* SELLER GROUPS */}
         {Object.entries(groupedItems).map(([sellerName, sellerProducts]) => {
-          const isSellerSelected = sellerProducts.every(item => selectedIds.includes(item.cartItemId));
+          const isSellerSelected = sellerProducts.every(item => selectedSet.has(item.cartItemId));
 
           return (
             <View key={sellerName} style={styles.sellerCard}>
@@ -286,7 +291,7 @@ export default function CartScreen({ navigation }: any) {
                 <View key={item.cartItemId}>
                   <View style={styles.itemRow}>
                     <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)}>
-                      {selectedIds.includes(item.cartItemId) ? (
+                      {selectedSet.has(item.cartItemId) ? (
                         <CheckCircle size={20} color={BRAND_PRIMARY} />
                       ) : (
                         <Circle size={20} color="#D1D5DB" />
@@ -311,7 +316,7 @@ export default function CartScreen({ navigation }: any) {
 
               {/* Per-Seller Subtotal */}
               {(() => {
-                const sellerSelected = sellerProducts.filter(item => selectedIds.includes(item.cartItemId));
+                const sellerSelected = sellerProducts.filter(item => selectedSet.has(item.cartItemId));
                 if (sellerSelected.length === 0) return null;
                 const sellerSub = sellerSelected.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
                 return (

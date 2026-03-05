@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
@@ -373,7 +373,7 @@ export default function CheckoutPage() {
   // Final total calculation consistent with EnhancedCartPage (Tax is inclusive)
   const finalTotal = Math.max(0, originalSubtotal + shippingFee - couponSavings);
 
-  const handleApplyVoucher = async () => {
+  const handleApplyVoucher = useCallback(async () => {
     const code = voucherCode.trim().toUpperCase();
 
     try {
@@ -412,12 +412,12 @@ export default function CheckoutPage() {
         variant: "destructive",
       });
     }
-  };
+  }, [voucherCode, validateVoucherDetailed, toast]);
 
-  const handleRemoveVoucher = () => {
+  const handleRemoveVoucher = useCallback(() => {
     setAppliedVoucher(null);
     setVoucherCode("");
-  };
+  }, []);
 
   const validateForm = () => {
     const newErrors: any = {};
@@ -497,12 +497,12 @@ export default function CheckoutPage() {
     return { isValid: Object.keys(newErrors).length === 0, messages: validationErrorMessages as string[] };
   };
 
-  const handleInputChange = (field: keyof CheckoutFormData, value: string) => {
+  const handleInputChange = useCallback((field: keyof CheckoutFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
-  };
+  }, [errors]);
 
   // Track if store has been rehydrated
   const [isStoreReady, setIsStoreReady] = useState(false);
@@ -551,7 +551,7 @@ export default function CheckoutPage() {
     }
   }, [isStoreReady, checkoutItems.length, profile, navigate, isBuyAgainMode]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
     console.log('🛒 Place Order clicked');
@@ -734,7 +734,7 @@ export default function CheckoutPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [validateForm, profile, checkoutItems, finalTotal, selectedAddress, formData, isBuyAgainMode, isQuickCheckout, useBazcoins, bazcoinDiscount, earnedBazcoins, shippingFee, discount, appliedVoucher, navigate, toast, updateRegistryItem, clearBuyAgainItems, clearQuickOrder, removeSelectedItems]);
 
   // Show loading while store is rehydrating
   if (!isStoreReady) {

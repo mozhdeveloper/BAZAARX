@@ -24,6 +24,8 @@ const StoreCard: React.FC<StoreCardProps> = ({ store, index = 0 }) => {
         <img
           src={store.banner}
           alt={store.name}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
         />
         {store.isVerified && (
@@ -42,6 +44,8 @@ const StoreCard: React.FC<StoreCardProps> = ({ store, index = 0 }) => {
             <img
               src={store.logo}
               alt={store.name}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover"
             />
           </div>
@@ -110,4 +114,4 @@ const StoreCard: React.FC<StoreCardProps> = ({ store, index = 0 }) => {
   );
 };
 
-export default StoreCard;
+export default React.memo(StoreCard);

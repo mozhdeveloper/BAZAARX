@@ -6,13 +6,13 @@ import {
   ScrollView,
   FlatList,
   Pressable,
-  Image,
   TextInput,
   RefreshControl,
   Modal,
   Alert,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -26,6 +26,18 @@ import { safeImageUri } from '../../../src/utils/imageUtils';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 import { orderExportService } from '../../../src/services/orderExportService';
 import TrackingModal from '../../../src/components/seller/TrackingModal';
+
+// Pure mapping — no component state, defined at module level for stability
+const getStatusConfig = (status: string) => {
+  const configs: Record<string, { color: string; label: string; action: string | null }> = {
+    pending: { color: '#FBBF24', label: 'PENDING', action: 'Confirm' },
+    confirmed: { color: '#3B82F6', label: 'CONFIRMED', action: 'Ship Now' },
+    shipped: { color: '#8B5CF6', label: 'SHIPPED', action: 'Deliver' },
+    delivered: { color: '#10B981', label: 'DELIVERED', action: null },
+    cancelled: { color: '#DC2626', label: 'CANCELLED', action: null },
+  };
+  return configs[status] || { color: '#6B7280', label: status.toUpperCase(), action: null };
+};
 
 // Types
 type DBStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
@@ -193,17 +205,6 @@ export default function SellerOrdersScreen() {
     setShowDatePicker(true);
   };
 
-  const getStatusConfig = (status: string) => {
-    const configs: Record<string, { color: string; label: string; action: string | null }> = {
-      pending: { color: '#FBBF24', label: 'PENDING', action: 'Confirm' },
-      confirmed: { color: '#3B82F6', label: 'CONFIRMED', action: 'Ship Now' },
-      shipped: { color: '#8B5CF6', label: 'SHIPPED', action: 'Deliver' },
-      delivered: { color: '#10B981', label: 'DELIVERED', action: null },
-      cancelled: { color: '#DC2626', label: 'CANCELLED', action: null },
-    };
-    return configs[status] || { color: '#6B7280', label: status.toUpperCase(), action: null };
-  };
-
   const handleQuickAction = useCallback((orderId: string, currentStatus: DBStatus) => {
     if (currentStatus === 'pending') {
       Alert.alert('Confirm Order', 'Mark this order as confirmed and ready to ship?', [
@@ -279,6 +280,55 @@ export default function SellerOrdersScreen() {
     filters.channel !== 'all',
     filters.dateLabel !== 'All Time'
   ].filter(Boolean).length;
+
+  const keyExtractor = useCallback((item: { id: string }) => item.id, []);
+
+  const renderOrderItem = useCallback(({ item: order }: { item: any }) => {
+    const config = getStatusConfig(order.status);
+    const isWalkIn = order.type === 'OFFLINE';
+    return (
+      <View style={styles.ordersList}>
+        <Pressable style={styles.orderCard} onPress={() => navigation.navigate('SellerOrderDetail', { orderId: order.id })}>
+          <View style={[styles.channelBar, { backgroundColor: isWalkIn ? '#8B5CF6' : '#3B82F6' }]} />
+          <View style={styles.cardContent}>
+            <View style={styles.cardHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.orderId} numberOfLines={1}>#{String(order.orderNumber || order.id).slice(0, 10).toUpperCase()}</Text>
+                <View style={styles.infoRow}>
+                  <Text style={styles.customerName} numberOfLines={1}>{order.buyerName || 'Walk-in'}</Text>
+                  <Text style={styles.orderDate}> • {new Date(order.orderDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                </View>
+              </View>
+              <Text style={[styles.statusWord, { color: config.color }]}>{config.label}</Text>
+            </View>
+            <View style={styles.cardBody}>
+              <View style={styles.thumbnailStack}>
+                {order.items.slice(0, 2).map((item: any, i: number) => (
+                  <View key={i} style={styles.thumbWrapper}>
+                    <Image source={{ uri: safeImageUri(item.image) }} style={styles.thumbnail} contentFit="cover" cachePolicy="memory-disk" />
+                    <View style={styles.qtyBadge}><Text style={styles.qtyText}>x{item.quantity}</Text></View>
+                  </View>
+                ))}
+                {order.items.length > 2 && <View style={styles.moreItemsBox}><Text style={styles.moreItemsText}>+{order.items.length - 2}</Text></View>}
+              </View>
+              <View style={styles.priceGroup}>
+                <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
+                <Text style={styles.totalLabel}>Total</Text>
+              </View>
+            </View>
+            <View style={styles.cardFooter}>
+              <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
+              {config.action && (
+                <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, order.status as DBStatus)}>
+                  <Text style={styles.actionBtnText}>{config.action}</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </Pressable>
+      </View>
+    );
+  }, [navigation, handleQuickAction]);
 
   return (
     <View style={styles.container}>
@@ -362,7 +412,7 @@ export default function SellerOrdersScreen() {
       {/* Orders List */}
       <FlatList
         data={filteredOrders}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         refreshControl={
           <RefreshControl refreshing={refreshing || ordersLoading} onRefresh={onRefresh} colors={['#D97706']} />
         }
@@ -376,52 +426,7 @@ export default function SellerOrdersScreen() {
             <Text style={styles.emptyText}>No orders found matching your filters.</Text>
           </View>
         }
-        renderItem={({ item: order }) => {
-          const config = getStatusConfig(order.status);
-          const isWalkIn = order.type === 'OFFLINE';
-          return (
-            <View style={styles.ordersList}>
-              <Pressable style={styles.orderCard} onPress={() => navigation.navigate('SellerOrderDetail', { orderId: order.id })}>
-                <View style={[styles.channelBar, { backgroundColor: isWalkIn ? '#8B5CF6' : '#3B82F6' }]} />
-                <View style={styles.cardContent}>
-                  <View style={styles.cardHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.orderId} numberOfLines={1}>#{String(order.orderNumber || order.id).slice(0, 10).toUpperCase()}</Text>
-                      <View style={styles.infoRow}>
-                        <Text style={styles.customerName} numberOfLines={1}>{order.buyerName || 'Walk-in'}</Text>
-                        <Text style={styles.orderDate}> • {new Date(order.orderDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.statusWord, { color: config.color }]}>{config.label}</Text>
-                  </View>
-                  <View style={styles.cardBody}>
-                    <View style={styles.thumbnailStack}>
-                      {order.items.slice(0, 2).map((item: any, i: number) => (
-                        <View key={i} style={styles.thumbWrapper}>
-                          <Image source={{ uri: safeImageUri(item.image) }} style={styles.thumbnail} />
-                          <View style={styles.qtyBadge}><Text style={styles.qtyText}>x{item.quantity}</Text></View>
-                        </View>
-                      ))}
-                      {order.items.length > 2 && <View style={styles.moreItemsBox}><Text style={styles.moreItemsText}>+{order.items.length - 2}</Text></View>}
-                    </View>
-                    <View style={styles.priceGroup}>
-                      <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
-                      <Text style={styles.totalLabel}>Total</Text>
-                    </View>
-                  </View>
-                  <View style={styles.cardFooter}>
-                    <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
-                    {config.action && (
-                      <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, order.status as DBStatus)}>
-                        <Text style={styles.actionBtnText}>{config.action}</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
-              </Pressable>
-            </View>
-          );
-        }}
+        renderItem={renderOrderItem}
       />
 
       {/* FILTER MODAL */}

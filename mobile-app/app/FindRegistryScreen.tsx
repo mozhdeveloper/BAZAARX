@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, FlatList, Pressable, Image, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TextInput, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, User, ChevronRight } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -59,6 +60,19 @@ export default function FindRegistryScreen() {
         navigation.navigate('SharedWishlist', { userId: user.id });
     };
 
+    const renderRegistryItem = useCallback(({ item }: { item: typeof MOCK_RESULTS[0] }) => (
+        <Pressable style={styles.userCard} onPress={() => handleSelectUser(item)}>
+            <Image source={{ uri: safeImageUri(item.avatar, PLACEHOLDER_AVATAR) }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" />
+            <View style={styles.userInfo}>
+                <Text style={styles.userName}>{item.name}</Text>
+                <Text style={styles.userLocation}>{item.location} • {item.itemCount} Items</Text>
+            </View>
+            <ChevronRight size={20} color="#9CA3AF" />
+        </Pressable>
+    ), []);
+
+    const keyExtractor = useCallback((item: typeof MOCK_RESULTS[0]) => item.id, []);
+
     return (
         <View style={styles.container}>
             {/* Header */}
@@ -108,8 +122,13 @@ export default function FindRegistryScreen() {
             ) : (
                 <FlatList
                     data={results}
-                    keyExtractor={item => item.id}
+                    keyExtractor={keyExtractor}
                     contentContainerStyle={styles.listContent}
+                    initialNumToRender={8}
+                    maxToRenderPerBatch={8}
+                    windowSize={5}
+                    removeClippedSubviews={true}
+                    renderItem={renderRegistryItem}
                     ListEmptyComponent={
                         hasSearched ? (
                             <View style={styles.centerContainer}>
@@ -119,16 +138,6 @@ export default function FindRegistryScreen() {
                             </View>
                         ) : null
                     }
-                    renderItem={({ item }) => (
-                        <Pressable style={styles.userCard} onPress={() => handleSelectUser(item)}>
-                            <Image source={{ uri: safeImageUri(item.avatar, PLACEHOLDER_AVATAR) }} style={styles.avatar} />
-                            <View style={styles.userInfo}>
-                                <Text style={styles.userName}>{item.name}</Text>
-                                <Text style={styles.userLocation}>{item.location} • {item.itemCount} Items</Text>
-                            </View>
-                            <ChevronRight size={20} color="#9CA3AF" />
-                        </Pressable>
-                    )}
                 />
             )}
         </View>

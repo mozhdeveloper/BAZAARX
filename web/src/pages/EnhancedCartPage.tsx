@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBuyerStore } from "../stores/buyerStore";
 import { discountService } from "@/services/discountService";
@@ -19,7 +19,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { VariantSelectionModal } from "../components/ui/variant-selection-modal";
+import { prefetchRoute } from "@/lib/prefetch";
+const VariantSelectionModal = lazy(() =>
+    import("../components/ui/variant-selection-modal").then((m) => ({ default: m.VariantSelectionModal }))
+);
 import {
   Dialog,
   DialogContent,
@@ -118,7 +121,7 @@ export default function EnhancedCartPage() {
     src && src.trim().length > 0 ? src : undefined;
 
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = useCallback(() => {
     if (!deleteTarget) return;
 
     if (deleteTarget.type === 'bulk') {
@@ -127,7 +130,7 @@ export default function EnhancedCartPage() {
       removeFromCart(deleteTarget.id, deleteTarget.variantId);
     }
     setDeleteTarget(null);
-  };
+  }, [deleteTarget, removeSelectedItems, removeFromCart]);
 
   // Clear quick order when user navigates to cart
   useEffect(() => {
@@ -198,7 +201,7 @@ export default function EnhancedCartPage() {
   const allSelected = cartItems.length > 0 && cartItems.every(item => item.selected);
   const someSelected = cartItems.some(item => item.selected) && !allSelected;
 
-  const handleApplyVoucher = async (sellerId?: string) => {
+  const handleApplyVoucher = useCallback(async (sellerId?: string) => {
     if (!voucherCode.trim()) {
       setVoucherError("Please enter a voucher code");
       return;
@@ -231,21 +234,30 @@ export default function EnhancedCartPage() {
     } finally {
       setIsApplyingVoucher(false);
     }
-  };
+  }, [voucherCode, validateVoucherDetailed, applyVoucher]);
 
-  const handleEditOptions = (item: any) => {
+  const handleEditOptions = useCallback((item: any) => {
     setEditingItem(item);
     setShowVariantModal(true);
-  };
+  }, []);
 
-  const handleUpdateVariant = (newVariant: any, newQuantity: number) => {
+  const handleUpdateVariant = useCallback((newVariant: any, newQuantity: number) => {
     if (editingItem) {
       updateItemVariant(editingItem.id, editingItem.selectedVariant?.id, newVariant, newQuantity);
     }
     setShowVariantModal(false);
     setEditingItem(null);
-  };
+  }, [editingItem, updateItemVariant]);
 
+
+  // Memoize sorted cart groups to avoid re-sort on every render
+  const sortedCartGroups = useMemo(() =>
+    Object.entries(groupedCart).sort(([, groupA], [, groupB]) => {
+      const latestA = Math.max(...groupA.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
+      const latestB = Math.max(...groupB.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
+      return latestB - latestA;
+    }),
+  [groupedCart]);
 
   if (totalItems === 0) {
     return (
@@ -336,12 +348,7 @@ export default function EnhancedCartPage() {
             </div>
 
             <AnimatePresence>
-              {Object.entries(groupedCart)
-                .sort(([, groupA], [, groupB]) => {
-                  const latestA = Math.max(...groupA.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
-                  const latestB = Math.max(...groupB.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
-                  return latestB - latestA;
-                })
+              {sortedCartGroups
                 .map(
                   ([sellerId, group], sellerIndex) => (
                     <motion.div
@@ -657,6 +664,7 @@ export default function EnhancedCartPage() {
 
               <Button
                 onClick={() => navigate("/checkout")}
+                onMouseEnter={() => prefetchRoute(() => import("./CheckoutPage"))}
                 size="lg"
                 disabled={selectedCount === 0}
                 className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed"
@@ -670,24 +678,26 @@ export default function EnhancedCartPage() {
 
       {/* Variant Selection Modal */}
       {editingItem && (
-        <VariantSelectionModal
-          isOpen={showVariantModal}
-          onClose={() => setShowVariantModal(false)}
-          product={{
-            id: editingItem.id,
-            name: editingItem.name,
-            price: editingItem.price,
-            image: editingItem.image,
-            variants: editingItem.variants || [],
-            variantLabel1Values: editingItem.variantLabel1Values || [],
-            variantLabel2Values: editingItem.variantLabel2Values || [],
-          }}
-          initialSelectedVariant={editingItem.selectedVariant}
-          initialQuantity={editingItem.quantity}
-          activeDiscount={activeCampaignDiscounts[editingItem.id]}
-          buttonText="Confirm Changes"
-          onConfirm={handleUpdateVariant}
-        />
+        <Suspense fallback={null}>
+          <VariantSelectionModal
+            isOpen={showVariantModal}
+            onClose={() => setShowVariantModal(false)}
+            product={{
+              id: editingItem.id,
+              name: editingItem.name,
+              price: editingItem.price,
+              image: editingItem.image,
+              variants: editingItem.variants || [],
+              variantLabel1Values: editingItem.variantLabel1Values || [],
+              variantLabel2Values: editingItem.variantLabel2Values || [],
+            }}
+            initialSelectedVariant={editingItem.selectedVariant}
+            initialQuantity={editingItem.quantity}
+            activeDiscount={activeCampaignDiscounts[editingItem.id]}
+            buttonText="Confirm Changes"
+            onConfirm={handleUpdateVariant}
+          />
+        </Suspense>
       )}
 
       {/* Delete Confirmation Dialog */}

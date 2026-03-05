@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -52,11 +52,14 @@ export default function AdminSellersScreen() {
     setDetailsModalVisible(true);
   }
 
-  const filteredSellers = selectedTab === 'pending' 
-    ? pendingSellers 
+  const approvedCount = useMemo(() => sellers.filter(s => s.status === 'approved').length, [sellers]);
+
+  const filteredSellers = useMemo(() => selectedTab === 'pending'
+    ? pendingSellers
     : selectedTab === 'approved'
     ? sellers.filter(s => s.status === 'approved')
-    : sellers;
+    : sellers
+  , [selectedTab, sellers, pendingSellers]);
 
   return (
     <View style={styles.container}>
@@ -83,7 +86,7 @@ export default function AdminSellersScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContent}>
           {[
             { key: 'pending', label: 'Pending', count: pendingSellers.length },
-            { key: 'approved', label: 'Approved', count: sellers.filter(s => s.status === 'approved').length },
+            { key: 'approved', label: 'Approved', count: approvedCount },
             { key: 'all', label: 'All', count: sellers.length },
           ].map((tab) => (
             <Pressable

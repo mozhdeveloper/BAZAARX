@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TextInput,
-  Image,
   Switch,
   Alert,
   Modal,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, Plus, Edit, Trash2, X, Camera, Package as PackageIcon, Info, Link, Upload, FileText, Menu } from 'lucide-react-native';
 import { useSellerStore, SellerProduct } from '../../../src/stores/sellerStore';
@@ -359,7 +359,7 @@ export default function SellerProductsScreen() {
     }
   };
 
-  const handleDeleteProduct = (id: string, name: any) => {
+  const handleDeleteProduct = useCallback((id: string, name: any) => {
     const safeName = typeof name === 'object' ? name?.name || '' : String(name || '');
     Alert.alert(
       'Delete Product',
@@ -373,17 +373,17 @@ export default function SellerProductsScreen() {
         },
       ]
     );
-  };
+  }, [deleteProduct]);
 
-  const handleToggleProductStatus = async (id: string) => {
+  const handleToggleProductStatus = useCallback(async (id: string) => {
     try {
       await toggleProductStatus(id);
     } catch (error) {
       Alert.alert('Update Failed', error instanceof Error ? error.message : 'Failed to update product status');
     }
-  };
+  }, [toggleProductStatus]);
 
-  const handleEditProduct = (product: SellerProduct) => {
+  const handleEditProduct = useCallback((product: SellerProduct) => {
     const categoryName = asText(product.category);
 
     setEditingProduct(product);
@@ -422,7 +422,8 @@ export default function SellerProductsScreen() {
         console.error('Failed to load variants for editing:', variantError);
         setEditVariants([]);
       });
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const validateEditForm = () => {
     if (!formData.name.trim()) {
@@ -676,9 +677,11 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
     }
   }, [displayCount, filteredProducts.length]);
 
-  const renderProductCard = ({ item }: { item: SellerProduct }) => (
+  const keyExtractor = useCallback((item: SellerProduct) => item.id, []);
+
+  const renderProductCard = useCallback(({ item }: { item: SellerProduct }) => (
     <View style={styles.productCard}>
-      <Image source={{ uri: safeImageUri(item.images?.[0]) }} style={styles.productImage} />
+      <Image source={{ uri: safeImageUri(item.images?.[0]) }} style={styles.productImage} contentFit="cover" cachePolicy="memory-disk" />
 
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
@@ -728,11 +731,11 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
         </View>
       </View>
     </View>
-  );
+  ), [handleDeleteProduct, handleToggleProductStatus, handleEditProduct]);
 
   const renderPreviewCard = (item: SellerProduct) => (
     <View style={styles.productCard}>
-      <Image source={{ uri: safeImageUri(item.images?.[0]) }} style={styles.productImage} />
+      <Image source={{ uri: safeImageUri(item.images?.[0]) }} style={styles.productImage} contentFit="cover" cachePolicy="memory-disk" />
 
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
@@ -843,7 +846,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
         <FlatList
           data={paginatedProducts}
           renderItem={renderProductCard}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.productsList}
           showsVerticalScrollIndicator={false}
           initialNumToRender={10}
