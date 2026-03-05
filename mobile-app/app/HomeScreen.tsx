@@ -438,6 +438,7 @@ export default function HomeScreen({ navigation }: Props) {
           images: product.images?.map((img: any) => img.image_url) || [],
           category: product.category?.name, seller: product.seller,
           rating: avgRating, review_count: reviews.length, stock: totalStock,
+          sold: (product as any).sold_count ?? (product as any).sold ?? 0,
           is_active: !product.disabled_at,
         }
       });
@@ -459,6 +460,7 @@ export default function HomeScreen({ navigation }: Props) {
           images: product.images?.map((img: any) => img.image_url) || [],
           category: product.category?.name, seller: product.seller,
           rating: avgRating, review_count: reviews.length, stock: totalStock,
+          sold: product.sold_count ?? (product as any).sold ?? 0,
           is_active: !product.disabled_at,
         }
       });

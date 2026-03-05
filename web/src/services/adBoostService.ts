@@ -64,6 +64,7 @@ export interface AdBoostWithProduct extends AdBoost {
     seller: { id: string; store_name: string; avatar_url: string | null } | null;
     reviews: { rating: number }[];
     variants: { stock: number }[];
+    sold_count?: number;
   };
 }
 
@@ -374,7 +375,28 @@ class AdBoostService {
         return [];
       }
 
-      return data || [];
+      const results = data || [];
+      if (results.length === 0) return results;
+
+      // Fetch sold counts from product_sold_counts view
+      const productIds = results.map((b: any) => b.product?.id).filter(Boolean);
+      const { data: soldCountsData } = await getClient()
+        .from('product_sold_counts')
+        .select('product_id, sold_count')
+        .in('product_id', productIds);
+
+      const soldCountsMap = new Map<string, number>();
+      (soldCountsData || []).forEach((row: any) => {
+        soldCountsMap.set(row.product_id, row.sold_count || 0);
+      });
+
+      return results.map((b: any) => ({
+        ...b,
+        product: {
+          ...b.product,
+          sold_count: soldCountsMap.get(b.product?.id) || 0,
+        },
+      }));
     } catch (err) {
       console.error('[AdBoostService] getActiveBoostedProducts exception:', err);
       return [];
