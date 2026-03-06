@@ -159,7 +159,7 @@ export function VariantSelectionModal({
             selectedSize,
             matchedVariant,
             oldImage: currentImage,
-            newImage: matchedVariant?.thumbnail_url || product.image
+            newImage: matchedVariant?.image || matchedVariant?.thumbnail_url || product.image
         });
 
         if (matchedVariant) {
@@ -170,7 +170,7 @@ export function VariantSelectionModal({
             setCurrentOriginalPrice(discountedUnitPrice < variantBasePrice ? variantBasePrice : (matchedVariant as any).originalPrice ?? null);
             setCurrentStock(matchedVariant.stock);
             // Use variant thumbnail if available, otherwise fall back to product image
-            const newImage = matchedVariant.thumbnail_url || product.image;
+            const newImage = matchedVariant?.image || matchedVariant?.thumbnail_url || product.image;
             setCurrentImage(newImage);
             console.log('✅ Image updated to:', newImage);
 
