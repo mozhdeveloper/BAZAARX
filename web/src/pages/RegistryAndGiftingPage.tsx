@@ -26,7 +26,7 @@ import { RegistryItem, Product } from "../stores/buyerStore";
 // Updating RegistryDetailModal is cleaner but might break other things.
 // Casting in RegistryAndGiftingPage is safer for now.
 const RegistryAndGiftingPage = () => {
-  const { registries, createRegistry, addToRegistry, deleteRegistry } =
+  const { registries, createRegistry, addToRegistry, deleteRegistry, loadRegistries } =
     useBuyerStore();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedRegistry, setSelectedRegistry] = useState<RegistryItem | null>(
@@ -34,6 +34,11 @@ const RegistryAndGiftingPage = () => {
   );
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    loadRegistries();
+    console.log("RegistryAndGiftingPage: loadRegistries called");
+  }, [loadRegistries]);
 
   const handleCreateRegistry = ({
     name,
