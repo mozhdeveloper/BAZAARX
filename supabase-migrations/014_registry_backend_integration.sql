@@ -1,99 +1,78 @@
 -- ============================================================================
--- REGISTRY BACKEND INTEGRATION
--- Extends the existing registries and registry_items tables to support
--- the full frontend feature set (privacy, delivery, product snapshots, etc.)
--- and adds RLS policies so buyers can only access their own registries.
+-- REFACTORED REGISTRY BACKEND
 -- ============================================================================
 
--- ----------------------------------------------------------------------------
--- 1. Extend registries table
--- ----------------------------------------------------------------------------
+-- 1. Schema Hardening
 ALTER TABLE public.registries
-  ADD COLUMN IF NOT EXISTS category     TEXT,
-  ADD COLUMN IF NOT EXISTS image_url    TEXT DEFAULT '',
-  ADD COLUMN IF NOT EXISTS shared_date  TEXT,
-  ADD COLUMN IF NOT EXISTS privacy      TEXT NOT NULL DEFAULT 'link'
-    CHECK (privacy IN ('public', 'link', 'private')),
-  ADD COLUMN IF NOT EXISTS delivery     JSONB DEFAULT '{"showAddress": false}'::jsonb;
+  ALTER COLUMN shared_date TYPE TIMESTAMPTZ USING shared_date::TIMESTAMPTZ,
+  ADD CONSTRAINT qty_non_negative CHECK (TRUE); -- Placeholder for table-level logic
 
--- ----------------------------------------------------------------------------
--- 2. Extend registry_items table
--- ----------------------------------------------------------------------------
 ALTER TABLE public.registry_items
-  ALTER COLUMN product_id DROP NOT NULL,
-  ADD COLUMN IF NOT EXISTS product_name     TEXT,
-  ADD COLUMN IF NOT EXISTS product_snapshot JSONB,
-  ADD COLUMN IF NOT EXISTS is_most_wanted   BOOLEAN NOT NULL DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS received_qty     INTEGER NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS requested_qty    INTEGER NOT NULL DEFAULT 1,
-  ADD COLUMN IF NOT EXISTS selected_variant JSONB;
+  ADD CONSTRAINT requested_qty_positive CHECK (requested_qty >= 1),
+  ADD CONSTRAINT received_qty_non_negative CHECK (received_qty >= 0);
 
-UPDATE public.registry_items
-  SET requested_qty = quantity_desired
-  WHERE requested_qty = 1 AND quantity_desired > 1;
+-- 2. Clean up existing policies to prevent conflicts
+DROP POLICY IF EXISTS "Buyers can view own registries" ON public.registries;
+DROP POLICY IF EXISTS "Anyone can view public or link registries" ON public.registries;
+DROP POLICY IF EXISTS "Buyers can create registries" ON public.registries;
+DROP POLICY IF EXISTS "Buyers can update own registries" ON public.registries;
+DROP POLICY IF EXISTS "Buyers can delete own registries" ON public.registries;
 
--- ----------------------------------------------------------------------------
--- 3. RLS Policies for registries
--- ----------------------------------------------------------------------------
-CREATE POLICY "Buyers can view own registries"
+-- 3. Optimized Registry Policies
+-- Policy: View logic (Owner OR Public/Link)
+CREATE POLICY "registries_select_policy"
   ON public.registries FOR SELECT
-  USING (buyer_id = auth.uid());
+  USING (
+    buyer_id = auth.uid() OR 
+    privacy IN ('public', 'link')
+  );
 
-CREATE POLICY "Anyone can view public or link registries"
-  ON public.registries FOR SELECT
-  USING (privacy IN ('public', 'link'));
-
-CREATE POLICY "Buyers can create registries"
+-- Policy: Insert (STRICT ownership check)
+CREATE POLICY "registries_insert_policy"
   ON public.registries FOR INSERT
   WITH CHECK (buyer_id = auth.uid());
 
-CREATE POLICY "Buyers can update own registries"
-  ON public.registries FOR UPDATE
-  USING (buyer_id = auth.uid());
+-- Policy: Update/Delete (Owner only)
+CREATE POLICY "registries_owner_all"
+  ON public.registries FOR ALL
+  USING (buyer_id = auth.uid())
+  WITH CHECK (buyer_id = auth.uid());
 
-CREATE POLICY "Buyers can delete own registries"
-  ON public.registries FOR DELETE
-  USING (buyer_id = auth.uid());
 
--- ----------------------------------------------------------------------------
--- 4. RLS Policies for registry_items
--- ----------------------------------------------------------------------------
-CREATE POLICY "Buyers can view items in own registries"
+-- 4. Optimized Registry Items Policies
+-- Using EXISTS is generally more performant than IN (SELECT...)
+DROP POLICY IF EXISTS "Buyers can view items in own registries" ON public.registry_items;
+DROP POLICY IF EXISTS "Anyone can view items in public or link registries" ON public.registry_items;
+
+CREATE POLICY "items_select_policy"
   ON public.registry_items FOR SELECT
   USING (
-    registry_id IN (
-      SELECT id FROM public.registries WHERE buyer_id = auth.uid()
+    EXISTS (
+      SELECT 1 FROM public.registries
+      WHERE registries.id = registry_items.registry_id
+      AND (registries.buyer_id = auth.uid() OR registries.privacy IN ('public', 'link'))
     )
   );
 
-CREATE POLICY "Anyone can view items in public or link registries"
-  ON public.registry_items FOR SELECT
+-- Policy: Modify items (Strictly owner of the parent registry)
+CREATE POLICY "items_modify_policy"
+  ON public.registry_items FOR ALL
   USING (
-    registry_id IN (
-      SELECT id FROM public.registries WHERE privacy IN ('public', 'link')
+    EXISTS (
+      SELECT 1 FROM public.registries
+      WHERE registries.id = registry_items.registry_id
+      AND registries.buyer_id = auth.uid()
     )
-  );
-
-CREATE POLICY "Buyers can insert items into own registries"
-  ON public.registry_items FOR INSERT
+  )
   WITH CHECK (
-    registry_id IN (
-      SELECT id FROM public.registries WHERE buyer_id = auth.uid()
+    EXISTS (
+      SELECT 1 FROM public.registries
+      WHERE registries.id = registry_items.registry_id
+      AND registries.buyer_id = auth.uid()
     )
   );
 
-CREATE POLICY "Buyers can update items in own registries"
-  ON public.registry_items FOR UPDATE
-  USING (
-    registry_id IN (
-      SELECT id FROM public.registries WHERE buyer_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Buyers can delete items from own registries"
-  ON public.registry_items FOR DELETE
-  USING (
-    registry_id IN (
-      SELECT id FROM public.registries WHERE buyer_id = auth.uid()
-    )
-  );
+-- 5. Performance Indexing (Crucial for RLS Performance)
+CREATE INDEX IF NOT EXISTS idx_registries_buyer_id ON public.registries(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_registries_privacy ON public.registries(privacy);
+CREATE INDEX IF NOT EXISTS idx_registry_items_registry_id ON public.registry_items(registry_id);
