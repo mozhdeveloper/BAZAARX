@@ -242,7 +242,7 @@ export default function ShopPage() {
       }));
 
     return dbProducts;
-  }, [sellerProducts]);
+  }, [sellerProducts, categories]);
 
   useEffect(() => {
     let isMounted = true;
@@ -409,25 +409,25 @@ export default function ShopPage() {
             </Link>
             <Link
               to="/categories"
-              className="text-sm text-[var(--text-muted)] font-medium hover:text-[var(--brand-primary)] transition-all duration-300"
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
             >
               Categories
             </Link>
             <Link
               to="/collections"
-              className="text-sm text-[var(--text-muted)] font-medium hover:text-[var(--brand-primary)] transition-all duration-300"
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
             >
               Collections
             </Link>
             <Link
               to="/stores"
-              className="text-sm text-[var(--text-muted)] font-medium hover:text-[var(--brand-primary)] transition-all duration-300"
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
             >
               Stores
             </Link>
             <Link
               to="/registry"
-              className="text-sm text-[var(--text-muted)] font-medium hover:text-[var(--brand-primary)] transition-all duration-300"
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
             >
               Registry & Gifting
             </Link>
