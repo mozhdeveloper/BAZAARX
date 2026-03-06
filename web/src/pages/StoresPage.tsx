@@ -140,17 +140,22 @@ const StoresPage: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 pt-0 flex flex-col gap-2">
         {/* Page Navigation */}
-        {/* Page Navigation */}
         <div className="flex items-center justify-center gap-10 pt-1 pb-1">
           <Link
             to="/shop"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Shop
           </Link>
           <Link
+            to="/categories"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Categories
+          </Link>
+          <Link
             to="/collections"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Collections
           </Link>
@@ -162,7 +167,7 @@ const StoresPage: React.FC = () => {
           </Link>
           <Link
             to="/registry"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Registry & Gifting
           </Link>
