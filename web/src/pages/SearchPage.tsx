@@ -342,7 +342,7 @@ const SearchPage: React.FC = () => {
     <div className="min-h-screen bg-transparent">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-12">
         {/* Search Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -350,8 +350,9 @@ const SearchPage: React.FC = () => {
           className="mb-8"
         >
           {/* Page Navigation */}
-          <div className="flex items-center justify-center gap-10 pt-1 pb-4 -mt-10">
+          <div className="flex items-center justify-center gap-10 pt-1 pb-1">
             <Link to="/shop" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Shop</Link>
+            <Link to="/categories" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Categories</Link>
             <Link to="/collections" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Collections</Link>
             <Link to="/stores" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Stores</Link>
             <Link to="/registry" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Registry & Gifting</Link>

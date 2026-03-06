@@ -27,13 +27,13 @@ const CollectionsPage: React.FC = () => {
         <div className="flex items-center justify-center gap-10 pt-1 pb-1">
           <Link
             to="/shop"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Shop
           </Link>
           <Link
             to="/categories"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Categories
           </Link>
@@ -45,13 +45,13 @@ const CollectionsPage: React.FC = () => {
           </Link>
           <Link
             to="/stores"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Stores
           </Link>
           <Link
             to="/registry"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Registry & Gifting
           </Link>

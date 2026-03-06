@@ -98,7 +98,7 @@ const CategoriesPage: React.FC = () => {
         <div className="flex items-center justify-center gap-10 pt-1 pb-1">
           <Link
             to="/shop"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Shop
           </Link>
@@ -110,19 +110,19 @@ const CategoriesPage: React.FC = () => {
           </Link>
           <Link
             to="/collections"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Collections
           </Link>
           <Link
             to="/stores"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Stores
           </Link>
           <Link
             to="/registry"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Registry & Gifting
           </Link>
