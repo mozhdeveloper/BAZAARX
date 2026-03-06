@@ -64,7 +64,7 @@ const socialLinks = [
 
 export function BazaarFooter() {
   return (
-    <footer className="bg-[var(--brand-wash)] pt-16 pb-0 overflow-hidden min-h-screen flex flex-col items-center">
+    <footer id="bazaar-footer" className="bg-[var(--brand-wash)] pt-16 pb-0 overflow-hidden min-h-screen flex flex-col items-center">
       <div className="flex flex-col justify-between w-fit max-w-full px-4 lg:px-8 flex-1 h-full min-h-screen">
         <div className="w-full flex flex-col lg:flex-row justify-between gap-12 lg:gap-20 mt-12 mb-auto">
 

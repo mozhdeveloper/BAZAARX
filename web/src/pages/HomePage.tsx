@@ -1,23 +1,11 @@
 import React, { Suspense, lazy } from "react";
 import { BazaarHero } from "../components/ui/bazaar-hero";
+import { BazaarGuarantee } from "../components/ui/bazaar-guarantee";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { CampaignCountdown } from '../components/shop/CampaignCountdown';
 import { FloatingNavigation } from "@/components/ui/floating-navigation";
 
 // Lazy load heavy scroll-animated components
-const BazaarHistory = lazy(() => import("../components/ui/bazaar-history"));
-const BazaarHistoryZoomParallax = lazy(
-  () => import("@/components/ui/bazaar-history-zoom-parallax"),
-);
-const BazaarRevealWords = lazy(
-  () => import("@/components/ui/bazaar-history-reveal-words"),
-);
-const ScrollExpansionHero = lazy(
-  () => import("@/components/ui/scroll-expansion-hero"),
-);
-const BazaarMarketplaceIntro = lazy(
-  () => import("@/components/ui/bazaar-marketplace-intro"),
-);
 const MobileAppShowcase = lazy(() =>
   import("../components/ui/mobile-app-showcase").then((m) => ({
     default: m.MobileAppShowcase,
@@ -50,11 +38,7 @@ const SectionLoader = () => (
 );
 
 const buyerNavItems = [
-  { id: "bazaar-history", label: "Bazaar Origin" },
-  { id: "bazaar-exchange", label: "Exchange" },
-  { id: "bazaar-culture", label: "Culture" },
-  { id: "bazaar-modernity", label: "Modernity" },
-  { id: "bazaar-marketplace-intro", label: "Gateway" },
+  { id: "bazaar-guarantee", label: "Guarantee" },
   { id: "bazaar-categories", label: "Categories" },
   { id: "bazaar-collections", label: "Collections" },
   { id: "bazaar-bestsellers", label: "Best Sellers" },
@@ -99,45 +83,10 @@ const HomePage: React.FC = () => {
       {/* Bazaar Hero */}
       <BazaarHero mode="buyer" />
 
-      <Suspense fallback={<SectionLoader />}>
-        {/* Bazaar history section  */}
-        <div id="bazaar-history">
-          <BazaarHistory />
-        </div>
-      </Suspense>
-
-      <Suspense fallback={<SectionLoader />}>
-        {/* Bazaar history zoom parallax section */}
-        <div id="bazaar-exchange">
-          <BazaarHistoryZoomParallax />
-        </div>
-      </Suspense>
-
-      <Suspense fallback={<SectionLoader />}>
-        {/* Bazaar: trade / craft / gathering */}
-        <div id="bazaar-culture">
-          <BazaarRevealWords />
-        </div>
-      </Suspense>
-
-      <Suspense fallback={<SectionLoader />}>
-        {/* Scroll Expansion Hero */}
-        <div id="bazaar-modernity">
-          <ScrollExpansionHero
-            mediaType="image"
-            bgImageSrc="https://magazine.surahotels.com/resize/fit-1150x670-95-1716885535924-dunyanin-en-unlu-kapalicarsilari-istanbul.jpg"
-            mediaSrc="https://www.rucksackramblings.com/wp-content/uploads/2017/01/The-Bazaars-Of-Iran-21.jpg"
-            title="Your Modern Crossroads of Global Trade"
-          />
-        </div>
-      </Suspense>
-
-      <Suspense fallback={<SectionLoader />}>
-        {/* Bazaar Marketplace Intro */}
-        <div id="bazaar-marketplace-intro">
-          <BazaarMarketplaceIntro />
-        </div>
-      </Suspense>
+      {/* Bazaar Guarantee Section */}
+      <div id="bazaar-guarantee">
+        <BazaarGuarantee />
+      </div>
 
       <Suspense fallback={<SectionLoader />}>
         {/* Categories Footer Strip */}
