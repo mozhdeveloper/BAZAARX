@@ -45,6 +45,8 @@ export default function SellerProductQAScreen() {
   const [selectedProductStatus, setSelectedProductStatus] = useState<string>('');
   const [selectedLogistics, setSelectedLogistics] = useState<string>('');
   const [reviewStep, setReviewStep] = useState<ReviewStep>('choose');
+  const [selectedReviewType, setSelectedReviewType] = useState<'digital' | 'physical' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const insets = useSafeAreaInsets();
 
   const {
@@ -116,6 +118,8 @@ export default function SellerProductQAScreen() {
     setSelectedProductStatus(productStatus);
     setReviewStep(productStatus === 'WAITING_FOR_SAMPLE' ? 'physical' : 'choose');
     setSelectedLogistics('');
+    setSelectedReviewType(null);
+    setIsSubmitting(false);
     setSubmitModalOpen(true);
   };
 
@@ -125,10 +129,13 @@ export default function SellerProductQAScreen() {
     setSelectedProductStatus('');
     setSelectedLogistics('');
     setReviewStep('choose');
+    setSelectedReviewType(null);
+    setIsSubmitting(false);
   };
 
   const handleDigitalReview = async () => {
     if (!selectedProduct) return;
+    setIsSubmitting(true);
     try {
       await submitForDigitalReview(selectedProduct);
       closeModal();
@@ -136,6 +143,8 @@ export default function SellerProductQAScreen() {
       if (seller?.id) await loadProducts(seller.id);
     } catch (error) {
       Alert.alert('Error', 'Failed to submit for digital review. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -144,6 +153,7 @@ export default function SellerProductQAScreen() {
       Alert.alert('Error', 'Please select a logistics method');
       return;
     }
+    setIsSubmitting(true);
     try {
       if (selectedProductStatus === 'PENDING_DIGITAL_REVIEW') {
         await submitForPhysicalReview(selectedProduct, selectedLogistics);
@@ -157,6 +167,8 @@ export default function SellerProductQAScreen() {
       if (seller?.id) await loadProducts(seller.id);
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to submit. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -321,8 +333,15 @@ export default function SellerProductQAScreen() {
 
             {reviewStep === 'choose' ? (
               <View style={styles.choiceContainer}>
-                <TouchableOpacity style={styles.choiceCard} onPress={handleDigitalReview}>
-                  <View style={[styles.choiceIcon, { backgroundColor: '#EFF6FF' }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.choiceCard,
+                    selectedReviewType === 'digital' && styles.choiceCardSelectedBlue,
+                  ]}
+                  onPress={() => setSelectedReviewType('digital')}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.choiceIcon, { backgroundColor: selectedReviewType === 'digital' ? '#DBEAFE' : '#EFF6FF' }]}>
                     <Camera size={22} color="#3B82F6" strokeWidth={2} />
                   </View>
                   <View style={styles.choiceText}>
@@ -333,11 +352,21 @@ export default function SellerProductQAScreen() {
                       <Text style={styles.choiceTagText}>Free - 1-2 business days</Text>
                     </View>
                   </View>
-                  <ArrowRight size={18} color="#9CA3AF" strokeWidth={2} />
+                  {selectedReviewType === 'digital'
+                    ? <CheckCircle size={20} color="#3B82F6" strokeWidth={2.5} />
+                    : <ArrowRight size={18} color="#9CA3AF" strokeWidth={2} />}
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.choiceCard, styles.choiceCardOrange]} onPress={() => setReviewStep('physical')}>
-                  <View style={[styles.choiceIcon, { backgroundColor: '#FFF7ED' }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.choiceCard,
+                    styles.choiceCardOrange,
+                    selectedReviewType === 'physical' && styles.choiceCardSelectedOrange,
+                  ]}
+                  onPress={() => setSelectedReviewType('physical')}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.choiceIcon, { backgroundColor: selectedReviewType === 'physical' ? '#FDE68A' : '#FFF7ED' }]}>
                     <Truck size={22} color="#D97706" strokeWidth={2} />
                   </View>
                   <View style={styles.choiceText}>
@@ -348,7 +377,9 @@ export default function SellerProductQAScreen() {
                       <Text style={[styles.choiceTagText, { color: '#D97706' }]}>Shipping required - 3-5 days</Text>
                     </View>
                   </View>
-                  <ArrowRight size={18} color="#9CA3AF" strokeWidth={2} />
+                  {selectedReviewType === 'physical'
+                    ? <CheckCircle size={20} color="#D97706" strokeWidth={2.5} />
+                    : <ArrowRight size={18} color="#9CA3AF" strokeWidth={2} />}
                 </TouchableOpacity>
               </View>
             ) : (
@@ -404,19 +435,48 @@ export default function SellerProductQAScreen() {
                     closeModal();
                   }
                 }}
+                disabled={isSubmitting}
               >
-                <Text style={styles.modalCancelText}>{reviewStep === 'physical' ? 'Back' : 'Cancel'}</Text>
+                <Text style={styles.modalCancelText}>{reviewStep === 'physical' ? '← Back' : 'Cancel'}</Text>
               </TouchableOpacity>
 
-              {reviewStep === 'physical' && (
+              {reviewStep === 'choose' ? (
                 <TouchableOpacity
-                  style={[styles.modalSubmit, !selectedLogistics && styles.modalSubmitDisabled]}
-                  onPress={handlePhysicalSubmit}
-                  disabled={!selectedLogistics}
+                  style={[
+                    styles.modalSubmit,
+                    !selectedReviewType && styles.modalSubmitDisabled,
+                  ]}
+                  disabled={!selectedReviewType || isSubmitting}
+                  onPress={() => {
+                    if (selectedReviewType === 'digital') handleDigitalReview();
+                    else if (selectedReviewType === 'physical') setReviewStep('physical');
+                  }}
                 >
-                  <Text style={styles.modalSubmitText}>
-                    {selectedProductStatus === 'WAITING_FOR_SAMPLE' ? 'Confirm Sent' : 'Schedule Pickup'}
-                  </Text>
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalSubmitText}>
+                      {selectedReviewType === 'digital'
+                        ? 'Confirm Digital Review'
+                        : selectedReviewType === 'physical'
+                        ? 'Next: Logistics →'
+                        : 'Select an Option'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.modalSubmit, (!selectedLogistics || isSubmitting) && styles.modalSubmitDisabled]}
+                  onPress={handlePhysicalSubmit}
+                  disabled={!selectedLogistics || isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalSubmitText}>
+                      {selectedProductStatus === 'WAITING_FOR_SAMPLE' ? 'Confirm Sample Sent' : 'Confirm & Schedule'}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               )}
             </View>
@@ -519,6 +579,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F9FF',
   },
   choiceCardOrange: { borderColor: '#FDE68A', backgroundColor: '#FFFBEB' },
+  choiceCardSelectedBlue: { borderColor: '#3B82F6', borderWidth: 2.5, backgroundColor: '#EFF6FF' },
+  choiceCardSelectedOrange: { borderColor: '#D97706', borderWidth: 2.5, backgroundColor: '#FFF7ED' },
   choiceIcon: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   choiceText: { flex: 1 },
   choiceTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
