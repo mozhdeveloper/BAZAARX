@@ -445,13 +445,23 @@ export default function EnhancedCartPage() {
                                 >
                                   {item.name}
                                 </h4>
-                                {item.variants && item.variants.length > 0 && (
-                                  <button
-                                    onClick={() => handleEditOptions(item)}
-                                    className="flex flex-wrap gap-1 mt-1 hover:opacity-80 transition-opacity group text-left"
-                                    title="Click to change variety"
-                                  >
-                                    {item.selectedVariant ? (
+                                {item.variants &&
+                                  item.variants.length > 0 &&
+                                  item.variants.some(
+                                    (v: any) =>
+                                      v.option_1_value ||
+                                      v.option_2_value ||
+                                      v.size ||
+                                      v.color ||
+                                      v.variantLabel1Value ||
+                                      v.variantLabel2Value
+                                  ) && (
+                                    <button
+                                      onClick={() => handleEditOptions(item)}
+                                      className="flex flex-wrap gap-1 mt-1 hover:opacity-80 transition-opacity group text-left"
+                                      title="Click to change variety"
+                                    >
+                                      {item.selectedVariant ? (
                                       (() => {
                                         const variantMeta = item.selectedVariant as any;
                                         const labels: string[] = [];

@@ -44,7 +44,7 @@ export interface Order {
   orderNumber?: string; // User-friendly order number
   items: CartItem[];
   total: number;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'reviewed';
+  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'reviewed' | 'received';
   isPaid: boolean; // Payment status
   shipmentStatus?: ShipmentStatus;
   paymentStatus?: PaymentStatus;
@@ -65,6 +65,8 @@ export interface Order {
   estimatedDelivery: Date;
   shippedAt?: Date;
   deliveredAt?: Date;
+  confirmedAt?: Date;
+  cancelledAt?: Date;
   deliveryDate?: Date; // Actual delivery date
   trackingNumber?: string;
   returnRequest?: {
