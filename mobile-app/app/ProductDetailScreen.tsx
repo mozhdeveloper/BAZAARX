@@ -1316,20 +1316,20 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.actionButtonsContainer}>
           <Pressable 
-            style={[styles.addToCartBtn, !hasAnyStock && styles.disabledBtn]} 
+            style={[styles.addToCartBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]} 
             onPress={handleAddToCart}
-            disabled={!hasAnyStock}
+            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
           >
-            <ShoppingCart size={20} color={hasAnyStock ? COLORS.primary : COLORS.gray400} />
+            <ShoppingCart size={20} color={(Number(selectedVariantInfo.stock ?? 0) > 0) ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
           <Pressable 
-            style={[styles.buyNowBtn, !hasAnyStock && styles.disabledBtn]} 
+            style={[styles.buyNowBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]} 
             onPress={handleBuyNow}
-            disabled={!hasAnyStock}
+            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
           >
-            <Text style={[styles.buyNowText, !hasAnyStock && { color: COLORS.gray400 }]}>
-              {hasAnyStock ? 'Buy Now' : 'Out of Stock'}
+            <Text style={[styles.buyNowText, (Number(selectedVariantInfo.stock ?? 0) <= 0) && { color: COLORS.gray400 }]}>
+              {(Number(selectedVariantInfo.stock ?? 0) > 0) ? 'Buy Now' : 'Out of Stock'}
             </Text>
           </Pressable>
         </View>
