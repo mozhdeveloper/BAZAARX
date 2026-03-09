@@ -200,14 +200,25 @@ const SearchPage: React.FC = () => {
     categoryNames.forEach(cat => counts[cat] = 0);
 
     sellerProducts.forEach(p => {
-      // Check if the product's category is in our active list
-      if (categoryNames.includes(p.category)) {
-        counts[p.category] = (counts[p.category] || 0) + 1;
-      }
+      if (p.approvalStatus !== 'approved' || !p.isActive) return;
+
+      const cat = p.category || 'Uncategorized';
+      counts[cat] = (counts[cat] || 0) + 1;
     });
 
     return counts;
   }, [sellerProducts, categories]);
+
+  const otherProductsCount = useMemo(() => {
+    const activeCategoryNames = new Set(categories.map(c => c.name));
+    let count = 0;
+    for (const [catName, catCount] of Object.entries(categoryCounts)) {
+      if (!activeCategoryNames.has(catName)) {
+        count += catCount;
+      }
+    }
+    return count;
+  }, [categories, categoryCounts]);
 
   const brandCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -284,6 +295,12 @@ const SearchPage: React.FC = () => {
     }, 500);
   }, [sellerProducts]);
 
+  // Sync searchQuery with URL params
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('q') || '';
+    setSearchQuery(q);
+  }, [location.search]);
+
   // Initial Search / Sync
   useEffect(() => {
     if (sellerProducts.length > 0) {
@@ -291,11 +308,36 @@ const SearchPage: React.FC = () => {
     }
   }, [searchQuery, sellerProducts, handleSearch]);
 
+  // Scroll to results when category or other filters change
+  useEffect(() => {
+    if (hasInitialized.current) {
+      setTimeout(() => {
+        if (selectedCategory === 'All' && !selectedSize && !selectedColor && !selectedBrand && minRating === 0 && priceRange[0] === 0 && priceRange[1] === 100000 && sortBy === 'relevance') {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          const element = document.getElementById("search-results-header");
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }
+      }, 100);
+    } else {
+      hasInitialized.current = true;
+    }
+  }, [selectedCategory, selectedSize, selectedColor, selectedBrand, minRating, priceRange, sortBy]);
+
   const filteredResults = searchResults.filter(p => {
     // Price Filter
     if (p.price < priceRange[0] || p.price > priceRange[1]) return false;
     // Category Filter
-    if (selectedCategory !== 'All' && !p.category.includes(selectedCategory)) return false;
+    if (selectedCategory !== 'All') {
+      if (selectedCategory === 'Others') {
+        const isActiveCategory = categories.some(c => c.name === p.category);
+        if (isActiveCategory) return false;
+      } else if (!p.category.includes(selectedCategory)) {
+        return false;
+      }
+    }
     // Brand Filter
     if (selectedBrand && p.seller !== selectedBrand) return false;
     // Rating Filter
@@ -357,41 +399,13 @@ const SearchPage: React.FC = () => {
             <Link to="/stores" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Stores</Link>
             <Link to="/registry" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Registry & Gifting</Link>
           </div>
-
-          {/* Large Search Bar */}
-          <div className="relative max-w-3xl mx-auto mb-6">
-            <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch(searchQuery)}
-              placeholder="Search for products, brands, categories"
-              className="w-full pl-14 pr-14 py-4 text-sm bg-white border border-gray-200 focus:border-[var(--brand-primary)] rounded-full text-[var(--text-headline)] placeholder-[var(--text-muted)] focus:outline-none shadow-sm transition-all"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-14 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={() => setShowVisualSearchModal(true)}
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors"
-              title="Search by image"
-            >
-              <Camera className="w-5 h-5" />
-            </button>
-          </div>
         </motion.div>
 
         <div className="flex flex-col lg:flex-row gap-8">
 
           {/* Sidebar */}
           <aside className="w-full lg:w-72 flex-shrink-0">
-            <div className="lg:sticky lg:top-24 space-y-10 pr-6">
+            <div className="lg:sticky lg:top-24 lg:h-[calc(100vh-110px)] lg:overflow-y-auto pr-6 scrollbar-hide space-y-10 pb-10">
 
               {/* Categories */}
               <div>
@@ -403,7 +417,7 @@ const SearchPage: React.FC = () => {
                   >
                     <span className={`text-sm ${selectedCategory === 'All' ? 'font-bold' : 'font-medium'}`}>All Product</span>
                     <span className="text-xs font-semibold">
-                      {Object.values(categoryCounts).reduce((a, b) => a + b, 0)}
+                      {sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive).length}
                     </span>
                   </button>
                   {categories.map(cat => (
@@ -418,6 +432,17 @@ const SearchPage: React.FC = () => {
                       </span>
                     </button>
                   ))}
+                  {otherProductsCount > 0 && (
+                    <button
+                      onClick={() => setSelectedCategory('Others')}
+                      className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === 'Others' ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
+                    >
+                      <span className={`text-sm ${selectedCategory === 'Others' ? 'font-bold' : 'font-medium'}`}>Others</span>
+                      <span className={`text-xs ${selectedCategory === 'Others' ? 'font-semibold text-[var(--brand-primary)]' : 'font-normal text-[var(--text-muted)] group-hover:text-[var(--text-primary)]'}`}>
+                        {otherProductsCount}
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -631,7 +656,7 @@ const SearchPage: React.FC = () => {
             )}
 
             {/* Results Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 pb-2">
+            <div id="search-results-header" className="flex flex-col sm:flex-row justify-between items-center mb-6 pb-2 scroll-mt-24">
               <p className="text-[var(--text-muted)] text-sm mb-4 sm:mb-0">
                 Showing <span className="font-bold text-[var(--brand-primary)]">{sortedResults.length}</span> results
               </p>

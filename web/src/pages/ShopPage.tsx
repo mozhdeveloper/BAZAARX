@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import {
@@ -154,59 +154,6 @@ export default function ShopPage() {
       .catch(err => console.error('Failed to fetch categories:', err));
   }, []);
 
-  const categoryOptions = useMemo(() => [
-    "All Categories",
-    ...categories.map((cat) => cat.name),
-  ], [categories]);
-
-  useEffect(() => {
-    // Fetch initial products - only approved and active products
-    const filters = {
-      isActive: true,
-      approvalStatus: 'approved',
-    };
-    fetchProducts(filters);
-
-    // Subscribe to real-time updates
-    const unsubscribe = subscribeToProducts(filters);
-
-    // Cleanup subscription on unmount
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    setSearchQuery(searchParams.get("q") || "");
-    const categoryParam = searchParams.get("category");
-    if (categoryParam) {
-      setSelectedCategory(categoryParam);
-      // Wait for layout to settle then scroll
-      setTimeout(() => {
-        const element = document.getElementById("shop-content");
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      }, 100);
-    }
-  }, [searchParams]);
-
-  // Handle toolbar scroll visibility
-  useEffect(() => {
-    const handleScroll = () => {
-      // Threshold: Header (~80px) + Flash Sale (~400px) + Half of first grid row (~200px)
-      // This hide the sticky toolbar after scrolling past the initial focus area
-      if (window.scrollY > 850) {
-        setIsToolbarSticky(false);
-      } else {
-        setIsToolbarSticky(true);
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
   const allProducts = useMemo<ShopProduct[]>(() => {
     // Create a set of active category names for O(1) lookup
     const activeCategoryNames = new Set(categories.map(c => c.name));
@@ -214,8 +161,7 @@ export default function ShopPage() {
     const dbProducts = sellerProducts
       .filter((p) =>
         p.approvalStatus === "approved" &&
-        p.isActive &&
-        activeCategoryNames.has(p.category) // Only count products in active categories
+        p.isActive
       )
       .map((p) => ({
         id: p.id,
@@ -323,6 +269,120 @@ export default function ShopPage() {
     });
   }, [allProducts, activeCampaignDiscounts]);
 
+  const categoryCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of allProducts) {
+      if (!p.category) {
+        map.set("Uncategorized", (map.get("Uncategorized") || 0) + 1);
+        continue;
+      }
+      map.set(p.category, (map.get(p.category) || 0) + 1);
+    }
+    return map;
+  }, [allProducts]);
+
+  const otherProductsCount = useMemo(() => {
+    const activeCategoryNames = new Set(categories.map(c => c.name));
+    let count = 0;
+    for (const [catName, catCount] of categoryCountMap.entries()) {
+      if (!activeCategoryNames.has(catName)) {
+        count += catCount;
+      }
+    }
+    return count;
+  }, [categories, categoryCountMap]);
+
+  const categoryOptions = useMemo(() => {
+    const options = ["All Categories", ...categories.map((cat) => cat.name)];
+    if (otherProductsCount > 0) {
+      options.push("Others");
+    }
+    return options;
+  }, [categories, otherProductsCount]);
+
+  useEffect(() => {
+    // Fetch initial products - only approved and active products
+    const filters = {
+      isActive: true,
+      approvalStatus: 'approved',
+    };
+    fetchProducts(filters);
+
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToProducts(filters);
+
+    // Cleanup subscription on unmount
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const queryParam = searchParams.get("q") || "";
+    const categoryParam = searchParams.get("category");
+
+    setSearchQuery(queryParam);
+
+    if (categoryParam) {
+      setSelectedCategory(categoryParam);
+    } else {
+      setSelectedCategory("All Categories");
+    }
+
+    // Scroll logic
+    setTimeout(() => {
+      // If we have a category filter or search query, scroll to the results section
+      if (categoryParam || queryParam) {
+        const element = document.getElementById("shop-results-header");
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      } else {
+        // Otherwise (landing on Shop), scroll to the very top of the page
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }, 100);
+  }, [searchParams]);
+
+  // Scroll to results when filters change (local state)
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const element = document.getElementById("shop-results-header");
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [priceRange, minRating, selectedSort]);
+
+  // Handle toolbar scroll visibility
+  useEffect(() => {
+    const handleScroll = () => {
+      // Threshold: Header (~80px) + Flash Sale (~400px) + Half of first grid row (~200px)
+      // This hide the sticky toolbar after scrolling past the initial focus area
+      if (window.scrollY > 850) {
+        setIsToolbarSticky(false);
+      } else {
+        setIsToolbarSticky(true);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+
+
+
+
+
+
   // flashSaleProducts comes from the real discount campaigns (state above)
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
@@ -334,7 +394,9 @@ export default function ShopPage() {
 
       const matchesCategory =
         selectedCategory === "All Categories" ||
-        product.category.toLowerCase() === selectedCategory.toLowerCase();
+        (selectedCategory === "Others"
+          ? !categories.some(c => c.name.toLowerCase() === product.category.toLowerCase())
+          : product.category.toLowerCase() === selectedCategory.toLowerCase());
 
       // Use slider price range instead of predefined ranges
       const matchesPrice =
@@ -367,14 +429,7 @@ export default function ShopPage() {
     return filtered;
   }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating]);
 
-  // O(n) category count map — avoids O(n×m) repeated .filter() in JSX
-  const categoryCountMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of allProducts) {
-      map.set(p.category, (map.get(p.category) || 0) + 1);
-    }
-    return map;
-  }, [allProducts]);
+
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -737,7 +792,7 @@ export default function ShopPage() {
             <div className="flex flex-col lg:flex-row gap-4 mt-6">
               {/* Sidebar Filters - Desktop Only */}
               <aside className="hidden lg:block w-72 flex-shrink-0">
-                <div className="sticky top-24 space-y-10 pr-6">
+                <div className="sticky top-24 h-[calc(100vh-110px)] overflow-y-auto pr-6 scrollbar-hide space-y-10 pb-10">
                   {/* Categories Section */}
                   <div>
                     <h2 className="text-lg font-bold text-gray-900 mb-6 font-primary">Categories</h2>
@@ -779,6 +834,26 @@ export default function ShopPage() {
                           </span>
                         </button>
                       ))}
+
+                      {otherProductsCount > 0 && (
+                        <button
+                          onClick={() => {
+                            setSelectedCategory("Others");
+                            setSearchParams((prev) => {
+                              const next = new URLSearchParams(prev);
+                              next.set("category", "Others");
+                              return next;
+                            });
+                          }}
+                          className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === "Others" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]"}`}
+                          aria-pressed={selectedCategory === "Others"}
+                        >
+                          <span className={`text-sm ${selectedCategory === "Others" ? "font-bold" : "font-medium"}`}>Others</span>
+                          <span className={`text-xs ${selectedCategory === "Others" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)] font-normal"}`}>
+                            {otherProductsCount}
+                          </span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -935,12 +1010,13 @@ export default function ShopPage() {
               <div className="flex-1 min-w-0">
                 {/* Toolbar - Now inside Product Area */}
                 <motion.div
+                  id="shop-results-header"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{
                     opacity: 1,
                     y: 0,
                   }}
-                  className="mb-8 flex items-center justify-between gap-4"
+                  className="mb-8 flex items-center justify-between gap-4 scroll-mt-24"
                 >
                   <div className="flex items-center gap-4">
                     <button
