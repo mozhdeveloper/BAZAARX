@@ -29,6 +29,7 @@ import {
   Image,
   Package,
 } from "lucide-react";
+import { toast } from "../hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,8 @@ import { Badge } from "@/components/ui/badge";
 import { uploadSellerDocument, validateDocumentFile } from "@/utils/storage";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { categoryService } from "@/services/categoryService";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import type { BusinessType } from "@/types/database.types";
 
 // Logo components defined outside of render
@@ -65,6 +68,31 @@ export function SellerStoreProfile() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const getSellerId = () =>
     seller?.id || useAuthStore.getState().seller?.id || null;
+
+  const [pendingUpload, setPendingUpload] = useState<{
+    file: File;
+    docKey: string;
+    columnName: string;
+    label: string;
+  } | null>(null);
+
+  const [availableCategories, setAvailableCategories] = useState<any[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setIsLoadingCategories(true);
+        const data = await categoryService.getActiveCategories(); //
+        setAvailableCategories(data);
+      } catch (err) {
+        console.error("Failed to load categories:", err);
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
     if (seller?.id) return;
@@ -213,6 +241,7 @@ export function SellerStoreProfile() {
   const [approvalStatus, setApprovalStatus] = useState<
     "pending" | "approved" | "verified" | "rejected" | "needs_resubmission"
   >(seller?.approvalStatus || "pending");
+
   const [reapplyLoading, setReapplyLoading] = useState(false);
   const [latestRejection, setLatestRejection] = useState<{
     rejectionType: "full" | "partial";
@@ -326,19 +355,23 @@ export function SellerStoreProfile() {
     return missing;
   };
 
+  const isLocked = isVerified || (approvalStatus === "pending" && getMissingItems().length === 0);
+
   // Handler: reapply for verification (set approval_status back to pending)
   const handleReapply = async () => {
     const sellerId = getSellerId();
     if (!sellerId) {
-      alert("Unable to reapply: seller ID missing.");
+      toast({ variant: "destructive", title: "Error", description: "Unable to reapply: seller ID missing." });
       return;
     }
 
     const missing = getMissingItems();
     if (missing.length > 0) {
-      alert(
-        `Please complete the following before reapplying:\n\n- ${missing.join("\n- ")}`,
-      );
+      toast({
+        variant: "destructive",
+        title: "Incomplete Profile",
+        description: `Please complete missing items before reapplying.`,
+      });
       return;
     }
 
@@ -355,10 +388,17 @@ export function SellerStoreProfile() {
 
       setApprovalStatus("pending");
       setLatestRejection(null);
-      alert("Reapplication submitted. Your profile is now pending review.");
+      toast({
+        title: "Reapplication Submitted",
+        description: "Your profile is now pending review.",
+      });
     } catch (err) {
       console.error("Failed to set approval_status to pending:", err);
-      alert("Failed to submit reapplication. Please try again later.");
+      toast({
+        variant: "destructive",
+        title: "Submission Failed",
+        description: "Failed to submit reapplication. Please try again later.",
+      });
     } finally {
       setReapplyLoading(false);
     }
@@ -468,7 +508,11 @@ export function SellerStoreProfile() {
     // Validate file type and size
     const validation = validateDocumentFile(file);
     if (!validation.valid) {
-      alert(validation.error);
+      toast({
+        variant: "destructive",
+        title: "Invalid File",
+        description: validation.error,
+      });
       return;
     }
 
@@ -527,6 +571,8 @@ export function SellerStoreProfile() {
       }));
       setDocumentsUpdatedAt(uploadTimestamp);
 
+      updateSellerDetails({ [docKey]: documentUrl });
+
       setLatestRejection((prev) => {
         if (!prev || prev.rejectionType !== "partial") {
           return prev;
@@ -542,11 +588,18 @@ export function SellerStoreProfile() {
         };
       });
 
-      alert("Document uploaded. This file has been marked as resubmitted.");
+      toast({
+        title: "Document Uploaded",
+        description: "Your file has been uploaded and marked for review.",
+      });
     } catch (error) {
       console.error("Error uploading document:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to upload document. Please try again.";
-      alert(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: errorMessage,
+      });
     } finally {
       setUploadingDoc(null);
     }
@@ -648,23 +701,43 @@ export function SellerStoreProfile() {
         email: normalizedEmail,
       });
       setEditSection(null);
-      alert("Saved changes");
+      toast({
+        title: "Profile Updated",
+        description: "Your basic information has been saved successfully.",
+      });
     } catch (err) {
       console.error("Failed to save basic info:", err);
-      alert("Failed to save. Please try again.");
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to save changes. Please try again.",
+      });
     }
+  };
+
+  const triggerUploadConfirmation = (e: React.ChangeEvent<HTMLInputElement>, docKey: string, column: string, label: string) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPendingUpload({ file, docKey, columnName: column, label });
+    }
+    // Reset input so the same file can be selected again if cancelled
+    e.target.value = '';
   };
 
   const handleSaveBusiness = async () => {
     const sellerId = getSellerId();
     if (!sellerId) {
-      alert("Unable to save: seller ID missing.");
+      toast({ variant: "destructive", title: "Error", description: "Unable to save: seller ID missing." });
       return;
     }
 
     const normalizedBusinessType = normalizeBusinessType(businessForm.businessType);
     if (!normalizedBusinessType) {
-      alert("Please select a valid business type: Sole Proprietorship, Partnership, or Corporation.");
+      toast({
+        variant: "destructive",
+        title: "Invalid Business Type",
+        description: "Please select a valid business type: Sole Proprietorship, Partnership, or Corporation.",
+      });
       return;
     }
 
@@ -702,17 +775,24 @@ export function SellerStoreProfile() {
         postalCode: businessForm.postalCode,
       });
       setEditSection(null);
-      alert("Saved business information");
+      toast({
+        title: "Business Info Saved",
+        description: "Your business information has been updated.",
+      });
     } catch (err) {
       console.error("Failed to save business info:", err);
-      alert("Failed to save. Please try again.");
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to save business details. Please try again.",
+      });
     }
   };
 
   const handleSaveBanking = async () => {
     const sellerId = getSellerId();
     if (!sellerId) {
-      alert("Unable to save: seller ID missing.");
+      toast({ variant: "destructive", title: "Error", description: "Unable to save: seller ID missing." });
       return;
     }
     try {
@@ -739,33 +819,72 @@ export function SellerStoreProfile() {
         accountNumber: bankingForm.accountNumber,
       });
       setEditSection(null);
-      alert("Saved banking information");
+      toast({
+        title: "Banking Info Saved",
+        description: "Your banking information has been updated.",
+      });
     } catch (err) {
       console.error("Failed to save banking info:", err);
-      alert("Failed to save. Please try again.");
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to save banking details. Please try again.",
+      });
     }
   };
 
   const handleSaveCategories = async () => {
     const sellerId = getSellerId();
     if (!sellerId) {
-      alert("Unable to save: seller ID missing.");
+      toast({ variant: "destructive", title: "Error", description: "Unable to save: seller ID missing." });
       return;
     }
+
     try {
+      // 1. Map the selected category names back to their UUIDs
+      const categoryIdsToInsert = categoriesForm
+        .map((catName) => availableCategories.find((c) => c.name === catName)?.id)
+        .filter(Boolean); // Filters out any undefined values
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseClient: any = supabase;
-      const { error } = await supabaseClient
-        .from("sellers")
-        .update({ store_category: categoriesForm })
-        .eq("id", sellerId);
-      if (error) throw error;
+
+      // 2. Delete all existing category links for this seller
+      const { error: deleteError } = await supabaseClient
+        .from("seller_categories")
+        .delete()
+        .eq("seller_id", sellerId);
+
+      if (deleteError) throw deleteError;
+
+      // 3. Insert the newly selected categories
+      if (categoryIdsToInsert.length > 0) {
+        const insertPayload = categoryIdsToInsert.map((categoryId) => ({
+          seller_id: sellerId,
+          category_id: categoryId,
+        }));
+
+        const { error: insertError } = await supabaseClient
+          .from("seller_categories")
+          .insert(insertPayload);
+
+        if (insertError) throw insertError;
+      }
+
       updateSellerDetails({ storeCategory: categoriesForm });
       setEditSection(null);
-      alert("Saved store categories");
-    } catch (err) {
-      console.error("Failed to save categories:", err);
-      alert("Failed to save. Please try again.");
+
+      toast({
+        title: "Categories Saved",
+        description: "Your store categories have been updated successfully.",
+      });
+    } catch (err: any) {
+      console.error("Failed to save categories:", JSON.stringify(err, null, 2));
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: err?.message || err?.details || "Failed to save categories. Please try again.",
+      });
     }
   };
 
@@ -1799,22 +1918,13 @@ export function SellerStoreProfile() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)]"
+                                  className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] disabled:opacity-50"
+                                  disabled={isUploading || isLocked}
                                   onClick={() => {
                                     const input = document.createElement("input");
                                     input.type = "file";
                                     input.accept = ".pdf,.jpg,.jpeg,.png";
-                                    input.onchange = async (e) => {
-                                      const file = (e.target as HTMLInputElement)
-                                        .files?.[0];
-                                      if (file && seller?.id) {
-                                        await handleDocumentUpload(
-                                          file,
-                                          doc.key,
-                                          doc.column,
-                                        );
-                                      }
-                                    };
+                                    input.onchange = (e) => triggerUploadConfirmation(e as any, doc.key, doc.column, doc.label);
                                     input.click();
                                   }}
                                 >
@@ -1826,22 +1936,13 @@ export function SellerStoreProfile() {
                               <Button
                                 size="sm"
                                 className="gap-2 bg-[var(--brand-accent)] hover:bg-[var(--brand-primary)]"
-                                disabled={isUploading}
+                                disabled={isUploading || isLocked}
                                 onClick={() => {
                                   const input = document.createElement("input");
                                   input.type = "file";
                                   input.accept = ".pdf,.jpg,.jpeg,.png";
-                                  input.onchange = async (e) => {
-                                    const file = (e.target as HTMLInputElement)
-                                      .files?.[0];
-                                    if (file && seller?.id) {
-                                      await handleDocumentUpload(
-                                        file,
-                                        doc.key,
-                                        doc.column,
-                                      );
-                                    }
-                                  };
+                                  // Trigger the confirmation modal instead of uploading directly
+                                  input.onchange = (e) => triggerUploadConfirmation(e as any, doc.key, doc.column, doc.label);
                                   input.click();
                                 }}
                               >
@@ -1958,23 +2059,44 @@ export function SellerStoreProfile() {
                     <div className="space-y-4">
                       <div>
                         <Label>Store Categories</Label>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Enter categories separated by commas (e.g., Electronics,
-                          Fashion, Home & Garden)
+                        <p className="text-sm text-gray-600 mb-4">
+                          Select the categories that best describe your store.
                         </p>
-                        <Textarea
-                          value={categoriesForm.join(", ")}
-                          onChange={(e) =>
-                            setCategoriesForm(
-                              e.target.value
-                                .split(",")
-                                .map((cat) => cat.trim())
-                                .filter((cat) => cat.length > 0),
-                            )
-                          }
-                          placeholder="Enter store categories..."
-                          rows={3}
-                        />
+
+                        {isLoadingCategories ? (
+                          <div className="flex items-center gap-2 py-4">
+                            <Loader className="h-4 w-4 animate-spin" />
+                            <span className="text-sm text-gray-500">Loading categories...</span>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-1 scrollbar-hide">
+                            {availableCategories.map((cat) => (
+                              <label
+                                key={cat.id}
+                                className={cn(
+                                  "flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all",
+                                  categoriesForm.includes(cat.name)
+                                    ? "bg-[var(--brand-accent-light)] border-[var(--brand-primary)] text-[var(--brand-primary)] font-bold"
+                                    : "bg-white border-gray-200 text-gray-600 hover:border-orange-200"
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="hidden"
+                                  checked={categoriesForm.includes(cat.name)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setCategoriesForm([...categoriesForm, cat.name]);
+                                    } else {
+                                      setCategoriesForm(categoriesForm.filter((name) => name !== cat.name));
+                                    }
+                                  }}
+                                />
+                                {cat.name}
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-3 pt-2">
                         <Button
@@ -2033,6 +2155,38 @@ export function SellerStoreProfile() {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!pendingUpload} onOpenChange={(open) => !open && setPendingUpload(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Document Upload</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600">
+              You are about to upload <span className="font-bold text-gray-900">{pendingUpload?.file.name}</span> for your <span className="font-bold text-gray-900">{pendingUpload?.label}</span>.
+            </p>
+            <p className="text-sm text-gray-600 mt-2">
+              Please ensure the document is clear and readable.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingUpload(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
+              onClick={async () => {
+                if (pendingUpload) {
+                  await handleDocumentUpload(pendingUpload.file, pendingUpload.docKey, pendingUpload.columnName);
+                  setPendingUpload(null);
+                }
+              }}
+            >
+              Confirm Upload
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SellerWorkspaceLayout>
   );
 }

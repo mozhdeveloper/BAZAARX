@@ -67,6 +67,11 @@ interface Seller {
     totalSales: number;
     joinDate: string;
     avatar?: string;
+
+    latestRejection?: {
+        description?: string;
+        items?: { documentField: string; reason?: string }[];
+    } | null;
 }
 
 export interface SellerProduct {
@@ -353,6 +358,9 @@ interface OrderStore {
         total: number,
         note?: string,
     ) => Promise<string>;
+
+    activeTab: string;
+    setActiveTab: (tab: string) => void;
 }
 
 // Validation helpers for database readiness
@@ -422,7 +430,7 @@ const mapDbSellerToSeller = (s: any): Seller => {
         ownerName: resolvedOwnerName,
         email: profile.email || "",
         phone: s.store_contact_number || "",
-        businessName: resolvedOwnerName,
+        businessName: s.business_name || resolvedOwnerName,
         storeName: s.store_name || "",
         storeDescription: s.store_description || "",
         storeCategory: [],
@@ -871,9 +879,7 @@ export const useAuthStore = create<AuthStore>()(
                 }
 
                 try {
-                    const sellerProfile = await authService.getSellerProfile(
-                        userId,
-                    );
+                    const sellerProfile = await authService.getSellerProfile(userId);
                     if (!sellerProfile) {
                         return false;
                     }
@@ -887,6 +893,74 @@ export const useAuthStore = create<AuthStore>()(
                             profileContact.email || mappedSeller.email;
                         mappedSeller.phone =
                             profileContact.phone || mappedSeller.phone;
+                    }
+
+                    // --- NEW: Fetch Business Profile to persist Checklist ---
+                    const { data: businessProfileData } = await supabase
+                        .from("seller_business_profiles")
+                        .select("*")
+                        .eq("seller_id", userId)
+                        .maybeSingle();
+
+                    if (businessProfileData) {
+                        mappedSeller.businessType = businessProfileData.business_type || "";
+                        mappedSeller.businessRegistrationNumber = businessProfileData.business_registration_number || "";
+                        mappedSeller.taxIdNumber = businessProfileData.tax_id_number || "";
+                        mappedSeller.businessAddress = businessProfileData.address_line_1 || businessProfileData.business_address || "";
+                        mappedSeller.city = businessProfileData.city || "";
+                        mappedSeller.province = businessProfileData.province || "";
+                        mappedSeller.postalCode = businessProfileData.postal_code || "";
+                    }
+
+                    // --- NEW: Fetch Categories from Junction Table ---
+                    const { data: categoryData } = await supabase
+                        .from("seller_categories")
+                        .select("categories(name)")
+                        .eq("seller_id", userId);
+
+                    if (categoryData && categoryData.length > 0) {
+                        // Flattens [{ categories: { name: "Electronics" } }] into ["Electronics"]
+                        mappedSeller.storeCategory = categoryData
+                            .map((row: any) => row.categories?.name)
+                            .filter(Boolean);
+                    } else {
+                        mappedSeller.storeCategory = [];
+                    }
+
+                    // --- NEW: Fetch Verification Documents for Progress Sync ---
+                    const { data: docData } = await supabase
+                        .from("seller_verification_documents")
+                        .select("*")
+                        .eq("seller_id", userId)
+                        .maybeSingle();
+
+                    if (docData) {
+                        mappedSeller.businessPermitUrl = docData.business_permit_url || undefined;
+                        mappedSeller.validIdUrl = docData.valid_id_url || undefined;
+                        mappedSeller.proofOfAddressUrl = docData.proof_of_address_url || undefined;
+                        mappedSeller.dtiRegistrationUrl = docData.dti_registration_url || undefined;
+                        mappedSeller.taxIdUrl = docData.tax_id_url || undefined;
+                    }
+
+                    // --- NEW: Fetch Latest Rejection for Global Banner ---
+                    const { data: rejectionData } = await supabase
+                        .from("seller_rejections")
+                        .select("description, items:seller_rejection_items(document_field, reason)")
+                        .eq("seller_id", userId)
+                        .order("created_at", { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (rejectionData) {
+                        mappedSeller.latestRejection = {
+                            description: rejectionData.description || undefined,
+                            items: (rejectionData.items || []).map((item: any) => ({
+                                documentField: item.document_field,
+                                reason: item.reason || undefined,
+                            }))
+                        };
+                    } else {
+                        mappedSeller.latestRejection = null;
                     }
 
                     set({ seller: mappedSeller, isAuthenticated: true });
@@ -1797,6 +1871,9 @@ export const useOrderStore = create<OrderStore>()(
             sellerId: null,
             loading: false,
             error: null,
+
+            activeTab: "all",
+            setActiveTab: (tab) => set({ activeTab: tab }),
 
             fetchOrders: async (sellerId: string, startDate?: Date | null, endDate?: Date | null) => {
                 if (!sellerId) return;
