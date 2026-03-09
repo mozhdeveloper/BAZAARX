@@ -841,7 +841,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
                         {/* Variant Label 2 Selection */}
                         {productData.label2Options &&
-                            productData.label2Options.length > 0 && (
+                            productData.label2Options.length > 0 &&
+                            normalizedProduct?.variants &&
+                            normalizedProduct.variants.length > 0 && (
                                 <div className="mb-8">
                                     <p className="text-sm font-black text-[var(--text-headline)] mb-3">
                                         {normalizedProduct?.variantLabel2 ||
@@ -896,7 +898,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
                         {/* Variant Label 1 Selection */}
                         {productData.label1Options &&
-                            productData.label1Options.length > 0 && (
+                            productData.label1Options.length > 0 &&
+                            normalizedProduct?.variants &&
+                            normalizedProduct.variants.length > 0 && (
                                 <div className="mb-8">
                                     <div className="flex items-center justify-between mb-3">
                                         <p className="text-sm font-black text-[var(--text-headline)]">
