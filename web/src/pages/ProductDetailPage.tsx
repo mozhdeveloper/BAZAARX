@@ -267,7 +267,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     // Clamp quantity when selected variant changes or product loads
     useEffect(() => {
         const currentVariant = getSelectedVariant();
-        const maxStock = currentVariant?.stock || normalizedProduct?.stock || 0;
+        const maxStock = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
 
         if (maxStock === 0) {
             setQuantity(0);
@@ -301,7 +301,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const handleQuantityInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseInt(e.target.value) || 0;
         const currentVariant = getSelectedVariant();
-        const maxStock = currentVariant?.stock || normalizedProduct?.stock || 0;
+        const maxStock = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
 
         if (val > maxStock) {
             if (maxStock > 0) {
@@ -319,7 +319,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
     const handleQuantityBlur = () => {
         const currentVariant = getSelectedVariant();
-        const maxStock = currentVariant?.stock || normalizedProduct?.stock || 0;
+        const maxStock = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
         if (quantity < 1 && maxStock > 0) {
             setQuantity(1);
         }
@@ -429,7 +429,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                     dbVariant?.color ||
                     (label2Name !== "Default" ? label2Name : undefined),
                 price: dbVariant?.price || normalizedProduct.price,
-                stock: dbVariant?.stock || normalizedProduct.stock || 100,
+                stock: dbVariant?.stock ?? normalizedProduct.stock ?? 100,
                 image:
                     dbVariant?.thumbnail_url ||
                     normalizedProduct.label2Options[
@@ -599,7 +599,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                     dbVariant?.color ||
                     (label2Name !== "Default" ? label2Name : undefined),
                 price: dbVariant?.price || normalizedProduct.price,
-                stock: dbVariant?.stock || normalizedProduct.stock || 100,
+                stock: dbVariant?.stock ?? normalizedProduct.stock ?? 100,
                 image:
                     dbVariant?.thumbnail_url ||
                     normalizedProduct.label2Options?.[
@@ -987,8 +987,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             {(() => {
                                 const currentVariant = getSelectedVariant();
                                 const stockQty =
-                                    currentVariant?.stock ||
-                                    normalizedProduct?.stock ||
+                                    currentVariant?.stock ??
+                                    normalizedProduct?.stock ??
                                     0;
                                 return (
                                     <div className="flex items-center gap-2">
@@ -1064,14 +1064,14 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 onClick={handleBuyNow}
                                 disabled={(() => {
                                     const currentVariant = getSelectedVariant();
-                                    const stockQty = currentVariant?.stock || normalizedProduct?.stock || 0;
+                                    const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
                                     return stockQty === 0;
                                 })()}
                                 className="flex-1 h-14 rounded-2xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white text-base font-bold transition-all active:scale-[0.98] shadow-lg shadow-[var(--brand-primary)]/30 border-0 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {(() => {
                                     const currentVariant = getSelectedVariant();
-                                    const stockQty = currentVariant?.stock || normalizedProduct?.stock || 0;
+                                    const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
                                     return stockQty > 0 ? "Buy Now" : "Out of Stock";
                                 })()}
                             </Button>
