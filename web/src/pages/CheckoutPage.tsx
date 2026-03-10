@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
 import { discountService } from "@/services/discountService";
 import {
@@ -114,6 +115,9 @@ export default function CheckoutPage() {
     validateVoucherDetailed,
     campaignDiscountCache,
     updateCampaignDiscountCache,
+    loadCheckoutContext,
+    isLoadingCheckoutContext,
+    logout,
   } = useBuyerStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
 
@@ -212,6 +216,22 @@ export default function CheckoutPage() {
     ids.sort();
     return ids.join("|");
   }, [checkoutItems]);
+
+  // Pre-fetch addresses + seller metadata via Edge Function on mount.
+  // Runs once when the product ID set stabilises; the store guards against
+  // duplicate concurrent calls with the isLoadingCheckoutContext flag.
+  useEffect(() => {
+    const productIds = checkoutProductIdsKey ? checkoutProductIdsKey.split("|") : [];
+    if (productIds.length > 0) {
+      loadCheckoutContext(productIds).catch(async (err: any) => {
+        if (err?.message === 'AUTH_EXPIRED') {
+          logout();
+          await supabase.auth.signOut();
+          navigate('/login');
+        }
+      });
+    }
+  }, [checkoutProductIdsKey]);
 
   useEffect(() => {
     let isMounted = true;
@@ -737,12 +757,12 @@ export default function CheckoutPage() {
   }, [validateForm, profile, checkoutItems, finalTotal, selectedAddress, formData, isBuyAgainMode, isQuickCheckout, useBazcoins, bazcoinDiscount, earnedBazcoins, shippingFee, discount, appliedVoucher, navigate, toast, updateRegistryItem, clearBuyAgainItems, clearQuickOrder, removeSelectedItems]);
 
   // Show loading while store is rehydrating
-  if (!isStoreReady) {
+  if (!isStoreReady || isLoadingCheckoutContext) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading checkout...</p>
+          <p className="text-gray-500">{isLoadingCheckoutContext ? "Preparing your checkout..." : "Loading checkout..."}</p>
         </div>
       </div>
     );
@@ -753,7 +773,7 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--brand-wash)]">
+    <div className="relative min-h-screen bg-[var(--brand-wash)]">
       {!isAddressModalOpen && <Header />}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -778,7 +798,7 @@ export default function CheckoutPage() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Checkout Form */}
             <div className="lg:col-span-2 space-y-8">
               {/* Shipping Information */}
@@ -1390,6 +1410,7 @@ export default function CheckoutPage() {
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden flex flex-col max-h-[90vh]">
           <DialogHeader className="p-6 pb-2">
             <DialogTitle className="text-xl font-bold">Select Delivery Address</DialogTitle>
+            <DialogDescription className="sr-only">Select a saved delivery address for your order</DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-3">

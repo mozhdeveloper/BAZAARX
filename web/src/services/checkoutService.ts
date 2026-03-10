@@ -301,16 +301,18 @@ export class CheckoutService {
 
             if (usedBazcoins > 0 || earnedBazcoins > 0) {
                 postOrderTasks.push(
-                    supabase.from('buyers').select('bazcoins').eq('id', userId).single().then(({ data: b }) => {
-                        newBalance = (b?.bazcoins || 0) - usedBazcoins + earnedBazcoins;
-                        return supabase.from('buyers').update({ bazcoins: newBalance }).eq('id', userId);
-                    })
+                    Promise.resolve(
+                        supabase.from('buyers').select('bazcoins').eq('id', userId).single().then(({ data: b }) => {
+                            newBalance = (b?.bazcoins || 0) - usedBazcoins + earnedBazcoins;
+                            return supabase.from('buyers').update({ bazcoins: newBalance }).eq('id', userId);
+                        })
+                    )
                 );
             }
 
             if (itemIdsToRemove.length > 0) {
                 postOrderTasks.push(
-                    supabase.from('cart_items').delete().in('id', itemIdsToRemove)
+                    Promise.resolve(supabase.from('cart_items').delete().in('id', itemIdsToRemove))
                 );
             }
 
@@ -326,3 +328,55 @@ export class CheckoutService {
 }
 
 export const checkoutService = CheckoutService.getInstance();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Checkout Context — single concurrent fetch for addresses + seller metadata
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CheckoutContextSellerMeta {
+    id: string;
+    store_name: string | null;
+    shipping_origin: string | null;
+    is_verified: boolean;
+    avatar_url: string | null;
+}
+
+export interface CheckoutContextResult {
+    addresses: any[];
+    defaultAddress: any | null;
+    sellers: Record<string, CheckoutContextSellerMeta>;
+}
+
+/**
+ * Calls the `get-checkout-context` Edge Function which uses Promise.all
+ * internally to fetch user addresses and seller metadata concurrently,
+ * replacing multiple waterfall requests with a single round-trip.
+ */
+export async function getCheckoutContext(
+    productIds: string[],
+): Promise<CheckoutContextResult> {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+        throw new Error('AUTH_EXPIRED');
+    }
+
+    const { data, error } = await supabase.functions.invoke<CheckoutContextResult>(
+        'get-checkout-context',
+        {
+            body: { productIds },
+            headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+        },
+    );
+
+    if (error) {
+        console.error('[checkoutService] getCheckoutContext error:', error);
+        const msg = error.message || '';
+        if (msg.includes('401') || msg.includes('non-2xx status code') || msg.includes('Unauthorized')) {
+            throw new Error('AUTH_EXPIRED');
+        }
+        throw new Error(msg || 'Failed to load checkout context');
+    }
+
+    return data ?? { addresses: [], defaultAddress: null, sellers: {} };
+}

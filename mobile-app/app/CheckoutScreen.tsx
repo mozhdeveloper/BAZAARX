@@ -25,7 +25,8 @@ import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'reac
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
-import { processCheckout } from '@/services/checkoutService';
+import { supabase } from '../src/lib/supabase';
+import { processCheckout, getCheckoutContext } from '@/services/checkoutService';
 import { addressService } from '@/services/addressService';
 import { voucherService, calculateVoucherDiscount, getVoucherErrorMessage } from '@/services/voucherService';
 import { useCartStore } from '../src/stores/cartStore';
@@ -62,7 +63,8 @@ interface Address {
 
 export default function CheckoutScreen({ navigation, route }: Props) {
   const { items, getTotal, clearCart, quickOrder, clearQuickOrder, getQuickOrderTotal, initializeForCurrentUser } = useCartStore();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const { loadCheckoutContext, isCheckoutContextLoading } = useOrderStore();
   const insets = useSafeAreaInsets();
 
   // Extract params safely
@@ -203,6 +205,26 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const checkoutItems = useMemo(() => {
     return quickOrder ? [quickOrder] : selectedItemsFromCart;
   }, [quickOrder, selectedItemsFromCart]);
+
+  // Pre-fetch addresses + seller metadata via Edge Function on mount.
+  // The Edge Function uses Promise.all internally so both queries run concurrently.
+  useEffect(() => {
+    const productIds = checkoutItems
+      .map((item) => (item as any).id ?? (item as any).productId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+    // Deduplicate before calling
+    const uniqueIds = [...new Set(productIds)];
+    if (uniqueIds.length > 0) {
+      loadCheckoutContext(uniqueIds).catch(async (err: any) => {
+        if (err?.message === 'AUTH_EXPIRED') {
+          logout();
+          await supabase.auth.signOut();
+          navigation.replace('Login');
+        }
+      });
+    }
+  }, []);
 
   // Optimize subtotal calculation with useMemo
   const checkoutSubtotal = useMemo(() => {
@@ -1397,6 +1419,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       setIsProcessing(false);
     }
   }, [selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher]);
+
+  if (isCheckoutContextLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFBF5' }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: 12, color: '#6B7280' }}>Preparing your checkout...</Text>
+      </View>
+    );
+  }
 
   return (
     <LinearGradient
