@@ -129,7 +129,7 @@ const AdminProductRequests: React.FC = () => {
       <AdminSidebar open={open} setOpen={setOpen} />
 
       <div className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Product Requests Dashboard</h1>
@@ -137,66 +137,31 @@ const AdminProductRequests: React.FC = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Requests</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalRequests}</p>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+            {[
+              { label: 'Total Requests', value: stats.totalRequests, icon: MessageSquare },
+              { label: 'Pending', value: stats.pending, icon: Clock },
+              { label: 'In Progress', value: stats.inProgress, icon: TrendingUp },
+              { label: 'Approved', value: stats.approved, icon: CheckCircle },
+              { label: 'Rejected', value: stats.rejected, icon: XCircle }
+            ].map((stat, index) => (
+              <Card key={index} className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-100 transition-colors"></div>
+                <CardContent className="p-6 relative z-10">
+                  <div className="flex flex-col">
+                    <div className="mb-4 text-gray-500 group-hover:text-orange-600 transition-all">
+                      <stat.icon className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-gray-400">{stat.label}</p>
+                      <div className="flex items-end gap-3 mt-1">
+                        <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-orange-600">{stat.value}</p>
+                      </div>
+                    </div>
                   </div>
-                  <MessageSquare className="h-8 w-8 text-blue-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Pending</p>
-                    <p className="text-2xl font-bold text-yellow-600 mt-1">{stats.pending}</p>
-                  </div>
-                  <Clock className="h-8 w-8 text-yellow-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">In Progress</p>
-                    <p className="text-2xl font-bold text-blue-600 mt-1">{stats.inProgress}</p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-blue-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Approved</p>
-                    <p className="text-2xl font-bold text-green-600 mt-1">{stats.approved}</p>
-                  </div>
-                  <CheckCircle className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Rejected</p>
-                    <p className="text-2xl font-bold text-red-600 mt-1">{stats.rejected}</p>
-                  </div>
-                  <XCircle className="h-8 w-8 text-red-600" />
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Filters and Search */}
