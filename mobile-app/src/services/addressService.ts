@@ -354,6 +354,11 @@ export class AddressService {
             province?: string;
             region?: string;
             postalCode?: string;
+            firstName?: string;
+            lastName?: string;
+            phone?: string;
+            landmark?: string;
+            deliveryInstructions?: string;
         }
     ): Promise<Address | null> {
         if (!isSupabaseConfigured()) {
@@ -378,23 +383,25 @@ export class AddressService {
                 province = parts[2] || '';
             }
 
-            // Fetch buyer profile for auto-fill of name/phone
-            let firstName = '';
-            let lastName = '';
-            let phone = '';
-            try {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('first_name, last_name, phone')
-                    .eq('id', userId)
-                    .single();
-                if (profile) {
-                    firstName = profile.first_name || '';
-                    lastName = profile.last_name || '';
-                    phone = profile.phone || '';
+            // Use name/phone from details if provided, otherwise fetch from profile
+            let firstName = details?.firstName || '';
+            let lastName = details?.lastName || '';
+            let phone = details?.phone || '';
+            if (!firstName && !phone) {
+                try {
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('first_name, last_name, phone')
+                        .eq('id', userId)
+                        .single();
+                    if (profile) {
+                        firstName = profile.first_name || '';
+                        lastName = profile.last_name || '';
+                        phone = profile.phone || '';
+                    }
+                } catch (e) {
+                    console.log('[addressService] Could not fetch profile for auto-fill:', e);
                 }
-            } catch (e) {
-                console.log('[addressService] Could not fetch profile for auto-fill:', e);
             }
 
             // Fetch ALL "Current Location" rows for this user (there may be duplicates from past bugs)
@@ -420,8 +427,8 @@ export class AddressService {
                 province: province,
                 region: region,
                 postal_code: postalCode,
-                landmark: null as string | null,
-                delivery_instructions: null as string | null,
+                landmark: details?.landmark || null,
+                delivery_instructions: details?.deliveryInstructions || null,
                 address_type: 'residential' as const,
                 is_default: false,
                 coordinates: coords,
