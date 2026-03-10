@@ -7,7 +7,7 @@ import { ChatBubble } from "./components/ChatBubbleAI";
 import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
 import TrackingForm from "./components/TrackingForm";
 import PageLoader from "./components/PageLoader";
-
+import { usePresence } from './hooks/usePresence';
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
 // ---------------------------------------------------------------------------
@@ -36,6 +36,7 @@ const DeliveryTrackingPage = lazy(() => import("./pages/DeliveryTrackingPage"));
 const RegistryAndGiftingPage = lazy(() => import("./pages/RegistryAndGiftingPage"));
 const SharedRegistryPage = lazy(() => import("./pages/SharedRegistryPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const AboutUsPage = lazy(() => import("./pages/AboutUsPage"));
 
 // Enhanced Buyer pages (default exports)
 const EnhancedCartPage = lazy(() => import("./pages/EnhancedCartPage"));
@@ -111,424 +112,430 @@ const AdminAnnouncementsPage = lazy(() => import("./pages/AdminAnnouncementsPage
 
 // QA Team pages
 const QADashboard = lazy(() => import("./pages/QADashboard"));
+const AdminQADashboard = lazy(() => import("./pages/AdminQADashboard"));
 
 function App() {
+  // 👉 NEW: This single line powers the entire global presence system!
+  usePresence();
+
   return (
     <>
       <Router>
         <ScrollToTop />
         <ChatBubble />
         <Suspense fallback={<PageLoader />}>
-        <Routes>
-          {/* Buyer Routes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/sell" element={<SellerLandingPage />} />
-          <Route path="/login" element={<BuyerLoginPage />} />
-          <Route path="/signup" element={<BuyerSignupPage />} />
-          <Route
-            path="/buyer-onboarding"
-            element={
-              // <ProtectedBuyerRoute>
-              <BuyerOnboardingPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          <Route path="/shop" element={<ShopPage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
-          <Route path="/announcements" element={<BuyerAnnouncementsPage />} />
-          <Route path="/flash-sales" element={<FlashSalesPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/collections" element={<CollectionsPage />} />
-          <Route path="/stores" element={<StoresPage />} />
-          <Route
-            path="/product/:id"
-            element={<ProductDetailPage />}
-          />
-          <Route
-            path="/registry"
-            element={<RegistryAndGiftingPage />}
-          />
-          <Route
-            path="/registry/:id"
-            element={<SharedRegistryPage />}
-          />
-          <Route
-            path="/enhanced-cart"
-            element={
-              // <ProtectedBuyerRoute>
-              <EnhancedCartPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/checkout"
-            element={
-              // <ProtectedBuyerRoute>
-              <CheckoutPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/order-confirmation/:orderId"
-            element={
-              // <ProtectedBuyerRoute>
-              <OrderConfirmationPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/delivery-tracking/:orderNumber"
-            element={
-              // <ProtectedBuyerRoute>
-              <DeliveryTrackingPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/orders"
-            element={
-              // <ProtectedBuyerRoute>
-              <OrdersPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/order/:orderId"
-            element={
-              // <ProtectedBuyerRoute>
-              <OrderDetailPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
+          <Routes>
+            {/* Buyer Routes */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/sell" element={<SellerLandingPage />} />
+            <Route path="/login" element={<BuyerLoginPage />} />
+            <Route path="/signup" element={<BuyerSignupPage />} />
+            <Route
+              path="/buyer-onboarding"
+              element={
+                // <ProtectedBuyerRoute>
+                <BuyerOnboardingPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route path="/shop" element={<ShopPage />} />
+            <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/announcements" element={<BuyerAnnouncementsPage />} />
+            <Route path="/flash-sales" element={<FlashSalesPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/collections" element={<CollectionsPage />} />
+            <Route path="/stores" element={<StoresPage />} />
+            <Route path="/about-us" element={<AboutUsPage />} />
+            <Route
+              path="/product/:id"
+              element={<ProductDetailPage />}
+            />
+            <Route
+              path="/registry"
+              element={<RegistryAndGiftingPage />}
+            />
+            <Route
+              path="/registry/:id"
+              element={<SharedRegistryPage />}
+            />
+            <Route
+              path="/enhanced-cart"
+              element={
+                // <ProtectedBuyerRoute>
+                <EnhancedCartPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/checkout"
+              element={
+                // <ProtectedBuyerRoute>
+                <CheckoutPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/order-confirmation/:orderId"
+              element={
+                // <ProtectedBuyerRoute>
+                <OrderConfirmationPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/delivery-tracking/:orderNumber"
+              element={
+                // <ProtectedBuyerRoute>
+                <DeliveryTrackingPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                // <ProtectedBuyerRoute>
+                <OrdersPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/order/:orderId"
+              element={
+                // <ProtectedBuyerRoute>
+                <OrderDetailPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
 
-          <Route
-            path="/profile"
-            element={
-              // <ProtectedBuyerRoute>
-              <BuyerProfilePage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          {/* Temporary test route for Phase 1 refactoring */}
-          <Route
-            path="/test-profile-components"
-            element={<ProfileComponentsTest />}
-          />
-          <Route
-            path="/seller/:sellerId"
-            element={<SellerStorefrontPage />}
-          />
-          <Route
-            path="/messages"
-            element={
-              // <ProtectedBuyerRoute>
-              <MessagesPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          <Route path="/reviews" element={<ReviewsPage />} />
-          <Route
-            path="/my-reviews"
-            element={
-              // <ProtectedBuyerRoute>
-              <BuyerReviewsPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/following"
-            element={
-              // <ProtectedBuyerRoute>
-              <BuyerFollowingPage />
-              // </ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/my-requests"
-            element={
-              //<ProtectedBuyerRoute>
-              <BuyerProductRequestsPage />
-              //</ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              //<ProtectedBuyerRoute>
-              <BuyerSettingsPage />
-              //</ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/buyer-support"
-            element={
-              //<ProtectedBuyerRoute>
-              <BuyerSupport />
-              //</ProtectedBuyerRoute>
-            }
-          />
-          <Route
-            path="/my-tickets"
-            element={
-              //<ProtectedBuyerRoute>
-              <MyTickets />
-              //</ProtectedBuyerRoute>
-            }
-          />
-          <Route path="/track-delivery" element={<TrackingForm />} />
-          {/* Seller Routes */}
-          <Route path="/seller/auth" element={<SellerAuthChoice />} />
-          <Route path="/seller/login" element={<SellerLogin />} />
-          <Route
-            path="/seller/register"
-            element={<SellerRegister />}
-          />
-          <Route
-            path="/seller/onboarding"
-            element={<SellerOnboarding />}
-          />
-          <Route
-            path="/seller/pending-approval"
-            element={<Navigate to="/seller/unverified" replace />}
-          />
-          <Route
-            path="/seller/unverified"
-            element={
-              <ProtectedSellerRoute>
-                <UnverifiedSellerPortal />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/verification-requirements"
-            element={<Navigate to="/seller/unverified" replace />}
-          />
-          <Route
-            path="/seller/account-blocked"
-            element={
-              <ProtectedSellerRoute>
-                <SellerAccountBlocked />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller"
-            element={
-              <ProtectedSellerRoute>
-                <SellerDashboard />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/profile"
-            element={
-              <ProtectedSellerRoute>
-                <SellerStoreProfile />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/store-profile"
-            element={
-              <ProtectedSellerRoute>
-                <SellerStoreProfile />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/earnings"
-            element={
-              <ProtectedSellerRoute>
-                <SellerEarnings />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/products"
-            element={
-              <ProtectedSellerRoute>
-                <SellerProducts />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/products/add"
-            element={
-              <ProtectedSellerRoute>
-                <AddProduct />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/product-status-qa"
-            element={
-              <ProtectedSellerRoute>
-                <SellerProductStatus />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/orders"
-            element={
-              <ProtectedSellerRoute>
-                <SellerOrders />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/notifications"
-            element={
-              <ProtectedSellerRoute>
-                <SellerNotifications />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/returns"
-            element={
-              <ProtectedSellerRoute>
-                <SellerReturns />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/pos"
-            element={
-              <ProtectedSellerRoute>
-                <SellerPOS />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/pos-settings"
-            element={
-              <ProtectedSellerRoute>
-                <SellerPOSSettings />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/flash-sales"
-            element={<Navigate to="/seller/discounts" replace />}
-          />
-          <Route
-            path="/seller/discounts"
-            element={
-              <ProtectedSellerRoute>
-                <SellerDiscounts />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/boost"
-            element={
-              <ProtectedSellerRoute>
-                <SellerBoostProduct />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/messages"
-            element={
-              <ProtectedSellerRoute>
-                <SellerMessages />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/reviews"
-            element={
-              <ProtectedSellerRoute>
-                <SellerReviews />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/analytics"
-            element={
-              <ProtectedSellerRoute>
-                <SellerAnalytics />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/settings"
-            element={
-              <ProtectedSellerRoute>
-                <SellerSettings />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/help-center"
-            element={
-              <ProtectedSellerRoute>
-                <SellerHelpCenter />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/my-tickets"
-            element={
-              <ProtectedSellerRoute>
-                <SellerMyTickets />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/buyer-reports"
-            element={
-              <ProtectedSellerRoute>
-                <SellerBuyerReports />
-              </ProtectedSellerRoute>
-            }
-          />
-          <Route
-            path="/seller/announcements"
-            element={
-              <ProtectedSellerRoute>
-                <SellerAnnouncementsPage />
-              </ProtectedSellerRoute>
-            }
-          />
+            <Route
+              path="/profile"
+              element={
+                // <ProtectedBuyerRoute>
+                <BuyerProfilePage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            {/* Temporary test route for Phase 1 refactoring */}
+            <Route
+              path="/test-profile-components"
+              element={<ProfileComponentsTest />}
+            />
+            <Route
+              path="/seller/:sellerId"
+              element={<SellerStorefrontPage />}
+            />
+            <Route
+              path="/messages"
+              element={
+                // <ProtectedBuyerRoute>
+                <MessagesPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route path="/reviews" element={<ReviewsPage />} />
+            <Route
+              path="/my-reviews"
+              element={
+                // <ProtectedBuyerRoute>
+                <BuyerReviewsPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/following"
+              element={
+                // <ProtectedBuyerRoute>
+                <BuyerFollowingPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/my-requests"
+              element={
+                //<ProtectedBuyerRoute>
+                <BuyerProductRequestsPage />
+                //</ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                //<ProtectedBuyerRoute>
+                <BuyerSettingsPage />
+                //</ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/buyer-support"
+              element={
+                //<ProtectedBuyerRoute>
+                <BuyerSupport />
+                //</ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/my-tickets"
+              element={
+                //<ProtectedBuyerRoute>
+                <MyTickets />
+                //</ProtectedBuyerRoute>
+              }
+            />
+            <Route path="/track-delivery" element={<TrackingForm />} />
+            {/* Seller Routes */}
+            <Route path="/seller/auth" element={<SellerAuthChoice />} />
+            <Route path="/seller/login" element={<SellerLogin />} />
+            <Route
+              path="/seller/register"
+              element={<SellerRegister />}
+            />
+            <Route
+              path="/seller/onboarding"
+              element={<SellerOnboarding />}
+            />
+            <Route
+              path="/seller/pending-approval"
+              element={<Navigate to="/seller/unverified" replace />}
+            />
+            <Route
+              path="/seller/unverified"
+              element={
+                <ProtectedSellerRoute>
+                  <UnverifiedSellerPortal />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/verification-requirements"
+              element={<Navigate to="/seller/unverified" replace />}
+            />
+            <Route
+              path="/seller/account-blocked"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerAccountBlocked />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerDashboard />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/profile"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerStoreProfile />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/store-profile"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerStoreProfile />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/earnings"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerEarnings />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/products"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerProducts />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/products/add"
+              element={
+                <ProtectedSellerRoute>
+                  <AddProduct />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/product-status-qa"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerProductStatus />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/orders"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerOrders />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/notifications"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerNotifications />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/returns"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerReturns />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/pos"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerPOS />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/pos-settings"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerPOSSettings />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/flash-sales"
+              element={<Navigate to="/seller/discounts" replace />}
+            />
+            <Route
+              path="/seller/discounts"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerDiscounts />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/boost"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerBoostProduct />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/messages"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerMessages />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/reviews"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerReviews />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/analytics"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerAnalytics />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/settings"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerSettings />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/help-center"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerHelpCenter />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/my-tickets"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerMyTickets />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/buyer-reports"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerBuyerReports />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
+              path="/seller/announcements"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerAnnouncementsPage />
+                </ProtectedSellerRoute>
+              }
+            />
 
-          {/* Admin Routes */}
-          <Route path="/admin/login" element={<AdminAuth />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route
-            path="/admin/categories"
-            element={<AdminCategories />}
-          />
-          <Route path="/admin/sellers" element={<AdminSellers />} />
-          <Route path="/admin/buyers" element={<AdminBuyers />} />
-          <Route path="/admin/orders" element={<AdminOrders />} />
-          <Route path="/admin/vouchers" element={<AdminVouchers />} />
-          <Route
-            path="/admin/reviews"
-            element={<AdminReviewModeration />}
-          />
-          <Route path="/admin/products" element={<AdminProducts />} />
-          <Route
-            path="/admin/product-requests"
-            element={<AdminProductRequests />}
-          />
-          <Route
-            path="/admin/flash-sales"
-            element={<AdminFlashSales />}
-          />
-          <Route path="/admin/payouts" element={<AdminPayouts />} />
-          <Route path="/admin/profile" element={<AdminProfile />} />
-          <Route
-            path="/admin/analytics"
-            element={<AdminAnalytics />}
-          />
-          <Route path="/admin/tickets" element={<AdminTickets />} />
-          <Route path="/admin/trusted-brands" element={<AdminTrustedBrands />} />
-          <Route path="admin/announcements" element={<AdminAnnouncementsPage />} />
-          <Route path="/admin/qa-dashboard" element={<QADashboard />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+            {/* Admin Routes */}
+            <Route path="/admin/login" element={<AdminAuth />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route
+              path="/admin/categories"
+              element={<AdminCategories />}
+            />
+            <Route path="/admin/sellers" element={<AdminSellers />} />
+            <Route path="/admin/buyers" element={<AdminBuyers />} />
+            <Route path="/admin/orders" element={<AdminOrders />} />
+            <Route path="/admin/vouchers" element={<AdminVouchers />} />
+            <Route
+              path="/admin/reviews"
+              element={<AdminReviewModeration />}
+            />
+            <Route path="/admin/products" element={<AdminProducts />} />
+            <Route
+              path="/admin/product-requests"
+              element={<AdminProductRequests />}
+            />
+            <Route
+              path="/admin/flash-sales"
+              element={<AdminFlashSales />}
+            />
+            <Route path="/admin/payouts" element={<AdminPayouts />} />
+            <Route path="/admin/profile" element={<AdminProfile />} />
+            <Route
+              path="/admin/analytics"
+              element={<AdminAnalytics />}
+            />
+            <Route path="/admin/tickets" element={<AdminTickets />} />
+            <Route path="/admin/trusted-brands" element={<AdminTrustedBrands />} />
+            <Route path="admin/announcements" element={<AdminAnnouncementsPage />} />
+            <Route path="/admin/product-approvals" element={<QADashboard />} />
+            <Route path="/admin/qa-dashboard" element={<AdminQADashboard />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
         </Suspense>
 
         {/* Global components that need Router context */}

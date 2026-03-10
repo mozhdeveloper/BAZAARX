@@ -37,6 +37,7 @@ import type { Product } from '../src/types';
 import { productService } from '../src/services/productService';
 import { sellerService } from '../src/services/sellerService';
 import { addressService } from '../src/services/addressService';
+import { useAddressStore } from '../src/stores/addressStore';
 import { notificationService, Notification } from '../src/services/notificationService';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
@@ -86,8 +87,8 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
           elevation: 4,
           overflow: 'hidden',
         }]}>
-          <ExpoImage 
-            source={{ uri: finalImageUri }} 
+          <ExpoImage
+            source={{ uri: finalImageUri }}
             style={{ width: '100%', height: '100%' }}
             contentFit="cover"
             cachePolicy="memory-disk"
@@ -116,8 +117,8 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
           )}
         </LinearGradient>
       )}
-      <Text 
-        style={styles.categoryLabel} 
+      <Text
+        style={styles.categoryLabel}
         numberOfLines={label.trim().includes(' ') ? 2 : 1}
         adjustsFontSizeToFit
         minimumFontScale={0.7}
@@ -145,9 +146,10 @@ export default function HomeScreen({ navigation }: Props) {
   // Removed local notifications array state as we only need count here
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // LOCATION STATE
-  const [deliveryAddress, setDeliveryAddress] = useState('Select Location');
-  const [deliveryCoordinates, setDeliveryCoordinates] = useState<{ latitude: number, longitude: number } | null>(null);
+  // LOCATION STATE — from shared store
+  const { sessionAddress, setSessionAddress, loadSessionAddress } = useAddressStore();
+  const deliveryAddress = sessionAddress.displayAddress;
+  const deliveryCoordinates = sessionAddress.coordinates;
   const [showLocationModal, setShowLocationModal] = useState(false);
 
   const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
@@ -176,33 +178,36 @@ export default function HomeScreen({ navigation }: Props) {
   const promoSlides = [
     {
       id: '1',
-      title: 'Super Deals',
-      subtitle: 'Big savings on\ntop products!',
+      badge: 'LIMITED TIME OFFER',
+      title: 'Summer Sale',
+      highlight: 'Up to 50% Off',
       buttonText: 'Shop Now',
-      image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400', // Yellow Bag placeholder
-      gradient: ['#FFFBF0', '#FFE0A3'], // Soft Amber Theme
+      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80', // Premium watch image
+      gradient: ['rgba(15, 23, 42, 0.4)', 'rgba(15, 23, 42, 0.9)'], // Dark overlay gradient
+      screen: 'FlashSale',
+      params: undefined
+    },
+    {
+      id: '2',
+      badge: 'NEW ARRIVALS',
+      title: 'Premium Sound',
+      highlight: 'Experience More',
+      buttonText: 'View All',
+      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80', // Headphones
+      gradient: ['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)'],
       screen: 'Shop',
       params: { category: 'electronics' }
     },
     {
-      id: '2',
-      title: 'New Arrivals',
-      subtitle: 'Summer Collection\nAvailable Now',
-      buttonText: 'View All',
-      image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400',
-      gradient: ['#FFF9F0', '#FFEDD5'], // Soft Orange/Amber
-      screen: 'Shop',
-      params: { category: 'fashion' }
-    },
-    {
       id: '3',
-      title: 'Flash Sale',
-      subtitle: '50% Off Selected\nElectronics',
+      badge: 'TRENDING NOW',
+      title: 'Ergonomic Chair',
+      highlight: 'Level Up Your Workspace',
       buttonText: 'Shop Now',
-      image: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400',
-      gradient: ['#FFF7ED', '#FFDBBB'], // Peach/Amber
-      screen: 'FlashSale',
-      params: undefined
+      image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800&q=80', // Working Office Chair link
+      gradient: ['rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0.85)'],
+      screen: 'Shop',
+      params: { category: 'home' }
     }
   ];
 
@@ -407,45 +412,13 @@ export default function HomeScreen({ navigation }: Props) {
     };
   }, [navigation, loadNotifications, user?.id, isGuest]);
 
-  // ... (Location logic skipped for brevity, keeping existing) ...
+  // ... (Location logic — now via addressStore) ...
   useEffect(() => {
-    let isMounted = true;
-    const loadSavedLocation = async () => {
-      try {
-        // Parallel AsyncStorage reads instead of sequential
-        const [savedAddress, savedCoords] = await Promise.all([
-          AsyncStorage.getItem('currentDeliveryAddress'),
-          AsyncStorage.getItem('currentDeliveryCoordinates'),
-        ]);
-        if (!isMounted) return;
-        if (savedAddress) setDeliveryAddress(savedAddress);
-        if (savedCoords) setDeliveryCoordinates(JSON.parse(savedCoords));
-      } catch (e) { console.error(e); }
-
-      if (user?.id) {
-        try {
-          const savedLocation = await addressService.getCurrentDeliveryLocation(user.id);
-          if (!isMounted) return;
-          if (savedLocation) {
-            const formatted = savedLocation.city ? `${savedLocation.street}, ${savedLocation.city}` : savedLocation.street;
-            setDeliveryAddress(formatted);
-            if (savedLocation.coordinates) setDeliveryCoordinates(savedLocation.coordinates);
-          }
-        } catch (e) { console.error(e); }
-      }
-    };
-    loadSavedLocation();
-    return () => { isMounted = false; };
+    loadSessionAddress(user?.id ?? null);
   }, [user]);
 
   const handleSelectLocation = async (address: string, coords?: any, details?: any) => {
-    setDeliveryAddress(address);
-    if (coords) setDeliveryCoordinates(coords);
-    try {
-      await AsyncStorage.setItem('currentDeliveryAddress', address);
-      if (coords) await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
-      if (user?.id) await addressService.saveCurrentDeliveryLocation(user.id, address, coords || null, details);
-    } catch (e) { console.error(e); }
+    await setSessionAddress(user?.id ?? null, address, coords, details);
   };
 
   useEffect(() => {
@@ -757,21 +730,26 @@ export default function HomeScreen({ navigation }: Props) {
                       }
                     }}
                   >
+                    <ExpoImage 
+                      source={{ uri: slide.image }} 
+                      style={StyleSheet.absoluteFill} 
+                      contentFit="cover" 
+                    />
                     <LinearGradient
                       colors={slide.gradient as [string, string]}
                       start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
+                      end={{ x: 1, y: 0.5 }}
                       style={StyleSheet.absoluteFill}
                     />
                     <View style={styles.promoTextPart}>
-                      <Text style={[styles.promoHeadline, { color: '#D97706', fontSize: 24 }]}>{slide.title}</Text>
-                      <Text style={[styles.promoBrandName, { color: '#92400E', fontSize: 14, fontWeight: '500', marginTop: 4 }]}>{slide.subtitle}</Text>
-                      <View style={styles.shopNowButton}>
-                        <Text style={styles.shopNowText}>{slide.buttonText}</Text>
+                      <Text style={[styles.promoBadge, { color: COLORS.primary }]}>{slide.badge}</Text>
+                      <Text style={[styles.promoHeadline, { color: '#FFFFFF' }]}>{slide.title}</Text>
+                      <View style={styles.promoBottomRow}>
+                        <Text style={[styles.promoHighlight, { color: COLORS.primary }]}>{slide.highlight}</Text>
+                        <View style={styles.shopNowButton}>
+                          <Text style={styles.shopNowText}>{slide.buttonText}</Text>
+                        </View>
                       </View>
-                    </View>
-                    <View style={styles.promoImgPart}>
-                      <ExpoImage source={{ uri: slide.image }} style={styles.promoImg} contentFit="contain" />
                     </View>
                   </Pressable>
                 ))}
@@ -1039,46 +1017,57 @@ const styles = StyleSheet.create({
 
   carouselContainer: { marginVertical: 10 },
   promoBox: {
-    height: 180,
-    borderRadius: 24,
-    padding: 24,
+    height: 190,
+    borderRadius: 20,
+    marginHorizontal: 20,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0F172A',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  promoBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 15, // High elevation for pop
-    shadowColor: COLORS.primary, // Soft Amber Glow
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.3, // Softened from 0.5
-    shadowRadius: 20,
-    borderWidth: 1,
-    borderColor: '#FFE0A3', // Soft Gold Border
-    marginHorizontal: 20,
-    overflow: 'hidden',
-    position: 'relative'
+    width: '100%',
+    marginTop: 2,
   },
   shopNowButton: {
-    backgroundColor: COLORS.primary, // Soft Amber
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 12,
-    alignSelf: 'flex-start',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4
+    backgroundColor: COLORS.primary, // Using brand primary color
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignSelf: 'center',
   },
   shopNowText: {
-    color: '#FFF',
-    fontSize: 12,
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '700'
   },
-  promoTextPart: { flex: 0.55, paddingRight: 10 },
-  promoHeadline: { fontSize: 26, fontWeight: '800', color: COLORS.textHeadline, lineHeight: 30 },
-  promoBrandName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary, marginTop: 8, lineHeight: 20 },
-  promoImgPart: { flex: 0.45, height: 140, alignItems: 'center', justifyContent: 'center' },
-  promoImg: { width: '100%', height: '100%' },
+  promoTextPart: { 
+    zIndex: 10,
+    width: '100%'
+  },
+  promoBadge: { 
+    fontSize: 11, 
+    fontWeight: '800', 
+    letterSpacing: 1.5,
+    marginBottom: 8 
+  },
+  promoHeadline: { 
+    fontSize: 28, 
+    fontWeight: '900', 
+    letterSpacing: -0.5,
+    marginBottom: 0
+  },
+  promoHighlight: { 
+    fontSize: 24, // Slightly smaller to fit button
+    fontWeight: '800', 
+    letterSpacing: -0.5,
+    flexShrink: 1, // Allow text to shrink if needed
+    paddingRight: 10
+  },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 5 },
   sectionTitle: { fontSize: 19, fontWeight: 'bold', color: COLORS.textHeadline },
   seeAll: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },

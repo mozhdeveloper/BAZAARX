@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useAdminAuth } from '../stores/adminStore';
 import AdminSidebar from '../components/AdminSidebar';
-import { Card } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
@@ -39,7 +39,7 @@ import { useToast } from '../hooks/use-toast';
 import { qaTeamService, type QAAssessmentItem, type QADashboardStats } from '../services/qaTeamService';
 import { useProductQAStore } from '../stores/productQAStore';
 
-type QATab = 'listings' | 'digital' | 'history';
+type QATab = 'all' | 'listings' | 'digital' | 'verified' | 'revision';
 
 const QADashboard = () => {
   const { isAuthenticated, user } = useAdminAuth();
@@ -56,7 +56,7 @@ const QADashboard = () => {
     assignedToMe: 0,
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<QATab>(isQARole ? 'digital' : 'listings');
+  const [activeTab, setActiveTab] = useState<QATab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<QAAssessmentItem | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -99,13 +99,23 @@ const QADashboard = () => {
   const getFilteredAssessments = () => {
     let filtered = assessments;
 
-    if (activeTab === 'listings') {
+    // For QA team, we filter out items that haven't reached QA yet (pending admin review)
+    // For Admins, we show everything
+    let assessmentsForTab = isQARole 
+      ? assessments.filter(a => a.status !== 'pending_admin_review')
+      : assessments;
+
+    if (activeTab === 'all') {
+      filtered = assessmentsForTab;
+    } else if (activeTab === 'listings' && !isQARole) {
       filtered = assessments.filter(a => a.status === 'pending_admin_review');
     } else if (activeTab === 'digital') {
-      filtered = assessments.filter(a => a.status === 'pending_digital_review');
-    } else {
-      // history
-      filtered = assessments.filter(a => ['verified', 'rejected', 'for_revision'].includes(a.status));
+      filtered = assessmentsForTab.filter(a => a.status === 'pending_digital_review');
+    } else if (activeTab === 'verified') {
+      filtered = assessmentsForTab.filter(a => a.status === 'verified');
+    } else if (activeTab === 'revision') {
+      // items requiring revision or rejected
+      filtered = assessmentsForTab.filter(a => ['rejected', 'for_revision'].includes(a.status));
     }
 
     if (searchQuery) {
@@ -191,7 +201,7 @@ const QADashboard = () => {
 
   // Status badge helper
   const getStatusBadge = (status: string) => {
-    const map: Record<string, { label: string; variant: string; icon: React.ElementType }> = {
+    const map: Record<string, { label: string; variant: string; icon: any }> = {
       pending_admin_review: { label: 'Pending Listing', variant: 'bg-white/90 text-gray-800 border-gray-200', icon: Clock },
       pending_digital_review: { label: 'QA Review', variant: 'bg-blue-50/95 text-blue-800 border-blue-200', icon: FileCheck },
       verified: { label: 'Verified', variant: 'bg-green-50/95 text-green-800 border-green-200', icon: BadgeCheck },
@@ -199,7 +209,7 @@ const QADashboard = () => {
       rejected: { label: 'Rejected', variant: 'bg-red-50/95 text-red-800 border-red-200', icon: XCircle },
     };
     const info = map[status] || { label: status, variant: 'bg-white/90 text-gray-800 border-gray-200', icon: Clock };
-    const Icon = info.icon;
+    const Icon = info.icon as any;
     return (
       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm shadow-sm ${info.variant}`}>
         <Icon className="w-3.5 h-3.5" />
@@ -211,17 +221,17 @@ const QADashboard = () => {
   return (
     <div className="flex min-h-screen bg-gray-50/50">
       <AdminSidebar />
-      <main className="flex-1 p-6 lg:p-8 overflow-auto">
-        <div className="max-w-[1600px] mx-auto">
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-4 border-b border-gray-200">
             <div>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
               <Shield className="w-8 h-8 text-primary" />
-              {isQARole ? 'QA Dashboard' : 'Automated QA & Product Approvals'}
+              QA & Product Approvals
             </h1>
             <p className="text-gray-500 mt-2">
-              {isQARole ? 'Review and ensure the quality of products before they go live.' : 'Review and accept listing requests or manage ongoing QA.'}
+              Review and ensure the quality of products before they go live.
             </p>
           </div>
           <div className="mt-4 md:mt-0 flex items-center gap-3">
@@ -233,52 +243,55 @@ const QADashboard = () => {
         </div>
 
         {/* Modern SaaS Stat Cards */}
-        <div className={`grid gap-4 md:grid-cols-2 lg:grid-cols-3 ${isQARole ? 'xl:grid-cols-5' : 'xl:grid-cols-6'} mb-8`}>
+        <div className={`grid gap-4 grid-cols-1 md:grid-cols-5 mb-8`}>
           {[
             ...(!isQARole ? [{ label: 'Pending Listings', count: stats.pendingAdminReview, icon: Clock, color: 'text-gray-600 bg-gray-100/50' }] : []),
             { label: 'QA Review', count: stats.pendingDigitalReview, icon: FileCheck, color: 'text-blue-600 bg-blue-50' },
             { label: 'Verified', count: stats.verified, icon: BadgeCheck, color: 'text-green-600 bg-green-50' },
             { label: 'Revision required', count: stats.forRevision, icon: RefreshCw, color: 'text-orange-600 bg-orange-50' },
             { label: 'Rejected', count: stats.rejected, icon: XCircle, color: 'text-red-600 bg-red-50' },
-            { label: 'Assigned to you', count: stats.assignedToMe, icon: UserCheck, color: 'text-primary bg-orange-50' },
           ].map((stat) => (
-            <Card key={stat.label} className="border bg-white shadow-sm hover:shadow-md transition-all duration-200">
-              <div className="pt-5 px-5 pb-2 flex flex-row items-center justify-between">
-                <h3 className="tracking-tight text-sm font-medium text-gray-500">{stat.label}</h3>
-                <div className={`p-2 rounded-md ${stat.color}`}>
-                  <stat.icon className="w-4 h-4" />
+            <Card key={stat.label} className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-100 transition-colors"></div>
+              <CardContent className="p-6 relative z-10">
+                <div className="flex flex-col">
+                  <div className="mb-4 text-gray-500 group-hover:text-orange-600 transition-all">
+                    <stat.icon className={`h-5 w-5`} />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-gray-400">
+                      {stat.label}
+                    </p>
+                    <div className="flex items-end gap-3 mt-1">
+                      <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-orange-600">
+                        {stat.count}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="px-5 pb-5">
-                <div className="text-3xl font-bold text-gray-900">{stat.count}</div>
-              </div>
+              </CardContent>
             </Card>
           ))}
         </div>
 
         {/* Content Section & Tabs */}
-        <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center mb-6">
+        <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center mb-8">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as QATab)} className="w-full lg:w-auto">
-            <TabsList className="bg-gray-200/50 p-1">
-              {(!isQARole ? [
-                { id: 'listings', label: 'Pending Listings', icon: Clock, count: stats.pendingAdminReview }
-              ] : []).concat([
-                { id: 'digital', label: 'QA Review', icon: FileCheck, count: stats.pendingDigitalReview },
-                { id: 'history', label: 'History', icon: Clock, count: stats.verified + stats.forRevision + stats.rejected },
-              ]).map((tab) => (
+            <TabsList className="bg-white/50 border border-gray-100 p-1.5 h-14 rounded-full shadow-sm">
+              {[
+                { id: 'all', label: 'All Products', count: (isQARole ? assessments.filter(a => a.status !== 'pending_admin_review') : assessments).length },
+                ...(!isQARole ? [{ id: 'listings', label: 'Pending', count: stats.pendingAdminReview }] : []),
+                { id: 'digital', label: 'QA Queue', count: stats.pendingDigitalReview },
+                { id: 'verified', label: 'Verified', count: stats.verified },
+                { id: 'revision', label: 'Revision', count: stats.forRevision + stats.rejected },
+              ].map((tab) => (
                 <TabsTrigger 
                   key={tab.id} 
                   value={tab.id}
-                  className="data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm flex items-center gap-2 px-4 py-2"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-white rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 text-gray-500 hover:text-gray-900 data-[state=active]:shadow-md"
                 >
-                  <tab.icon className="w-4 h-4" />
                   {tab.label}
-                  <Badge 
-                    variant={activeTab === tab.id ? "default" : "secondary"} 
-                    className={activeTab === tab.id ? "bg-primary hover:bg-primary ml-1.5" : "ml-1.5"}
-                  >
-                    {tab.count}
-                  </Badge>
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -403,29 +416,39 @@ const QADashboard = () => {
 
                       {assessment.status === 'pending_digital_review' && (
                         <div className="grid grid-cols-2 gap-2">
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                            onClick={() => handlePassDigitalReview(assessment)}
-                          >
-                            <CheckCircle className="w-4 h-4 mr-1.5" /> Approve
-                          </Button>
+                          {isQARole && (
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() => handlePassDigitalReview(assessment)}
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1.5" /> Approve
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                            className={`text-orange-600 border-orange-200 hover:bg-orange-50 ${!isQARole ? 'col-span-2' : ''}`}
                             onClick={() => { setSelectedProduct(assessment); setShowRevisionModal(true); }}
                           >
                             <RefreshCw className="w-4 h-4 mr-1.5" /> Revise
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-600 border-red-200 hover:bg-red-50 col-span-2"
-                            onClick={() => { setSelectedProduct(assessment); setShowRejectModal(true); }}
-                          >
-                            <XCircle className="w-4 h-4 mr-1.5" /> Reject Product
-                          </Button>
+                          {isQARole && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 border-red-200 hover:bg-red-50 col-span-2"
+                              onClick={() => { setSelectedProduct(assessment); setShowRejectModal(true); }}
+                            >
+                              <XCircle className="w-4 h-4 mr-1.5" /> Reject Product
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      {!isQARole && assessment.status === 'pending_digital_review' && (
+                        <div className="text-center text-xs text-blue-500 bg-blue-50/50 py-2 rounded-lg border border-blue-100 italic">
+                          Product is currently under QA review
                         </div>
                       )}
 

@@ -131,6 +131,7 @@ const SearchPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const hasInitialized = useRef(false);
+  const manualScrollRef = useRef(false);
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
   const { profile, addToCart, cartItems } = useBuyerStore();
 
@@ -143,7 +144,7 @@ const SearchPage: React.FC = () => {
   });
   const [searchResults, setSearchResults] = useState<SearchProduct[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [sortBy, setSortBy] = useState('relevance');
+  const [sortBy, setSortBy] = useState('newest');
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
 
   // New Filter States
@@ -200,14 +201,25 @@ const SearchPage: React.FC = () => {
     categoryNames.forEach(cat => counts[cat] = 0);
 
     sellerProducts.forEach(p => {
-      // Check if the product's category is in our active list
-      if (categoryNames.includes(p.category)) {
-        counts[p.category] = (counts[p.category] || 0) + 1;
-      }
+      if (p.approvalStatus !== 'approved' || !p.isActive) return;
+
+      const cat = p.category || 'Uncategorized';
+      counts[cat] = (counts[cat] || 0) + 1;
     });
 
     return counts;
   }, [sellerProducts, categories]);
+
+  const otherProductsCount = useMemo(() => {
+    const activeCategoryNames = new Set(categories.map(c => c.name));
+    let count = 0;
+    for (const [catName, catCount] of Object.entries(categoryCounts)) {
+      if (!activeCategoryNames.has(catName)) {
+        count += catCount;
+      }
+    }
+    return count;
+  }, [categories, categoryCounts]);
 
   const brandCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -284,6 +296,12 @@ const SearchPage: React.FC = () => {
     }, 500);
   }, [sellerProducts]);
 
+  // Sync searchQuery with URL params
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('q') || '';
+    setSearchQuery(q);
+  }, [location.search]);
+
   // Initial Search / Sync
   useEffect(() => {
     if (sellerProducts.length > 0) {
@@ -291,11 +309,38 @@ const SearchPage: React.FC = () => {
     }
   }, [searchQuery, sellerProducts, handleSearch]);
 
+  // Scroll to results when category or other filters change
+  useEffect(() => {
+    if (hasInitialized.current) {
+      setTimeout(() => {
+        const isClean = selectedCategory === 'All' && !selectedSize && !selectedColor && !selectedBrand && minRating === 0 && priceRange[0] === 0 && priceRange[1] === 100000 && sortBy === 'newest';
+        if (isClean && !manualScrollRef.current) {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          const element = document.getElementById("search-results-header");
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }
+        manualScrollRef.current = false;
+      }, 100);
+    } else {
+      hasInitialized.current = true;
+    }
+  }, [selectedCategory, selectedSize, selectedColor, selectedBrand, minRating, priceRange, sortBy]);
+
   const filteredResults = searchResults.filter(p => {
     // Price Filter
     if (p.price < priceRange[0] || p.price > priceRange[1]) return false;
     // Category Filter
-    if (selectedCategory !== 'All' && !p.category.includes(selectedCategory)) return false;
+    if (selectedCategory !== 'All') {
+      if (selectedCategory === 'Others') {
+        const isActiveCategory = categories.some(c => c.name === p.category);
+        if (isActiveCategory) return false;
+      } else if (!p.category.includes(selectedCategory)) {
+        return false;
+      }
+    }
     // Brand Filter
     if (selectedBrand && p.seller !== selectedBrand) return false;
     // Rating Filter
@@ -357,59 +402,31 @@ const SearchPage: React.FC = () => {
             <Link to="/stores" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Stores</Link>
             <Link to="/registry" className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300">Registry & Gifting</Link>
           </div>
-
-          {/* Large Search Bar */}
-          <div className="relative max-w-3xl mx-auto mb-6">
-            <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch(searchQuery)}
-              placeholder="Search for products, brands, categories"
-              className="w-full pl-14 pr-14 py-4 text-sm bg-white border border-gray-200 focus:border-[var(--brand-primary)] rounded-full text-[var(--text-headline)] placeholder-[var(--text-muted)] focus:outline-none shadow-sm transition-all"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-14 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={() => setShowVisualSearchModal(true)}
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors"
-              title="Search by image"
-            >
-              <Camera className="w-5 h-5" />
-            </button>
-          </div>
         </motion.div>
 
         <div className="flex flex-col lg:flex-row gap-8">
 
           {/* Sidebar */}
           <aside className="w-full lg:w-72 flex-shrink-0">
-            <div className="lg:sticky lg:top-24 space-y-10 pr-6">
+            <div className="lg:sticky lg:top-28 lg:h-[calc(100vh-120px)] lg:overflow-y-auto pr-6 scrollbar-hide space-y-10 pb-10">
 
               {/* Categories */}
               <div>
-                <h2 className="text-lg font-bold text-gray-900 mb-6 font-primary">Categories</h2>
+                <h2 className="text-lg font-bold text-[var(--text-headline)] mb-6 font-primary lg:sticky lg:top-0 lg:z-10 lg:bg-[var(--brand-wash)] lg:py-4 lg:-mt-4 lg:-mx-1 lg:px-1">Categories</h2>
                 <div className="space-y-4">
                   <button
-                    onClick={() => setSelectedCategory('All')}
+                    onClick={() => { manualScrollRef.current = true; setSelectedCategory('All'); }}
                     className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === 'All' ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                   >
                     <span className={`text-sm ${selectedCategory === 'All' ? 'font-bold' : 'font-medium'}`}>All Product</span>
                     <span className="text-xs font-semibold">
-                      {Object.values(categoryCounts).reduce((a, b) => a + b, 0)}
+                      {sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive).length}
                     </span>
                   </button>
                   {categories.map(cat => (
                     <button
                       key={cat.id}
-                      onClick={() => setSelectedCategory(cat.name)}
+                      onClick={() => { manualScrollRef.current = true; setSelectedCategory(cat.name); }}
                       className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === cat.name ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                     >
                       <span className="text-sm font-medium">{cat.name}</span>
@@ -418,11 +435,22 @@ const SearchPage: React.FC = () => {
                       </span>
                     </button>
                   ))}
+                  {otherProductsCount > 0 && (
+                    <button
+                      onClick={() => { manualScrollRef.current = true; setSelectedCategory('Others'); }}
+                      className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === 'Others' ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
+                    >
+                      <span className={`text-sm ${selectedCategory === 'Others' ? 'font-bold' : 'font-medium'}`}>Others</span>
+                      <span className={`text-xs ${selectedCategory === 'Others' ? 'font-semibold text-[var(--brand-primary)]' : 'font-normal text-[var(--text-muted)] group-hover:text-[var(--text-primary)]'}`}>
+                        {otherProductsCount}
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
 
               <div className="border-t border-gray-100 pt-3">
-                <h2 className="text-lg font-bold text-gray-900 mb-4 font-primary">Filter By</h2>
+                <h2 className="text-lg font-bold text-gray-900 mb-4 font-primary lg:sticky lg:top-0 lg:z-10 lg:bg-[var(--brand-wash)] lg:py-4 lg:-mt-4 lg:-mx-1 lg:px-1">Filter By</h2>
 
                 <div className="space-y-6">
                   {/* Price Section */}
@@ -435,7 +463,7 @@ const SearchPage: React.FC = () => {
                           max={100000}
                           step={100}
                           value={priceRange}
-                          onValueChange={setPriceRange}
+                          onValueChange={(val) => { manualScrollRef.current = true; setPriceRange(val); }}
                           className="text-[var(--brand-accent)]"
                         />
                       </div>
@@ -455,7 +483,7 @@ const SearchPage: React.FC = () => {
                                 setPriceRange([Math.min(numValue, 100000), priceRange[1]]);
                               }
                             }}
-                            className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)]"
+                            className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--brand-primary)]"
                           />
                         </div>
                       </div>
@@ -474,7 +502,7 @@ const SearchPage: React.FC = () => {
                                 setPriceRange([priceRange[0], Math.min(numValue, 100000)]);
                               }
                             }}
-                            className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)]"
+                            className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--brand-primary)]"
                           />
                         </div>
                       </div>
@@ -521,7 +549,7 @@ const SearchPage: React.FC = () => {
                       {[4, 3, 2, 1].map((rating) => (
                         <button
                           key={rating}
-                          onClick={() => setMinRating(minRating === rating ? 0 : rating)}
+                          onClick={() => { manualScrollRef.current = true; setMinRating(minRating === rating ? 0 : rating); }}
                           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${minRating === rating
                             ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
                             : "text-[var(--text-primary)] hover:bg-gray-50"
@@ -548,7 +576,7 @@ const SearchPage: React.FC = () => {
                       {brands.map(brand => (
                         <button
                           key={brand}
-                          onClick={() => setSelectedBrand(selectedBrand === brand ? null : brand)}
+                          onClick={() => { manualScrollRef.current = true; setSelectedBrand(selectedBrand === brand ? null : brand); }}
                           className="w-full flex justify-between items-center group cursor-pointer hover:text-gray-900"
                         >
                           <div className="flex items-center gap-2">
@@ -631,21 +659,23 @@ const SearchPage: React.FC = () => {
             )}
 
             {/* Results Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 pb-2">
-              <p className="text-[var(--text-muted)] text-sm mb-4 sm:mb-0">
-                Showing <span className="font-bold text-[var(--brand-primary)]">{sortedResults.length}</span> results
-              </p>
-              <div className="w-full sm:w-auto">
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-full sm:w-[160px] h-10 bg-white border border-gray-100 hover:shadow-md -mb-2 rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-0 transition-all hover:border-[var(--brand-primary)]/50">
+            <div id="search-results-header" className="flex flex-col sm:flex-row justify-between items-center mb-2 pb-2 scroll-mt-24 gap-4 h-12">
+              <div className="flex items-center h-10">
+                <p className="text-[var(--text-muted)] text-sm font-medium leading-none">
+                  Showing <span className="font-bold text-[var(--brand-primary)]">{sortedResults.length}</span> results
+                </p>
+              </div>
+              <div className="flex items-center gap-2 h-10">
+                <span className="text-sm font-medium text-[var(--text-muted)] whitespace-nowrap">Sort by:</span>
+                <Select value={sortBy} onValueChange={(val) => { manualScrollRef.current = true; setSortBy(val); }}>
+                  <SelectTrigger className="w-full sm:w-[160px] h-8 bg-white border-none shadow-sm hover:shadow-md rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-0 transition-all">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-gray-100 shadow-xl bg-white p-1">
-                    <SelectItem value="relevance" className="text-xs rounded-lg cursor-pointer">Default</SelectItem>
+                  <SelectContent className="rounded-2xl border-none shadow-xl bg-white">
+                    <SelectItem value="newest" className="text-xs rounded-lg cursor-pointer">Newest Arrivals</SelectItem>
                     <SelectItem value="price-low" className="text-xs rounded-lg cursor-pointer">Price: Low to High</SelectItem>
                     <SelectItem value="price-high" className="text-xs rounded-lg cursor-pointer">Price: High to Low</SelectItem>
                     <SelectItem value="rating" className="text-xs rounded-lg cursor-pointer">Rating</SelectItem>
-                    <SelectItem value="newest" className="text-xs rounded-lg cursor-pointer">Newest</SelectItem>
                     <SelectItem value="best-sellers" className="text-xs rounded-lg cursor-pointer">Best Sellers</SelectItem>
                   </SelectContent>
                 </Select>

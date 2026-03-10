@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 import {
   Star,
   MapPin,
@@ -53,11 +53,10 @@ import { CampaignCountdown } from "../components/shop/CampaignCountdown";
 import { bestSellerProducts } from "../data/products";
 
 const sortOptions = [
-  { value: "relevance", label: "Default" },
+  { value: "newest", label: "Newest Arrivals" },
   { value: "price-low", label: "Price: Low to High" },
   { value: "price-high", label: "Price: High to Low" },
-  { value: "rating", label: "Customer Rating" },
-  { value: "newest", label: "Newest Arrivals" },
+  { value: "rating", label: "Rating" },
   { value: "bestseller", label: "Best Sellers" },
 ];
 
@@ -88,7 +87,9 @@ const popularTags = [
 
 export default function ShopPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const manualScrollRef = useRef(false);
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
@@ -96,7 +97,7 @@ export default function ShopPage() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
-  const [selectedSort, setSelectedSort] = useState("relevance");
+  const [selectedSort, setSelectedSort] = useState("newest");
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [minRating, setMinRating] = useState<number>(0);
   const [showFilters, setShowFilters] = useState(false);
@@ -154,59 +155,6 @@ export default function ShopPage() {
       .catch(err => console.error('Failed to fetch categories:', err));
   }, []);
 
-  const categoryOptions = useMemo(() => [
-    "All Categories",
-    ...categories.map((cat) => cat.name),
-  ], [categories]);
-
-  useEffect(() => {
-    // Fetch initial products - only approved and active products
-    const filters = {
-      isActive: true,
-      approvalStatus: 'approved',
-    };
-    fetchProducts(filters);
-
-    // Subscribe to real-time updates
-    const unsubscribe = subscribeToProducts(filters);
-
-    // Cleanup subscription on unmount
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    setSearchQuery(searchParams.get("q") || "");
-    const categoryParam = searchParams.get("category");
-    if (categoryParam) {
-      setSelectedCategory(categoryParam);
-      // Wait for layout to settle then scroll
-      setTimeout(() => {
-        const element = document.getElementById("shop-content");
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      }, 100);
-    }
-  }, [searchParams]);
-
-  // Handle toolbar scroll visibility
-  useEffect(() => {
-    const handleScroll = () => {
-      // Threshold: Header (~80px) + Flash Sale (~400px) + Half of first grid row (~200px)
-      // This hide the sticky toolbar after scrolling past the initial focus area
-      if (window.scrollY > 850) {
-        setIsToolbarSticky(false);
-      } else {
-        setIsToolbarSticky(true);
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
   const allProducts = useMemo<ShopProduct[]>(() => {
     // Create a set of active category names for O(1) lookup
     const activeCategoryNames = new Set(categories.map(c => c.name));
@@ -214,8 +162,7 @@ export default function ShopPage() {
     const dbProducts = sellerProducts
       .filter((p) =>
         p.approvalStatus === "approved" &&
-        p.isActive &&
-        activeCategoryNames.has(p.category) // Only count products in active categories
+        p.isActive
       )
       .map((p) => ({
         id: p.id,
@@ -323,6 +270,108 @@ export default function ShopPage() {
     });
   }, [allProducts, activeCampaignDiscounts]);
 
+  const categoryCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of allProducts) {
+      if (!p.category) {
+        map.set("Uncategorized", (map.get("Uncategorized") || 0) + 1);
+        continue;
+      }
+      map.set(p.category, (map.get(p.category) || 0) + 1);
+    }
+    return map;
+  }, [allProducts]);
+
+  const otherProductsCount = useMemo(() => {
+    const activeCategoryNames = new Set(categories.map(c => c.name));
+    let count = 0;
+    for (const [catName, catCount] of categoryCountMap.entries()) {
+      if (!activeCategoryNames.has(catName)) {
+        count += catCount;
+      }
+    }
+    return count;
+  }, [categories, categoryCountMap]);
+
+  const categoryOptions = useMemo(() => {
+    const options = ["All Categories", ...categories.map((cat) => cat.name)];
+    if (otherProductsCount > 0) {
+      options.push("Others");
+    }
+    return options;
+  }, [categories, otherProductsCount]);
+
+  useEffect(() => {
+    // Fetch initial products - only approved and active products
+    const filters = {
+      isActive: true,
+      approvalStatus: 'approved',
+    };
+    fetchProducts(filters);
+
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToProducts(filters);
+
+    // Cleanup subscription on unmount
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const queryParam = searchParams.get("q") || "";
+    const categoryParam = searchParams.get("category");
+
+    setSearchQuery(queryParam);
+
+    if (categoryParam) {
+      setSelectedCategory(categoryParam);
+    } else {
+      setSelectedCategory("All Categories");
+    }
+
+    // Scroll logic - handles both initial mount and updates
+    setTimeout(() => {
+      const isClean = !categoryParam && !queryParam &&
+        priceRange[0] === 0 && priceRange[1] === 100000 &&
+        minRating === 0 && selectedSort === "newest";
+
+      if (isClean && !manualScrollRef.current) {
+        // Landing on a clean Shop page (or reset via Shop tab), scroll to the very top
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        // Any filter change (URL or local state), or manual "All" selection, scroll to results
+        const element = document.getElementById("shop-results-header");
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
+      manualScrollRef.current = false;
+    }, 100);
+  }, [searchParams, location.key, priceRange, minRating, selectedSort]);
+
+  // Handle toolbar scroll visibility
+  useEffect(() => {
+    const handleScroll = () => {
+      // Threshold: Header (~80px) + Flash Sale (~400px) + Half of first grid row (~200px)
+      // This hide the sticky toolbar after scrolling past the initial focus area
+      if (window.scrollY > 850) {
+        setIsToolbarSticky(false);
+      } else {
+        setIsToolbarSticky(true);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+
+
+
+
+
+
   // flashSaleProducts comes from the real discount campaigns (state above)
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
@@ -334,7 +383,9 @@ export default function ShopPage() {
 
       const matchesCategory =
         selectedCategory === "All Categories" ||
-        product.category.toLowerCase() === selectedCategory.toLowerCase();
+        (selectedCategory === "Others"
+          ? !categories.some(c => c.name.toLowerCase() === product.category.toLowerCase())
+          : product.category.toLowerCase() === selectedCategory.toLowerCase());
 
       // Use slider price range instead of predefined ranges
       const matchesPrice =
@@ -367,18 +418,11 @@ export default function ShopPage() {
     return filtered;
   }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating]);
 
-  // O(n) category count map — avoids O(n×m) repeated .filter() in JSX
-  const categoryCountMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of allProducts) {
-      map.set(p.category, (map.get(p.category) || 0) + 1);
-    }
-    return map;
-  }, [allProducts]);
+
 
   const resetFilters = () => {
     setSearchQuery("");
-    setSelectedSort("relevance");
+    setSelectedSort("newest");
     setPriceRange([0, 100000]);
     setMinRating(0);
   };
@@ -404,6 +448,10 @@ export default function ShopPage() {
             <Link
               to="/shop"
               className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
+              onClick={() => {
+                resetFilters();
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
             >
               Shop
             </Link>
@@ -706,6 +754,7 @@ export default function ShopPage() {
                         <button
                           key={category}
                           onClick={() => {
+                            manualScrollRef.current = true;
                             setSelectedCategory(category);
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
@@ -737,13 +786,14 @@ export default function ShopPage() {
             <div className="flex flex-col lg:flex-row gap-4 mt-6">
               {/* Sidebar Filters - Desktop Only */}
               <aside className="hidden lg:block w-72 flex-shrink-0">
-                <div className="sticky top-24 space-y-10 pr-6">
+                <div className="sticky top-28 h-[calc(100vh-120px)] overflow-y-auto pr-6 scrollbar-hide space-y-10 pb-10">
                   {/* Categories Section */}
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900 mb-6 font-primary">Categories</h2>
+                    <h2 className="text-lg font-bold text-[var(--text-headline)] mb-6 font-primary sticky top-0 z-20 bg-[var(--brand-wash)] py-3 -mt-3.5 -mx-1 px-1">Categories</h2>
                     <div className="space-y-4">
                       <button
                         onClick={() => {
+                          manualScrollRef.current = true;
                           setSelectedCategory("All Categories");
                           setSearchParams((prev) => {
                             const next = new URLSearchParams(prev);
@@ -763,6 +813,7 @@ export default function ShopPage() {
                         <button
                           key={cat.id}
                           onClick={() => {
+                            manualScrollRef.current = true;
                             setSelectedCategory(cat.name);
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
@@ -770,20 +821,41 @@ export default function ShopPage() {
                               return next;
                             });
                           }}
-                          className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === cat.name ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]"}`}
-                          aria-pressed={selectedCategory === cat.name}
+                          className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory.toLowerCase() === cat.name.toLowerCase() ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]"}`}
+                          aria-pressed={selectedCategory.toLowerCase() === cat.name.toLowerCase()}
                         >
-                          <span className={`text-sm ${selectedCategory === cat.name ? "font-bold" : "font-medium"}`}>{cat.name}</span>
-                          <span className={`text-xs ${selectedCategory === cat.name ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)] font-normal"}`}>
+                          <span className={`text-sm ${selectedCategory.toLowerCase() === cat.name.toLowerCase() ? "font-bold" : "font-medium"}`}>{cat.name}</span>
+                          <span className={`text-xs ${selectedCategory.toLowerCase() === cat.name.toLowerCase() ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)] font-normal"}`}>
                             {categoryCountMap.get(cat.name) ?? 0}
                           </span>
                         </button>
                       ))}
+
+                      {otherProductsCount > 0 && (
+                        <button
+                          onClick={() => {
+                            manualScrollRef.current = true;
+                            setSelectedCategory("Others");
+                            setSearchParams((prev) => {
+                              const next = new URLSearchParams(prev);
+                              next.set("category", "Others");
+                              return next;
+                            });
+                          }}
+                          className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory.toLowerCase() === "others" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]"}`}
+                          aria-pressed={selectedCategory.toLowerCase() === "others"}
+                        >
+                          <span className={`text-sm ${selectedCategory.toLowerCase() === "others" ? "font-bold" : "font-medium"}`}>Others</span>
+                          <span className={`text-xs ${selectedCategory.toLowerCase() === "others" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)] font-normal"}`}>
+                            {otherProductsCount}
+                          </span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
                   <div className="border-t border-gray-100 pt-3">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4 font-primary">Filter By</h2>
+                    <h2 className="text-lg font-bold text-[var(--text-headline)] mb-4 font-primary sticky top-0 z-20 bg-[var(--brand-wash)] py-3 -mt-3.5 -mx-1 px-1">Filter By</h2>
 
                     <div className="space-y-6">
                       {/* Price Section */}
@@ -796,7 +868,10 @@ export default function ShopPage() {
                               max={100000}
                               step={100}
                               value={priceRange}
-                              onValueChange={setPriceRange}
+                              onValueChange={(val) => {
+                                manualScrollRef.current = true;
+                                setPriceRange(val);
+                              }}
                               className="text-[var(--brand-accent)]"
                             />
                           </div>
@@ -810,7 +885,7 @@ export default function ShopPage() {
                                 type="number"
                                 value={priceRange[0]}
                                 onChange={(e) => setPriceRange([Math.min(Number(e.target.value), priceRange[1]), priceRange[1]])}
-                                className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)]"
+                                className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--brand-primary)]"
                                 placeholder="Min"
                               />
                             </div>
@@ -824,7 +899,7 @@ export default function ShopPage() {
                                 type="number"
                                 value={priceRange[1]}
                                 onChange={(e) => setPriceRange([priceRange[0], Math.max(Number(e.target.value), priceRange[0])])}
-                                className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)]"
+                                className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--brand-primary)]"
                                 placeholder="Max"
                               />
                             </div>
@@ -870,7 +945,10 @@ export default function ShopPage() {
                           {[4, 3, 2, 1].map((rating) => (
                             <button
                               key={rating}
-                              onClick={() => setMinRating(minRating === rating ? 0 : rating)}
+                              onClick={() => {
+                                manualScrollRef.current = true;
+                                setMinRating(minRating === rating ? 0 : rating);
+                              }}
                               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${minRating === rating
                                 ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
                                 : "text-[var(--text-primary)] hover:bg-gray-50"
@@ -935,14 +1013,15 @@ export default function ShopPage() {
               <div className="flex-1 min-w-0">
                 {/* Toolbar - Now inside Product Area */}
                 <motion.div
+                  id="shop-results-header"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{
                     opacity: 1,
                     y: 0,
                   }}
-                  className="mb-8 flex items-center justify-between gap-4"
+                  className="mb-4 flex items-center justify-between gap-4 scroll-mt-24"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 h-10">
                     <button
                       onClick={() => setShowFilters(!showFilters)}
                       className="lg:hidden flex items-center gap-2 px-4 py-2 bg-white hover:bg-[var(--brand-wash)] rounded-xl text-xs font-bold text-[var(--text-primary)] transition-all border border-[var(--border)] shadow-sm"
@@ -954,17 +1033,21 @@ export default function ShopPage() {
                       Categories
                     </button>
 
-                    <p className="text-[var(--text-muted)] text-sm font-medium">
+                    <p className="text-[var(--text-muted)] text-sm font-medium leading-none">
                       Showing <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> results
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-6 -mb-2">
-                    <Select value={selectedSort} onValueChange={setSelectedSort}>
-                      <SelectTrigger className="w-[120px] md:w-[160px] h-10 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
+                  <div className="flex items-center gap-2 h-10">
+                    <span className="text-sm font-medium text-[var(--text-muted)] whitespace-nowrap">Sort by:</span>
+                    <Select value={selectedSort} onValueChange={(val) => {
+                      manualScrollRef.current = true;
+                      setSelectedSort(val);
+                    }}>
+                      <SelectTrigger className="w-[120px] md:w-[160px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl border-[var(--border)] bg-white/95 backdrop-blur-md">
+                      <SelectContent className="rounded-xl border-none shadow-xl bg-white/95 backdrop-blur-md">
                         {sortOptions.map((option) => (
                           <SelectItem
                             key={option.value}
