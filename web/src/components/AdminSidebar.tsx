@@ -54,8 +54,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
     },
     {
       label: isQARole ? 'QA Dashboard' : 'Product Approvals',
-      href: '/admin/qa-dashboard',
-      icon: <Shield className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/qa-dashboard') ? 'text-primary' : 'text-gray-500'}`} />,
+      href: isQARole ? '/admin/qa-dashboard' : '/admin/product-approvals',
+      icon: <Shield className={`h-5 w-5 flex-shrink-0 ${location.pathname.includes(isQARole ? '/admin/qa-dashboard' : '/admin/product-approvals') ? 'text-primary' : 'text-gray-500'}`} />,
       qaVisible: true,
     },
     {
@@ -149,11 +149,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
 
           {/* QA / Admin role badge */}
           {open && (
-            <div className={`mt-4 mx-1 px-3 py-1.5 rounded-lg flex items-center gap-2 ${
-              isQARole
+            <div className={`mt-4 mx-1 px-3 py-1.5 rounded-lg flex items-center gap-2 ${isQARole
                 ? 'bg-orange-50 border border-orange-200'
                 : 'bg-gray-100 border border-gray-200'
-            }`}>
+              }`}>
               <Shield className={`w-3.5 h-3.5 ${isQARole ? 'text-primary' : 'text-gray-500'}`} />
               <span className={`text-xs font-semibold tracking-wide uppercase ${isQARole ? 'text-primary' : 'text-gray-500'}`}>
                 {isQARole ? 'QA Team' : 'Admin'}
@@ -169,11 +168,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
               return (
                 <div
                   key={idx}
-                  className={`rounded-lg transition-colors ${
-                    isActive
+                  className={`rounded-lg transition-colors ${isActive
                       ? 'bg-orange-50 border border-orange-100'
                       : 'hover:bg-gray-100/70 border border-transparent'
-                  }`}
+                    }`}
                 >
                   <SidebarLink link={link} />
                 </div>
