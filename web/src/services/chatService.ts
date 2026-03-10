@@ -1,8 +1,7 @@
 /**
  * Chat Service - Handles messaging between buyers and sellers
  * Uses Supabase for storage and real-time subscriptions
- * 
- * Updated for new normalized schema (February 2026):
+ * * Updated for new normalized schema (February 2026):
  * - conversations table only has: id, buyer_id, order_id, created_at, updated_at
  * - NO seller_id (seller determined via order→order_items→product→seller or via messages)
  * - NO last_message, unread counts (computed from messages)
@@ -22,6 +21,9 @@ export interface Message {
   image_url?: string;
   is_read: boolean;
   created_at: string;
+  message_type?: 'user' | 'system';
+  message_content?: string;
+  order_event_type?: string;
 }
 
 export interface Conversation {
@@ -36,6 +38,8 @@ export interface Conversation {
   last_message_at?: string;
   buyer_unread_count?: number;
   seller_unread_count?: number;
+  is_online?: boolean;
+  isOnline?: boolean;
   // Joined profile data
   buyer_name?: string;
   buyer_email?: string;
@@ -116,7 +120,7 @@ class ChatService {
     // Get last message - use maybeSingle to handle conversations with no messages yet
     const { data: lastMsg } = await supabase
       .from('messages')
-      .select('content, created_at')
+      .select('content, message_content, message_type, created_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -137,8 +141,10 @@ class ChatService {
       .eq('sender_type', 'buyer')
       .eq('is_read', false);
 
+    const displayContent = lastMsg?.message_type === 'system' ? lastMsg?.message_content : (lastMsg?.content || lastMsg?.message_content || '');
+
     return {
-      lastMessage: lastMsg?.content || '',
+      lastMessage: displayContent || '',
       lastMessageAt: lastMsg?.created_at || null,
       buyerUnreadCount: buyerUnread || 0,
       sellerUnreadCount: sellerUnread || 0,
@@ -242,6 +248,18 @@ class ChatService {
       seller = data;
     }
 
+    // Fetch Real-time Presence
+    let isOnline = false;
+    const targetUserId = resolvedSellerId || conv.buyer_id;
+    if (targetUserId) {
+        const { data: presence } = await supabase
+            .from('user_presence')
+            .select('status')
+            .eq('user_id', targetUserId)
+            .maybeSingle();
+        isOnline = presence?.status === 'online';
+    }
+
     // Get conversation stats
     const stats = await this.getConversationStats(conv.id, conv.buyer_id, resolvedSellerId);
 
@@ -259,6 +277,8 @@ class ChatService {
       last_message_at: stats.lastMessageAt || conv.updated_at,
       buyer_unread_count: stats.buyerUnreadCount,
       seller_unread_count: stats.sellerUnreadCount,
+      is_online: isOnline,
+      isOnline: isOnline,
       buyer: {
         first_name: buyer?.first_name,
         last_name: buyer?.last_name,
@@ -366,7 +386,10 @@ class ChatService {
       return [];
     }
 
-    return data || [];
+    return (data || []).map((msg: any) => ({
+      ...msg,
+      content: msg.message_type === 'system' ? msg.message_content : msg.content
+    }));
   }
 
   /**
@@ -490,7 +513,11 @@ class ChatService {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          onMessage(payload.new as Message);
+          const newMsg = payload.new as Message;
+          if (newMsg.message_type === 'system') {
+            newMsg.content = newMsg.message_content || '';
+          }
+          onMessage(newMsg);
         }
       )
       .subscribe();
@@ -586,6 +613,44 @@ class ChatService {
   }
 
   /**
+   * Subscribe to presence updates
+   */
+  subscribeToPresenceUpdates(onPresenceChange: (userId: string, isOnline: boolean) => void): () => void {
+    const channelName = 'global-presence';
+    this.unsubscribe(channelName);
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'user_presence' },
+        (payload) => {
+          const newRecord = payload.new as any;
+          if (newRecord && newRecord.user_id) {
+             onPresenceChange(newRecord.user_id, newRecord.status === 'online');
+          }
+        }
+      )
+      .subscribe();
+
+    this.subscriptions.set(channelName, channel);
+    return () => this.unsubscribe(channelName);
+  }
+
+  /**
+   * Update Global Presence
+   */
+  async updateUserPresence(userId: string, status: 'online' | 'offline', platform: 'mobile' | 'web' | 'both'): Promise<void> {
+    await supabase.from('user_presence').upsert({ 
+      user_id: userId, 
+      status: status, 
+      active_platform: platform,
+      last_seen: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+  }
+
+  /**
    * Unsubscribe from a channel
    */
   private unsubscribe(channelName: string): void {
@@ -638,6 +703,32 @@ class ChatService {
         .eq('is_read', false);
 
       return count || 0;
+    }
+  }
+
+  /**
+   * Trigger an idempotent system message for order events
+   * Call this when an order is placed, confirmed, shipped, or delivered.
+   */
+  async triggerOrderSystemMessage(
+    orderId: string,
+    conversationId: string,
+    eventType: 'placed' | 'confirmed' | 'shipped' | 'delivered',
+    content: string
+  ): Promise<void> {
+    try {
+      const { error } = await supabase.rpc('process_idempotent_order_message', {
+        p_order_id: orderId,
+        p_conv_id: conversationId,
+        p_event_type: eventType,
+        p_content: content
+      });
+
+      if (error) {
+        console.error('[ChatService] Error triggering system message:', error);
+      }
+    } catch (e) {
+      console.error('[ChatService] RPC call failed:', e);
     }
   }
 }
