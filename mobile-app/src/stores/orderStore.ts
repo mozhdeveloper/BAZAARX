@@ -40,6 +40,11 @@ interface OrderStore {
   ) => Promise<POSOrderCreateResult>;
   markOrderAsShipped: (orderId: string, trackingNumber: string) => Promise<void>;
   markOrderAsDelivered: (orderId: string) => Promise<void>;
+
+  // Checkout Context — prefetched seller metadata from Edge Function
+  checkoutSellerMetadata: Record<string, any>;
+  isCheckoutContextLoading: boolean;
+  loadCheckoutContext: (productIds: string[]) => Promise<void>;
 }
 
 // Dummy orders for testing - showcasing all status types with mixed payment statuses
@@ -717,6 +722,32 @@ export const useOrderStore = create<OrderStore>()(
               : order,
           ),
         }));
+      },
+
+      // ============================================
+      // CHECKOUT CONTEXT
+      // ============================================
+      checkoutSellerMetadata: {},
+      isCheckoutContextLoading: false,
+      loadCheckoutContext: async (productIds: string[]) => {
+        // Guard against duplicate concurrent calls
+        if (get().isCheckoutContextLoading || productIds.length === 0) return;
+
+        set({ isCheckoutContextLoading: true });
+        try {
+          // Single Edge Function call — addresses + sellers fetched concurrently inside
+          const { getCheckoutContext } = require('../services/checkoutService');
+          const ctx = await getCheckoutContext(productIds);
+          set({ checkoutSellerMetadata: ctx.sellers ?? {} });
+        } catch (error: any) {
+          console.error('[OrderStore] loadCheckoutContext failed:', error);
+          if (error?.message === 'AUTH_EXPIRED') {
+            throw error;
+          }
+          // Non-fatal: checkout can proceed without prefetched seller metadata
+        } finally {
+          set({ isCheckoutContextLoading: false });
+        }
       },
 
       markOrderAsDelivered: async (orderId) => {
