@@ -131,6 +131,7 @@ const SearchPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const hasInitialized = useRef(false);
+  const manualScrollRef = useRef(false);
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
   const { profile, addToCart, cartItems } = useBuyerStore();
 
@@ -143,7 +144,7 @@ const SearchPage: React.FC = () => {
   });
   const [searchResults, setSearchResults] = useState<SearchProduct[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [sortBy, setSortBy] = useState('relevance');
+  const [sortBy, setSortBy] = useState('newest');
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
 
   // New Filter States
@@ -312,7 +313,8 @@ const SearchPage: React.FC = () => {
   useEffect(() => {
     if (hasInitialized.current) {
       setTimeout(() => {
-        if (selectedCategory === 'All' && !selectedSize && !selectedColor && !selectedBrand && minRating === 0 && priceRange[0] === 0 && priceRange[1] === 100000 && sortBy === 'relevance') {
+        const isClean = selectedCategory === 'All' && !selectedSize && !selectedColor && !selectedBrand && minRating === 0 && priceRange[0] === 0 && priceRange[1] === 100000 && sortBy === 'newest';
+        if (isClean && !manualScrollRef.current) {
           window.scrollTo({ top: 0, behavior: "smooth" });
         } else {
           const element = document.getElementById("search-results-header");
@@ -320,6 +322,7 @@ const SearchPage: React.FC = () => {
             element.scrollIntoView({ behavior: "smooth", block: "start" });
           }
         }
+        manualScrollRef.current = false;
       }, 100);
     } else {
       hasInitialized.current = true;
@@ -405,14 +408,14 @@ const SearchPage: React.FC = () => {
 
           {/* Sidebar */}
           <aside className="w-full lg:w-72 flex-shrink-0">
-            <div className="lg:sticky lg:top-24 lg:h-[calc(100vh-110px)] lg:overflow-y-auto pr-6 scrollbar-hide space-y-10 pb-10">
+            <div className="lg:sticky lg:top-28 lg:h-[calc(100vh-120px)] lg:overflow-y-auto pr-6 scrollbar-hide space-y-10 pb-10">
 
               {/* Categories */}
               <div>
-                <h2 className="text-lg font-bold text-gray-900 mb-6 font-primary">Categories</h2>
+                <h2 className="text-lg font-bold text-[var(--text-headline)] mb-6 font-primary lg:sticky lg:top-0 lg:z-10 lg:bg-[var(--brand-wash)] lg:py-4 lg:-mt-4 lg:-mx-1 lg:px-1">Categories</h2>
                 <div className="space-y-4">
                   <button
-                    onClick={() => setSelectedCategory('All')}
+                    onClick={() => { manualScrollRef.current = true; setSelectedCategory('All'); }}
                     className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === 'All' ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                   >
                     <span className={`text-sm ${selectedCategory === 'All' ? 'font-bold' : 'font-medium'}`}>All Product</span>
@@ -423,7 +426,7 @@ const SearchPage: React.FC = () => {
                   {categories.map(cat => (
                     <button
                       key={cat.id}
-                      onClick={() => setSelectedCategory(cat.name)}
+                      onClick={() => { manualScrollRef.current = true; setSelectedCategory(cat.name); }}
                       className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === cat.name ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                     >
                       <span className="text-sm font-medium">{cat.name}</span>
@@ -434,7 +437,7 @@ const SearchPage: React.FC = () => {
                   ))}
                   {otherProductsCount > 0 && (
                     <button
-                      onClick={() => setSelectedCategory('Others')}
+                      onClick={() => { manualScrollRef.current = true; setSelectedCategory('Others'); }}
                       className={`w-full flex justify-between items-center group transition-colors focus:outline-none ${selectedCategory === 'Others' ? 'text-[var(--brand-primary)] font-bold' : 'text-[var(--text-primary)] font-medium hover:text-[var(--text-headline)]'}`}
                     >
                       <span className={`text-sm ${selectedCategory === 'Others' ? 'font-bold' : 'font-medium'}`}>Others</span>
@@ -447,7 +450,7 @@ const SearchPage: React.FC = () => {
               </div>
 
               <div className="border-t border-gray-100 pt-3">
-                <h2 className="text-lg font-bold text-gray-900 mb-4 font-primary">Filter By</h2>
+                <h2 className="text-lg font-bold text-gray-900 mb-4 font-primary lg:sticky lg:top-0 lg:z-10 lg:bg-[var(--brand-wash)] lg:py-4 lg:-mt-4 lg:-mx-1 lg:px-1">Filter By</h2>
 
                 <div className="space-y-6">
                   {/* Price Section */}
@@ -460,7 +463,7 @@ const SearchPage: React.FC = () => {
                           max={100000}
                           step={100}
                           value={priceRange}
-                          onValueChange={setPriceRange}
+                          onValueChange={(val) => { manualScrollRef.current = true; setPriceRange(val); }}
                           className="text-[var(--brand-accent)]"
                         />
                       </div>
@@ -480,7 +483,7 @@ const SearchPage: React.FC = () => {
                                 setPriceRange([Math.min(numValue, 100000), priceRange[1]]);
                               }
                             }}
-                            className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)]"
+                            className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--brand-primary)]"
                           />
                         </div>
                       </div>
@@ -499,7 +502,7 @@ const SearchPage: React.FC = () => {
                                 setPriceRange([priceRange[0], Math.min(numValue, 100000)]);
                               }
                             }}
-                            className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)]"
+                            className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--brand-primary)]"
                           />
                         </div>
                       </div>
@@ -546,7 +549,7 @@ const SearchPage: React.FC = () => {
                       {[4, 3, 2, 1].map((rating) => (
                         <button
                           key={rating}
-                          onClick={() => setMinRating(minRating === rating ? 0 : rating)}
+                          onClick={() => { manualScrollRef.current = true; setMinRating(minRating === rating ? 0 : rating); }}
                           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${minRating === rating
                             ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
                             : "text-[var(--text-primary)] hover:bg-gray-50"
@@ -573,7 +576,7 @@ const SearchPage: React.FC = () => {
                       {brands.map(brand => (
                         <button
                           key={brand}
-                          onClick={() => setSelectedBrand(selectedBrand === brand ? null : brand)}
+                          onClick={() => { manualScrollRef.current = true; setSelectedBrand(selectedBrand === brand ? null : brand); }}
                           className="w-full flex justify-between items-center group cursor-pointer hover:text-gray-900"
                         >
                           <div className="flex items-center gap-2">
@@ -656,21 +659,23 @@ const SearchPage: React.FC = () => {
             )}
 
             {/* Results Header */}
-            <div id="search-results-header" className="flex flex-col sm:flex-row justify-between items-center mb-6 pb-2 scroll-mt-24">
-              <p className="text-[var(--text-muted)] text-sm mb-4 sm:mb-0">
-                Showing <span className="font-bold text-[var(--brand-primary)]">{sortedResults.length}</span> results
-              </p>
-              <div className="w-full sm:w-auto">
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-full sm:w-[160px] h-10 bg-white border border-gray-100 hover:shadow-md -mb-2 rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-0 transition-all hover:border-[var(--brand-primary)]/50">
+            <div id="search-results-header" className="flex flex-col sm:flex-row justify-between items-center mb-2 pb-2 scroll-mt-24 gap-4 h-12">
+              <div className="flex items-center h-10">
+                <p className="text-[var(--text-muted)] text-sm font-medium leading-none">
+                  Showing <span className="font-bold text-[var(--brand-primary)]">{sortedResults.length}</span> results
+                </p>
+              </div>
+              <div className="flex items-center gap-2 h-10">
+                <span className="text-sm font-medium text-[var(--text-muted)] whitespace-nowrap">Sort by:</span>
+                <Select value={sortBy} onValueChange={(val) => { manualScrollRef.current = true; setSortBy(val); }}>
+                  <SelectTrigger className="w-full sm:w-[160px] h-8 bg-white border-none shadow-sm hover:shadow-md rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-0 transition-all">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-gray-100 shadow-xl bg-white p-1">
-                    <SelectItem value="relevance" className="text-xs rounded-lg cursor-pointer">Default</SelectItem>
+                  <SelectContent className="rounded-2xl border-none shadow-xl bg-white">
+                    <SelectItem value="newest" className="text-xs rounded-lg cursor-pointer">Newest Arrivals</SelectItem>
                     <SelectItem value="price-low" className="text-xs rounded-lg cursor-pointer">Price: Low to High</SelectItem>
                     <SelectItem value="price-high" className="text-xs rounded-lg cursor-pointer">Price: High to Low</SelectItem>
                     <SelectItem value="rating" className="text-xs rounded-lg cursor-pointer">Rating</SelectItem>
-                    <SelectItem value="newest" className="text-xs rounded-lg cursor-pointer">Newest</SelectItem>
                     <SelectItem value="best-sellers" className="text-xs rounded-lg cursor-pointer">Best Sellers</SelectItem>
                   </SelectContent>
                 </Select>
