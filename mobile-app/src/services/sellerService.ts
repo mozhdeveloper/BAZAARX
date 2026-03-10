@@ -623,7 +623,9 @@ export class SellerService {
                 .select(`
                     seller:sellers (
                         *,
-                        business_profile:seller_business_profiles(*)
+                        business_profile:seller_business_profiles(*),
+                        products(count),
+                        followers:store_followers(count)
                     )
                 `)
                 .eq('buyer_id', buyerId);
@@ -634,7 +636,17 @@ export class SellerService {
             return data
                 .map(row => (row as any).seller)
                 .filter(Boolean)
-                .map(seller => this.transformSeller(seller));
+                .map(seller => {
+                    const transformed = this.transformSeller(seller);
+                    // Extract nested counts returned by Supabase
+                    const productsArr = seller.products as { count: number }[] | null;
+                    const followersArr = seller.followers as { count: number }[] | null;
+                    return {
+                        ...transformed,
+                        products_count: productsArr?.[0]?.count ?? 0,
+                        followers_count: followersArr?.[0]?.count ?? 0,
+                    };
+                });
         } catch (error) {
             console.error('Error getting followed shops:', error);
             return [];
