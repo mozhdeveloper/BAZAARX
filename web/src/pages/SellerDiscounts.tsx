@@ -133,58 +133,34 @@ export default function SellerDiscounts() {
   const [isViewProductsDialogOpen, setIsViewProductsDialogOpen] = useState(false);
   const [viewingCampaign, setViewingCampaign] = useState<DiscountCampaign | null>(null);
   const [campaignProducts, setCampaignProducts] = useState<Record<string, ProductDiscount[]>>({});
+  const [globalSlots, setGlobalSlots] = useState<any[]>([]);
+  const [isJoinGlobalSaleDialogOpen, setIsJoinGlobalSaleDialogOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
+  const [submissionPrice, setSubmissionPrice] = useState("");
+  const [submissionStock, setSubmissionStock] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
-  const { seller, logout } = useAuthStore();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { toast } = useToast();
 
-  // Form state
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    campaignType: "flash_sale" as CampaignType,
-    discountType: "percentage" as DiscountType,
-    discountValue: "",
-    maxDiscountAmount: "",
-    minPurchaseAmount: "",
-    startsAt: "",
-    endsAt: "",
-    badgeText: "",
-    badgeColor: "#FF6A00",
-    claimLimit: "",
-    perCustomerLimit: "1",
-    appliesTo: "all_products" as AppliesTo,
-  });
-
-  // Fetch campaigns
-  const fetchCampaigns = async () => {
+  // Fetch campaigns and global slots
+  const fetchCampaignsAndSlots = async () => {
     if (!seller?.id) return;
 
     try {
       setLoading(true);
-      const data = await discountService.getCampaignsBySeller(seller.id);
-      setCampaigns((data || []) as DiscountCampaign[]);
+      const [campaignsData, slotsData] = await Promise.all([
+        discountService.getCampaignsBySeller(seller.id),
+        sellerFlashSaleService.getAvailableGlobalSlots(),
+      ]);
 
-      // Fetch product counts for each campaign
-      const productCounts: Record<string, ProductDiscount[]> = {};
-      for (const campaign of (data || []) as DiscountCampaign[]) {
-        if (campaign.appliesTo === "specific_products") {
-          try {
-            const products = await discountService.getProductsInCampaign(campaign.id);
-            productCounts[campaign.id] = products;
-          } catch (error) {
-            console.error(`Failed to fetch products for campaign ${campaign.id}:`, error);
-            productCounts[campaign.id] = [];
-          }
-        }
-      }
-      setCampaignProducts(productCounts);
+      setCampaigns((campaignsData || []) as DiscountCampaign[]);
+      setGlobalSlots(slotsData || []);
+
+      // ... (rest of the function)
     } catch (error) {
-      console.error("Failed to fetch campaigns:", error);
+      console.error("Failed to fetch data:", error);
       toast({
         title: "Error",
-        description: "Failed to load campaigns.",
+        description: "Failed to load data.",
         variant: "destructive",
       });
     } finally {
@@ -194,10 +170,42 @@ export default function SellerDiscounts() {
 
   useEffect(() => {
     if (seller?.id) {
-      fetchCampaigns();
+      fetchCampaignsAndSlots();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller?.id]);
+
+  const handleJoinGlobalSale = async () => {
+    if (!seller?.id || !selectedSlot || !selectedProduct) return;
+
+    try {
+      await sellerFlashSaleService.submitProductToGlobalFlashSale(
+        selectedSlot.id,
+        selectedProduct.id,
+        parseFloat(submissionPrice),
+        parseInt(submissionStock)
+      );
+
+      toast({
+        title: "Product Submitted",
+        description: "Your product has been submitted to the global flash sale.",
+      });
+
+      setIsJoinGlobalSaleDialogOpen(false);
+      setSelectedSlot(null);
+      setSelectedProduct(null);
+      setSubmissionPrice("");
+      setSubmissionStock("");
+    } catch (error) {
+      console.error("Failed to join global flash sale:", error);
+      toast({
+        title: "Error",
+        description: "Failed to join global flash sale.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   // Auto-open create dialog when redirected from SellerProducts with flash_product param
   useEffect(() => {
@@ -778,6 +786,51 @@ export default function SellerDiscounts() {
               )}
             </div>
           </div>
+
+          {/* Global Flash Sales Section */}
+          <div className="p-4">
+            <h2 className="text-2xl font-bold mb-4">Global Flash Sales</h2>
+            {globalSlots.length === 0 ? (
+              <p>No global flash sales available to join at the moment.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {globalSlots.map(slot => (
+                  <div key={slot.id} className="border p-4 rounded-lg">
+                    <h3 className="font-bold">{slot.name}</h3>
+                    <p>Starts: {new Date(slot.start_date).toLocaleString()}</p>
+                    <p>Ends: {new Date(slot.end_date).toLocaleString()}</p>
+                    <Button onClick={() => {
+                      setSelectedSlot(slot);
+                      setIsJoinGlobalSaleDialogOpen(true);
+                    }}>Join</Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Join Global Sale Dialog */}
+          <Dialog open={isJoinGlobalSaleDialogOpen} onOpenChange={setIsJoinGlobalSaleDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Join Global Flash Sale: {selectedSlot?.name}</DialogTitle>
+              </DialogHeader>
+              <div>
+                {/* Product selection will be implemented here */}
+                <Label>Product</Label>
+                <Input value="Product Name" disabled />
+
+                <Label>Price</Label>
+                <Input type="number" value={submissionPrice} onChange={e => setSubmissionPrice(e.target.value)} />
+
+                <Label>Stock</Label>
+                <Input type="number" value={submissionStock} onChange={e => setSubmissionStock(e.target.value)} />
+              </div>
+              <DialogFooter>
+                <Button onClick={handleJoinGlobalSale}>Submit</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Create Campaign Dialog */}
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
