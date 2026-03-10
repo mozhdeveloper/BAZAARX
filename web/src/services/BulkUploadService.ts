@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { productService } from "./productService";
+import { qaService } from "./qaService";
 
 export class BulkUploadService {
     private static instance: BulkUploadService;
@@ -77,6 +78,13 @@ export class BulkUploadService {
                         is_primary: idx === 0
                     }));
                     await supabase.from("product_images").insert(imageInserts);
+                }
+
+                // 7. Create QA assessment entry
+                try {
+                    await qaService.createQAEntry(product.id, '', sellerId);
+                } catch (qaErr) {
+                    console.warn(`[BulkUpload] QA entry failed for ${parentSku}:`, qaErr);
                 }
 
                 results.success++;
