@@ -63,6 +63,45 @@ const ensureRegistryDefaults = (registry: RegistryItem): RegistryItem => {
   return { ...registry, privacy, delivery, products };
 };
 
+// Returns true when id is a real Postgres UUID (not a local temp id like Date.now())
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isRealUUID = (id: string) => UUID_REGEX.test(id);
+
+// Maps a DB registry row (with nested registry_items) to the frontend RegistryItem shape
+const mapDbToRegistryProduct = (item: any): RegistryProduct => {
+  const snapshot = item.product_snapshot || {};
+  return ensureRegistryProductDefaults({
+    ...snapshot,
+    // Use registry_items.id as the local product identifier so update/delete can target the DB row
+    id: item.id,
+    name: item.product_name || snapshot.name || '',
+    price: snapshot.price || 0,
+    requestedQty: item.requested_qty ?? item.quantity_desired ?? 1,
+    receivedQty: item.received_qty ?? 0,
+    note: item.notes ?? snapshot.note,
+    isMostWanted: item.is_most_wanted ?? false,
+    selectedVariant: item.selected_variant ?? snapshot.selectedVariant,
+  });
+};
+
+const mapDbToRegistryItem = (row: any): RegistryItem =>
+  ensureRegistryDefaults({
+    id: row.id,
+    title: row.title,
+    sharedDate:
+      row.shared_date ||
+      new Date(row.created_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    imageUrl: row.image_url || '',
+    category: row.category || row.event_type || '',
+    privacy: (row.privacy as RegistryPrivacy) || 'link',
+    delivery: row.delivery || { showAddress: false },
+    products: (row.registry_items || []).map(mapDbToRegistryProduct),
+  });
+
 export interface Conversation {
   id: string;
   sellerId: string;
@@ -408,6 +447,10 @@ interface BuyerStore {
   markReviewHelpful: (reviewId: string) => void;
   getProductReviews: (productId: string) => Review[];
   getSellerReviews: (sellerId: string) => Review[];
+  // Backend supported Reviews
+  fetchMyReviews: () => Promise<Review[]>;
+  updateMyReview: (reviewId: string, updates: Partial<Review> & Record<string, unknown>) => Promise<boolean>;
+  deleteMyReview: (reviewId: string) => Promise<boolean>;
 
   // Seller Storefront
   viewedSellers: Seller[];
@@ -431,12 +474,13 @@ interface BuyerStore {
 
   // Registry & Gifting
   registries: RegistryItem[];
-  createRegistry: (registry: RegistryItem) => void;
-  updateRegistryMeta: (registryId: string, updates: Partial<RegistryItem>) => void;
-  addToRegistry: (registryId: string, product: Product) => void;
-  updateRegistryItem: (registryId: string, productId: string, updates: Partial<RegistryProduct>) => void;
-  removeRegistryItem: (registryId: string, productId: string) => void;
-  deleteRegistry: (registryId: string) => void;
+  loadRegistries: () => Promise<void>;
+  createRegistry: (registry: RegistryItem) => Promise<void>;
+  updateRegistryMeta: (registryId: string, updates: Partial<RegistryItem>) => Promise<void>;
+  addToRegistry: (registryId: string, product: Product) => Promise<void>;
+  updateRegistryItem: (registryId: string, productId: string, updates: Partial<RegistryProduct>) => Promise<void>;
+  removeRegistryItem: (registryId: string, productId: string) => Promise<void>;
+  deleteRegistry: (registryId: string) => Promise<void>;
 
   initializeBuyerProfile: (userId: string, profileData: any) => Promise<BuyerProfile>;
 
@@ -1067,7 +1111,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
             if (itemToUpdate) {
               await cartService.updateCartItemQuantity(itemToUpdate.id, sanitizedQuantity);
-              // Note: Full silent refetch is intentionally omitted here to prevent 
+              // Note: Full silent refetch is intentionally omitted here to prevent
               // race conditions/state jumping during rapid user clicks.
             }
           }
@@ -1543,6 +1587,81 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         .sort((a, b) => b.date.getTime() - a.date.getTime());
     },
 
+    // ==== Database-Backed Reviews ====
+    fetchMyReviews: async () => {
+      const { profile } = get();
+
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          product:products(
+            id,
+            name,
+            product_images(
+              image_url,
+              is_primary,
+              sort_order
+            )
+          ),
+          review_images(
+            image_url,
+            sort_order
+           )
+        `)
+        .eq('buyer_id', profile.id)
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error('Error fetching my reviews:', error.message);
+        return;
+      }
+      set({ myReviews: data || [] });
+      return data || [];
+    },
+
+    updateMyReview: async (reviewId, updates) => {
+      const { profile, myReviews } = get();
+      if (!profile) return false;
+
+      const { data, error } = await supabase
+        .from('reviews')
+        .update(updates)
+        .eq('id', reviewId)
+        .eq('buyer_id', profile.id)
+        .select('*')
+        .single();
+      if (error) {
+        console.error('Error updating my review:', error.message);
+        return false;
+      }
+      set({
+        myReviews:
+          myReviews.map((review) => (review.id === reviewId ? { ...review, ...data } : review))
+      });
+      return true;
+    },
+
+    deleteMyReview: async (reviewId) => {
+      const { profile } = get();
+      if (!profile) return false;
+
+      const { error } = await supabase
+        .from('reviews')
+        .delete()
+        .eq('id', reviewId)
+        .eq('buyer_id', profile.id);
+      if (error) {
+        console.error('Error deleting my review:', error.message);
+        return false;
+      }
+      set((state) => ({
+        myReviews: state.myReviews.filter(review => review.id !== reviewId)
+      }));
+      return true;
+    },
+
     // Seller Storefront
     viewedSellers: [],
 
@@ -1815,6 +1934,20 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
         set({ addresses: mappedAddresses });
 
+        // Load registries from backend now that profile is set
+        try {
+          const { data: regRows } = await supabase
+            .from('registries')
+            .select('*, registry_items(*)')
+            .eq('buyer_id', userId)
+            .order('created_at', { ascending: false });
+          if (regRows) {
+            set({ registries: regRows.map(mapDbToRegistryItem) });
+          }
+        } catch (regErr) {
+          console.error('Failed to load registries on init:', regErr);
+        }
+
         return buyerInfo;
       } catch (error) {
         console.error('Error initializing buyer profile:', error);
@@ -1897,62 +2030,215 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     // Registry & Gifting
     registries: [],
-    createRegistry: (registry) => {
+
+    loadRegistries: async () => {
+      const { profile } = get();
+      if (!profile?.id) return;
+
+      console.log('fetching registries')
+
+      const { data: rows, error } = await supabase
+        .from('registries')
+        .select('*, registry_items(*)')
+        .eq('buyer_id', profile.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Failed to load registries:', error);
+        return;
+      }
+      set({ registries: (rows || []).map(mapDbToRegistryItem) });
+
+      console.log("mapped registries", (rows || []).map(mapDbToRegistryItem));
+    },
+
+    createRegistry: async (registry) => {
+      const { profile } = get();
+      if (!profile?.id) {
+        // Guest fallback – keep local only
+        set((state) => ({ registries: [...state.registries, ensureRegistryDefaults(registry)] }));
+        return;
+      }
+
+      const tempId = registry.id;
+      // Optimistic update
+      set((state) => ({ registries: [...state.registries, ensureRegistryDefaults(registry)] }));
+
+      const { data, error } = await supabase
+        .from('registries')
+        .insert({
+          buyer_id: profile.id,
+          title: registry.title,
+          event_type: registry.category || 'Gift',
+          category: registry.category,
+          image_url: registry.imageUrl,
+          shared_date: registry.sharedDate,
+          privacy: registry.privacy || 'link',
+          delivery: registry.delivery || { showAddress: false },
+        })
+        .select('*, registry_items(*)')
+        .single();
+
+      if (error) {
+        console.error('Failed to create registry:', error);
+        set((state) => ({ registries: state.registries.filter((r) => r.id !== tempId) }));
+        return;
+      }
+
+      // Swap the optimistic (temp-id) entry with the real DB record
       set((state) => ({
-        registries: [...state.registries.map(ensureRegistryDefaults), ensureRegistryDefaults(registry)]
+        registries: state.registries.map((r) => (r.id === tempId ? mapDbToRegistryItem(data) : r)),
       }));
     },
-    updateRegistryMeta: (registryId, updates) => {
+
+    updateRegistryMeta: async (registryId, updates) => {
+      // Optimistic
       set((state) => ({
         registries: state.registries.map((r) =>
           r.id === registryId ? ensureRegistryDefaults({ ...r, ...updates }) : r
-        )
+        ),
       }));
+
+      const dbUpdate: Record<string, any> = {};
+      if (updates.title !== undefined) dbUpdate.title = updates.title;
+      if (updates.category !== undefined) { dbUpdate.category = updates.category; dbUpdate.event_type = updates.category; }
+      if (updates.imageUrl !== undefined) dbUpdate.image_url = updates.imageUrl;
+      if (updates.sharedDate !== undefined) dbUpdate.shared_date = updates.sharedDate;
+      if (updates.privacy !== undefined) dbUpdate.privacy = updates.privacy;
+      if (updates.delivery !== undefined) dbUpdate.delivery = updates.delivery;
+
+      const { error } = await supabase
+        .from('registries')
+        .update(dbUpdate)
+        .eq('id', registryId);
+
+      if (error) console.error('Failed to update registry meta:', error);
     },
-    addToRegistry: (registryId, product) => {
+
+    addToRegistry: async (registryId, product) => {
       const productWithDefaults = ensureRegistryProductDefaults(product);
+      const tempId = `temp-${Date.now()}`;
+      const tempProduct = { ...productWithDefaults, id: tempId };
+
+      // Optimistic
       set((state) => ({
-        registries: state.registries.map(r =>
+        registries: state.registries.map((r) =>
+          r.id === registryId
+            ? { ...r, products: [...(r.products || []), tempProduct] }
+            : r
+        ),
+      }));
+
+      const { data, error } = await supabase
+        .from('registry_items')
+        .insert({
+          registry_id: registryId,
+          product_id: isRealUUID(product.id) ? product.id : null,
+          product_name: product.name,
+          quantity_desired: productWithDefaults.requestedQty || 1,
+          requested_qty: productWithDefaults.requestedQty || 1,
+          received_qty: productWithDefaults.receivedQty || 0,
+          is_most_wanted: productWithDefaults.isMostWanted || false,
+          notes: productWithDefaults.note ?? null,
+          selected_variant: productWithDefaults.selectedVariant ?? null,
+          product_snapshot: product,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Failed to add to registry:', error);
+        // Rollback
+        set((state) => ({
+          registries: state.registries.map((r) =>
+            r.id === registryId
+              ? { ...r, products: (r.products || []).filter((p) => p.id !== tempId) }
+              : r
+          ),
+        }));
+        return;
+      }
+
+      // Replace temp entry with real DB record
+      set((state) => ({
+        registries: state.registries.map((r) =>
           r.id === registryId
             ? {
               ...r,
-              products: [...(r.products || []).map(ensureRegistryProductDefaults), productWithDefaults]
+              products: (r.products || []).map((p) =>
+                p.id === tempId ? mapDbToRegistryProduct(data) : p
+              ),
             }
             : r
-        )
+        ),
       }));
     },
-    updateRegistryItem: (registryId, productId, updates) => {
+
+    updateRegistryItem: async (registryId, productId, updates) => {
+      // Optimistic – productId IS the registry_items.id (set during mapDbToRegistryProduct)
       set((state) => ({
-        registries: state.registries.map(r =>
+        registries: state.registries.map((r) =>
           r.id === registryId
             ? {
               ...r,
-              products: (r.products || []).map(p => {
-                const updated = p.id === productId ? { ...p, ...updates } : p;
-                return ensureRegistryProductDefaults(updated);
-              })
+              products: (r.products || []).map((p) =>
+                p.id === productId
+                  ? ensureRegistryProductDefaults({ ...p, ...updates })
+                  : p
+              ),
             }
             : r
-        )
+        ),
       }));
+
+      const dbUpdates: Record<string, any> = {};
+      if (updates.requestedQty !== undefined) {
+        dbUpdates.quantity_desired = updates.requestedQty;
+        dbUpdates.requested_qty = updates.requestedQty;
+      }
+      if (updates.receivedQty !== undefined) dbUpdates.received_qty = updates.receivedQty;
+      if (updates.note !== undefined) dbUpdates.notes = updates.note;
+      if (updates.isMostWanted !== undefined) dbUpdates.is_most_wanted = updates.isMostWanted;
+      if (updates.selectedVariant !== undefined) dbUpdates.selected_variant = updates.selectedVariant;
+
+      const { error } = await supabase
+        .from('registry_items')
+        .update(dbUpdates)
+        .eq('id', productId);
+
+      if (error) console.error('Failed to update registry item:', error);
     },
-    removeRegistryItem: (registryId, productId) => {
+
+    removeRegistryItem: async (registryId, productId) => {
+      // Optimistic
       set((state) => ({
-        registries: state.registries.map(r =>
+        registries: state.registries.map((r) =>
           r.id === registryId
-            ? {
-              ...r,
-              products: (r.products || []).filter(p => p.id !== productId)
-            }
+            ? { ...r, products: (r.products || []).filter((p) => p.id !== productId) }
             : r
-        )
+        ),
       }));
+
+      const { error } = await supabase
+        .from('registry_items')
+        .delete()
+        .eq('id', productId);
+
+      if (error) console.error('Failed to remove registry item:', error);
     },
-    deleteRegistry: (registryId) => {
+
+    deleteRegistry: async (registryId) => {
+      // Optimistic
       set((state) => ({
-        registries: state.registries.filter(r => r.id !== registryId)
+        registries: state.registries.filter((r) => r.id !== registryId),
       }));
+
+      const { error } = await supabase
+        .from('registries')
+        .delete()
+        .eq('id', registryId);
+
+      if (error) console.error('Failed to delete registry:', error);
     }
   }),
   {
@@ -1964,8 +2250,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       cartItems: state.cartItems,
       reviews: state.reviews,
       conversations: state.conversations,
-      registries: state.registries
-      // We do NOT persist buyAgainItems or quickOrder to keep them transient
+      // registries intentionally excluded – sourced from backend, not local storage
     })
   }
 ));

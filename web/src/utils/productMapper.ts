@@ -346,6 +346,12 @@ export const mapDbProductToNormalized = (
     const label2Options = buildLabel2Options(rawVariants, primaryImage);
     const label1Options = buildLabel1Options(rawVariants);
 
+    // Combine product images with variant images, ensuring uniqueness
+    const variantImages = rawVariants
+        .map((v) => v.thumbnail_url || v.image)
+        .filter(Boolean);
+    const combinedImages = Array.from(new Set([...images, ...variantImages]));
+
     return {
         id: p.id,
         name: p.name,
@@ -353,7 +359,7 @@ export const mapDbProductToNormalized = (
         price: Number(p.price ?? 0),
         originalPrice: (p as any).originalPrice ?? p.original_price ?? undefined,
         image: primaryImage,
-        images: images.length > 0 ? images : [primaryImage],
+        images: combinedImages.length > 0 ? combinedImages : [primaryImage],
         category:
             (typeof p.category === "object"
                 ? p.category?.name

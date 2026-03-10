@@ -159,7 +159,7 @@ export function VariantSelectionModal({
             selectedSize,
             matchedVariant,
             oldImage: currentImage,
-            newImage: matchedVariant?.thumbnail_url || product.image
+            newImage: matchedVariant?.image || matchedVariant?.thumbnail_url || product.image
         });
 
         if (matchedVariant) {
@@ -170,7 +170,7 @@ export function VariantSelectionModal({
             setCurrentOriginalPrice(discountedUnitPrice < variantBasePrice ? variantBasePrice : (matchedVariant as any).originalPrice ?? null);
             setCurrentStock(matchedVariant.stock);
             // Use variant thumbnail if available, otherwise fall back to product image
-            const newImage = matchedVariant.thumbnail_url || product.image;
+            const newImage = matchedVariant?.image || matchedVariant?.thumbnail_url || product.image;
             setCurrentImage(newImage);
             console.log('✅ Image updated to:', newImage);
 
@@ -271,12 +271,12 @@ export function VariantSelectionModal({
                                     </p>
                                 )}
                             </div>
-                            {hasVariants && currentStock > 0 && (
+                            {hasVariants && product.variants.length > 0 && currentStock > 0 && (
                                 <p className="text-sm text-green-600">
                                     {currentStock} pieces available
                                 </p>
                             )}
-                            {hasVariants && currentStock === 0 && (
+                            {hasVariants && product.variants.length > 0 && currentStock === 0 && (
                                 <p className="text-sm text-red-600 font-medium">
                                     Out of stock
                                 </p>
@@ -285,7 +285,7 @@ export function VariantSelectionModal({
                     </div>
 
                     {/* Color Selection */}
-                    {uniqueColors.length > 0 && (
+                    {hasVariants && uniqueColors.length > 0 && (
                         <div>
                             <h4 className="text-xs font-bold tracking-wider text-gray-900 mb-2">
                                 Color: {selectedColor && <span className="ml-1 font-medium text-[var(--text-muted)]">{selectedColor}</span>}
@@ -331,7 +331,7 @@ export function VariantSelectionModal({
                     )}
 
                     {/* Size Selection */}
-                    {uniqueSizes.length > 0 && (
+                    {hasVariants && uniqueSizes.length > 0 && (
                         <div>
                             <h4 className="text-xs font-bold tracking-wider text-gray-900 mb-2">
                                 Size: {selectedSize && <span className="ml-1 font-medium text-[var(--text-muted)]">{selectedSize}</span>}

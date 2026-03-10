@@ -26,7 +26,7 @@ import { RegistryItem, Product } from "../stores/buyerStore";
 // Updating RegistryDetailModal is cleaner but might break other things.
 // Casting in RegistryAndGiftingPage is safer for now.
 const RegistryAndGiftingPage = () => {
-  const { registries, createRegistry, addToRegistry, deleteRegistry } =
+  const { registries, createRegistry, addToRegistry, deleteRegistry, loadRegistries } =
     useBuyerStore();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedRegistry, setSelectedRegistry] = useState<RegistryItem | null>(
@@ -34,6 +34,11 @@ const RegistryAndGiftingPage = () => {
   );
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    loadRegistries();
+    console.log("RegistryAndGiftingPage: loadRegistries called");
+  }, [loadRegistries]);
 
   const handleCreateRegistry = ({
     name,
@@ -126,19 +131,25 @@ const RegistryAndGiftingPage = () => {
         <div className="flex items-center justify-center gap-10 pt-1 pb-1">
           <Link
             to="/shop"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Shop
           </Link>
           <Link
+            to="/categories"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Categories
+          </Link>
+          <Link
             to="/collections"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Collections
           </Link>
           <Link
             to="/stores"
-            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all duration-300"
           >
             Stores
           </Link>

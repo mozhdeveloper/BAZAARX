@@ -22,6 +22,7 @@ import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT, Region } from 'reac
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
+import { useAddressStore } from '../stores/addressStore';
 import { COLORS } from '../constants/theme';
 
 const { height } = Dimensions.get('window');
@@ -35,6 +36,11 @@ interface LocationDetails {
   province?: string;
   region?: string;
   postalCode?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  landmark?: string;
+  deliveryInstructions?: string;
 }
 
 interface LocationModalProps {
@@ -86,6 +92,9 @@ export default function LocationModal({
 
   // --- ADDRESS FORM FIELDS ---
   const [formAddress, setFormAddress] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
     street: '',
     barangay: '',
     city: '',
@@ -93,6 +102,8 @@ export default function LocationModal({
     region: '',
     postalCode: '',
     label: 'Home',
+    landmark: '',
+    deliveryInstructions: '',
   });
 
   // --- PHILIPPINES ADDRESS DROPDOWN LISTS ---
@@ -130,40 +141,32 @@ export default function LocationModal({
     }
   }, [visible, initialCoordinates, currentAddress]);
 
-  // Fetch saved addresses
+  // Read saved addresses from shared store
+  const { savedAddresses, loadSavedAddresses } = useAddressStore();
+
   useEffect(() => {
     if (!user || !visible) return;
-    const fetchSavedAddresses = async () => {
-      try {
-        const { data } = await supabase.from('shipping_addresses').select('*').eq('user_id', user.id);
-        if (data) {
-          // Map from DB schema to component format
-          const mapped = data.map(a => ({
-            id: a.id,
-            label: a.label || 'Address',
-            street: a.address_line_1 || '',
-            barangay: a.barangay || '',
-            city: a.city || '',
-            province: a.province || '',
-            region: a.region || '',
-            postalCode: a.postal_code || '',
-            coordinates: a.coordinates || null,
-            is_default: a.is_default || false,
-          }));
-
-          // Ensure unique IDs (defensive programming)
-          const uniqueAddresses = mapped.filter((addr, index, self) =>
-            index === self.findIndex(a => a.id === addr.id)
-          );
-
-          setAddresses(uniqueAddresses);
-        }
-      } catch (error) {
-        console.error('[LocationModal] Error fetching addresses:', error);
-      }
-    };
-    fetchSavedAddresses();
+    // Load/refresh saved addresses when modal opens
+    loadSavedAddresses(user.id);
   }, [user, visible]);
+
+  // Map saved addresses for display (keep existing format)
+  useEffect(() => {
+    if (!visible) return;
+    const mapped = savedAddresses.map(a => ({
+      id: a.id,
+      label: a.label || 'Address',
+      street: a.street || '',
+      barangay: a.barangay || '',
+      city: a.city || '',
+      province: a.province || '',
+      region: a.region || '',
+      postalCode: a.zipCode || '',
+      coordinates: a.coordinates || null,
+      is_default: a.isDefault || false,
+    }));
+    setAddresses(mapped);
+  }, [savedAddresses, visible]);
 
   // --- 1. AUTOCOMPLETE SEARCH ---
   const handleTextChange = (text: string) => {
@@ -328,6 +331,9 @@ export default function LocationModal({
     const geocodedBarangay = locationDetails?.barangay || '';
 
     setFormAddress({
+      firstName: user?.name?.split(' ')[0] || '',
+      lastName: user?.name?.split(' ').slice(1).join(' ') || '',
+      phone: user?.phone || '',
       street: locationDetails?.street || '',
       barangay: geocodedBarangay,
       city: geocodedCity,
@@ -335,6 +341,8 @@ export default function LocationModal({
       region: geocodedRegion,
       postalCode: locationDetails?.postalCode || '',
       label: 'Home',
+      landmark: '',
+      deliveryInstructions: '',
     });
 
     // Try to match geocoded data to Philippines address API and load dropdown choices
@@ -496,6 +504,11 @@ export default function LocationModal({
       province: formAddress.province,
       region: formAddress.region,
       postalCode: formAddress.postalCode,
+      firstName: formAddress.firstName,
+      lastName: formAddress.lastName,
+      phone: formAddress.phone,
+      landmark: formAddress.landmark,
+      deliveryInstructions: formAddress.deliveryInstructions,
     };
 
     onSelectLocation(finalAddress, coords, finalDetails);
@@ -806,6 +819,37 @@ export default function LocationModal({
                   ))}
                 </View>
 
+                {/* First Name */}
+                <Text style={styles.formSectionTitle}>First Name *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="First name"
+                  placeholderTextColor="#9CA3AF"
+                  value={formAddress.firstName}
+                  onChangeText={(t) => setFormAddress(prev => ({ ...prev, firstName: t }))}
+                />
+
+                {/* Last Name */}
+                <Text style={styles.formSectionTitle}>Last Name *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Last name"
+                  placeholderTextColor="#9CA3AF"
+                  value={formAddress.lastName}
+                  onChangeText={(t) => setFormAddress(prev => ({ ...prev, lastName: t }))}
+                />
+
+                {/* Phone */}
+                <Text style={styles.formSectionTitle}>Phone *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="e.g., 09171234567"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="phone-pad"
+                  value={formAddress.phone}
+                  onChangeText={(t) => setFormAddress(prev => ({ ...prev, phone: t }))}
+                />
+
                 {/* Region Dropdown */}
                 <Text style={styles.formSectionTitle}>Region *</Text>
                 <Pressable
@@ -926,6 +970,27 @@ export default function LocationModal({
                   keyboardType="number-pad"
                   value={formAddress.postalCode}
                   onChangeText={(t) => setFormAddress(prev => ({ ...prev, postalCode: t }))}
+                />
+
+                {/* Landmark */}
+                <Text style={styles.formSectionTitle}>Landmark</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="e.g., Near SM Mall"
+                  placeholderTextColor="#9CA3AF"
+                  value={formAddress.landmark}
+                  onChangeText={(t) => setFormAddress(prev => ({ ...prev, landmark: t }))}
+                />
+
+                {/* Delivery Instructions */}
+                <Text style={styles.formSectionTitle}>Delivery Instructions</Text>
+                <TextInput
+                  style={[styles.formInput, { height: 70, textAlignVertical: 'top' }]}
+                  placeholder="e.g., Leave at the guard house"
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  value={formAddress.deliveryInstructions}
+                  onChangeText={(t) => setFormAddress(prev => ({ ...prev, deliveryInstructions: t }))}
                 />
 
                 {/* Location Preview */}

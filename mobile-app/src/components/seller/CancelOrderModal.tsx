@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { COLORS } from '../../constants/theme';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -7,8 +6,11 @@ import {
     Modal,
     Pressable,
     ActivityIndicator,
+    ScrollView,
 } from 'react-native';
+import { COLORS } from '../../constants/theme';
 
+// Move logic outside component to prevent re-declaration
 export const CANCEL_REASONS = [
     { id: 'changed_mind', label: 'Changed my mind' },
     { id: 'wrong_item', label: 'Ordered by mistake' },
@@ -35,17 +37,46 @@ const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
 }) => {
     const [selectedReason, setSelectedReason] = useState<CancelReason | null>(null);
 
-    const handleClose = () => {
+    const handleClose = useCallback(() => {
+        if (isUpdating) return;
         setSelectedReason(null);
         onClose();
-    };
+    }, [onClose, isUpdating]);
 
     const handleConfirm = () => {
         if (!selectedReason) return;
-        const label = CANCEL_REASONS.find(r => r.id === selectedReason)?.label ?? selectedReason;
-        onConfirm(label);
-        setSelectedReason(null);
+        const selected = CANCEL_REASONS.find(r => r.id === selectedReason);
+        onConfirm(selected?.label ?? selectedReason);
+        // We don't nullify here if we expect the modal to unmount; 
+        // otherwise, do it in a useEffect or on dismiss.
     };
+
+    // Memoize the list to prevent unnecessary re-renders of the logic
+    const renderReasons = useMemo(() => (
+        CANCEL_REASONS.map((reason) => {
+            const isSelected = selectedReason === reason.id;
+            return (
+                <Pressable
+                    key={reason.id}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={reason.label}
+                    style={[
+                        styles.radioRow,
+                        isSelected ? styles.radioRowSelected : styles.radioRowUnselected
+                    ]}
+                    onPress={() => setSelectedReason(reason.id)}
+                >
+                    <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                        {isSelected && <View style={styles.radioInner} />}
+                    </View>
+                    <Text style={[styles.radioLabel, isSelected && styles.radioLabelSelected]}>
+                        {reason.label}
+                    </Text>
+                </Pressable>
+            );
+        })
+    ), [selectedReason]);
 
     return (
         <Modal
@@ -55,8 +86,11 @@ const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
             statusBarTranslucent={true}
             onRequestClose={handleClose}
         >
-            <View style={styles.overlay}>
-                <View style={styles.content}>
+            <Pressable
+                style={styles.overlay}
+                onPress={handleClose} // Dismiss on backdrop tap
+            >
+                <Pressable style={styles.content} pointerEvents="auto">
                     <View style={styles.header}>
                         <Text style={styles.title}>Cancel Order</Text>
                         <Text style={styles.subtitle}>
@@ -64,33 +98,22 @@ const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
                         </Text>
                     </View>
 
-                    <View style={styles.body}>
-                        {CANCEL_REASONS.map((reason) => {
-                            const isSelected = selectedReason === reason.id;
-                            return (
-                                <Pressable
-                                    key={reason.id}
-                                    style={[styles.radioRow, isSelected && styles.radioRowSelected]}
-                                    onPress={() => setSelectedReason(reason.id)}
-                                >
-                                    <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
-                                        {isSelected && <View style={styles.radioInner} />}
-                                    </View>
-                                    <Text style={[styles.radioLabel, isSelected && styles.radioLabelSelected]}>
-                                        {reason.label}
-                                    </Text>
-                                </Pressable>
-                            );
-                        })}
-                    </View>
+                    <ScrollView
+                        style={styles.bodyScroll}
+                        contentContainerStyle={styles.bodyContent}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        {renderReasons}
+                    </ScrollView>
 
                     <View style={styles.footer}>
                         <Pressable
                             style={[styles.button, styles.buttonOutline]}
                             onPress={handleClose}
                             disabled={isUpdating}
+                            accessibilityRole="button"
                         >
-                            <Text style={[styles.buttonText, { color: '#1F2937' }]}>Keep Order</Text>
+                            <Text style={styles.buttonTextSecondary}>Keep Order</Text>
                         </Pressable>
                         <Pressable
                             style={[
@@ -100,6 +123,7 @@ const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
                             ]}
                             onPress={handleConfirm}
                             disabled={!selectedReason || isUpdating}
+                            accessibilityRole="button"
                         >
                             {isUpdating ? (
                                 <ActivityIndicator color="#FFFFFF" size="small" />
@@ -108,8 +132,8 @@ const CancelOrderModal: React.FC<CancelOrderModalProps> = ({
                             )}
                         </Pressable>
                     </View>
-                </View>
-            </View>
+                </Pressable>
+            </Pressable>
         </Modal>
     );
 };
@@ -124,54 +148,55 @@ const styles = StyleSheet.create({
     },
     content: {
         width: '100%',
-        maxWidth: 360,
+        maxWidth: 400,
         backgroundColor: '#FFFFFF',
-        borderRadius: 20,
+        borderRadius: 24,
         padding: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.1,
-        shadowRadius: 20,
-        elevation: 8,
+        maxHeight: '80%', // Ensure it doesn't bleed off screen on small phones
     },
     header: {
         alignItems: 'center',
         marginBottom: 20,
     },
     title: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: '700',
-        color: '#1F2937', // Off black
+        color: '#111827',
         marginBottom: 8,
     },
     subtitle: {
-        fontSize: 14,
-        color: '#1F2937', // Off black
+        fontSize: 15,
+        color: '#4B5563',
         textAlign: 'center',
-        lineHeight: 20,
+        lineHeight: 22,
     },
-    body: {
+    bodyScroll: {
         marginBottom: 24,
-        gap: 8,
+        maxHeight: 300,
+    },
+    bodyContent: {
+        gap: 10,
     },
     radioRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 14,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#D1D5DB', // Light gray border
-        backgroundColor: '#FFFFFF', // White for unselected
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: 14,
+        borderWidth: 1.5,
+    },
+    radioRowUnselected: {
+        borderColor: '#E5E7EB',
+        backgroundColor: '#F9FAFB',
     },
     radioRowSelected: {
         borderColor: COLORS.primary,
         backgroundColor: COLORS.primary,
     },
     radioOuter: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
         borderWidth: 2,
         borderColor: '#D1D5DB',
         alignItems: 'center',
@@ -185,11 +210,11 @@ const styles = StyleSheet.create({
         width: 10,
         height: 10,
         borderRadius: 5,
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#FFFFFF', // Changed to white for better contrast against primary background
     },
     radioLabel: {
-        fontSize: 14,
-        color: '#1F2937', // Off black text
+        fontSize: 15,
+        color: '#374151',
         flex: 1,
     },
     radioLabelSelected: {
@@ -202,8 +227,8 @@ const styles = StyleSheet.create({
     },
     button: {
         flex: 1,
-        height: 48,
-        borderRadius: 12,
+        height: 52,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -212,16 +237,21 @@ const styles = StyleSheet.create({
     },
     buttonOutline: {
         backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: '#D1D5DB', // Light gray color
+        borderWidth: 1.5,
+        borderColor: '#E5E7EB',
     },
     buttonDisabled: {
-        opacity: 0.45,
+        opacity: 0.5,
     },
     buttonText: {
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: '600',
         color: '#FFFFFF',
+    },
+    buttonTextSecondary: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#374151',
     },
 });
 

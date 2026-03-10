@@ -40,6 +40,7 @@ import type { Product } from '../src/types';
 import { productService } from '../src/services/productService';
 import { sellerService } from '../src/services/sellerService';
 import { addressService } from '../src/services/addressService';
+import { useAddressStore } from '../src/stores/addressStore';
 import { notificationService, Notification } from '../src/services/notificationService';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
@@ -148,9 +149,10 @@ export default function HomeScreen({ navigation }: Props) {
   // Removed local notifications array state as we only need count here
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // LOCATION STATE
-  const [deliveryAddress, setDeliveryAddress] = useState('Select Location');
-  const [deliveryCoordinates, setDeliveryCoordinates] = useState<{ latitude: number, longitude: number } | null>(null);
+  // LOCATION STATE — from shared store
+  const { sessionAddress, setSessionAddress, loadSessionAddress } = useAddressStore();
+  const deliveryAddress = sessionAddress.displayAddress;
+  const deliveryCoordinates = sessionAddress.coordinates;
   const [showLocationModal, setShowLocationModal] = useState(false);
 
   const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
@@ -356,45 +358,13 @@ export default function HomeScreen({ navigation }: Props) {
     };
   }, [navigation, loadNotifications, user?.id, isGuest]);
 
-  // ... (Location logic skipped for brevity, keeping existing) ...
+  // ... (Location logic — now via addressStore) ...
   useEffect(() => {
-    let isMounted = true;
-    const loadSavedLocation = async () => {
-      try {
-        // Parallel AsyncStorage reads instead of sequential
-        const [savedAddress, savedCoords] = await Promise.all([
-          AsyncStorage.getItem('currentDeliveryAddress'),
-          AsyncStorage.getItem('currentDeliveryCoordinates'),
-        ]);
-        if (!isMounted) return;
-        if (savedAddress) setDeliveryAddress(savedAddress);
-        if (savedCoords) setDeliveryCoordinates(JSON.parse(savedCoords));
-      } catch (e) { console.error(e); }
-
-      if (user?.id) {
-        try {
-          const savedLocation = await addressService.getCurrentDeliveryLocation(user.id);
-          if (!isMounted) return;
-          if (savedLocation) {
-            const formatted = savedLocation.city ? `${savedLocation.street}, ${savedLocation.city}` : savedLocation.street;
-            setDeliveryAddress(formatted);
-            if (savedLocation.coordinates) setDeliveryCoordinates(savedLocation.coordinates);
-          }
-        } catch (e) { console.error(e); }
-      }
-    };
-    loadSavedLocation();
-    return () => { isMounted = false; };
+    loadSessionAddress(user?.id ?? null);
   }, [user]);
 
   const handleSelectLocation = async (address: string, coords?: any, details?: any) => {
-    setDeliveryAddress(address);
-    if (coords) setDeliveryCoordinates(coords);
-    try {
-      await AsyncStorage.setItem('currentDeliveryAddress', address);
-      if (coords) await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
-      if (user?.id) await addressService.saveCurrentDeliveryLocation(user.id, address, coords || null, details);
-    } catch (e) { console.error(e); }
+    await setSessionAddress(user?.id ?? null, address, coords, details);
   };
 
   useEffect(() => {

@@ -1,9 +1,9 @@
-import React from 'react';
+import { ChevronDown } from 'lucide-react';
 import HeroScrollVideo from '@/components/ui/scroll-animated-video';
 
 const BazaarHistory: React.FC = () => {
   return (
-    <section className="bg-transparent">
+    <section className="bg-[var(--brand-wash)]">
       <HeroScrollVideo
         title={<span className="font-fondamento font-bold tracking-wider text-[var(--brand-primary)]">bāzār</span>}
         subtitle={<span className="font-fondamento text-[var(--brand-primary-dark)]">بازار</span>}
@@ -34,9 +34,9 @@ const BazaarHistory: React.FC = () => {
         overlayRevealDelay={0.3}
         smoothScroll={true}
         className="!hsv-root-bazaar"
-        bgTransition={{ from: '#FFF6E5', to: '#FFF6E5' }}
+        bgTransition={{ from: 'var(--brand-wash)', to: 'var(--brand-wash)' }}
         style={{
-          ['--accent' as any]: '#FB8C00',
+          ['--accent' as any]: '#E58C1A',
           ['--accent-2' as any]: '#EA580C',
           ['--text' as any]: '#7C2D12',
           ['--subtitle-color' as any]: '#EA580C',

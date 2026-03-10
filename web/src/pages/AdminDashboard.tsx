@@ -188,7 +188,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       />
 
       <main className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center justify-between">
@@ -211,8 +211,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             {statsCards.map((card, index) => (
               <motion.div
                 key={card.title}
@@ -220,39 +219,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
               >
-                <Card className="relative overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 mb-1">
+                <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-100 transition-colors"></div>
+                  <CardContent className="p-6 relative z-10">
+                    <div className="flex flex-col">
+                      <div className="mb-4">
+                        <card.icon className={`h-5 w-5 text-gray-500 group-hover:text-orange-600 transition-colors`} />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-gray-400">
                           {card.title}
                         </p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          {card.value}
-                        </p>
-                        <div className="flex items-center mt-2">
-                          {card.change > 0 ? (
-                            <>
-                              <TrendingUp className="w-4 h-4 text-green-600 mr-1" />
-                              <span className="text-sm font-medium text-green-600">
-                                +{card.change}%
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <TrendingDown className="w-4 h-4 text-red-600 mr-1" />
-                              <span className="text-sm font-medium text-red-600">
-                                {card.change}%
-                              </span>
-                            </>
-                          )}
-                          <span className="text-sm text-gray-500 ml-1">
-                            vs last month
-                          </span>
+                        <div className="flex items-end gap-3 mt-1">
+                          <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-orange-600">
+                            {card.value}
+                          </p>
+                          <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 ${card.change >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                            {card.change >= 0 ? (
+                              <TrendingUp className="h-3 w-3" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3" />
+                            )}
+                            {card.change >= 0 ? '+' : ''}{card.change}%
+                          </div>
                         </div>
-                      </div>
-                      <div className={`w-12 h-12 ${card.bgColor} rounded-xl flex items-center justify-center`}>
-                        <card.icon className={`w-6 h-6 ${card.textColor}`} />
                       </div>
                     </div>
                   </CardContent>

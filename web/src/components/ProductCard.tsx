@@ -8,9 +8,10 @@ interface ProductCardProps {
   product: any;
   index?: number;
   isFlash?: boolean;
+  variant?: 'default' | 'hero';
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash = false }) => {
+const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash = false, variant = 'default' }) => {
   const navigate = useNavigate();
   const hasDiscount =
     product.originalPrice && product.originalPrice > product.price;
@@ -89,15 +90,23 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
             </span>
           </div>
 
-          <div className="flex flex-col justify-end min-h-[48px] mb-3">
-            {hasDiscount && (
-              <span className="text-[11px] sm:text-[13px] text-gray-400 line-through font-medium leading-none mb-[3px]">
-                ₱{product.originalPrice!.toLocaleString()}
+          <div className="flex items-end justify-between mb-3 min-h-[48px]">
+            <div className="flex flex-col justify-end">
+              {hasDiscount && (
+                <span className="text-[11px] sm:text-[13px] text-gray-400 line-through font-medium leading-none mb-[3px]">
+                  ₱{product.originalPrice!.toLocaleString()}
+                </span>
+              )}
+              <span className={hasDiscount ? "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#DC2626] leading-none" : "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#D97706] leading-none"}>
+                ₱{product.price.toLocaleString()}
               </span>
+            </div>
+
+            {variant === 'hero' && !isFlash && (
+              <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-1">
+                {((product.lifetimeSold !== undefined ? product.lifetimeSold : product.sold) || 0).toLocaleString()} sold
+              </div>
             )}
-            <span className={hasDiscount ? "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#DC2626] leading-none" : "text-lg sm:text-[20px] lg:text-[22px] font-black text-[#D97706] leading-none"}>
-              ₱{product.price.toLocaleString()}
-            </span>
           </div>
 
           <div>
@@ -121,11 +130,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
                   </span>
                 </div>
               </div>
-            ) : (
+            ) : variant !== 'hero' ? (
               <div className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2">
                 {((product.lifetimeSold !== undefined ? product.lifetimeSold : product.sold) || 0).toLocaleString()} sold
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 

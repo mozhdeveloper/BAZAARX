@@ -29,6 +29,7 @@ import {
   Image,
   Package,
 } from "lucide-react";
+import { toast } from "../hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,8 @@ import { Badge } from "@/components/ui/badge";
 import { uploadSellerDocument, validateDocumentFile } from "@/utils/storage";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { categoryService } from "@/services/categoryService";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import type { BusinessType } from "@/types/database.types";
 
 // Logo components defined outside of render
@@ -65,6 +68,31 @@ export function SellerStoreProfile() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const getSellerId = () =>
     seller?.id || useAuthStore.getState().seller?.id || null;
+
+  const [pendingUpload, setPendingUpload] = useState<{
+    file: File;
+    docKey: string;
+    columnName: string;
+    label: string;
+  } | null>(null);
+
+  const [availableCategories, setAvailableCategories] = useState<any[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setIsLoadingCategories(true);
+        const data = await categoryService.getActiveCategories(); //
+        setAvailableCategories(data);
+      } catch (err) {
+        console.error("Failed to load categories:", err);
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
     if (seller?.id) return;
@@ -213,6 +241,7 @@ export function SellerStoreProfile() {
   const [approvalStatus, setApprovalStatus] = useState<
     "pending" | "approved" | "verified" | "rejected" | "needs_resubmission"
   >(seller?.approvalStatus || "pending");
+
   const [reapplyLoading, setReapplyLoading] = useState(false);
   const [latestRejection, setLatestRejection] = useState<{
     rejectionType: "full" | "partial";
@@ -326,19 +355,23 @@ export function SellerStoreProfile() {
     return missing;
   };
 
+  const isLocked = isVerified || (approvalStatus === "pending" && getMissingItems().length === 0);
+
   // Handler: reapply for verification (set approval_status back to pending)
   const handleReapply = async () => {
     const sellerId = getSellerId();
     if (!sellerId) {
-      alert("Unable to reapply: seller ID missing.");
+      toast({ variant: "destructive", title: "Error", description: "Unable to reapply: seller ID missing." });
       return;
     }
 
     const missing = getMissingItems();
     if (missing.length > 0) {
-      alert(
-        `Please complete the following before reapplying:\n\n- ${missing.join("\n- ")}`,
-      );
+      toast({
+        variant: "destructive",
+        title: "Incomplete Profile",
+        description: `Please complete missing items before reapplying.`,
+      });
       return;
     }
 
@@ -355,10 +388,17 @@ export function SellerStoreProfile() {
 
       setApprovalStatus("pending");
       setLatestRejection(null);
-      alert("Reapplication submitted. Your profile is now pending review.");
+      toast({
+        title: "Reapplication Submitted",
+        description: "Your profile is now pending review.",
+      });
     } catch (err) {
       console.error("Failed to set approval_status to pending:", err);
-      alert("Failed to submit reapplication. Please try again later.");
+      toast({
+        variant: "destructive",
+        title: "Submission Failed",
+        description: "Failed to submit reapplication. Please try again later.",
+      });
     } finally {
       setReapplyLoading(false);
     }
@@ -468,7 +508,11 @@ export function SellerStoreProfile() {
     // Validate file type and size
     const validation = validateDocumentFile(file);
     if (!validation.valid) {
-      alert(validation.error);
+      toast({
+        variant: "destructive",
+        title: "Invalid File",
+        description: validation.error,
+      });
       return;
     }
 
@@ -527,6 +571,8 @@ export function SellerStoreProfile() {
       }));
       setDocumentsUpdatedAt(uploadTimestamp);
 
+      updateSellerDetails({ [docKey]: documentUrl });
+
       setLatestRejection((prev) => {
         if (!prev || prev.rejectionType !== "partial") {
           return prev;
@@ -542,11 +588,18 @@ export function SellerStoreProfile() {
         };
       });
 
-      alert("Document uploaded. This file has been marked as resubmitted.");
+      toast({
+        title: "Document Uploaded",
+        description: "Your file has been uploaded and marked for review.",
+      });
     } catch (error) {
       console.error("Error uploading document:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to upload document. Please try again.";
-      alert(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: errorMessage,
+      });
     } finally {
       setUploadingDoc(null);
     }
@@ -648,23 +701,43 @@ export function SellerStoreProfile() {
         email: normalizedEmail,
       });
       setEditSection(null);
-      alert("Saved changes");
+      toast({
+        title: "Profile Updated",
+        description: "Your basic information has been saved successfully.",
+      });
     } catch (err) {
       console.error("Failed to save basic info:", err);
-      alert("Failed to save. Please try again.");
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to save changes. Please try again.",
+      });
     }
+  };
+
+  const triggerUploadConfirmation = (e: React.ChangeEvent<HTMLInputElement>, docKey: string, column: string, label: string) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPendingUpload({ file, docKey, columnName: column, label });
+    }
+    // Reset input so the same file can be selected again if cancelled
+    e.target.value = '';
   };
 
   const handleSaveBusiness = async () => {
     const sellerId = getSellerId();
     if (!sellerId) {
-      alert("Unable to save: seller ID missing.");
+      toast({ variant: "destructive", title: "Error", description: "Unable to save: seller ID missing." });
       return;
     }
 
     const normalizedBusinessType = normalizeBusinessType(businessForm.businessType);
     if (!normalizedBusinessType) {
-      alert("Please select a valid business type: Sole Proprietorship, Partnership, or Corporation.");
+      toast({
+        variant: "destructive",
+        title: "Invalid Business Type",
+        description: "Please select a valid business type: Sole Proprietorship, Partnership, or Corporation.",
+      });
       return;
     }
 
@@ -702,17 +775,24 @@ export function SellerStoreProfile() {
         postalCode: businessForm.postalCode,
       });
       setEditSection(null);
-      alert("Saved business information");
+      toast({
+        title: "Business Info Saved",
+        description: "Your business information has been updated.",
+      });
     } catch (err) {
       console.error("Failed to save business info:", err);
-      alert("Failed to save. Please try again.");
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to save business details. Please try again.",
+      });
     }
   };
 
   const handleSaveBanking = async () => {
     const sellerId = getSellerId();
     if (!sellerId) {
-      alert("Unable to save: seller ID missing.");
+      toast({ variant: "destructive", title: "Error", description: "Unable to save: seller ID missing." });
       return;
     }
     try {
@@ -739,33 +819,72 @@ export function SellerStoreProfile() {
         accountNumber: bankingForm.accountNumber,
       });
       setEditSection(null);
-      alert("Saved banking information");
+      toast({
+        title: "Banking Info Saved",
+        description: "Your banking information has been updated.",
+      });
     } catch (err) {
       console.error("Failed to save banking info:", err);
-      alert("Failed to save. Please try again.");
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Failed to save banking details. Please try again.",
+      });
     }
   };
 
   const handleSaveCategories = async () => {
     const sellerId = getSellerId();
     if (!sellerId) {
-      alert("Unable to save: seller ID missing.");
+      toast({ variant: "destructive", title: "Error", description: "Unable to save: seller ID missing." });
       return;
     }
+
     try {
+      // 1. Map the selected category names back to their UUIDs
+      const categoryIdsToInsert = categoriesForm
+        .map((catName) => availableCategories.find((c) => c.name === catName)?.id)
+        .filter(Boolean); // Filters out any undefined values
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseClient: any = supabase;
-      const { error } = await supabaseClient
-        .from("sellers")
-        .update({ store_category: categoriesForm })
-        .eq("id", sellerId);
-      if (error) throw error;
+
+      // 2. Delete all existing category links for this seller
+      const { error: deleteError } = await supabaseClient
+        .from("seller_categories")
+        .delete()
+        .eq("seller_id", sellerId);
+
+      if (deleteError) throw deleteError;
+
+      // 3. Insert the newly selected categories
+      if (categoryIdsToInsert.length > 0) {
+        const insertPayload = categoryIdsToInsert.map((categoryId) => ({
+          seller_id: sellerId,
+          category_id: categoryId,
+        }));
+
+        const { error: insertError } = await supabaseClient
+          .from("seller_categories")
+          .insert(insertPayload);
+
+        if (insertError) throw insertError;
+      }
+
       updateSellerDetails({ storeCategory: categoriesForm });
       setEditSection(null);
-      alert("Saved store categories");
-    } catch (err) {
-      console.error("Failed to save categories:", err);
-      alert("Failed to save. Please try again.");
+
+      toast({
+        title: "Categories Saved",
+        description: "Your store categories have been updated successfully.",
+      });
+    } catch (err: any) {
+      console.error("Failed to save categories:", JSON.stringify(err, null, 2));
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: err?.message || err?.details || "Failed to save categories. Please try again.",
+      });
     }
   };
 
@@ -810,15 +929,38 @@ export function SellerStoreProfile() {
 
         <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto relative z-10 scrollbar-hide">
           <div className="max-w-7xl mx-auto space-y-8">
-            {/* Page Title */}
-            <div>
-              <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight">
-                Store Profile
-              </h1>
-              <p className="text-sm text-[var(--text-muted)] mt-1">
-                Manage your store's complete profile and verification
-              </p>
+            {/* Page Header & Status Banner */}
+            <div className="mb-8 space-y-6">
+              <div>
+                <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight">
+                  Store Profile
+                </h1>
+                <p className="text-sm text-[var(--text-muted)] mt-1">
+                  Manage your store's complete profile and verification
+                </p>
+              </div>
+
+              {/* Under Review Banner (Branded) */}
+              {approvalStatus === "pending" && getMissingItems().length === 0 && (
+                <Card className="p-6 border-2 border-[var(--brand-primary)] bg-[var(--brand-accent-light)]/30 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm rounded-2xl overflow-hidden relative">
+                  <div className="absolute top-0 left-0 w-2 h-full bg-[var(--brand-primary)]" />
+                  <div className="flex items-start gap-4 pl-2">
+                    <div className="p-3 bg-white rounded-full shadow-sm">
+                      <Clock className="h-6 w-6 text-[var(--brand-primary)]" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-[var(--text-headline)]">
+                        Application Under Review
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1 max-w-2xl">
+                        You have completed all required fields and uploaded all documents. Your application is currently locked and being reviewed by our team. We will notify you once a decision is made.
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              )}
             </div>
+
             {/* Two Column Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Left Sidebar - Profile Summary */}
@@ -888,55 +1030,25 @@ export function SellerStoreProfile() {
                         </div>
                       </div>
 
-                      {/* Verification Badge */}
-                      <div className="mt-3 mb-4">
-
-                        {approvalStatus === "pending" && !isVerified && (
-                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Pending Approval
+                      {/* Status Section */}
+                      <div className="mt-3 mb-4 w-full">
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                          <span className="text-sm text-gray-500 font-medium">Status</span>
+                          <Badge
+                            className={cn(
+                              "px-3 py-1 font-bold rounded-full text-xs",
+                              approvalStatus === "verified" || approvalStatus === "approved"
+                                ? "bg-green-100 text-green-700 border-green-200"
+                                : approvalStatus === "rejected" || approvalStatus === "needs_resubmission"
+                                  ? "bg-red-100 text-red-700 border-red-200"
+                                  : "bg-amber-100 text-amber-700 border-amber-200"
+                            )}
+                          >
+                            {approvalStatus === "needs_resubmission"
+                              ? "Updates Required"
+                              : approvalStatus.charAt(0).toUpperCase() + approvalStatus.slice(1)}
                           </Badge>
-                        )}
-                        {requiresResubmission && (
-                          <div className="flex flex-col items-center gap-2">
-                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              Needs Resubmission
-                            </Badge>
-                            <Button
-                              size="sm"
-                              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-xs"
-                              onClick={handleReapply}
-                              disabled={reapplyLoading}
-                            >
-                              {reapplyLoading ? "Submitting..." : "Resubmit Documents"}
-                            </Button>
-                          </div>
-                        )}
-                        {approvalStatus === "rejected" && !requiresResubmission && (
-                          <div className="flex flex-col items-center gap-2">
-                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              Rejected
-                            </Badge>
-                            <Button
-                              size="sm"
-                              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-xs"
-                              onClick={handleReapply}
-                              disabled={reapplyLoading}
-                            >
-                              {reapplyLoading ? "Reapplying…" : "Reapply"}
-                            </Button>
-                          </div>
-                        )}
-                        {(approvalStatus === "approved" ||
-                          approvalStatus === "verified" ||
-                          isVerified) && (
-                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Verified
-                            </Badge>
-                          )}
+                        </div>
                       </div>
 
                       {/* Avatar Error */}
@@ -1608,21 +1720,22 @@ export function SellerStoreProfile() {
                     )}
                   </div>
 
+                  {/* Document-Level Rejection Banner */}
                   {requiresResubmission && (
-                    <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
-                      <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4" />
-                        Some documents need to be updated before approval.
+                    <div className="mb-8 p-5 bg-red-50 border-2 border-red-200 rounded-xl space-y-3">
+                      <p className="text-base font-bold text-red-900 flex items-center gap-2">
+                        <AlertCircle className="h-5 w-5" />
+                        Action Required: Update Highlighted Documents
                       </p>
                       {latestRejection?.description && (
-                        <p className="text-sm text-amber-800">{latestRejection.description}</p>
+                        <p className="text-sm text-red-800">{latestRejection.description}</p>
                       )}
-
                       {latestRejection?.items?.length ? (
-                        <div className="space-y-1">
+                        <div className="space-y-1 mt-2 p-3 bg-white/50 rounded-lg">
                           {latestRejection.items.map((item) => (
-                            <p key={item.documentField} className="text-xs text-amber-900">
-                              - {documentFieldLabels[item.documentField] || item.documentField}
+                            <p key={item.documentField} className="text-sm text-red-900 font-medium flex items-start gap-2">
+                              <span className="text-red-500">•</span>
+                              {documentFieldLabels[item.documentField] || item.documentField}
                               {item.reason ? `: ${item.reason}` : ""}
                             </p>
                           ))}
@@ -1631,304 +1744,158 @@ export function SellerStoreProfile() {
                     </div>
                   )}
 
-                  <div className="space-y-4">
-                    {/* Document Helper Function */}
+                  {/* Document Horizontal List */}
+                  <div className="grid grid-cols-1 gap-6">
                     {[
                       {
                         key: "businessPermitUrl",
                         label: "Business Permit",
                         description: "Mayor's permit or business registration",
-                        icon: Building2,
                         column: "business_permit_url",
                       },
                       {
                         key: "validIdUrl",
                         label: "Government-Issued ID",
-                        description:
-                          "Owner's valid ID (Driver's License, Passport, etc.)",
-                        icon: User,
+                        description: "Owner's valid ID (Driver's License, Passport, etc.)",
                         column: "valid_id_url",
                       },
                       {
                         key: "proofOfAddressUrl",
                         label: "Proof of Address",
-                        description:
-                          "Utility bill or bank statement showing business address",
-                        icon: FileText,
+                        description: "Utility bill or bank statement showing business address",
                         column: "proof_of_address_url",
                       },
                       {
                         key: "dtiRegistrationUrl",
                         label: "DTI/SEC Registration",
-                        description:
-                          "DTI certificate for sole proprietor or SEC for corporation",
-                        icon: Building2,
+                        description: "DTI certificate for sole proprietor or SEC for corporation",
                         column: "dti_registration_url",
                       },
                       {
                         key: "taxIdUrl",
                         label: "BIR Tax ID (TIN)",
                         description: "Certificate of Registration from BIR",
-                        icon: CreditCard,
                         column: "tax_id_url",
                       },
                     ].map((doc) => {
-                      const hasDocument =
-                        documents[doc.key as keyof typeof documents];
-                      const rejectionReason = getDocumentRejectionReason(
-                        doc.column,
-                      );
-                      const needsUpdate =
-                        requiresResubmission && Boolean(rejectionReason);
-                      const Icon = doc.icon;
-                      const isUploading = uploadingDoc === doc.key;
+                      const documentUrl = documents[doc.key as keyof typeof documents];
+                      const rejectionReason = getDocumentRejectionReason(doc.column);
+                      const isRejected = requiresResubmission && Boolean(rejectionReason);
+                      const isPdf = documentUrl?.toLowerCase().includes(".pdf");
+                      const currentIsUploading = uploadingDoc === doc.key;
 
                       return (
-                        <div
+                        <Card
                           key={doc.key}
-                          className={`p-6 border-b border-[var(--text-muted)]/20 last:border-b-0 first:pt-0 last:pb-0 transition-colors ${needsUpdate
-                            ? "bg-red-50/60"
-                            : hasDocument
-                              ? "bg-green-50/50"
-                              : "bg-white"
-                            }`}
+                          className={cn(
+                            "overflow-hidden border-2 transition-all flex flex-col md:flex-row",
+                            isRejected ? "border-red-400 shadow-[0_0_15px_rgba(248,113,113,0.15)]" : "border-gray-100"
+                          )}
                         >
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="h-10 w-10 rounded-lg flex items-center justify-center"
-                              >
-                                <Icon
-                                  className={`h-5 w-5 ${needsUpdate
-                                    ? "text-red-600"
-                                    : hasDocument
-                                      ? "text-green-600"
-                                      : "text-gray-500"
-                                    }`}
-                                />
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900">
-                                  {doc.label}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  {doc.description}
-                                  <span className="block mt-1 text-xs text-gray-400">
-                                    Accepted: PDF, JPG, PNG • Max 10MB
-                                  </span>
-                                </p>
-                              </div>
-                            </div>
-
-                            {hasDocument ? (
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-2"
-                                  onClick={() => {
-                                    const docUrl =
-                                      documents[doc.key as keyof typeof documents];
-                                    console.log(
-                                      "Opening document:",
-                                      doc.label,
-                                      "URL:",
-                                      docUrl,
-                                    );
-
-                                    if (!docUrl) {
-                                      alert("Document URL not found");
-                                      return;
-                                    }
-
-                                    // Handle different URL types
-                                    if (docUrl.startsWith("mock://")) {
-                                      alert(
-                                        "Mock URL detected. This is a test URL. Please upload a real document.",
-                                      );
-                                      return;
-                                    }
-
-                                    // Open PDF in new tab with proper viewer
-                                    const newWindow = window.open("", "_blank");
-                                    if (newWindow) {
-                                      newWindow.document.write(`
-                                    <!DOCTYPE html>
-                                    <html>
-                                      <head>
-                                        <title>${doc.label} - BazaarPH</title>
-                                        <style>
-                                          body { margin: 0; overflow: hidden; }
-                                          iframe { width: 100%; height: 100vh; border: none; }
-                                        </style>
-                                      </head>
-                                      <body>
-                                        <iframe src="${docUrl}" type="application/pdf"></iframe>
-                                      </body>
-                                    </html>
-                                  `);
-                                      newWindow.document.close();
-                                    } else {
-                                      alert(
-                                        "Pop-up blocked. Please allow pop-ups and try again.",
-                                      );
-                                    }
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                  View
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-2"
-                                  onClick={() => {
-                                    const docUrl =
-                                      documents[doc.key as keyof typeof documents];
-                                    if (docUrl && !docUrl.startsWith("mock://")) {
-                                      handleDownloadDocument(
-                                        docUrl,
-                                        `${doc.label.replace(/\s+/g, "_")}.pdf`,
-                                      );
-                                    }
-                                  }}
-                                >
-                                  <Download className="h-4 w-4" />
-                                  Download
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-2 text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)]"
-                                  onClick={() => {
-                                    const input = document.createElement("input");
-                                    input.type = "file";
-                                    input.accept = ".pdf,.jpg,.jpeg,.png";
-                                    input.onchange = async (e) => {
-                                      const file = (e.target as HTMLInputElement)
-                                        .files?.[0];
-                                      if (file && seller?.id) {
-                                        await handleDocumentUpload(
-                                          file,
-                                          doc.key,
-                                          doc.column,
-                                        );
-                                      }
-                                    };
-                                    input.click();
-                                  }}
-                                >
-                                  <Upload className="h-4 w-4" />
-                                  Replace
-                                </Button>
-                              </div>
+                          {/* Document Thumbnail Preview (Left Side) */}
+                          <div className="h-48 md:h-auto md:w-64 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-100 relative group flex items-center justify-center overflow-hidden shrink-0">
+                            {documentUrl ? (
+                              isPdf ? (
+                                <div className="flex flex-col items-center text-gray-400 py-8">
+                                  <FileText className="w-12 h-12 mb-2" />
+                                  <span className="text-xs font-bold uppercase tracking-wider">PDF Document</span>
+                                </div>
+                              ) : (
+                                <img src={documentUrl} alt={doc.label} className="object-cover w-full h-full absolute inset-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+                              )
                             ) : (
-                              <Button
-                                size="sm"
-                                className="gap-2 bg-[var(--brand-accent)] hover:bg-[var(--brand-primary)]"
-                                disabled={isUploading}
-                                onClick={() => {
-                                  const input = document.createElement("input");
-                                  input.type = "file";
-                                  input.accept = ".pdf,.jpg,.jpeg,.png";
-                                  input.onchange = async (e) => {
-                                    const file = (e.target as HTMLInputElement)
-                                      .files?.[0];
-                                    if (file && seller?.id) {
-                                      await handleDocumentUpload(
-                                        file,
-                                        doc.key,
-                                        doc.column,
-                                      );
-                                    }
-                                  };
-                                  input.click();
-                                }}
-                              >
-                                {isUploading ? (
-                                  <>
-                                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    Uploading...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Upload className="h-4 w-4" />
-                                    Upload PDF
-                                  </>
-                                )}
-                              </Button>
+                              <div className="flex flex-col items-center text-gray-300 py-8">
+                                <Upload className="w-8 h-8 mb-2" />
+                                <span className="text-xs">No file uploaded</span>
+                              </div>
                             )}
 
-                            {/* Image preview for uploaded images */}
-                            {hasDocument && isImageFile(documents[doc.key as keyof typeof documents]) && (
-                              <div className="mt-3 border rounded-lg overflow-hidden bg-gray-50">
-                                <img
-                                  src={documents[doc.key as keyof typeof documents]}
-                                  alt={`${doc.label} preview`}
-                                  className="w-full max-w-md object-contain"
-                                  loading="lazy"
-                                />
+                            {/* Action Overlay */}
+                            {documentUrl && (
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="w-32 shadow-lg"
+                                  onClick={() => window.open(documentUrl, "_blank")}
+                                >
+                                  <Eye className="w-4 h-4 mr-2" /> View Full
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="w-32 shadow-lg"
+                                  onClick={() => handleDownloadDocument(documentUrl, `${doc.label.replace(/\s+/g, "_")}${isPdf ? '.pdf' : '.jpg'}`)}
+                                >
+                                  <Download className="w-4 h-4 mr-2" /> Download
+                                </Button>
                               </div>
                             )}
                           </div>
 
-                          {hasDocument && needsUpdate && (
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 px-3 py-2 rounded">
-                                <AlertCircle className="h-4 w-4" />
-                                Needs resubmission
+                          {/* Document Info & Replace Button (Right Side) */}
+                          <div className="p-6 bg-white flex flex-col flex-1 justify-between">
+                            <div>
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <h4 className="font-bold text-[var(--text-headline)] text-lg">{doc.label}</h4>
+                                  <p className="text-sm text-gray-500 mt-1">{doc.description}</p>
+                                </div>
+                                <div className="shrink-0 ml-4">
+                                  {documentUrl && !isRejected && <CheckCircle2 className="w-6 h-6 text-green-500" />}
+                                  {isRejected && <AlertCircle className="w-6 h-6 text-red-500 animate-pulse" />}
+                                </div>
                               </div>
-                              {rejectionReason && (
-                                <p className="text-xs text-red-700 px-1">{rejectionReason}</p>
+                              {isRejected && (
+                                <div className="mt-3 p-3 bg-red-50 rounded-lg text-sm text-red-700 font-medium border border-red-100">
+                                  <span className="font-bold text-red-900 mr-1">Reason:</span>
+                                  {rejectionReason || "Invalid document. Please replace."}
+                                </div>
                               )}
                             </div>
-                          )}
 
-                          {hasDocument && isVerified && !needsUpdate && (
-                            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
-                              <CheckCircle2 className="h-4 w-4" />
-                              Verified on{" "}
-                              {seller?.joinDate
-                                ? new Date(seller.joinDate).toLocaleDateString()
-                                : "N/A"}
-                            </div>
-                          )}
+                            <div className="mt-6 flex items-center gap-4">
+                              <Button
+                                variant={isRejected ? "destructive" : "outline"}
+                                className={cn(
+                                  "font-bold",
+                                  !isRejected && documentUrl ? "bg-gray-50 hover:bg-gray-100" : ""
+                                )}
+                                disabled={currentIsUploading || (isLocked && !isRejected)}
+                                onClick={() => {
+                                  const input = document.createElement("input");
+                                  input.type = "file";
+                                  input.accept = ".pdf,.jpg,.jpeg,.png";
+                                  input.onchange = (e) => triggerUploadConfirmation(e as any, doc.key, doc.column, doc.label);
+                                  input.click();
+                                }}
+                              >
+                                {currentIsUploading ? (
+                                  <><Loader className="h-4 w-4 mr-2 animate-spin" /> Uploading...</>
+                                ) : documentUrl ? (
+                                  <><Upload className="h-4 w-4 mr-2" /> Replace File</>
+                                ) : (
+                                  <><Upload className="h-4 w-4 mr-2" /> Upload File</>
+                                )}
+                              </Button>
 
-                          {hasDocument && !isVerified && !needsUpdate && (
-                            <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded">
-                              <Clock className="h-4 w-4" />
-                              Pending verification
+                              {!documentUrl && !currentIsUploading && (
+                                <span className="text-xs text-gray-400 font-medium">Required</span>
+                              )}
                             </div>
-                          )}
-
-                          {!hasDocument && (
-                            <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded">
-                              <AlertCircle className="h-4 w-4" />
-                              Document not uploaded yet
-                            </div>
-                          )}
-                        </div>
+                          </div>
+                        </Card>
                       );
                     })}
                   </div>
 
                   {!isVerified && !requiresResubmission && (
-                    <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-sm text-amber-700 flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4" />
+                        <AlertCircle className="h-4 w-4 shrink-0" />
                         Your documents are currently being reviewed by our team.
                         This usually takes 1-2 business days. You'll be notified
                         once verification is complete.
-                      </p>
-                    </div>
-                  )}
-
-                  {requiresResubmission && (
-                    <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-sm text-red-700 flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4" />
-                        Replace the flagged files above, then click "Resubmit Documents"
-                        in your profile header.
                       </p>
                     </div>
                   )}
@@ -1958,23 +1925,44 @@ export function SellerStoreProfile() {
                     <div className="space-y-4">
                       <div>
                         <Label>Store Categories</Label>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Enter categories separated by commas (e.g., Electronics,
-                          Fashion, Home & Garden)
+                        <p className="text-sm text-gray-600 mb-4">
+                          Select the categories that best describe your store.
                         </p>
-                        <Textarea
-                          value={categoriesForm.join(", ")}
-                          onChange={(e) =>
-                            setCategoriesForm(
-                              e.target.value
-                                .split(",")
-                                .map((cat) => cat.trim())
-                                .filter((cat) => cat.length > 0),
-                            )
-                          }
-                          placeholder="Enter store categories..."
-                          rows={3}
-                        />
+
+                        {isLoadingCategories ? (
+                          <div className="flex items-center gap-2 py-4">
+                            <Loader className="h-4 w-4 animate-spin" />
+                            <span className="text-sm text-gray-500">Loading categories...</span>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-1 scrollbar-hide">
+                            {availableCategories.map((cat) => (
+                              <label
+                                key={cat.id}
+                                className={cn(
+                                  "flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all",
+                                  categoriesForm.includes(cat.name)
+                                    ? "bg-[var(--brand-accent-light)] border-[var(--brand-primary)] text-[var(--brand-primary)] font-bold"
+                                    : "bg-white border-gray-200 text-gray-600 hover:border-orange-200"
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="hidden"
+                                  checked={categoriesForm.includes(cat.name)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setCategoriesForm([...categoriesForm, cat.name]);
+                                    } else {
+                                      setCategoriesForm(categoriesForm.filter((name) => name !== cat.name));
+                                    }
+                                  }}
+                                />
+                                {cat.name}
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-3 pt-2">
                         <Button
@@ -2032,7 +2020,70 @@ export function SellerStoreProfile() {
             </div>
           </div>
         </div>
+
+        {/* Bottom Action Bar (Contained naturally within the layout) */}
+        {(approvalStatus === "rejected" || approvalStatus === "needs_resubmission") && (
+          <div className="shrink-0 w-full bg-white border-t border-gray-200 py-4 px-6 lg:px-8 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-50 flex items-center justify-between transition-all">
+            <div>
+              <h4 className="font-bold text-[var(--text-headline)]">Ready to resubmit?</h4>
+              <p className="text-sm text-[var(--text-muted)]">
+                {getMissingItems().length > 0
+                  ? `${getMissingItems().length} required items left to update`
+                  : "All documents updated. You can now resubmit your application."}
+              </p>
+            </div>
+            <Button
+              size="lg"
+              onClick={handleReapply}
+              disabled={reapplyLoading || getMissingItems().length > 0}
+              className={cn(
+                "px-8 font-bold shadow-md transition-all",
+                getMissingItems().length === 0
+                  ? "bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
+                  : "bg-gray-200 text-gray-500"
+              )}
+            >
+              {reapplyLoading ? (
+                <><Loader className="w-5 h-5 mr-2 animate-spin" /> Submitting...</>
+              ) : (
+                "Resubmit Application"
+              )}
+            </Button>
+          </div>
+        )}
       </div>
+
+      <Dialog open={!!pendingUpload} onOpenChange={(open) => !open && setPendingUpload(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Document Upload</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600">
+              You are about to upload <span className="font-bold text-gray-900">{pendingUpload?.file.name}</span> for your <span className="font-bold text-gray-900">{pendingUpload?.label}</span>.
+            </p>
+            <p className="text-sm text-gray-600 mt-2">
+              Please ensure the document is clear and readable.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingUpload(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
+              onClick={async () => {
+                if (pendingUpload) {
+                  await handleDocumentUpload(pendingUpload.file, pendingUpload.docKey, pendingUpload.columnName);
+                  setPendingUpload(null);
+                }
+              }}
+            >
+              Confirm Upload
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SellerWorkspaceLayout>
   );
 }

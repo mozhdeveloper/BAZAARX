@@ -95,8 +95,8 @@ const AdminFlashSales: React.FC = () => {
         campaignType: 'flash_sale',
         discountType: 'fixed_amount', // DB requires 'fixed_amount', not 'fixed'
         discountValue: 1,             // DB requires > 0; per-product overrides carry real prices
-        startsAt: new Date(startDate).toISOString(),
-        endsAt: new Date(endDate).toISOString(),
+        startsAt: new Date(startDate),
+        endsAt: new Date(endDate),
         badgeText: 'Flash Sale',
         badgeColor: '#FF0000',
         appliesTo: 'specific_products',
@@ -141,8 +141,8 @@ const AdminFlashSales: React.FC = () => {
       // Update campaign metadata
       await discountService.updateCampaign(editSale.id, {
         name: editName,
-        startsAt: new Date(editStartDate).toISOString(),
-        endsAt: new Date(editEndDate).toISOString(),
+        startsAt: new Date(editStartDate),
+        endsAt: new Date(editEndDate),
       });
 
       // Replace all product discounts with new list
@@ -382,7 +382,7 @@ const AdminFlashSales: React.FC = () => {
       <AdminSidebar open={open} setOpen={setOpen} />
 
       <div className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
             <div>
@@ -400,53 +400,29 @@ const AdminFlashSales: React.FC = () => {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Flash Sales</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
+            {[
+              { label: 'Total Flash Sales', value: stats.total, icon: Zap },
+              { label: 'Scheduled', value: stats.scheduled, icon: Calendar },
+              { label: 'Active', value: stats.active, icon: Play },
+              { label: 'Ended', value: stats.ended, icon: Clock }
+            ].map((stat, index) => (
+              <Card key={index} className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-100 transition-colors"></div>
+                <CardContent className="p-6 relative z-10">
+                  <div className="flex flex-col">
+                    <div className="mb-4 text-gray-500 group-hover:text-orange-600 transition-all">
+                      <stat.icon className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-gray-400">{stat.label}</p>
+                      <div className="flex items-end gap-3 mt-1">
+                        <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-orange-600">{stat.value}</p>
+                      </div>
+                    </div>
                   </div>
-                  <Zap className="h-8 w-8 text-orange-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Scheduled</p>
-                    <p className="text-2xl font-bold text-blue-600 mt-1">{stats.scheduled}</p>
-                  </div>
-                  <Calendar className="h-8 w-8 text-blue-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Active</p>
-                    <p className="text-2xl font-bold text-green-600 mt-1">{stats.active}</p>
-                  </div>
-                  <Play className="h-8 w-8 text-green-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Ended</p>
-                    <p className="text-2xl font-bold text-gray-600 mt-1">{stats.ended}</p>
-                  </div>
-                  <Clock className="h-8 w-8 text-gray-600" />
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Filters and Search */}
