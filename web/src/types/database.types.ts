@@ -13,7 +13,8 @@ export type ApprovalStatus =
   | 'verified'
   | 'approved'
   | 'rejected'
-  | 'needs_resubmission';
+  | 'needs_resubmission'
+  | 'blacklisted';
 export type ProductApprovalStatus = 'pending' | 'accepted' | 'approved' | 'rejected' | 'reclassified';
 export type OrderType = 'ONLINE' | 'OFFLINE';
 
@@ -137,6 +138,22 @@ export interface SellerVerificationDocuments {
   proof_of_address_url: string | null;
   dti_registration_url: string | null;
   tax_id_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SellerVerificationDocumentDrafts {
+  seller_id: string;
+  business_permit_url: string | null;
+  business_permit_updated_at: string | null;
+  valid_id_url: string | null;
+  valid_id_updated_at: string | null;
+  proof_of_address_url: string | null;
+  proof_of_address_updated_at: string | null;
+  dti_registration_url: string | null;
+  dti_registration_updated_at: string | null;
+  tax_id_url: string | null;
+  tax_id_updated_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -911,6 +928,7 @@ export interface Database {
       seller_business_profiles: { Row: SellerBusinessProfile; Insert: Partial<SellerBusinessProfile>; Update: Partial<SellerBusinessProfile> };
       seller_payout_accounts: { Row: SellerPayoutAccount; Insert: Partial<SellerPayoutAccount>; Update: Partial<SellerPayoutAccount> };
       seller_verification_documents: { Row: SellerVerificationDocuments; Insert: Partial<SellerVerificationDocuments>; Update: Partial<SellerVerificationDocuments> };
+      seller_verification_document_drafts: { Row: SellerVerificationDocumentDrafts; Insert: Partial<SellerVerificationDocumentDrafts>; Update: Partial<SellerVerificationDocumentDrafts> };
       admins: { Row: Admin; Insert: Partial<Admin>; Update: Partial<Admin> };
       shipping_addresses: { Row: ShippingAddress; Insert: Partial<ShippingAddress>; Update: Partial<ShippingAddress> };
       payment_methods: { Row: PaymentMethodRecord; Insert: Partial<PaymentMethodRecord>; Update: Partial<PaymentMethodRecord> };

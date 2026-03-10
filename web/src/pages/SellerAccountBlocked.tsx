@@ -23,10 +23,10 @@ export function SellerAccountBlocked() {
               </div>
             </div>
             <h1 className="text-3xl font-black text-white text-center font-heading tracking-tight relative z-10">
-              Account Suspended
+              Account Blocked
             </h1>
             <p className="text-gray-200 text-center mt-2 font-medium relative z-10">
-              Your seller account is temporarily blocked from portal access.
+              Your seller account is currently blocked from portal access.
             </p>
           </div>
 

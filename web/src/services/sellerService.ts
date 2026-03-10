@@ -5,7 +5,7 @@
  * 
  * Actual sellers table columns:
  * - id, store_name, store_description, avatar_url
- * - approval_status ('pending' | 'verified' | 'rejected'), verified_at
+ * - approval_status ('pending' | 'verified' | 'rejected' | 'needs_resubmission' | 'blacklisted'), verified_at
  * - created_at, updated_at
  * 
  * Extended data is in related tables:
@@ -24,7 +24,7 @@ export interface SellerCoreData {
     store_contact_number: string | null;
     avatar_url: string | null;
     owner_name?: string | null;
-    approval_status: 'pending' | 'verified' | 'rejected' | 'needs_resubmission';
+    approval_status: 'pending' | 'verified' | 'rejected' | 'needs_resubmission' | 'blacklisted';
     verified_at: string | null;
     created_at: string;
     updated_at: string;
@@ -80,7 +80,7 @@ export type SellerInsert = {
     store_description?: string | null;
     store_contact_number?: string | null;
     avatar_url?: string | null;
-    approval_status?: 'pending' | 'verified' | 'rejected' | 'needs_resubmission';
+    approval_status?: 'pending' | 'verified' | 'rejected' | 'needs_resubmission' | 'blacklisted';
 };
 
 export type SellerUpdate = Partial<Omit<SellerInsert, 'id'>>;

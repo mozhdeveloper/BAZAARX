@@ -62,7 +62,8 @@ interface Seller {
     | "approved"
     | "verified"
     | "rejected"
-    | "needs_resubmission";
+    | "needs_resubmission"
+    | "blacklisted";
     rating: number;
     totalSales: number;
     joinDate: string;
