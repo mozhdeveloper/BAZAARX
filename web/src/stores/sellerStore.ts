@@ -1304,28 +1304,33 @@ export const useProductStore = create<ProductStore>()(
                     get().checkLowStock();
 
                     // Also add to QA flow store
-                    // try {
-                    //     const qaStore = useProductQAStore.getState();
-                    //     await qaStore.addProductToQA({
-                    //         id: newProduct.id,
-                    //         name: newProduct.name,
-                    //         vendor:
-                    //             authStoreState.seller?.storeName || authStoreState.seller?.name || "Unknown Vendor",
-                    //         sellerId: resolvedSellerId, // Pass seller ID for proper filtering
-                    //         price: newProduct.price,
-                    //         // Use original submitted category (name string) since newProduct
-                    //         // is mapped from DB which stores category_id, not the name
-                    //         category: product.category || newProduct.category,
-                    //         image:
-                    //             newProduct.images[0] ||
-                    //             "https://placehold.co/100?text=Product",
-                    //     });
-                    // } catch (qaError) {
-                    //     console.error(
-                    //         "Error adding product to QA flow:",
-                    //         qaError,
-                    //     );
-                    // }
+                    try {
+                        const qaStore = useProductQAStore.getState();
+                        await qaStore.addProductToQA({
+                            id: newProduct.id,
+                            name: newProduct.name,
+                            vendor:
+                                authStoreState.seller?.storeName || authStoreState.seller?.name || "Unknown Vendor",
+                            sellerId: resolvedSellerId, // Pass seller ID for proper filtering
+                            price: newProduct.price,
+                            // Use original submitted category (name string) since newProduct
+                            // is mapped from DB which stores category_id, not the name
+                            category: product.category || newProduct.category,
+                            image:
+                                newProduct.images[0] ||
+                                "https://placehold.co/100?text=Product",
+                        });
+                    } catch (qaError) {
+                        console.error(
+                            "Error adding product to QA flow:",
+                            qaError,
+                        );
+                    }
+
+                    // Trigger image embedding generation for visual search (fire-and-forget)
+                    supabase.functions.invoke('backfill-vectors-v2').catch(e =>
+                        console.warn('[addProduct] Embedding backfill trigger failed:', e)
+                    );
                 } catch (error) {
                     console.error("Error adding product:", error);
                     throw error;
@@ -1346,6 +1351,11 @@ export const useProductStore = create<ProductStore>()(
                     
                     // Refresh the products list to show new items
                     await get().fetchProducts({ sellerId });
+
+                    // Trigger image embedding generation for visual search (fire-and-forget)
+                    supabase.functions.invoke('backfill-vectors-v2').catch(e =>
+                        console.warn('[bulkAddProducts] Embedding backfill trigger failed:', e)
+                    );
                     
                     return results;
                 } catch (error) {
