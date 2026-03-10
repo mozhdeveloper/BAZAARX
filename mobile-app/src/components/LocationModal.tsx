@@ -22,6 +22,7 @@ import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT, Region } from 'reac
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
+import { useAddressStore } from '../stores/addressStore';
 import { COLORS } from '../constants/theme';
 
 const { height } = Dimensions.get('window');
@@ -130,40 +131,32 @@ export default function LocationModal({
     }
   }, [visible, initialCoordinates, currentAddress]);
 
-  // Fetch saved addresses
+  // Read saved addresses from shared store
+  const { savedAddresses, loadSavedAddresses } = useAddressStore();
+
   useEffect(() => {
     if (!user || !visible) return;
-    const fetchSavedAddresses = async () => {
-      try {
-        const { data } = await supabase.from('shipping_addresses').select('*').eq('user_id', user.id);
-        if (data) {
-          // Map from DB schema to component format
-          const mapped = data.map(a => ({
-            id: a.id,
-            label: a.label || 'Address',
-            street: a.address_line_1 || '',
-            barangay: a.barangay || '',
-            city: a.city || '',
-            province: a.province || '',
-            region: a.region || '',
-            postalCode: a.postal_code || '',
-            coordinates: a.coordinates || null,
-            is_default: a.is_default || false,
-          }));
-
-          // Ensure unique IDs (defensive programming)
-          const uniqueAddresses = mapped.filter((addr, index, self) =>
-            index === self.findIndex(a => a.id === addr.id)
-          );
-
-          setAddresses(uniqueAddresses);
-        }
-      } catch (error) {
-        console.error('[LocationModal] Error fetching addresses:', error);
-      }
-    };
-    fetchSavedAddresses();
+    // Load/refresh saved addresses when modal opens
+    loadSavedAddresses(user.id);
   }, [user, visible]);
+
+  // Map saved addresses for display (keep existing format)
+  useEffect(() => {
+    if (!visible) return;
+    const mapped = savedAddresses.map(a => ({
+      id: a.id,
+      label: a.label || 'Address',
+      street: a.street || '',
+      barangay: a.barangay || '',
+      city: a.city || '',
+      province: a.province || '',
+      region: a.region || '',
+      postalCode: a.zipCode || '',
+      coordinates: a.coordinates || null,
+      is_default: a.isDefault || false,
+    }));
+    setAddresses(mapped);
+  }, [savedAddresses, visible]);
 
   // --- 1. AUTOCOMPLETE SEARCH ---
   const handleTextChange = (text: string) => {

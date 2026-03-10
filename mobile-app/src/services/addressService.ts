@@ -17,6 +17,11 @@ export interface Address {
     addressType: 'residential' | 'commercial';
     isDefault: boolean;
     coordinates: { latitude: number; longitude: number } | null;
+    // Geographic codes for shipping accuracy
+    barangayCode?: string;
+    cityCode?: string;
+    provinceCode?: string;
+    regionCode?: string;
 }
 
 export type AddressInsert = Omit<Address, 'id'>;
@@ -35,60 +40,75 @@ export class AddressService {
     }
 
     private mapFromDB(a: any): Address {
-        // Parse address_line_1 which may be in format: "Name, Phone, Street"
-        const addressLine1 = a.address_line_1 || '';
-        const parts = addressLine1.split(', ');
-        
-        let firstName = '';
-        let lastName = '';
-        let phone = '';
-        let street = addressLine1;
-        
-        if (parts.length >= 3) {
-            // Format: "Name, Phone, Street..."
-            const possiblePhone = parts[1];
-            if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
-                const nameParts = parts[0].split(' ');
-                firstName = nameParts[0] || '';
-                lastName = nameParts.slice(1).join(' ') || '';
-                phone = possiblePhone;
-                street = parts.slice(2).join(', ');
+        // Use dedicated columns for name/phone (DB has first_name, last_name, phone_number)
+        // Fall back to parsing address_line_1 for legacy rows
+        let firstName = a.first_name || '';
+        let lastName = a.last_name || '';
+        let phone = a.phone_number || '';
+        let street = a.address_line_1 || '';
+
+        // Legacy fallback: if dedicated columns are empty, try parsing address_line_1
+        if (!firstName && !phone && street) {
+            const parts = street.split(', ');
+            if (parts.length >= 3) {
+                const possiblePhone = parts[1];
+                if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
+                    const nameParts = parts[0].split(' ');
+                    firstName = nameParts[0] || '';
+                    lastName = nameParts.slice(1).join(' ') || '';
+                    phone = possiblePhone;
+                    street = parts.slice(2).join(', ');
+                }
             }
         }
-        
+
+        // Extract geo codes from coordinates JSONB if present
+        const coords = a.coordinates || null;
+        const barangayCode = coords?.barangay_code || undefined;
+        const cityCode = coords?.city_code || undefined;
+        const provinceCode = coords?.province_code || undefined;
+        const regionCode = coords?.region_code || undefined;
+
+        // Clean coordinates to just lat/lng for the frontend
+        const cleanCoords = coords && coords.latitude != null && coords.longitude != null
+            ? { latitude: Number(coords.latitude), longitude: Number(coords.longitude) }
+            : null;
+
         return {
             id: a.id,
             label: a.label || 'Address',
-            firstName: firstName,
-            lastName: lastName,
-            phone: phone,
-            street: street,
+            firstName,
+            lastName,
+            phone,
+            street,
             barangay: a.barangay || '',
             city: a.city || '',
             province: a.province || '',
             region: a.region || '',
             zipCode: a.postal_code || '',
-            landmark: a.address_line_2 || a.landmark || null,
+            landmark: a.landmark || a.address_line_2 || null,
             deliveryInstructions: a.delivery_instructions || null,
             addressType: a.address_type || 'residential',
             isDefault: a.is_default || false,
-            coordinates: a.coordinates || null,
+            coordinates: cleanCoords,
+            barangayCode,
+            cityCode,
+            provinceCode,
+            regionCode,
         };
     }
 
     private mapToDB(address: AddressInsert | AddressUpdate, userId?: string) {
         const dbPayload: any = {};
-        
-        // Build address_line_1 with name, phone, and street combined
-        if (address.firstName !== undefined || address.lastName !== undefined || address.phone !== undefined || address.street !== undefined) {
-            const name = `${address.firstName || ''} ${address.lastName || ''}`.trim();
-            const phone = address.phone || '';
-            const street = address.street || '';
-            dbPayload.address_line_1 = [name, phone, street].filter(Boolean).join(', ');
-        }
-        
+
+        // Use dedicated columns for name/phone/street
+        if (address.firstName !== undefined) dbPayload.first_name = address.firstName;
+        if (address.lastName !== undefined) dbPayload.last_name = address.lastName;
+        if (address.phone !== undefined) dbPayload.phone_number = address.phone;
+        if (address.street !== undefined) dbPayload.address_line_1 = address.street;
+
         if (address.label !== undefined) dbPayload.label = address.label;
-        if (address.landmark !== undefined) dbPayload.address_line_2 = address.landmark;
+        if (address.landmark !== undefined) dbPayload.landmark = address.landmark;
         if (address.barangay !== undefined) dbPayload.barangay = address.barangay;
         if (address.city !== undefined) dbPayload.city = address.city;
         if (address.province !== undefined) dbPayload.province = address.province;
@@ -97,9 +117,20 @@ export class AddressService {
         if (address.deliveryInstructions !== undefined) dbPayload.delivery_instructions = address.deliveryInstructions;
         if (address.addressType !== undefined) dbPayload.address_type = address.addressType;
         if (address.isDefault !== undefined) dbPayload.is_default = address.isDefault;
-        if (address.coordinates !== undefined) dbPayload.coordinates = address.coordinates;
+
+        // Store coordinates + geo codes in JSONB coordinates field
+        if (address.coordinates !== undefined || (address as any).barangayCode !== undefined) {
+            dbPayload.coordinates = {
+                ...(address.coordinates || {}),
+                ...(((address as any).barangayCode) ? { barangay_code: (address as any).barangayCode } : {}),
+                ...(((address as any).cityCode) ? { city_code: (address as any).cityCode } : {}),
+                ...(((address as any).provinceCode) ? { province_code: (address as any).provinceCode } : {}),
+                ...(((address as any).regionCode) ? { region_code: (address as any).regionCode } : {}),
+            };
+        }
+
         if (userId) dbPayload.user_id = userId;
-        
+
         return dbPayload;
     }
 
@@ -310,6 +341,7 @@ export class AddressService {
      * Save or update the current delivery location to the database.
      * This is used when user selects a location from HomeScreen's location modal.
      * It creates a "Current Location" address or updates the existing one.
+     * Auto-fills first_name, last_name, phone_number from the user's profile.
      */
     async saveCurrentDeliveryLocation(
         userId: string, 
@@ -346,22 +378,41 @@ export class AddressService {
                 province = parts[2] || '';
             }
 
-            // Check if user already has a "Current Location" address
-            const { data: existing, error: fetchError } = await supabase
+            // Fetch buyer profile for auto-fill of name/phone
+            let firstName = '';
+            let lastName = '';
+            let phone = '';
+            try {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('first_name, last_name, phone')
+                    .eq('id', userId)
+                    .single();
+                if (profile) {
+                    firstName = profile.first_name || '';
+                    lastName = profile.last_name || '';
+                    phone = profile.phone || '';
+                }
+            } catch (e) {
+                console.log('[addressService] Could not fetch profile for auto-fill:', e);
+            }
+
+            // Fetch ALL "Current Location" rows for this user (there may be duplicates from past bugs)
+            const { data: existingRows, error: fetchError } = await supabase
                 .from('shipping_addresses')
                 .select('*')
                 .eq('user_id', userId)
                 .eq('label', 'Current Location')
-                .single();
+                .order('created_at', { ascending: false });
 
-            if (fetchError && fetchError.code !== 'PGRST116') {
-                // PGRST116 = no rows found (expected if first time)
-                throw fetchError;
-            }
+            if (fetchError) throw fetchError;
 
             const addressData = {
                 user_id: userId,
                 label: 'Current Location',
+                first_name: firstName,
+                last_name: lastName,
+                phone_number: phone,
                 address_line_1: street,
                 address_line_2: null as string | null,
                 barangay: barangay,
@@ -376,12 +427,23 @@ export class AddressService {
                 coordinates: coords,
             };
 
-            if (existing) {
-                // Update existing "Current Location" address
+            if (existingRows && existingRows.length > 0) {
+                // Keep the most recent one, delete any duplicates
+                const keepId = existingRows[0].id;
+
+                if (existingRows.length > 1) {
+                    const duplicateIds = existingRows.slice(1).map(r => r.id);
+                    await supabase
+                        .from('shipping_addresses')
+                        .delete()
+                        .in('id', duplicateIds);
+                }
+
+                // Update the kept row
                 const { data, error } = await supabase
                     .from('shipping_addresses')
                     .update(addressData)
-                    .eq('id', existing.id)
+                    .eq('id', keepId)
                     .select()
                     .single();
 

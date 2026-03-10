@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +7,8 @@ import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'reac
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
-import { addressService, type Address } from '../src/services/addressService';
+import { type Address } from '../src/services/addressService';
+import { useAddressStore } from '../src/stores/addressStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 
@@ -23,7 +24,17 @@ const DEFAULT_REGION = {
 export default function AddressesScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
-  const [addresses, setAddresses] = useState<Address[]>([]);
+  const isMounted = useRef(true);
+
+  // Shared store
+  const {
+    savedAddresses: addresses,
+    loadSavedAddresses,
+    addSavedAddress,
+    updateSavedAddress,
+    deleteSavedAddress,
+    setDefaultAddress: storeSetDefault,
+  } = useAddressStore();
 
   // UI States
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -36,6 +47,7 @@ export default function AddressesScreen({ navigation }: Props) {
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
 
   // Dropdown States
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
@@ -46,6 +58,14 @@ export default function AddressesScreen({ navigation }: Props) {
   const [provinceList, setProvinceList] = useState<any[]>([]);
   const [cityList, setCityList] = useState<any[]>([]);
   const [barangayList, setBarangayList] = useState<any[]>([]);
+
+  // Geo codes captured from dropdown selections
+  const [geoCodes, setGeoCodes] = useState<{
+    regionCode?: string;
+    provinceCode?: string;
+    cityCode?: string;
+    barangayCode?: string;
+  }>({});
 
   const initialAddressState: Omit<Address, 'id'> = {
     label: '',
@@ -75,39 +95,38 @@ export default function AddressesScreen({ navigation }: Props) {
     }
   };
 
+  // Cleanup on unmount
   useEffect(() => {
-    regions().then(res => setRegionList(res));
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
   }, []);
 
   useEffect(() => {
-    const fetchAddresses = async () => {
-      if (!user) return;
-      try {
-        const data = await addressService.getAddresses(user.id);
-        setAddresses(data);
-      } catch (error) {
-        console.error('Error loading addresses:', error);
-      }
-    };
-    fetchAddresses();
+    regions().then(res => { if (isMounted.current) setRegionList(res); });
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    loadSavedAddresses(user.id);
   }, [user]);
 
-  // --- GEOCODING & MAP SYNC ---
+  // --- FORWARD GEOCODING: address → coords ---
   const attemptGeocode = async (overrideAddress?: Partial<typeof newAddress>) => {
     const current = { ...newAddress, ...overrideAddress };
     const queryParts = [current.street, current.barangay, current.city, current.province, "Philippines"].filter(Boolean);
     if (queryParts.length < 3) return;
 
     const query = queryParts.join(', ');
+    if (!isMounted.current) return;
     setIsGeocoding(true);
 
     try {
       const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, {
-        headers: { 'User-Agent': 'PHAddressApp/1.0' }
+        headers: { 'User-Agent': 'BazaarXApp/1.0' }
       });
       const data = await response.json();
 
-      if (data && data.length > 0) {
+      if (data && data.length > 0 && isMounted.current) {
         const lat = parseFloat(data[0].lat);
         const lon = parseFloat(data[0].lon);
 
@@ -120,9 +139,161 @@ export default function AddressesScreen({ navigation }: Props) {
         });
       }
     } catch (error) {
-      console.log('Geocoding error:', error);
+      console.log('Forward geocoding error:', error);
     } finally {
-      setIsGeocoding(false);
+      if (isMounted.current) setIsGeocoding(false);
+    }
+  };
+
+  // --- REVERSE GEOCODING: coords → address + auto-fill dropdowns ---
+  const reverseGeocodeAndAutoFill = async (lat: number, lng: number) => {
+    if (!isMounted.current) return;
+    setIsReverseGeocoding(true);
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
+        { headers: { 'User-Agent': 'BazaarXApp/1.0' } }
+      );
+      const data = await response.json();
+      if (!data?.display_name || !isMounted.current) return;
+
+      const addr = data.address || {};
+      const gStreet = addr.road || addr.pedestrian || '';
+      const gBarangay = addr.neighbourhood || addr.suburb || addr.village || '';
+      const gCity = addr.city || addr.municipality || addr.town || '';
+      const gProvince = addr.county || addr.state || '';
+      const gRegion = addr.region || addr.state || '';
+      const gPostalCode = addr.postcode || '';
+
+      // Auto-fill form fields
+      setNewAddress(prev => ({
+        ...prev,
+        street: gStreet || prev.street,
+        barangay: gBarangay,
+        city: gCity,
+        province: gProvince,
+        region: gRegion,
+        zipCode: gPostalCode || prev.zipCode,
+        coordinates: { latitude: lat, longitude: lng },
+      }));
+
+      // Try to match to Philippine address API and load dropdown lists
+      let regList = regionList;
+      if (regList.length === 0) {
+        regList = await regions();
+        if (isMounted.current) setRegionList(regList);
+      }
+
+      // Find matching region
+      const matchedRegion = regList.find((r: any) => {
+        const rName = r.region_name?.toLowerCase() || '';
+        const gR = gRegion.toLowerCase();
+        const gC = gCity.toLowerCase();
+        // Metro Manila heuristic
+        if (rName.includes('metro manila') || rName.includes('ncr') || rName.includes('national capital')) {
+          const metroCities = ['manila', 'quezon', 'makati', 'pasig', 'taguig', 'marikina', 'paranaque', 'pasay', 'caloocan', 'malabon', 'navotas', 'valenzuela', 'muntinlupa', 'las piñas', 'san juan', 'mandaluyong', 'pateros'];
+          if (gR.includes('metro manila') || gR.includes('ncr') || gR.includes('national capital') || metroCities.some(c => gC.includes(c))) {
+            return true;
+          }
+        }
+        return rName.includes(gR) || gR.includes(rName);
+      });
+
+      if (!matchedRegion || !isMounted.current) return;
+
+      const newGeoCodes: typeof geoCodes = { regionCode: matchedRegion.region_code };
+      setNewAddress(prev => ({ ...prev, region: matchedRegion.region_name }));
+
+      // Load provinces
+      const provList = await provinces(matchedRegion.region_code);
+      if (!isMounted.current) return;
+      setProvinceList(provList);
+
+      const isMetroManila = matchedRegion.region_name?.toLowerCase().includes('metro manila') ||
+        matchedRegion.region_name?.toLowerCase().includes('ncr') ||
+        matchedRegion.region_code === '13';
+
+      if (isMetroManila) {
+        // Load all cities from all districts for Metro Manila
+        let allCities: any[] = [];
+        for (const prov of provList) {
+          const provCities = await cities(prov.province_code);
+          allCities = [...allCities, ...provCities];
+        }
+        if (!isMounted.current) return;
+        setCityList(allCities);
+
+        const matchedCity = allCities.find((c: any) => {
+          const cName = c.city_name?.toLowerCase() || '';
+          return cName.includes(gCity.toLowerCase()) || gCity.toLowerCase().includes(cName.split(' ')[0]);
+        });
+
+        if (matchedCity) {
+          newGeoCodes.cityCode = matchedCity.city_code;
+          setNewAddress(prev => ({ ...prev, city: matchedCity.city_name }));
+          const brgyList = await barangays(matchedCity.city_code);
+          if (!isMounted.current) return;
+          setBarangayList(brgyList);
+
+          if (gBarangay) {
+            const matchedBrgy = brgyList.find((b: any) => {
+              const bName = b.brgy_name?.toLowerCase() || '';
+              return bName.includes(gBarangay.toLowerCase()) || gBarangay.toLowerCase().includes(bName);
+            });
+            if (matchedBrgy) {
+              newGeoCodes.barangayCode = matchedBrgy.brgy_code;
+              setNewAddress(prev => ({ ...prev, barangay: matchedBrgy.brgy_name }));
+            }
+          }
+        }
+      } else {
+        // Non-Metro Manila: find province, then city, then barangay
+        const matchedProv = provList.find((p: any) => {
+          const pName = p.province_name?.toLowerCase() || '';
+          return pName.includes(gProvince.toLowerCase()) || gProvince.toLowerCase().includes(pName);
+        });
+
+        if (matchedProv) {
+          newGeoCodes.provinceCode = matchedProv.province_code;
+          setNewAddress(prev => ({ ...prev, province: matchedProv.province_name }));
+
+          const cityListData = await cities(matchedProv.province_code);
+          if (!isMounted.current) return;
+          setCityList(cityListData);
+
+          const matchedCity = cityListData.find((c: any) => {
+            const cName = c.city_name?.toLowerCase() || '';
+            return cName.includes(gCity.toLowerCase()) || gCity.toLowerCase().includes(cName.split(' ')[0]);
+          });
+
+          if (matchedCity) {
+            newGeoCodes.cityCode = matchedCity.city_code;
+            setNewAddress(prev => ({ ...prev, city: matchedCity.city_name }));
+
+            const brgyList = await barangays(matchedCity.city_code);
+            if (!isMounted.current) return;
+            setBarangayList(brgyList);
+
+            if (gBarangay) {
+              const matchedBrgy = brgyList.find((b: any) => {
+                const bName = b.brgy_name?.toLowerCase() || '';
+                return bName.includes(gBarangay.toLowerCase()) || gBarangay.toLowerCase().includes(bName);
+              });
+              if (matchedBrgy) {
+                newGeoCodes.barangayCode = matchedBrgy.brgy_code;
+                setNewAddress(prev => ({ ...prev, barangay: matchedBrgy.brgy_name }));
+              }
+            }
+          }
+        }
+      }
+
+      if (isMounted.current) setGeoCodes(newGeoCodes);
+    } catch (error) {
+      console.log('Reverse geocode error:', error);
+    } finally {
+      if (isMounted.current) setIsReverseGeocoding(false);
     }
   };
 
@@ -139,9 +310,11 @@ export default function AddressesScreen({ navigation }: Props) {
   const onRegionChange = async (code: string) => {
     const name = regionList.find(i => i.region_code === code)?.region_name || '';
     setNewAddress({ ...newAddress, region: name, province: '', city: '', barangay: '', coordinates: null });
+    setGeoCodes({ regionCode: code });
     setOpenDropdown(null);
     setIsLoadingLocation(true);
     const provs = await provinces(code);
+    if (!isMounted.current) return;
     setProvinceList(provs);
     setCityList([]);
     setBarangayList([]);
@@ -151,9 +324,11 @@ export default function AddressesScreen({ navigation }: Props) {
   const onProvinceChange = async (code: string) => {
     const name = provinceList.find(i => i.province_code === code)?.province_name || '';
     setNewAddress({ ...newAddress, province: name, city: '', barangay: '', coordinates: null });
+    setGeoCodes(prev => ({ ...prev, provinceCode: code, cityCode: undefined, barangayCode: undefined }));
     setOpenDropdown(null);
     setIsLoadingLocation(true);
     const cts = await cities(code);
+    if (!isMounted.current) return;
     setCityList(cts);
     setBarangayList([]);
     setIsLoadingLocation(false);
@@ -162,16 +337,19 @@ export default function AddressesScreen({ navigation }: Props) {
   const onCityChange = async (code: string) => {
     const name = cityList.find(i => i.city_code === code)?.city_name || '';
     setNewAddress({ ...newAddress, city: name, barangay: '', coordinates: null });
+    setGeoCodes(prev => ({ ...prev, cityCode: code, barangayCode: undefined }));
     setOpenDropdown(null);
     setIsLoadingLocation(true);
     const brgys = await barangays(code);
+    if (!isMounted.current) return;
     setBarangayList(brgys);
     setIsLoadingLocation(false);
     attemptGeocode({ city: name, barangay: '' });
   };
 
-  const onBarangayChange = (name: string) => {
+  const onBarangayChange = (name: string, brgyCode?: string) => {
     setNewAddress({ ...newAddress, barangay: name });
+    if (brgyCode) setGeoCodes(prev => ({ ...prev, barangayCode: brgyCode }));
     setOpenDropdown(null);
     attemptGeocode({ barangay: name });
   };
@@ -185,10 +363,17 @@ export default function AddressesScreen({ navigation }: Props) {
   const handleOpenAddressModal = async (address?: Address) => {
     setOpenDropdown(null);
     setSearchText('');
+    setGeoCodes({});
 
     if (address) {
       setEditingId(address.id);
       setNewAddress({ ...address });
+      setGeoCodes({
+        regionCode: address.regionCode,
+        provinceCode: address.provinceCode,
+        cityCode: address.cityCode,
+        barangayCode: address.barangayCode,
+      });
       if (address.coordinates) {
         setMapRegion({
           latitude: address.coordinates.latitude,
@@ -219,41 +404,53 @@ export default function AddressesScreen({ navigation }: Props) {
   };
 
   const handleConfirmLocation = () => {
-    setNewAddress({
-      ...newAddress,
-      coordinates: {
-        latitude: mapRegion.latitude,
-        longitude: mapRegion.longitude,
-      },
-    });
+    const lat = mapRegion.latitude;
+    const lng = mapRegion.longitude;
+
+    setNewAddress(prev => ({
+      ...prev,
+      coordinates: { latitude: lat, longitude: lng },
+    }));
     setIsMapModalOpen(false);
+
+    // Reverse geocode the pinned location and auto-fill dropdowns
+    reverseGeocodeAndAutoFill(lat, lng);
   };
 
   const handleSaveAddress = async () => {
     if (!user) return;
+    if (!isMounted.current) return;
     setIsSaving(true);
 
     try {
+      // Attach geo codes to the address data
+      const payload: any = {
+        ...newAddress,
+        barangayCode: geoCodes.barangayCode,
+        cityCode: geoCodes.cityCode,
+        provinceCode: geoCodes.provinceCode,
+        regionCode: geoCodes.regionCode,
+      };
+
       if (editingId) {
-        const updated = await addressService.updateAddress(user.id, editingId, newAddress);
-        setAddresses(prev => prev.map(a => (a.id === editingId ? updated : a)));
+        await updateSavedAddress(user.id, editingId, payload);
       } else {
-        const created = await addressService.createAddress(user.id, newAddress);
-        setAddresses(prev => [created, ...prev]);
+        await addSavedAddress(user.id, payload);
       }
     } catch (error) {
       console.error('Error saving address:', error);
     }
 
-    setIsSaving(false);
-    setIsAddressModalOpen(false);
+    if (isMounted.current) {
+      setIsSaving(false);
+      setIsAddressModalOpen(false);
+    }
   };
 
   const handleSetDefault = async (id: string) => {
     if (!user) return;
     try {
-      await addressService.setDefaultAddress(user.id, id);
-      setAddresses(prev => prev.map(addr => ({ ...addr, isDefault: addr.id === id })));
+      await storeSetDefault(user.id, id);
     } catch (error) {
       console.error('Error setting default address:', error);
     }
@@ -263,13 +460,14 @@ export default function AddressesScreen({ navigation }: Props) {
     if (selectedAddressId) {
       const deleteNow = async () => {
         try {
-          await addressService.deleteAddress(selectedAddressId);
-          setAddresses(prev => prev.filter(addr => addr.id !== selectedAddressId));
+          await deleteSavedAddress(selectedAddressId);
         } catch (error) {
           console.error('Error deleting address:', error);
         }
-        setShowDeleteModal(false);
-        setSelectedAddressId(null);
+        if (isMounted.current) {
+          setShowDeleteModal(false);
+          setSelectedAddressId(null);
+        }
       };
       deleteNow();
     }
@@ -329,7 +527,7 @@ export default function AddressesScreen({ navigation }: Props) {
                       if (type === 'region') onRegionChange(item.region_code);
                       else if (type === 'province') onProvinceChange(item.province_code);
                       else if (type === 'city') onCityChange(item.city_code);
-                      else onBarangayChange(item.brgy_name);
+                      else onBarangayChange(item.brgy_name, item.brgy_code);
                     }}
                   >
                     <Text style={styles.selectItemText}>{name}</Text>
@@ -485,10 +683,12 @@ export default function AddressesScreen({ navigation }: Props) {
               </MapView>
 
               {/* Loading Overlay */}
-              {isGeocoding && (
+              {(isGeocoding || isReverseGeocoding) && (
                 <View style={styles.mapLoadingOverlay}>
                   <ActivityIndicator color="#FF6A00" />
-                  <Text style={{ fontSize: 12, color: '#374151', marginTop: 4 }}>Locating...</Text>
+                  <Text style={{ fontSize: 12, color: '#374151', marginTop: 4 }}>
+                    {isReverseGeocoding ? 'Reading location...' : 'Locating...'}
+                  </Text>
                 </View>
               )}
 
