@@ -180,27 +180,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Structured variants from product_variants table
   const productVariants = product.variants || [];
   const hasStructuredVariants = productVariants.length > 0;
-  const hasAnyStock = productVariants.some((v: any) => Number(v.stock || 0) > 0) || Number(product.stock || 0) > 0;
-
-  // Dynamic variant labels from database schema
-  // Falls back to "Color"/"Size" for legacy support
-  const variantLabel1 = product.variant_label_1 || 'Color';
-  const variantLabel2 = product.variant_label_2 || 'Size';
-
-  // Dynamic variants - extract from structured variants
-  // Supports both legacy (color/size) and dynamic (option_1_value/option_2_value)
-  const rawOptions1 = hasStructuredVariants
+  
+  // ─── Refined Variant Logic (Align with Web) ───
+  
+  // Extract raw values from variants
+  const rawValues1 = hasStructuredVariants
     ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
     : (product.option1Values || product.colors || []);
-  const rawOptions2 = hasStructuredVariants
+  const rawValues2 = hasStructuredVariants
     ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
     : (product.option2Values || product.sizes || []);
 
-  const parsedOptions1 = typeof rawOptions1 === 'string' ? JSON.parse(rawOptions1) : rawOptions1;
-  const parsedOptions2 = typeof rawOptions2 === 'string' ? JSON.parse(rawOptions2) : rawOptions2;
-
-  // Dedupe logic with case-insensitivity
-  const dedupeOptions = (opts: any) => {
+  const dedupe = (opts: any) => {
     if (!Array.isArray(opts)) return [];
     const seen = new Set();
     return opts.reduce((acc: string[], curr: any) => {
@@ -215,23 +206,35 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }, []);
   };
 
-  const isVariationInverted = variantLabel1.toLowerCase() === 'size' && variantLabel2.toLowerCase() === 'color';
+  const option1Values = dedupe(rawValues1);
+  const option2Values = dedupe(rawValues2);
 
-  const option1Values = dedupeOptions(isVariationInverted ? parsedOptions2 : parsedOptions1);
-  const option2Values = dedupeOptions(isVariationInverted ? parsedOptions1 : parsedOptions2);
+  // If labels are not provided by DB, we only auto-assign if there are actual values
+  // This prevents showing "Color" label with empty selection if only Size exists
+  const variantLabel1 = product.variant_label_1 || (option1Values.length > 0 ? 'Color' : undefined);
+  const variantLabel2 = product.variant_label_2 || (option2Values.length > 0 ? 'Size' : undefined);
 
-  const finalVariantLabel1 = isVariationInverted ? variantLabel2 : variantLabel1;
-  const finalVariantLabel2 = isVariationInverted ? variantLabel1 : variantLabel2;
+  // Check if axis 1 and 2 are effectively identical (redundant case often seen in vinyls/posters)
+  const isRedundant = useMemo(() => {
+    if (option1Values.length === 0 || option2Values.length === 0) return false;
+    if (option1Values.length !== option2Values.length) return false;
+    const s1 = [...option1Values].sort().join('|').toLowerCase();
+    const s2 = [...option2Values].sort().join('|').toLowerCase();
+    return s1 === s2;
+  }, [option1Values, option2Values]);
 
-  // Legacy aliases for compatibility
-  const productColors = isVariationInverted ? option1Values : option1Values;
-  const productSizes = isVariationInverted ? option2Values : option2Values;
-
+  // If redundant, we suppress the second axis
   const hasOption1 = option1Values.length > 0;
-  const hasOption2 = option2Values.length > 0;
-  const hasColors = hasOption1;  // Legacy alias
-  const hasSizes = hasOption2;   // Legacy alias
-  const hasVariants = hasOption1 || hasOption2 || hasStructuredVariants;
+  const hasOption2 = option2Values.length > 0 && !isRedundant;
+
+  const finalVariantLabel1 = variantLabel1 || 'Select';
+  const finalVariantLabel2 = variantLabel2 || 'Select';
+
+  const hasVariants = hasOption1 || hasOption2;
+
+  // Legacy aliases for compatibility (e.g. AIChatBubble)
+  const productColors = option1Values;
+  const productSizes = option2Values;
 
   // Variant selections
   const [selectedOption1, setSelectedOption1] = useState(hasOption1 ? option1Values[0] : null);
@@ -424,27 +427,44 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Wishlist State
   const [showWishlistModal, setShowWishlistModal] = useState(false);
 
+  // Carousel ref for dynamic scrolling
+  const imageCarouselRef = useRef<ScrollView>(null);
+
   // Menu State
   const [showMenu, setShowMenu] = useState(false);
 
   // Memoize product images to avoid sorting + mapping every render
   const productImages: string[] = useMemo(() => {
     const raw = product.images;
-    if (!raw || !Array.isArray(raw) || raw.length === 0) {
-      // Fallback: use the main image string
-      const fallback = product.image;
-      return fallback ? [fallback, fallback, fallback, fallback, fallback] : [];
-    }
-    // Map Supabase image objects to string URLs, sorted by sort_order
-    const sorted = [...raw].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-    return sorted.map((img: any) => {
-      if (typeof img === 'string') return img;
-      return img.image_url || img.url || img.uri || product.image || '';
-    }).filter(Boolean) as string[];
-  }, [product.images, product.image]);
+    const baseImages = (!raw || !Array.isArray(raw) || raw.length === 0)
+      ? (product.image ? [product.image] : [])
+      : [...raw].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map((img: any) => {
+            if (typeof img === 'string') return img;
+            return img.image_url || img.url || img.uri || product.image || '';
+          }).filter(Boolean) as string[];
+
+    // Include variant-specific images at the end if they aren't already in baseImages
+    const variantImages = (productVariants || [])
+      .map((v: any) => v.thumbnail_url || v.image)
+      .filter(Boolean);
+
+    return Array.from(new Set([...baseImages, ...variantImages]));
+  }, [product.images, product.image, productVariants]);
 
   // Stores
   const addItem = useCartStore((state) => state.addItem);
+
+  // --- NEW: Scroll carousel if variant has a unique image ---
+  useEffect(() => {
+    if (selectedVariantInfo.image) {
+      const imgIndex = productImages.findIndex(img => img === selectedVariantInfo.image);
+      if (imgIndex !== -1 && imgIndex !== currentImageIndex) {
+        imageCarouselRef.current?.scrollTo({ x: imgIndex * (width - 32), animated: true });
+        setCurrentImageIndex(imgIndex);
+      }
+    }
+  }, [selectedVariantInfo.image, productImages]);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist, categories, createCategory } = useWishlistStore();
   const isFavorite = isInWishlist(product.id);
@@ -511,30 +531,23 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Build selected variant object with dynamic labels
   const buildSelectedVariant = (option1?: string | null, option2?: string | null) => {
-    const variant: {
-      color?: string;
-      size?: string;
-      option1Label?: string;
-      option1Value?: string;
-      option2Label?: string;
-      option2Value?: string;
-    } = {};
+    const variant: any = {};
 
-    if (hasOption1 && option1) {
-      // Store both the value and the label for display
-      variant.option1Label = variantLabel1;
-      variant.option1Value = option1;
-      // Legacy support: if label is Color, also set color field
-      if (variantLabel1.toLowerCase() === 'color') {
-        variant.color = option1;
+    const op1 = option1 !== undefined ? option1 : selectedOption1;
+    const op2 = option2 !== undefined ? option2 : selectedOption2;
+
+    if (hasOption1 && op1) {
+      variant.option1Label = finalVariantLabel1;
+      variant.option1Value = op1;
+      if (finalVariantLabel1.toLowerCase() === 'color') {
+        variant.color = op1;
       }
     }
-    if (hasOption2 && option2) {
-      variant.option2Label = variantLabel2;
-      variant.option2Value = option2;
-      // Legacy support: if label is Size, also set size field
-      if (variantLabel2.toLowerCase() === 'size') {
-        variant.size = option2;
+    if (hasOption2 && op2) {
+      variant.option2Label = finalVariantLabel2;
+      variant.option2Value = op2;
+      if (finalVariantLabel2.toLowerCase() === 'size') {
+        variant.size = op2;
       }
     }
     return Object.keys(variant).length > 0 ? variant : null;
@@ -759,9 +772,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setQuickOrder({ ...product, price: discountedPrice, selectedVariant }, quantity);
     navigation.navigate('Checkout', {});
   }, [hasVariants, isGuest, product, quantity, activeCampaignDiscount, selectedColor, selectedSize, navigation, setQuickOrder]);
-
-  // NEW Handle Confirm from Shared Modal
-
 
   const handleShare = async () => {
     await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
@@ -995,6 +1005,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         {/* --- IMAGE CAROUSEL --- */}
         <View style={styles.imageContainer}>
           <ScrollView
+            ref={imageCarouselRef}
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}

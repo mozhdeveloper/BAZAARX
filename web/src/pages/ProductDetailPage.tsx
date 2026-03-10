@@ -276,6 +276,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         } else if (quantity === 0 && maxStock > 0) {
             setQuantity(1);
         }
+
+        // --- NEW: Switch main image if variant has one ---
+        if (currentVariant?.thumbnail_url || currentVariant?.image) {
+            const variantImg = currentVariant.thumbnail_url || currentVariant.image;
+            const imgIndex = productData.images.findIndex(img => img === variantImg);
+            if (imgIndex !== -1) {
+                setSelectedImage(imgIndex);
+            }
+        }
     }, [selectedVariantLabel1, selectedVariantLabel2Index, normalizedProduct?.id]);
 
     // productData is now just an alias for normalizedProduct – no more

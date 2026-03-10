@@ -108,8 +108,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
   const variants = providedVariants || (product as any).variants || [];
   const hasStructuredVariants = variants.length > 0;
 
-  const variantLabel1 = product.variant_label_1 || 'Color';
-  const variantLabel2 = product.variant_label_2 || 'Size';
+  // ─── Refined Variant Logic (Align with Web) ───
 
   const parseOptions = useCallback((opts: any) => {
     const raw = typeof opts === 'string' ? JSON.parse(opts) : opts;
@@ -129,27 +128,39 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
     }, []);
   }, []);
 
-  const isVariationInverted = variantLabel1.toLowerCase() === 'size' && variantLabel2.toLowerCase() === 'color';
-
   const option1Values = useMemo(() => {
     const raw = hasStructuredVariants
-      ? [...new Set(variants.map((v: any) => (isVariationInverted ? v.option_2_value : v.option_1_value) || (isVariationInverted ? v.size : v.color)).filter(Boolean))]
-      : (isVariationInverted ? (product.option2Values || product.sizes) : (product.option1Values || product.colors) || []);
+      ? [...new Set(variants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
+      : (product.option1Values || product.colors || []);
     return parseOptions(raw);
-  }, [hasStructuredVariants, variants, product, parseOptions, isVariationInverted]);
+  }, [hasStructuredVariants, variants, product, parseOptions]);
 
   const option2Values = useMemo(() => {
     const raw = hasStructuredVariants
-      ? [...new Set(variants.map((v: any) => (isVariationInverted ? v.option_1_value : v.option_2_value) || (isVariationInverted ? v.color : v.size)).filter(Boolean))]
-      : (isVariationInverted ? (product.option1Values || product.colors) : (product.option2Values || product.sizes) || []);
+      ? [...new Set(variants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
+      : (product.option2Values || product.sizes || []);
     return parseOptions(raw);
-  }, [hasStructuredVariants, variants, product, parseOptions, isVariationInverted]);
+  }, [hasStructuredVariants, variants, product, parseOptions]);
 
-  const finalVariantLabel1 = isVariationInverted ? variantLabel2 : variantLabel1;
-  const finalVariantLabel2 = isVariationInverted ? variantLabel1 : variantLabel2;
+  // If labels are not provided by DB, we only auto-assign if there are actual values
+  const variantLabel1 = product.variant_label_1 || (option1Values.length > 0 ? 'Color' : undefined);
+  const variantLabel2 = product.variant_label_2 || (option2Values.length > 0 ? 'Size' : undefined);
 
+  // Check if axis 1 and 2 are effectively identical (redundant case)
+  const isRedundant = useMemo(() => {
+    if (option1Values.length === 0 || option2Values.length === 0) return false;
+    if (option1Values.length !== option2Values.length) return false;
+    const s1 = [...option1Values].sort().join('|').toLowerCase();
+    const s2 = [...option2Values].sort().join('|').toLowerCase();
+    return s1 === s2;
+  }, [option1Values, option2Values]);
+
+  // If redundant, we suppress the second axis
   const hasOption1 = option1Values.length > 0;
-  const hasOption2 = option2Values.length > 0;
+  const hasOption2 = option2Values.length > 0 && !isRedundant;
+
+  const finalVariantLabel1 = variantLabel1 || 'Select';
+  const finalVariantLabel2 = variantLabel2 || 'Select';
 
   // Selection State
   const [selectedOption1, setSelectedOption1] = useState<string | null>(null);
