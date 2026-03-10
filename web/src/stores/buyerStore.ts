@@ -447,6 +447,10 @@ interface BuyerStore {
   markReviewHelpful: (reviewId: string) => void;
   getProductReviews: (productId: string) => Review[];
   getSellerReviews: (sellerId: string) => Review[];
+  // Backend supported Reviews
+  fetchMyReviews: () => Promise<Review[]>;
+  updateMyReview: (reviewId: string, updates: Partial<Review> & Record<string, unknown>) => Promise<boolean>;
+  deleteMyReview: (reviewId: string) => Promise<boolean>;
 
   // Seller Storefront
   viewedSellers: Seller[];
@@ -1107,7 +1111,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
             if (itemToUpdate) {
               await cartService.updateCartItemQuantity(itemToUpdate.id, sanitizedQuantity);
-              // Note: Full silent refetch is intentionally omitted here to prevent 
+              // Note: Full silent refetch is intentionally omitted here to prevent
               // race conditions/state jumping during rapid user clicks.
             }
           }
@@ -1581,6 +1585,81 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     getSellerReviews: (sellerId) => {
       return get().reviews.filter(review => review.sellerId === sellerId)
         .sort((a, b) => b.date.getTime() - a.date.getTime());
+    },
+
+    // ==== Database-Backed Reviews ====
+    fetchMyReviews: async () => {
+      const { profile } = get();
+
+      if (!profile) return [];
+
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          product:products(
+            id,
+            name,
+            product_images(
+              image_url,
+              is_primary,
+              sort_order
+            )
+          ),
+          review_images(
+            image_url,
+            sort_order
+           )
+        `)
+        .eq('buyer_id', profile.id)
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error('Error fetching my reviews:', error.message);
+        return;
+      }
+      set({ myReviews: data || [] });
+      return data || [];
+    },
+
+    updateMyReview: async (reviewId, updates) => {
+      const { profile, myReviews } = get();
+      if (!profile) return false;
+
+      const { data, error } = await supabase
+        .from('reviews')
+        .update(updates)
+        .eq('id', reviewId)
+        .eq('buyer_id', profile.id)
+        .select('*')
+        .single();
+      if (error) {
+        console.error('Error updating my review:', error.message);
+        return false;
+      }
+      set({
+        myReviews:
+          myReviews.map((review) => (review.id === reviewId ? { ...review, ...data } : review))
+      });
+      return true;
+    },
+
+    deleteMyReview: async (reviewId) => {
+      const { profile } = get();
+      if (!profile) return false;
+
+      const { error } = await supabase
+        .from('reviews')
+        .delete()
+        .eq('id', reviewId)
+        .eq('buyer_id', profile.id);
+      if (error) {
+        console.error('Error deleting my review:', error.message);
+        return false;
+      }
+      set((state) => ({
+        myReviews: state.myReviews.filter(review => review.id !== reviewId)
+      }));
+      return true;
     },
 
     // Seller Storefront
@@ -2085,11 +2164,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         registries: state.registries.map((r) =>
           r.id === registryId
             ? {
-                ...r,
-                products: (r.products || []).map((p) =>
-                  p.id === tempId ? mapDbToRegistryProduct(data) : p
-                ),
-              }
+              ...r,
+              products: (r.products || []).map((p) =>
+                p.id === tempId ? mapDbToRegistryProduct(data) : p
+              ),
+            }
             : r
         ),
       }));
@@ -2101,13 +2180,13 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         registries: state.registries.map((r) =>
           r.id === registryId
             ? {
-                ...r,
-                products: (r.products || []).map((p) =>
-                  p.id === productId
-                    ? ensureRegistryProductDefaults({ ...p, ...updates })
-                    : p
-                ),
-              }
+              ...r,
+              products: (r.products || []).map((p) =>
+                p.id === productId
+                  ? ensureRegistryProductDefaults({ ...p, ...updates })
+                  : p
+              ),
+            }
             : r
         ),
       }));
