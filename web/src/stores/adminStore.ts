@@ -85,7 +85,7 @@ export interface Seller {
   accountNumber: string;
 
   // Status and Documents
-  status: 'pending' | 'approved' | 'rejected' | 'suspended' | 'needs_resubmission';
+  status: 'pending' | 'approved' | 'rejected' | 'suspended' | 'needs_resubmission' | 'blacklisted';
   documents: SellerDocument[];
   metrics: SellerMetrics;
 
@@ -103,6 +103,15 @@ export interface Seller {
   // Tier information
   tierLevel?: 'standard' | 'premium_outlet';
   bypassesAssessment?: boolean;
+
+  // Reapplication tracking
+  reapplicationAttempts?: number;
+  cooldownCount?: number;
+  tempBlacklistCount?: number;
+  blacklistedAt?: Date;
+  coolDownUntil?: Date;
+  tempBlacklistUntil?: Date;
+  isPermanentlyBlacklisted?: boolean;
 }
 
 export interface SellerDocument {
@@ -193,6 +202,10 @@ const toUiSellerStatus = (
 ): Seller['status'] => {
   if (status === 'verified' || status === 'approved') {
     return 'approved';
+  }
+
+  if (status === 'blacklisted') {
+    return 'blacklisted';
   }
 
   if (status === 'needs_resubmission') {
@@ -915,6 +928,13 @@ export const useAdminSellers = create<SellersState>()(
                 suspensionReason: seller.suspension_reason || undefined,
                 tierLevel: seller.tier?.tier_level || 'standard',
                 bypassesAssessment: seller.tier?.bypasses_assessment || false,
+                reapplicationAttempts: seller.reapplication_attempts || 0,
+                cooldownCount: seller.cooldown_count || 0,
+                tempBlacklistCount: seller.temp_blacklist_count || 0,
+                blacklistedAt: seller.blacklisted_at ? new Date(seller.blacklisted_at) : undefined,
+                coolDownUntil: seller.cool_down_until ? new Date(seller.cool_down_until) : undefined,
+                tempBlacklistUntil: seller.temp_blacklist_until ? new Date(seller.temp_blacklist_until) : undefined,
+                isPermanentlyBlacklisted: seller.is_permanently_blacklisted || false,
               };
             });
 
@@ -1144,10 +1164,24 @@ export const useAdminSellers = create<SellersState>()(
                 approval_status: 'verified',
                 updated_at: nowIso,
                 verified_at: nowIso,
+                reapplication_attempts: 0,
+                cooldown_count: 0,
+                temp_blacklist_count: 0,
+                blacklisted_at: null,
+                cool_down_until: null,
+                temp_blacklist_until: null,
+                is_permanently_blacklisted: false,
               },
               {
                 approval_status: 'approved',
                 updated_at: nowIso,
+                reapplication_attempts: 0,
+                cooldown_count: 0,
+                temp_blacklist_count: 0,
+                blacklisted_at: null,
+                cool_down_until: null,
+                temp_blacklist_until: null,
+                is_permanently_blacklisted: false,
               },
             ];
 
@@ -1190,6 +1224,13 @@ export const useAdminSellers = create<SellersState>()(
                     rejectedAt: undefined,
                     rejectedBy: undefined,
                     rejectionReason: undefined,
+                    reapplicationAttempts: 0,
+                    cooldownCount: 0,
+                    tempBlacklistCount: 0,
+                    blacklistedAt: undefined,
+                    coolDownUntil: undefined,
+                    tempBlacklistUntil: undefined,
+                    isPermanentlyBlacklisted: undefined,
                     documents: seller.documents.map((doc) => ({
                       ...doc,
                       isVerified: true,
@@ -1253,13 +1294,89 @@ export const useAdminSellers = create<SellersState>()(
         const normalizedReason = reason?.trim();
         const rejectionDescription = normalizedReason || 'Your seller verification submission was rejected.';
 
+        // Constants
+        const MAX_REATTEMPTS = 3;
+        const COOLDOWN_DURATION_MS = 60 * 60 * 1000; // 1 hour
+        const MAX_COOLDOWNS = 3;
+        const TEMP_BLACKLIST_DURATION_MS = 24 * 60 * 60 * 1000; // 1 day
+        const MAX_TEMP_BLACKLISTS = 3;
+
+        // Fetch current state from database
+        const { data: sellerData } = await supabase
+          .from('sellers')
+          .select('reapplication_attempts, cooldown_count, temp_blacklist_count, is_permanently_blacklisted, blacklisted_at')
+          .eq('id', id)
+          .single();
+
+        const currentAttempts = sellerData?.reapplication_attempts || 0;
+        const currentCooldownCount = sellerData?.cooldown_count || 0;
+        const currentTempBlacklistCount = sellerData?.temp_blacklist_count || 0;
+        const alreadyPermanentlyBlacklisted =
+          Boolean(sellerData?.is_permanently_blacklisted) || Boolean(sellerData?.blacklisted_at);
+        const existingBlacklistedAt = sellerData?.blacklisted_at || null;
+
+        let newAttempts = currentAttempts + 1;
+        let newCooldownCount = currentCooldownCount;
+        let newTempBlacklistCount = currentTempBlacklistCount;
+        let coolDownUntil: string | null = null;
+        let tempBlacklistUntil: string | null = null;
+        let isBlacklisted = false;
+        let newStatus: 'rejected' | 'blacklisted' = 'rejected';
+
+        if (alreadyPermanentlyBlacklisted) {
+          // Already permanently blacklisted, just update status
+          newStatus = 'blacklisted';
+          newAttempts = currentAttempts;
+          newCooldownCount = currentCooldownCount;
+          newTempBlacklistCount = currentTempBlacklistCount;
+          isBlacklisted = true;
+        } else if (newAttempts >= MAX_REATTEMPTS) {
+          // Reset attempts, increment cooldown count
+          newAttempts = 0;
+          newCooldownCount = currentCooldownCount + 1;
+          
+          if (newCooldownCount >= MAX_COOLDOWNS) {
+            // Trigger temp blacklist
+            newCooldownCount = 0;
+            newTempBlacklistCount = currentTempBlacklistCount + 1;
+            
+            if (newTempBlacklistCount >= MAX_TEMP_BLACKLISTS) {
+              // Permanent blacklist!
+              isBlacklisted = true;
+              newTempBlacklistCount = 0;
+              newAttempts = 0;
+              newCooldownCount = 0;
+            } else {
+              // Temp blacklist for 1 day
+              tempBlacklistUntil = new Date(Date.now() + TEMP_BLACKLIST_DURATION_MS).toISOString();
+              newStatus = 'blacklisted';
+            }
+          } else {
+            // Cooldown for 1 hour
+            coolDownUntil = new Date(Date.now() + COOLDOWN_DURATION_MS).toISOString();
+          }
+        }
+
+        const isTempBlacklisted = Boolean(tempBlacklistUntil);
+        const isPermanentlyBlacklisted = alreadyPermanentlyBlacklisted || isBlacklisted;
+        const blacklistedAtIso = isPermanentlyBlacklisted ? (existingBlacklistedAt || nowIso) : null;
+        const nextApprovalStatus: 'rejected' | 'blacklisted' =
+          isPermanentlyBlacklisted || isTempBlacklisted ? 'blacklisted' : newStatus;
+
         if (isSupabaseConfigured()) {
           try {
             const { error: statusError } = await supabase
               .from('sellers')
               .update({
-                approval_status: 'rejected',
+                approval_status: nextApprovalStatus,
                 updated_at: nowIso,
+                reapplication_attempts: newAttempts,
+                cooldown_count: newCooldownCount,
+                temp_blacklist_count: newTempBlacklistCount,
+                blacklisted_at: blacklistedAtIso,
+                cool_down_until: coolDownUntil,
+                temp_blacklist_until: tempBlacklistUntil,
+                is_permanently_blacklisted: isPermanentlyBlacklisted,
               })
               .eq('id', id);
 
@@ -1295,10 +1412,17 @@ export const useAdminSellers = create<SellersState>()(
                 seller.id === id
                   ? {
                     ...seller,
-                    status: 'rejected' as const,
+                    status: nextApprovalStatus,
                     rejectedAt: now,
                     rejectedBy: adminId,
                     rejectionReason: rejectionDescription,
+                    reapplicationAttempts: newAttempts,
+                    cooldownCount: newCooldownCount,
+                    tempBlacklistCount: newTempBlacklistCount,
+                    blacklistedAt: blacklistedAtIso ? new Date(blacklistedAtIso) : undefined,
+                    coolDownUntil: coolDownUntil ? new Date(coolDownUntil) : undefined,
+                    tempBlacklistUntil: tempBlacklistUntil ? new Date(tempBlacklistUntil) : undefined,
+                    isPermanentlyBlacklisted,
                     documents: seller.documents.map((doc) => ({
                       ...doc,
                       isVerified: false,
@@ -1327,14 +1451,21 @@ export const useAdminSellers = create<SellersState>()(
           const updatedSellers = state.sellers.map(seller =>
             seller.id === id
               ? {
-                ...seller,
-                status: 'rejected' as const,
-                rejectedAt: now,
-                rejectedBy: adminId,
-                rejectionReason: rejectionDescription,
-                documents: seller.documents.map((doc) => ({
-                  ...doc,
-                  isVerified: false,
+                  ...seller,
+                  status: nextApprovalStatus,
+                  rejectedAt: now,
+                  rejectedBy: adminId,
+                  rejectionReason: rejectionDescription,
+                  reapplicationAttempts: newAttempts,
+                  cooldownCount: newCooldownCount,
+                  tempBlacklistCount: newTempBlacklistCount,
+                  blacklistedAt: blacklistedAtIso ? new Date(blacklistedAtIso) : undefined,
+                  coolDownUntil: coolDownUntil ? new Date(coolDownUntil) : undefined,
+                  tempBlacklistUntil: tempBlacklistUntil ? new Date(tempBlacklistUntil) : undefined,
+                  isPermanentlyBlacklisted,
+                  documents: seller.documents.map((doc) => ({
+                    ...doc,
+                    isVerified: false,
                 })),
               }
               : seller
@@ -1371,6 +1502,69 @@ export const useAdminSellers = create<SellersState>()(
         selectedItems.forEach((item) => {
           itemReasons.set(item.documentField, item.reason?.trim() || undefined);
         });
+
+        const MAX_REATTEMPTS = 3;
+        const COOLDOWN_DURATION_MS = 60 * 60 * 1000; // 1 hour
+        const MAX_COOLDOWNS = 3;
+        const TEMP_BLACKLIST_DURATION_MS = 24 * 60 * 60 * 1000; // 1 day
+        const MAX_TEMP_BLACKLISTS = 3;
+
+        // Fetch current state from database
+        const { data: sellerData } = await supabase
+          .from('sellers')
+          .select('reapplication_attempts, cooldown_count, temp_blacklist_count, is_permanently_blacklisted, blacklisted_at')
+          .eq('id', id)
+          .single();
+
+        const currentAttempts = sellerData?.reapplication_attempts || 0;
+        const currentCooldownCount = sellerData?.cooldown_count || 0;
+        const currentTempBlacklistCount = sellerData?.temp_blacklist_count || 0;
+        const alreadyPermanentlyBlacklisted =
+          Boolean(sellerData?.is_permanently_blacklisted) || Boolean(sellerData?.blacklisted_at);
+        const existingBlacklistedAt = sellerData?.blacklisted_at || null;
+
+        let newAttempts = currentAttempts + 1;
+        let newCooldownCount = currentCooldownCount;
+        let newTempBlacklistCount = currentTempBlacklistCount;
+        let coolDownUntil: string | null = null;
+        let tempBlacklistUntil: string | null = null;
+        let isBlacklisted = false;
+        let newStatus: 'needs_resubmission' | 'blacklisted' = 'needs_resubmission';
+
+        if (alreadyPermanentlyBlacklisted) {
+          newStatus = 'blacklisted';
+          newAttempts = currentAttempts;
+          newCooldownCount = currentCooldownCount;
+          newTempBlacklistCount = currentTempBlacklistCount;
+          isBlacklisted = true;
+        } else if (newAttempts >= MAX_REATTEMPTS) {
+          // Reset attempts, increment cooldown count
+          newAttempts = 0;
+          newCooldownCount = currentCooldownCount + 1;
+          
+          if (newCooldownCount >= MAX_COOLDOWNS) {
+            newCooldownCount = 0;
+            newTempBlacklistCount = currentTempBlacklistCount + 1;
+            
+            if (newTempBlacklistCount >= MAX_TEMP_BLACKLISTS) {
+              isBlacklisted = true;
+              newTempBlacklistCount = 0;
+              newAttempts = 0;
+              newCooldownCount = 0;
+            } else {
+              tempBlacklistUntil = new Date(Date.now() + TEMP_BLACKLIST_DURATION_MS).toISOString();
+              newStatus = 'blacklisted';
+            }
+          } else {
+            coolDownUntil = new Date(Date.now() + COOLDOWN_DURATION_MS).toISOString();
+          }
+        }
+
+        const isTempBlacklisted = Boolean(tempBlacklistUntil);
+        const isPermanentlyBlacklisted = alreadyPermanentlyBlacklisted || isBlacklisted;
+        const blacklistedAtIso = isPermanentlyBlacklisted ? (existingBlacklistedAt || nowIso) : null;
+        const nextApprovalStatus: 'needs_resubmission' | 'rejected' | 'blacklisted' =
+          isPermanentlyBlacklisted || isTempBlacklisted ? 'blacklisted' : newStatus;
 
         if (isSupabaseConfigured()) {
           try {
@@ -1409,18 +1603,38 @@ export const useAdminSellers = create<SellersState>()(
               }
             }
 
-            const statusCandidates = [
-              {
-                approval_status: 'needs_resubmission',
-                updated_at: nowIso,
-              },
-              {
-                approval_status: 'rejected',
-                updated_at: nowIso,
-              },
-            ];
+            const statusUpdateBase = {
+              updated_at: nowIso,
+              reapplication_attempts: newAttempts,
+              cooldown_count: newCooldownCount,
+              temp_blacklist_count: newTempBlacklistCount,
+              blacklisted_at: blacklistedAtIso,
+              cool_down_until: coolDownUntil,
+              temp_blacklist_until: tempBlacklistUntil,
+              is_permanently_blacklisted: isPermanentlyBlacklisted,
+            };
 
-            let appliedDbStatus: 'needs_resubmission' | 'rejected' = 'needs_resubmission';
+            const statusCandidates =
+              nextApprovalStatus === 'needs_resubmission'
+                ? [
+                  {
+                    approval_status: 'needs_resubmission',
+                    ...statusUpdateBase,
+                  },
+                  {
+                    approval_status: 'rejected',
+                    ...statusUpdateBase,
+                  },
+                ]
+                : [
+                  {
+                    approval_status: nextApprovalStatus,
+                    ...statusUpdateBase,
+                  },
+                ];
+
+            let appliedDbStatus: 'needs_resubmission' | 'rejected' | 'blacklisted' =
+              nextApprovalStatus;
             let statusUpdateError: any = null;
 
             for (const statusCandidate of statusCandidates) {
@@ -1430,7 +1644,10 @@ export const useAdminSellers = create<SellersState>()(
                 .eq('id', id);
 
               if (!error) {
-                appliedDbStatus = statusCandidate.approval_status as 'needs_resubmission' | 'rejected';
+                appliedDbStatus = statusCandidate.approval_status as
+                  | 'needs_resubmission'
+                  | 'rejected'
+                  | 'blacklisted';
                 statusUpdateError = null;
                 break;
               }
@@ -1464,6 +1681,13 @@ export const useAdminSellers = create<SellersState>()(
                   rejectedAt: now,
                   rejectedBy: adminId,
                   rejectionReason: rejectionDescription,
+                  reapplicationAttempts: newAttempts,
+                  cooldownCount: newCooldownCount,
+                  tempBlacklistCount: newTempBlacklistCount,
+                  blacklistedAt: blacklistedAtIso ? new Date(blacklistedAtIso) : undefined,
+                  coolDownUntil: coolDownUntil ? new Date(coolDownUntil) : undefined,
+                  tempBlacklistUntil: tempBlacklistUntil ? new Date(tempBlacklistUntil) : undefined,
+                  isPermanentlyBlacklisted,
                   documents: seller.documents.map((doc) => {
                     const reason = itemReasons.get(doc.field);
                     const isRejected = selectedFields.has(doc.field);
@@ -1500,10 +1724,17 @@ export const useAdminSellers = create<SellersState>()(
 
             return {
               ...seller,
-              status: 'needs_resubmission' as const,
+              status: nextApprovalStatus === 'blacklisted' ? 'blacklisted' : 'needs_resubmission',
               rejectedAt: now,
               rejectedBy: adminId,
               rejectionReason: rejectionDescription,
+              reapplicationAttempts: newAttempts,
+              cooldownCount: newCooldownCount,
+              tempBlacklistCount: newTempBlacklistCount,
+              blacklistedAt: blacklistedAtIso ? new Date(blacklistedAtIso) : undefined,
+              coolDownUntil: coolDownUntil ? new Date(coolDownUntil) : undefined,
+              tempBlacklistUntil: tempBlacklistUntil ? new Date(tempBlacklistUntil) : undefined,
+              isPermanentlyBlacklisted,
               documents: seller.documents.map((doc) => {
                 const reason = itemReasons.get(doc.field);
                 const isRejected = selectedFields.has(doc.field);

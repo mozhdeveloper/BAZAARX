@@ -6,7 +6,8 @@ export type SellerApprovalStatus =
   | "verified"
   | "rejected"
   | "needs_resubmission"
-  | "suspended";
+  | "suspended"
+  | "blacklisted";
 
 export type SellerAccessContext = {
   isVerified?: boolean | null;
@@ -46,6 +47,7 @@ export function normalizeSellerApprovalStatus(
   if (status === "rejected") return "rejected";
   if (status === "needs_resubmission") return "needs_resubmission";
   if (status === "suspended") return "suspended";
+  if (status === "blacklisted") return "blacklisted";
 
   if (seller.isVerified) return "verified";
 
@@ -56,6 +58,7 @@ export function isSellerApproved(
   seller: SellerAccessContext | null | undefined
 ): boolean {
   const status = normalizeSellerApprovalStatus(seller);
+  if (status === "blacklisted" || status === "suspended") return false;
   return Boolean(seller?.isVerified) || status === "approved" || status === "verified";
 }
 
@@ -66,7 +69,7 @@ export function getSellerAccessTier(
 
   const status = normalizeSellerApprovalStatus(seller);
 
-  if (status === "suspended") return "blocked";
+  if (status === "suspended" || status === "blacklisted") return "blocked";
   if (isSellerApproved(seller)) return "approved";
   return "unverified";
 }
