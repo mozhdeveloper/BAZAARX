@@ -129,19 +129,24 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
     }, []);
   }, []);
 
+  const isVariationInverted = variantLabel1.toLowerCase() === 'size' && variantLabel2.toLowerCase() === 'color';
+
   const option1Values = useMemo(() => {
     const raw = hasStructuredVariants
-      ? [...new Set(variants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
-      : (product.option1Values || product.colors || []);
+      ? [...new Set(variants.map((v: any) => (isVariationInverted ? v.option_2_value : v.option_1_value) || (isVariationInverted ? v.size : v.color)).filter(Boolean))]
+      : (isVariationInverted ? (product.option2Values || product.sizes) : (product.option1Values || product.colors) || []);
     return parseOptions(raw);
-  }, [hasStructuredVariants, variants, product.option1Values, product.colors, parseOptions]);
+  }, [hasStructuredVariants, variants, product, parseOptions, isVariationInverted]);
 
   const option2Values = useMemo(() => {
     const raw = hasStructuredVariants
-      ? [...new Set(variants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
-      : (product.option2Values || product.sizes || []);
+      ? [...new Set(variants.map((v: any) => (isVariationInverted ? v.option_1_value : v.option_2_value) || (isVariationInverted ? v.color : v.size)).filter(Boolean))]
+      : (isVariationInverted ? (product.option1Values || product.colors) : (product.option2Values || product.sizes) || []);
     return parseOptions(raw);
-  }, [hasStructuredVariants, variants, product.option2Values, product.sizes, parseOptions]);
+  }, [hasStructuredVariants, variants, product, parseOptions, isVariationInverted]);
+
+  const finalVariantLabel1 = isVariationInverted ? variantLabel2 : variantLabel1;
+  const finalVariantLabel2 = isVariationInverted ? variantLabel1 : variantLabel2;
 
   const hasOption1 = option1Values.length > 0;
   const hasOption2 = option2Values.length > 0;
@@ -374,14 +379,14 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
             {hasOption1 && (
               <View style={styles.optionSection}>
                 <View style={styles.optionLabelRow}>
-                  <Text style={styles.optionLabel}>{variantLabel1}</Text>
+                  <Text style={styles.optionLabel}>{finalVariantLabel1}</Text>
                   {selectedOption1 && (
                     <Text style={styles.optionLabelValue}> {selectedOption1}</Text>
                   )}
                 </View>
                 <View style={styles.optionGrid}>
                   {option1Values.map((val: string, i: number) => {
-                    const isColor = variantLabel1.toLowerCase() === 'color';
+                    const isColor = finalVariantLabel1.toLowerCase() === 'color';
                     const isSelected = selectedOption1 === val;
                     const isDisabled = isOptionDisabled(1, val);
 
@@ -430,15 +435,35 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
             {hasOption2 && (
               <View style={styles.optionSection}>
                 <View style={styles.optionLabelRow}>
-                  <Text style={styles.optionLabel}>{variantLabel2}</Text>
+                  <Text style={styles.optionLabel}>{finalVariantLabel2}</Text>
                   {selectedOption2 && (
                     <Text style={styles.optionLabelValue}> {selectedOption2}</Text>
                   )}
                 </View>
                 <View style={styles.optionGrid}>
                   {option2Values.map((val: string, i: number) => {
+                    const isColor = finalVariantLabel2.toLowerCase() === 'color';
                     const isSelected = selectedOption2 === val;
                     const isDisabled = isOptionDisabled(2, val);
+
+                    if (isColor) {
+                      return (
+                        <Pressable
+                          key={`op2-${i}`}
+                          onPress={() => !isDisabled && setSelectedOption2(val)}
+                          style={[
+                            styles.colorChip,
+                            { backgroundColor: getColorHex(val) },
+                            isSelected && styles.colorChipSelected,
+                            isDisabled && { opacity: 0.5 },
+                          ]}
+                        >
+                          {isDisabled && (
+                            <View style={styles.colorChipDisabledLine} />
+                          )}
+                        </Pressable>
+                      );
+                    }
 
                     return (
                       <Pressable

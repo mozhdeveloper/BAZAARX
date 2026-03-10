@@ -215,12 +215,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }, []);
   };
 
-  const option1Values = dedupeOptions(parsedOptions1);
-  const option2Values = dedupeOptions(parsedOptions2);
+  const isVariationInverted = variantLabel1.toLowerCase() === 'size' && variantLabel2.toLowerCase() === 'color';
+
+  const option1Values = dedupeOptions(isVariationInverted ? parsedOptions2 : parsedOptions1);
+  const option2Values = dedupeOptions(isVariationInverted ? parsedOptions1 : parsedOptions2);
+
+  const finalVariantLabel1 = isVariationInverted ? variantLabel2 : variantLabel1;
+  const finalVariantLabel2 = isVariationInverted ? variantLabel1 : variantLabel2;
 
   // Legacy aliases for compatibility
-  const productColors = option1Values;
-  const productSizes = option2Values;
+  const productColors = isVariationInverted ? option1Values : option1Values;
+  const productSizes = isVariationInverted ? option2Values : option2Values;
 
   const hasOption1 = option1Values.length > 0;
   const hasOption2 = option2Values.length > 0;
@@ -231,6 +236,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Variant selections
   const [selectedOption1, setSelectedOption1] = useState(hasOption1 ? option1Values[0] : null);
   const [selectedOption2, setSelectedOption2] = useState(hasOption2 ? option2Values[0] : null);
+
+  // Sync state if options change (e.g. after re-fetch)
+  useEffect(() => {
+    if (hasOption1 && !selectedOption1) setSelectedOption1(option1Values[0]);
+    if (hasOption2 && !selectedOption2) setSelectedOption2(option2Values[0]);
+  }, [option1Values, option2Values]);
   // Legacy aliases
   const selectedColor = selectedOption1;
   const selectedSize = selectedOption2;
@@ -1045,47 +1056,61 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           {/* --- VARIANT SELECTION (Restored/Restyled & Repositioned) --- */}
           {hasOption1 && (
             <View style={styles.variantSection}>
-              <Text style={styles.variantLabel}>{variantLabel1}: <Text style={styles.variantSelected}>{selectedOption1}</Text></Text>
+              <Text style={styles.variantLabel}>
+                {finalVariantLabel1}: <Text style={styles.variantSelected}>{selectedOption1}</Text>
+              </Text>
               <View style={styles.colorOptions}>
-                {option1Values.filter((c: string) => c.trim() !== '').map((value: string, index: number) => (
-                  <Pressable
-                    key={`${value}-${index}`}
-                    style={[
-                      styles.colorOption,
-                      { backgroundColor: variantLabel1.toLowerCase() === 'color' ? getColorHex(value) : COLORS.background },
-                      selectedOption1 === value && styles.colorOptionSelected,
-                    ]}
-                    onPress={() => setSelectedOption1(value)}
-                  >
-                    {variantLabel1.toLowerCase() !== 'color' && (
-                      <Text style={[styles.optionText, selectedOption1 === value && { color: BRAND_COLOR }]}>{value}</Text>
-                    )}
-                  </Pressable>
-                ))}
+                {option1Values.filter((c: string) => c.trim() !== '').map((value: string, index: number) => {
+                  const isColor = finalVariantLabel1.toLowerCase() === 'color';
+                  return (
+                    <Pressable
+                      key={`${value}-${index}`}
+                      style={[
+                        styles.colorOption,
+                        { backgroundColor: isColor ? getColorHex(value) : COLORS.background },
+                        selectedOption1 === value && styles.colorOptionSelected,
+                      ]}
+                      onPress={() => setSelectedOption1(value)}
+                    >
+                      {!isColor && (
+                        <Text style={[styles.optionText, selectedOption1 === value && { color: BRAND_COLOR }]}>
+                          {value}
+                        </Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
           )}
 
           {hasOption2 && (
             <View style={styles.variantSection}>
-              <Text style={styles.variantLabel}>{variantLabel2}: <Text style={styles.variantSelected}>{selectedOption2}</Text></Text>
+              <Text style={styles.variantLabel}>
+                {finalVariantLabel2}: <Text style={styles.variantSelected}>{selectedOption2}</Text>
+              </Text>
               <View style={styles.sizeOptions}>
-                {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => (
-                  <Pressable
-                    key={`${value}-${index}`}
-                    style={[
-                      styles.sizeOption,
-                      selectedOption2 === value && styles.sizeOptionSelected,
-                    ]}
-                    onPress={() => setSelectedOption2(value)}
-                  >
-                    <Text style={[
-                      styles.sizeOptionText,
-                      selectedOption2 === value && styles.sizeOptionTextSelected,
-
-                    ]}>{value}</Text>
-                  </Pressable>
-                ))}
+                {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => {
+                  const isColor = finalVariantLabel2.toLowerCase() === 'color';
+                  return (
+                    <Pressable
+                      key={`${value}-${index}`}
+                      style={[
+                        isColor ? styles.colorOption : styles.sizeOption,
+                        isColor ? { backgroundColor: getColorHex(value) } : null,
+                        selectedOption2 === value && (isColor ? styles.colorOptionSelected : styles.sizeOptionSelected),
+                      ]}
+                      onPress={() => setSelectedOption2(value)}
+                    >
+                      {!isColor && (
+                        <Text style={[
+                          styles.sizeOptionText,
+                          selectedOption2 === value && styles.sizeOptionTextSelected,
+                        ]}>{value}</Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
           )}
