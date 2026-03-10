@@ -62,7 +62,7 @@ export interface OrderTrackingSnapshot {
 }
 
 // Legacy status mapping to new payment_status + shipment_status
-// NOTE: Payment status is now decoupled from shipment status. 
+// NOTE: Payment status is now decoupled from shipment status.
 // Only explicit payment-related status changes should update payment_status.
 // Shipment status changes (shipped, delivered, etc.) should NOT auto-update payment_status.
 const LEGACY_STATUS_MAP: Record<
@@ -1538,7 +1538,7 @@ export class OrderService {
                 shipment_status: newStatuses.shipment_status,
                 updated_at: new Date().toISOString(),
             };
-            
+
             // Only update payment_status if it's explicitly provided (not null)
             if (newStatuses.payment_status !== null) {
                 updatePayload.payment_status = newStatuses.payment_status;
@@ -1563,6 +1563,31 @@ export class OrderService {
                 });
 
             if (historyError) throw historyError;
+
+            // When a seller cancels an order, resolve any associated return requests
+            if (status === "cancelled" && userRole === "seller") {
+                const now = new Date().toISOString();
+                // Reject any open/in-progress returns
+                await supabase
+                    .from("refund_return_periods")
+                    .update({
+                        status: "rejected",
+                        is_returnable: false,
+                        rejected_reason: "Order cancelled by seller",
+                        resolved_at: now,
+                        resolved_by: "seller",
+                    })
+                    .eq("order_id", orderId)
+                    .in("status", ["pending", "seller_review", "counter_offered", "escalated"])
+                    .is("resolved_by", null);
+                // Attribute any already-closed returns that are missing a resolver
+                await supabase
+                    .from("refund_return_periods")
+                    .update({ resolved_by: "seller", resolved_at: now })
+                    .eq("order_id", orderId)
+                    .in("status", ["approved", "refunded", "return_in_transit", "return_received", "rejected"])
+                    .is("resolved_by", null);
+            }
 
             const sellerId =
                 userRole === "seller" && userId
@@ -2070,6 +2095,7 @@ export class OrderService {
             comment: string;
             images?: string[];
             imageFiles?: File[];
+            isAnonymous?: boolean;
         }>
     ): Promise<boolean> {
         if (!orderId || !buyerId) {
@@ -2147,9 +2173,9 @@ export class OrderService {
             let successCount = 0;
 
             for (const reviewData of reviews) {
-                const { productId, rating, comment, images, imageFiles } = reviewData;
+                const { productId, rating, comment, images, imageFiles, isAnonymous } = reviewData;
 
-                if (rating < 1 || rating > 5) continue; 
+                if (rating < 1 || rating > 5) continue;
 
                 const orderItem = orderItems.find((item: any) => item.product_id === productId);
                 if (!orderItem) continue;
@@ -2160,9 +2186,9 @@ export class OrderService {
                 }
 
                 // Basic snapshot for the schema constraint
-                const variantSnapshot = { 
-                    product_id: productId, 
-                    variant_id: orderItem.variant_id 
+                const variantSnapshot = {
+                    product_id: productId,
+                    variant_id: orderItem.variant_id
                 };
 
                 const reviewPayload: Database["public"]["Tables"]["reviews"]["Insert"] = {
@@ -2176,7 +2202,7 @@ export class OrderService {
                     is_verified_purchase: true,
                     helpful_count: 0,
                     seller_reply: null,
-                    is_hidden: false,
+                    is_hidden: isAnonymous ?? false,
                     is_edited: false,
                 };
 
@@ -2221,9 +2247,9 @@ export class OrderService {
             }
 
             if (successCount === 0 && reviews.length > 0) {
-                const allReviewed = reviews.every(r => 
-                    reviewedProductIds.has(r.productId) || 
-                    orderItems.find((i:any) => i.product_id === r.productId && reviewedOrderItemIds.has(i.id))
+                const allReviewed = reviews.every(r =>
+                    reviewedProductIds.has(r.productId) ||
+                    orderItems.find((i: any) => i.product_id === r.productId && reviewedOrderItemIds.has(i.id))
                 );
                 if (!allReviewed) return false;
             }
@@ -2234,7 +2260,7 @@ export class OrderService {
             console.error("Error submitting review:", error);
             // This ensures the EXACT specific error bubbles up to the frontend UI!
             if (error instanceof Error) {
-                throw error; 
+                throw error;
             }
             throw new Error("Failed to submit review");
         }

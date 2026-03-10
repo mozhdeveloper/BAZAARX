@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { Input } from "../components/ui/input";
 import { jsPDF } from 'jspdf';
 import {
   ChevronLeft,
@@ -349,23 +350,23 @@ export default function OrderDetailPage() {
     },
     ...(isReturned
       ? [
-          {
-            status: "returned",
-            label: "Return/Refund Requested",
-            completed: true,
-            date: order.returnRequest?.submittedAt || null,
-          },
-        ]
+        {
+          status: "returned",
+          label: "Return/Refund Requested",
+          completed: true,
+          date: order.returnRequest?.submittedAt || null,
+        },
+      ]
       : []),
     ...(isCancelled
       ? [
-          {
-            status: "cancelled",
-            label: "Order Cancelled",
-            completed: true,
-            date: order.cancelledAt || null,
-          },
-        ]
+        {
+          status: "cancelled",
+          label: "Order Cancelled",
+          completed: true,
+          date: order.cancelledAt || null,
+        },
+      ]
       : []),
   ];
 

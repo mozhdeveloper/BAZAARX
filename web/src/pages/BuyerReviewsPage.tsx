@@ -15,7 +15,8 @@ import {
   Trash2,
   Image as ImageIcon,
   Filter,
-  ChevronLeft
+  ChevronLeft,
+  Eye
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useBuyerStore } from '@/stores/buyerStore';
@@ -382,6 +383,12 @@ export default function BuyerReviewsPage() {
                           >
                             {!review.is_hidden ? 'Published' : 'Hidden'}
                           </Badge>
+                          {review.is_hidden && (
+                            <Badge className="bg-gray-200 text-gray-700 flex items-center gap-1">
+                              <Eye className="w-4 h-4 text-gray-500" />
+                              Anonymous
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>

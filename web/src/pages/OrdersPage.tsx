@@ -323,7 +323,7 @@ export default function OrdersPage() {
       if (order && order.returnRequest) {
         setViewReturnDetails(order);
         setStatusFilter("returned");
-        
+
         // Clear params to avoid re-opening on manual tab switch
         setSearchParams(prev => {
           prev.delete("viewOrder");
@@ -346,9 +346,9 @@ export default function OrdersPage() {
     { value: "reviewed", label: "Reviewed" },
   ];
 
-  /* 
-     Helper: we need to handle mapping DB statuses (processing, ready_to_ship) to UI statuses (confirmed) 
-     if the DB uses different strings. 
+  /*
+     Helper: we need to handle mapping DB statuses (processing, ready_to_ship) to UI statuses (confirmed)
+     if the DB uses different strings.
      Database.types.ts says: pending_payment, paid, processing, ready_to_ship, shipped...
      UI statuses seem to be: pending, confirmed, shipped, delivered, cancelled.
   */
@@ -367,8 +367,8 @@ export default function OrdersPage() {
     return `${orderId}-${itemId}-${variantId}-${index}`;
   };
 
-  const filteredOrders = useMemo(() => orders
-    .filter((order) => {
+  const filteredOrders = useMemo(() => {
+    const filtered = orders.filter((order) => {
       const matchesSearch =
         order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         order.items.some(
@@ -381,9 +381,21 @@ export default function OrdersPage() {
         statusFilter === "all" || order.status === statusFilter;
 
       return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt)),
-  [orders, searchQuery, statusFilter]); // Sort newest first
+    });
+
+    console.log("Filtered Orders:", filtered);
+
+    // If viewing reviewed tab, sort by review.submittedAt desc
+    if (statusFilter === "reviewed") {
+      return filtered.sort((a, b) => {
+        const aTime = a.review?.submittedAt ? new Date(a.review.submittedAt).getTime() : getTimestamp(a.createdAt);
+        const bTime = b.review?.submittedAt ? new Date(b.review.submittedAt).getTime() : getTimestamp(b.createdAt);
+        return bTime - aTime;
+      });
+    }
+    // Otherwise, sort by createdAt desc
+    return filtered.sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
+  }, [orders, searchQuery, statusFilter]);
 
   const formatDate = (date: Date | string) => {
     const dateObj = date instanceof Date ? date : new Date(date);
@@ -837,7 +849,7 @@ export default function OrdersPage() {
                                   // Navigate to the first product's detail page
                                   const firstItem = order.items[0];
                                   const productId = (firstItem as any).productId || firstItem.id;
-                                  
+
                                   if (!productId) {
                                     toast({
                                       title: "Cannot buy again",
@@ -1201,15 +1213,14 @@ export default function OrdersPage() {
                         <span className="text-sm font-medium text-gray-700">
                           Status:
                         </span>
-                        <p className={`font-medium ${
-                          ['approved', 'refunded'].includes(viewReturnDetails.returnRequest.status) 
-                            ? 'text-green-600' 
-                            : viewReturnDetails.returnRequest.status === 'rejected'
+                        <p className={`font-medium ${['approved', 'refunded'].includes(viewReturnDetails.returnRequest.status)
+                          ? 'text-green-600'
+                          : viewReturnDetails.returnRequest.status === 'rejected'
                             ? 'text-red-600'
                             : viewReturnDetails.returnRequest.status === 'escalated'
-                            ? 'text-purple-600'
-                            : 'text-orange-600'
-                        }`}>
+                              ? 'text-purple-600'
+                              : 'text-orange-600'
+                          }`}>
                           {(() => {
                             const s = viewReturnDetails.returnRequest.status;
                             if (s === 'approved') return 'Approved';
@@ -1566,7 +1577,7 @@ export default function OrdersPage() {
                   Confirm Order Received
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Have you received your order <span className="font-semibold">{orderToConfirmReceived.orderNumber || orderToConfirmReceived.id}</span>? 
+                  Have you received your order <span className="font-semibold">{orderToConfirmReceived.orderNumber || orderToConfirmReceived.id}</span>?
                   This will confirm that the package was delivered to you.
                 </p>
                 <p className="text-sm text-amber-600 mb-6">

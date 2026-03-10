@@ -95,9 +95,14 @@ export const mergeBuyerOrdersWithReturnRequests = (
       return order;
     }
 
+    console.log('request is seller cancelled:', request);
+
+    // If the return request was cancelled by the seller, move to Cancelled tab
+    const isSellerCancelled =
+      request.status === 'rejected' && request.resolvedBy === 'seller';
     return {
       ...order,
-      status: 'returned',
+      status: isSellerCancelled ? 'cancelled' : 'returned',
       returnRequest: mapDbReturnRequestToBuyerReturnRequest(request, order.total),
     };
   });

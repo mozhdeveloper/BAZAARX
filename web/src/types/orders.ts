@@ -144,7 +144,7 @@ export interface SellerOrderSnapshot {
   buyerEmail: string;
   items: SellerOrderItemSnapshot[];
   total: number;
-  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled" | "returned" | "reviewed";
   paymentStatus: "pending" | "paid" | "refunded";
   paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online";
   orderDate: string;
