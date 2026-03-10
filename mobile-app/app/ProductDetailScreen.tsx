@@ -573,12 +573,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const handleVariantModalConfirm = () => {
     // Validate that required variants are selected
     if (hasOption1 && !modalSelectedOption1) {
-      Alert.alert(`Select ${variantLabel1}`, `Please select a ${variantLabel1.toLowerCase()} before continuing`);
+      Alert.alert(`Select ${finalVariantLabel1}`, `Please select a ${finalVariantLabel1.toLowerCase()} before continuing`);
       return;
     }
 
     if (hasOption2 && !modalSelectedOption2) {
-      Alert.alert(`Select ${variantLabel2}`, `Please select a ${variantLabel2.toLowerCase()} before continuing`);
+      Alert.alert(`Select ${finalVariantLabel2}`, `Please select a ${finalVariantLabel2.toLowerCase()} before continuing`);
       return;
     }
 
