@@ -112,6 +112,7 @@ const AdminAnnouncementsPage = lazy(() => import("./pages/AdminAnnouncementsPage
 
 // QA Team pages
 const QADashboard = lazy(() => import("./pages/QADashboard"));
+const AdminQADashboard = lazy(() => import("./pages/AdminQADashboard"));
 
 function App() {
   return (
@@ -527,7 +528,8 @@ function App() {
             <Route path="/admin/tickets" element={<AdminTickets />} />
             <Route path="/admin/trusted-brands" element={<AdminTrustedBrands />} />
             <Route path="admin/announcements" element={<AdminAnnouncementsPage />} />
-            <Route path="/admin/qa-dashboard" element={<QADashboard />} />
+            <Route path="/admin/product-approvals" element={<QADashboard />} />
+            <Route path="/admin/qa-dashboard" element={<AdminQADashboard />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
