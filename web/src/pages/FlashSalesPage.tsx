@@ -92,8 +92,8 @@ export default function FlashSalesPage() {
             <main className="flex-1 w-full relative z-10 pt-8 pb-20">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex mb-4">
-                        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 hover:text-[var(--brand-primary)] bg-transparent px-0 font-medium text-sm">
-                            <ChevronLeft className="w-4 h-4" /> Back
+                        <button onClick={() => navigate('/shop')} className="flex items-center gap-2 text-gray-500 hover:text-[var(--brand-primary)] bg-transparent px-0 font-medium text-sm">
+                            <ChevronLeft className="w-4 h-4" /> Back to Shop
                         </button>
                     </div>
 
