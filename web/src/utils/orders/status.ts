@@ -57,7 +57,7 @@ export const mapNormalizedToBuyerUiStatus = (
     return hasCancellationRecord ? "cancelled" : "returned";
   }
 
-  if (paymentStatus === "refunded" || paymentStatus === "partially_refunded" || paymentStatus === "cancelled") {
+  if (paymentStatus === "refunded" || paymentStatus === "partially_refunded") {
     return hasCancellationRecord ? "cancelled" : "returned";
   }
 

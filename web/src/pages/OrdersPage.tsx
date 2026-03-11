@@ -4,23 +4,17 @@ import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   Package,
   Clock,
-  Truck,
   CheckCircle,
   XCircle,
   Eye,
   Search,
-  Filter,
-  Calendar,
   MapPin,
   Star,
   ChevronLeft,
-  ArrowLeft,
   RotateCcw,
   X,
-  ShoppingBag,
   Store,
   ChevronRight,
-  Bell,
   PackageCheck,
 } from "lucide-react";
 import { useCartStore } from "../stores/cartStore";
@@ -50,7 +44,7 @@ export default function OrdersPage() {
   const location = useLocation();
   const { orders, updateOrderStatus, updateOrderWithReturnRequest, hydrateBuyerOrders } =
     useCartStore();
-  const { profile, initializeCart } = useBuyerStore();
+  const { profile } = useBuyerStore();
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -214,7 +208,7 @@ export default function OrdersPage() {
         duration: 1000,
       });
 
-      void loadBuyerOrders();
+      await loadBuyerOrders();
     } catch (e) {
       console.error("Error canceling order:", e);
       toast({
@@ -383,17 +377,19 @@ export default function OrdersPage() {
       return matchesSearch && matchesStatus;
     });
 
-    // Log all cancelled orders
-    const cancelledOrders = orders.filter(order => order.status === "cancelled");
-    console.log("Cancelled Orders:", cancelledOrders);
-
-    console.log("Filtered Orders:", filtered);
-
     // If viewing reviewed tab, sort by review.submittedAt desc
     if (statusFilter === "reviewed") {
       return filtered.sort((a, b) => {
         const aTime = a.review?.submittedAt ? new Date(a.review.submittedAt).getTime() : getTimestamp(a.createdAt);
         const bTime = b.review?.submittedAt ? new Date(b.review.submittedAt).getTime() : getTimestamp(b.createdAt);
+        return bTime - aTime;
+      });
+    }
+    // If viewing cancelled tab, sort by cancelledAt desc (fallback to createdAt)
+    if (statusFilter === "cancelled") {
+      return filtered.sort((a, b) => {
+        const aTime = a.cancelledAt ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
+        const bTime = b.cancelledAt ? getTimestamp(b.cancelledAt) : getTimestamp(b.createdAt);
         return bTime - aTime;
       });
     }
@@ -424,8 +420,6 @@ export default function OrdersPage() {
   const selectedOrderData = selectedOrder
     ? orders.find((o) => o.id === selectedOrder)
     : null;
-
-  // Always show orders page with sample orders - users should see this immediately
 
   return (
     <div className="min-h-screen bg-[var(--brand-wash)]">
