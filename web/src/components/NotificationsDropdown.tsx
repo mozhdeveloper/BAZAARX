@@ -24,7 +24,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useCartStore } from "@/stores/cartStore";
 import { OrderNotification } from "@/stores/cartStore";
-import { getCurrentUser, isSupabaseConfigured } from "@/lib/supabase";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { useBuyerStore } from "@/stores/buyerStore";
 import {
   notificationService,
   type Notification as DbNotification,
@@ -94,27 +95,11 @@ function getTimeAgo(timestamp: Date): string {
 export function NotificationsDropdown() {
   const navigate = useNavigate();
   const { notifications, markNotificationRead } = useCartStore();
+  const { profile } = useBuyerStore();
+  const buyerId = profile?.id ?? null;
   const [open, setOpen] = useState(false);
   const [dbNotifications, setDbNotifications] = useState<DbNotification[]>([]);
   const [dbLoading, setDbLoading] = useState(false);
-  const [buyerId, setBuyerId] = useState<string | null>(null);
-
-  // Initialize buyer ID on mount
-  useEffect(() => {
-    let mounted = true;
-    async function initBuyerId() {
-      try {
-        const user = await getCurrentUser();
-        if (mounted && user?.id) {
-          setBuyerId(user.id);
-        }
-      } catch (e) {
-        console.error("Failed to get user", e);
-      }
-    }
-    initBuyerId();
-    return () => { mounted = false; };
-  }, []);
 
   // Fetch notifications
   useEffect(() => {
@@ -135,13 +120,21 @@ export function NotificationsDropdown() {
 
     loadNotifications();
 
-    // Poll for updates if open
+    // Real-time subscription — updates badge immediately without opening dropdown
+    const unsub = notificationService.subscribeToNotifications(
+      buyerId ?? '',
+      'buyer',
+      () => { loadNotifications(); }
+    );
+
+    // Refresh polling when dropdown is open
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     if (open) {
       pollInterval = setInterval(loadNotifications, 15000);
     }
     return () => {
       mounted = false;
+      unsub();
       if (pollInterval) clearInterval(pollInterval);
     };
   }, [buyerId, open]);

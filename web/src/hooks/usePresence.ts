@@ -10,25 +10,26 @@ export function usePresence() {
   const buyerProfile = useBuyerStore((state) => state.profile);
   const sellerProfile = useAuthStore((state) => state.seller);
   const userId = buyerProfile?.id || sellerProfile?.id;
+  const userType: 'buyer' | 'seller' = buyerProfile?.id ? 'buyer' : 'seller';
 
   useEffect(() => {
     if (!userId) return;
 
     // 1. Mark online immediately when they log in or load the page
-    chatService.updateUserPresence(userId, 'online', 'web');
+    chatService.updateUserPresence(userId, 'online', userType);
 
     // 2. Listen for tab switching (minimizing browser, switching tabs)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        chatService.updateUserPresence(userId, 'online', 'web');
+        chatService.updateUserPresence(userId, 'online', userType);
       } else {
-        chatService.updateUserPresence(userId, 'offline', 'web');
+        chatService.updateUserPresence(userId, 'offline', userType);
       }
     };
 
     // 3. Listen for closing the tab entirely
     const handleBeforeUnload = () => {
-      chatService.updateUserPresence(userId, 'offline', 'web');
+      chatService.updateUserPresence(userId, 'offline', userType);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -39,7 +40,7 @@ export function usePresence() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       
       // Cleanup: mark offline if the component unmounts (e.g. they log out)
-      chatService.updateUserPresence(userId, 'offline', 'web');
+      chatService.updateUserPresence(userId, 'offline', userType);
     };
   }, [userId]);
 }

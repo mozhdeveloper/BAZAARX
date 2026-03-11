@@ -796,6 +796,46 @@ export class NotificationService {
       console.error('[NotificationService] registerPushToken exception:', err);
     }
   }
+
+  /**
+   * Subscribe to real-time notifications for live badge count updates.
+   * Returns an unsubscribe function. Call it on component unmount.
+   */
+  subscribeToNotifications(
+    userId: string,
+    userType: 'buyer' | 'seller' | 'admin',
+    onNewNotification: (notification: any) => void
+  ): () => void {
+    if (!isSupabaseConfigured() || !userId) return () => {};
+
+    const tableName = this.getTableName(userType);
+    const userIdColumn = this.getUserIdColumn(userType);
+    const channelName = `${tableName}_${userId}_web`;
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: tableName,
+          filter: `${userIdColumn}=eq.${userId}`,
+        },
+        (payload) => {
+          onNewNotification(payload.new);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('[NotificationService] Realtime channel error for', channelName);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }
 }
 
 export const notificationService = NotificationService.getInstance();

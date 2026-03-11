@@ -134,16 +134,12 @@ class NotificationService {
       const table = getNotificationTable(userType);
       const userIdColumn = getUserIdColumn(userType);
       
-      let query = supabase
+      const { data, error } = await supabase
         .from(table)
         .select('*')
         .eq(userIdColumn, userId)
         .order('created_at', { ascending: false })
         .limit(limit);
-      
-      query = query.eq(userIdColumn, userId);
-      
-      const { data, error } = await query;
 
       if (error) {
         // Log the specific error message from Supabase/Postgres
@@ -202,14 +198,13 @@ class NotificationService {
       const table = getNotificationTable(userType);
       const userIdColumn = getUserIdColumn(userType);
       
-      let query = supabase
+      const { error: updateError } = await supabase
         .from(table)
         .update({ read_at: new Date().toISOString() })
+        .eq(userIdColumn, userId)
         .is('read_at', null);
-      
-      query = query.eq(userIdColumn, userId);
-      
-      await query;
+
+      if (updateError) throw updateError;
     } catch (error) {
       console.error('[NotificationService] Error marking all as read:', error);
     }
@@ -615,7 +610,11 @@ class NotificationService {
           onNewNotification(payload.new);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`[NotificationService] Realtime subscription ${status} for ${channelName}`);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

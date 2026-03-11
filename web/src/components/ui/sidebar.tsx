@@ -215,7 +215,7 @@ export const SidebarLink = ({
         {/* Count pill when expanded */}
         {showBadge && (
           <span className="min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none flex-shrink-0">
-            {badge > 99 ? "99+" : badge}
+            {badge > 9 ? "9+" : badge}
           </span>
         )}
       </motion.span>

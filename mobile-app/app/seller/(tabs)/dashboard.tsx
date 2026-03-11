@@ -370,7 +370,7 @@ export default function SellerDashboardScreen() {
       <Pressable style={styles.floatingMessageButton} onPress={() => navigation.navigate('Messages')}>
         <MessageCircle size={28} color="#FFF" />
         {unreadMessagesCount > 0 && (
-          <View style={styles.messageBadge}><Text style={styles.messageBadgeText}>{unreadMessagesCount}</Text></View>
+          <View style={styles.messageBadge}><Text style={styles.messageBadgeText}>{unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}</Text></View>
         )}
       </Pressable>
 
