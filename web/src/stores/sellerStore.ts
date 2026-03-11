@@ -68,6 +68,7 @@ interface Seller {
     totalSales: number;
     joinDate: string;
     avatar?: string;
+    banner?: string;
 
     latestRejection?: {
         description?: string;
@@ -455,6 +456,7 @@ const mapDbSellerToSeller = (s: any): Seller => {
             s.created_at ||
             new Date().toISOString().split("T")[0],
         avatar: getSafeImageUrl(s.avatar_url),
+        banner: s.store_banner_url || undefined,
     };
 };
 
