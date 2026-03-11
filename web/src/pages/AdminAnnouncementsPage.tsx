@@ -149,16 +149,16 @@ export const announcementService = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const TYPE_META: Record<AnnouncementType, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  info:        { label: 'Info',        color: 'text-blue-700',   bg: 'bg-blue-100',   icon: <Info className="w-4 h-4" /> },
-  promo:       { label: 'Promo',       color: 'text-green-700',  bg: 'bg-green-100',  icon: <Tag className="w-4 h-4" /> },
-  urgent:      { label: 'Urgent',      color: 'text-red-700',    bg: 'bg-red-100',    icon: <AlertTriangle className="w-4 h-4" /> },
+  info: { label: 'Info', color: 'text-blue-700', bg: 'bg-blue-100', icon: <Info className="w-4 h-4" /> },
+  promo: { label: 'Promo', color: 'text-green-700', bg: 'bg-green-100', icon: <Tag className="w-4 h-4" /> },
+  urgent: { label: 'Urgent', color: 'text-red-700', bg: 'bg-red-100', icon: <AlertTriangle className="w-4 h-4" /> },
   maintenance: { label: 'Maintenance', color: 'text-yellow-700', bg: 'bg-yellow-100', icon: <Wrench className="w-4 h-4" /> },
 };
 
 const AUD_META: Record<AnnouncementAudience, { label: string; icon: React.ReactNode }> = {
-  all:     { label: 'Everyone',  icon: <Bell className="w-3.5 h-3.5" /> },
-  buyers:  { label: 'Buyers',   icon: <ShoppingBag className="w-3.5 h-3.5" /> },
-  sellers: { label: 'Sellers',  icon: <Users className="w-3.5 h-3.5" /> },
+  all: { label: 'Everyone', icon: <Bell className="w-3.5 h-3.5" /> },
+  buyers: { label: 'Buyers', icon: <ShoppingBag className="w-3.5 h-3.5" /> },
+  sellers: { label: 'Sellers', icon: <Users className="w-3.5 h-3.5" /> },
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -276,8 +276,8 @@ const AdminAnnouncementsPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <Megaphone className="w-6 h-6 text-orange-500" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Announcements</h1>
-              <p className="text-sm text-gray-500">Send platform-wide notifications to buyers and sellers</p>
+              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Announcements</h1>
+              <p className="text-[var(--text-muted)]">Send platform-wide notifications to buyers and sellers</p>
             </div>
           </div>
           <button

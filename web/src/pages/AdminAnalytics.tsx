@@ -54,11 +54,11 @@ const AdminAnalytics: React.FC = () => {
   ];
 
   const categoryData = [
-    { name: 'Electronics', value: 35, color: '#FF6A00' },
-    { name: 'Fashion', value: 25, color: '#FF8533' },
-    { name: 'Home & Garden', value: 20, color: '#FFA366' },
-    { name: 'Books', value: 12, color: '#FFBC80' },
-    { name: 'Others', value: 8, color: '#FFD4A6' }
+    { name: 'Electronics', value: 35, color: '#D97706' },
+    { name: 'Fashion', value: 25, color: '#E58C1A' },
+    { name: 'Home & Garden', value: 20, color: '#F5DDB0' },
+    { name: 'Books', value: 12, color: '#EDD9A3' },
+    { name: 'Others', value: 8, color: '#FDE8C8' }
   ];
 
   const topProductsData = [
@@ -114,10 +114,10 @@ const AdminAnalytics: React.FC = () => {
           <div className="max-w-7xl mx-auto px-8 py-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
-                <p className="text-gray-600 mt-1">Comprehensive platform insights and metrics</p>
+                <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Analytics Dashboard</h1>
+                <p className="text-[var(--text-muted)]">Comprehensive platform insights and metrics</p>
               </div>
-              <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500">
+              <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--brand-primary)]">
                 <option>Last 30 days</option>
                 <option>Last 90 days</option>
                 <option>Last year</option>
@@ -138,20 +138,20 @@ const AdminAnalytics: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-100 transition-colors"></div>
+                  <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[var(--brand-accent-light)]/50 to-[var(--brand-primary)]/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
                     <CardContent className="p-6 relative z-10">
                       <div className="flex flex-col">
                         <div className="mb-4">
-                          <stat.icon className={`h-5 w-5 text-gray-500 group-hover:text-orange-600 transition-colors`} />
+                          <stat.icon className={`h-5 w-5 text-gray-500 group-hover:text-[var(--brand-accent)] transition-colors`} />
                         </div>
-                        
+
                         <div className="space-y-1">
                           <p className="text-sm font-medium text-gray-400">
                             {stat.title}
                           </p>
                           <div className="flex items-end gap-3 mt-1">
-                            <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-orange-600">
+                            <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">
                               {stat.value}
                             </p>
                             <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 ${stat.isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
@@ -183,8 +183,8 @@ const AdminAnalytics: React.FC = () => {
                     <AreaChart data={revenueData}>
                       <defs>
                         <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#FF6A00" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#FF6A00" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#D97706" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#D97706" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -195,7 +195,7 @@ const AdminAnalytics: React.FC = () => {
                       <Area
                         type="monotone"
                         dataKey="revenue"
-                        stroke="#FF6A00"
+                        stroke="#D97706"
                         fillOpacity={1}
                         fill="url(#colorRevenue)"
                         name="Revenue (₱)"
@@ -247,8 +247,8 @@ const AdminAnalytics: React.FC = () => {
                     <YAxis stroke="#888" />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="sales" fill="#FF6A00" name="Units Sold" />
-                    <Bar dataKey="revenue" fill="#FFA366" name="Revenue (₱)" />
+                    <Bar dataKey="sales" fill="#D97706" name="Units Sold" />
+                    <Bar dataKey="revenue" fill="#E58C1A" name="Revenue (₱)" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>

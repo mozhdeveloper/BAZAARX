@@ -101,8 +101,8 @@ const AdminPayouts: React.FC = () => {
         <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Payout Management</h1>
-              <p className="text-gray-500 mt-1">Process and track seller payouts</p>
+              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Payout Management</h1>
+              <p className="text-[var(--text-muted)]">Process and track seller payouts</p>
             </div>
             <div className="flex gap-3">
               <Button variant="outline" className="flex items-center gap-2">
@@ -117,7 +117,7 @@ const AdminPayouts: React.FC = () => {
           </div>
 
           {/* Filters */}
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
+          <div className="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
             <div className="relative flex-1 w-full sm:max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
@@ -146,7 +146,7 @@ const AdminPayouts: React.FC = () => {
           </div>
 
           {/* Payouts Table */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-200">

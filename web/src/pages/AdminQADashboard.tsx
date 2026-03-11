@@ -53,6 +53,7 @@ const AdminQADashboard = () => {
         assignedToMe: 0,
     });
     const [isLoading, setIsLoading] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<QATab>('digital');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProduct, setSelectedProduct] = useState<QAAssessmentItem | null>(null);
@@ -127,8 +128,8 @@ const AdminQADashboard = () => {
     };
 
     return (
-        <div className="flex min-h-screen bg-gray-50/50">
-            <AdminSidebar />
+        <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
+            <AdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
             <main className="flex-1 p-6 lg:p-8 overflow-auto">
                 <div className="max-w-[1600px] mx-auto">
                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-4 border-b border-gray-200">

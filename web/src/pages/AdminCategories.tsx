@@ -46,7 +46,15 @@ import {
   ImageIcon,
   Hash,
   LayoutGrid,
+  MoreVertical,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 function generateSlug(name: string): string {
@@ -101,6 +109,7 @@ const AdminCategories: React.FC = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'display' | 'alphabetical'>('display');
   const [formData, setFormData] = useState<FormData>({ ...EMPTY_FORM });
   const [autoSlug, setAutoSlug] = useState(true);
   const [formError, setFormError] = useState('');
@@ -131,15 +140,28 @@ const AdminCategories: React.FC = () => {
 
   // ── Filtered list (memoized) ───────────────────────────────────────
   const filteredCategories = useMemo(() => {
-    if (!searchTerm.trim()) return categories;
-    const q = searchTerm.toLowerCase();
-    return categories.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.description.toLowerCase().includes(q) ||
-        c.slug.toLowerCase().includes(q)
-    );
-  }, [categories, searchTerm]);
+    let result = [...categories];
+
+    // Filtering
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.description.toLowerCase().includes(q) ||
+          c.slug.toLowerCase().includes(q)
+      );
+    }
+
+    // Sorting
+    if (sortBy === 'display') {
+      result.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    } else {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return result;
+  }, [categories, searchTerm, sortBy]);
 
   // ── Parent options (exclude self when editing) ─────────────────────
   const parentOptions = useMemo(() => {
@@ -212,6 +234,7 @@ const AdminCategories: React.FC = () => {
         slug: formData.slug.trim(),
         sortOrder: formData.sortOrder,
         parentId: formData.parentId || undefined,
+        isActive: true,
       });
       setShowAddDialog(false);
       resetForm();
@@ -268,7 +291,7 @@ const AdminCategories: React.FC = () => {
         <AdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <div className="w-8 h-8 border-4 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <p className="text-gray-600">Loading categories…</p>
           </div>
         </div>
@@ -390,7 +413,7 @@ const AdminCategories: React.FC = () => {
               setFormData((prev) => ({ ...prev, parentId: val === 'none' ? '' : val }))
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="focus:ring-0">
               <SelectValue placeholder="None (top-level)" />
             </SelectTrigger>
             <SelectContent>
@@ -441,48 +464,59 @@ const AdminCategories: React.FC = () => {
       <main className="flex-1 overflow-auto">
         <div className="max-w-7xl mx-auto px-6 md:px-8 py-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-1">Categories</h1>
-              <p className="text-gray-500 text-sm">
-                Manage product categories and organize your marketplace
-              </p>
-            </div>
-            <Button
-              onClick={() => {
-                resetForm();
-                setShowAddDialog(true);
-              }}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Category
-            </Button>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Categories</h1>
+            <p className="text-[var(--text-muted)]">
+              Manage product categories and organize your marketplace
+            </p>
           </div>
 
-          {/* Search */}
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <div className="flex-1 relative w-full">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    placeholder="Search categories by name, description, or slug…"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <span className="text-sm text-gray-400 whitespace-nowrap">
-                  {filteredCategories.length} of {categories.length} categories
-                </span>
+          {/* Search & Actions */}
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between mb-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1">
+              <div className="relative w-full max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <Input
+                  placeholder="Search categories by name, description, or slug…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="h-9 pl-10 bg-white rounded-xl border-gray-200 focus:ring-0 focus:border-[var(--brand-accent)] placeholder:text-gray-400"
+                />
               </div>
-            </CardContent>
-          </Card>
+              <span className="text-sm text-gray-400 whitespace-nowrap">
+                {filteredCategories.length} of {categories.length} categories
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                <SelectTrigger className="h-9 w-[180px] bg-white rounded-xl border-gray-200 focus:ring-0">
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <ArrowUpDown className="w-4 h-4" />
+                    <SelectValue placeholder="Sort by" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="display">Display Order</SelectItem>
+                  <SelectItem value="alphabetical">Alphabetical</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setShowAddDialog(true);
+                }}
+                className="h-9 w-auto min-w-[150px] bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white whitespace-nowrap rounded-xl"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Category
+              </Button>
+            </div>
+          </div>
 
           {/* Grid */}
           {filteredCategories.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
               <AnimatePresence>
                 {filteredCategories.map((category, index) => (
                   <motion.div
@@ -493,9 +527,9 @@ const AdminCategories: React.FC = () => {
                     transition={{ duration: 0.3, delay: index * 0.04 }}
                     layout
                   >
-                    <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group">
+                    <Card className="h-full flex flex-col overflow-hidden border-none shadow-sm hover:shadow-xl transition-all duration-300 group">
                       {/* Image */}
-                      <div className="relative h-44 bg-gray-100">
+                      <div className="relative h-44 bg-gray-50 flex-shrink-0">
                         {category.image ? (
                           <img
                             src={category.image}
@@ -506,66 +540,72 @@ const AdminCategories: React.FC = () => {
                             }}
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-100">
-                            <FolderTree className="w-12 h-12 text-orange-300" />
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[var(--brand-accent-light)]/50 to-[var(--brand-wash-gold)]">
+                            <FolderTree className="w-12 h-12 text-[var(--brand-primary)]/40" />
                           </div>
                         )}
-                        <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-xs font-medium text-gray-600 px-2 py-1 rounded-full shadow-sm">
-                          #{category.sortOrder}
-                        </div>
                       </div>
 
-                      <CardContent className="p-4">
-                        <h3 className="font-semibold text-lg text-gray-900 mb-0.5 truncate">
-                          {category.name}
-                        </h3>
-                        <p className="text-xs text-gray-400 font-mono mb-2">/{category.slug}</p>
+                      <CardContent className="p-4 flex-1 flex flex-col">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-lg text-gray-900 line-clamp-1">
+                            {category.name}
+                          </h3>
+                          <p className="text-xs text-gray-400 mb-3">/{category.slug}</p>
 
-                        {category.description && (
-                          <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-                            {category.description}
-                          </p>
-                        )}
-
-                        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                          <div className="flex items-center gap-1">
-                            <Package className="w-4 h-4" />
-                            <span>{category.productsCount} products</span>
-                          </div>
-                          {category.parentId && (
-                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                              Sub-category
-                            </span>
+                          {category.description ? (
+                            <p className="text-sm text-gray-500 line-clamp-2 mb-4 min-h-[40px]">
+                              {category.description}
+                            </p>
+                          ) : (
+                            <div className="mb-4 min-h-[40px]" />
                           )}
+
+                          <div className="flex items-center justify-between mb-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <Package className="w-4 h-4 text-[var(--brand-primary)]" />
+                              <span className="font-medium text-gray-500 text-sm">{category.productsCount} products</span>
+                            </div>
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 -mr-2"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44 border-[var(--brand-accent)]/20 shadow-xl bg-white p-1.5 focus:outline-none">
+                                <DropdownMenuItem
+                                  onClick={() => openEditDialog(category)}
+                                  className="cursor-pointer focus:bg-gray-50 focus:text-gray-900 rounded-md py-2 px-3 transition-colors outline-none"
+                                >
+                                  <Edit className="w-4 h-4 mr-2.5 text-gray-500" />
+                                  <span className="font-medium text-gray-600">Edit Category</span>
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem
+                                  onClick={() => openDeleteDialog(category)}
+                                  className="cursor-pointer focus:bg-gray-50 focus:text-gray-900 rounded-md py-2 px-3 transition-colors outline-none"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2.5 text-gray-500" />
+                                  <span className="font-medium text-gray-600">Delete</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
 
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openEditDialog(category)}
-                            className="flex-1"
-                          >
-                            <Edit className="w-4 h-4 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openDeleteDialog(category)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-
-                        <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between">
-                          <p className="text-xs text-gray-400">
-                            Created {category.createdAt.toLocaleDateString()}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            Updated {category.updatedAt.toLocaleDateString()}
-                          </p>
+                        <div className="mt-auto">
+                          {category.parentId && (
+                            <div className="mb-1">
+                              <span className="text-[10px] uppercase tracking-wider font-bold bg-amber-50 text-amber-600 px-2 py-1 rounded-full border border-amber-100">
+                                Sub-category
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -588,7 +628,7 @@ const AdminCategories: React.FC = () => {
                     resetForm();
                     setShowAddDialog(true);
                   }}
-                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add First Category
@@ -607,7 +647,7 @@ const AdminCategories: React.FC = () => {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto scrollbar-hide [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
           <DialogHeader>
             <DialogTitle className="text-xl">Add New Category</DialogTitle>
             <DialogDescription>
@@ -619,6 +659,7 @@ const AdminCategories: React.FC = () => {
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
+              className="bg-white border-gray-200 hover:bg-gray-100 text-gray-500 hover:text-gray-600"
               variant="outline"
               onClick={() => {
                 setShowAddDialog(false);
@@ -630,7 +671,7 @@ const AdminCategories: React.FC = () => {
             <Button
               onClick={handleAddCategory}
               disabled={isLoading || !formData.name.trim()}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
             >
               {isLoading ? (
                 <>
@@ -656,7 +697,7 @@ const AdminCategories: React.FC = () => {
           }
         }}
       >
-        <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto scrollbar-hide [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
           <DialogHeader>
             <DialogTitle className="text-xl">Edit Category</DialogTitle>
             <DialogDescription>
@@ -668,6 +709,7 @@ const AdminCategories: React.FC = () => {
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
+              className="bg-white border-gray-200 hover:bg-gray-100 text-gray-500 hover:text-gray-600"
               variant="outline"
               onClick={() => {
                 setShowEditDialog(false);
@@ -680,7 +722,7 @@ const AdminCategories: React.FC = () => {
             <Button
               onClick={handleEditCategory}
               disabled={isLoading || !formData.name.trim()}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
             >
               {isLoading ? (
                 <>
@@ -697,7 +739,7 @@ const AdminCategories: React.FC = () => {
 
       {/* ── Delete Confirmation ─────────────────────────────────────── */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="border-none">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Category</AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -714,7 +756,7 @@ const AdminCategories: React.FC = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-white border-gray-200 hover:bg-gray-100 text-gray-500 hover:text-gray-600">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteCategory}
               className="bg-red-600 hover:bg-red-700 text-white"

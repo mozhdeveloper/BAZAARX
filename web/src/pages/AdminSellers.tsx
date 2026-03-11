@@ -592,7 +592,7 @@ const AdminSellers: React.FC = () => {
                   </label>
                 </div>
                 <p className="text-xs text-purple-700 mt-1">
-                  {seller.tierLevel === 'premium_outlet' 
+                  {seller.tierLevel === 'premium_outlet'
                     ? 'Products bypass assessment and are auto-verified'
                     : 'Products go through standard assessment workflow'}
                 </p>
@@ -774,10 +774,10 @@ const AdminSellers: React.FC = () => {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">
                 Seller Management
               </h1>
-              <p className="text-gray-600">
+              <p className="text-[var(--text-muted)]">
                 Review and manage seller applications and accounts
               </p>
             </div>
@@ -1175,38 +1175,38 @@ const AdminSellers: React.FC = () => {
 
               {/* Banking Information */}
               {SHOW_BANKING_INFO && (
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-orange-500" />
-                  Banking Information
-                </h4>
-                <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Bank Name
-                    </label>
-                    <p className="text-sm text-gray-900">
-                      {selectedSeller.bankName}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Account Name
-                    </label>
-                    <p className="text-sm text-gray-900">
-                      {selectedSeller.accountName}
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Account Number
-                    </label>
-                    <p className="text-sm font-mono text-gray-900">
-                      {selectedSeller.accountNumber}
-                    </p>
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-orange-500" />
+                    Banking Information
+                  </h4>
+                  <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Bank Name
+                      </label>
+                      <p className="text-sm text-gray-900">
+                        {selectedSeller.bankName}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Account Name
+                      </label>
+                      <p className="text-sm text-gray-900">
+                        {selectedSeller.accountName}
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Account Number
+                      </label>
+                      <p className="text-sm font-mono text-gray-900">
+                        {selectedSeller.accountNumber}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
               )}
 
               {/* Status Information */}
@@ -1220,7 +1220,7 @@ const AdminSellers: React.FC = () => {
                         ? "Rejection"
                         : selectedSeller.status === "needs_resubmission"
                           ? "Resubmission"
-                        : "Suspension"}{" "}
+                          : "Suspension"}{" "}
                       Details
                     </h4>
                     <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
@@ -1267,11 +1267,10 @@ const AdminSellers: React.FC = () => {
                   {selectedSeller.documents.map((doc) => (
                     <div key={doc.id} className="space-y-1">
                       <div
-                        className={`flex items-center justify-between p-3 rounded-lg ${
-                          doc.isRejected
-                            ? "bg-red-50 border border-red-200"
-                            : "bg-gray-50"
-                        }`}
+                        className={`flex items-center justify-between p-3 rounded-lg ${doc.isRejected
+                          ? "bg-red-50 border border-red-200"
+                          : "bg-gray-50"
+                          }`}
                       >
                         <div className="flex items-center">
                           <FileText className="w-5 h-5 text-gray-400 mr-3" />

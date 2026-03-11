@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Users,
@@ -37,103 +38,103 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
     {
       label: 'Dashboard',
       href: '/admin',
-      icon: <LayoutDashboard className={`h-5 w-5 flex-shrink-0 ${location.pathname === '/admin' ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <LayoutDashboard className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Categories',
       href: '/admin/categories',
-      icon: <FolderTree className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/categories') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <FolderTree className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Products',
       href: '/admin/products',
-      icon: <Package className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/products') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <Package className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: isQARole ? 'QA Dashboard' : 'Product Approvals',
       href: isQARole ? '/admin/qa-dashboard' : '/admin/product-approvals',
-      icon: <Shield className={`h-5 w-5 flex-shrink-0 ${location.pathname.includes(isQARole ? '/admin/qa-dashboard' : '/admin/product-approvals') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <Shield className="h-5 w-5 flex-shrink-0" />,
       qaVisible: true,
     },
     {
       label: 'Product Requests',
       href: '/admin/product-requests',
-      icon: <MessageSquare className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/product-requests') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <MessageSquare className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Flash Sales',
       href: '/admin/flash-sales',
-      icon: <Zap className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/flash-sales') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <Zap className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Seller Approvals',
       href: '/admin/sellers',
-      icon: <UserCheck className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/sellers') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <UserCheck className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Trusted Brands',
       href: '/admin/trusted-brands',
-      icon: <ShieldCheck className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/trusted-brands') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <ShieldCheck className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Buyers',
       href: '/admin/buyers',
-      icon: <Users className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/buyers') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <Users className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Orders',
       href: '/admin/orders',
-      icon: <ShoppingBag className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/orders') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <ShoppingBag className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Payouts',
       href: '/admin/payouts',
-      icon: <DollarSign className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/payouts') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <DollarSign className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Vouchers',
       href: '/admin/vouchers',
-      icon: <Ticket className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/vouchers') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <Ticket className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Reviews',
       href: '/admin/reviews',
-      icon: <Star className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/reviews') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <Star className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Analytics',
       href: '/admin/analytics',
-      icon: <BarChart3 className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/analytics') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <BarChart3 className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Support Tickets',
       href: '/admin/tickets',
-      icon: <MessageSquare className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/tickets') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <MessageSquare className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Announcements',
       href: '/admin/announcements',
-      icon: <Megaphone className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/announcements') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <Megaphone className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {
       label: 'Settings',
       href: '/admin/settings',
-      icon: <Settings className={`h-5 w-5 flex-shrink-0 ${location.pathname.startsWith('/admin/settings') ? 'text-primary' : 'text-gray-500'}`} />,
+      icon: <Settings className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     }
   ];
@@ -143,43 +144,20 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
 
   return (
     <Sidebar open={open} setOpen={setOpen}>
-      <SidebarBody className="justify-between gap-10">
-        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
-          {open ? <Logo /> : <LogoIcon />}
+      <SidebarBody className="justify-between gap-1 bg-white z-50 transition-all duration-300">
+        <Logo open={open || false} subtitle={isQARole ? "QA Team" : "Admin"} />
 
-          {/* QA / Admin role badge */}
-          {open && (
-            <div className={`mt-4 mx-1 px-3 py-1.5 rounded-lg flex items-center gap-2 ${isQARole
-                ? 'bg-orange-50 border border-orange-200'
-                : 'bg-gray-100 border border-gray-200'
-              }`}>
-              <Shield className={`w-3.5 h-3.5 ${isQARole ? 'text-primary' : 'text-gray-500'}`} />
-              <span className={`text-xs font-semibold tracking-wide uppercase ${isQARole ? 'text-primary' : 'text-gray-500'}`}>
-                {isQARole ? 'QA Team' : 'Admin'}
-              </span>
-            </div>
-          )}
-
-          <div className="mt-4 flex flex-col gap-1">
-            {links.map((link, idx) => {
-              const isActive = link.href === '/admin'
-                ? location.pathname === '/admin'
-                : location.pathname.startsWith(link.href);
-              return (
-                <div
-                  key={idx}
-                  className={`rounded-lg transition-colors ${isActive
-                      ? 'bg-orange-50 border border-orange-100'
-                      : 'hover:bg-gray-100/70 border border-transparent'
-                    }`}
-                >
-                  <SidebarLink link={link} />
-                </div>
-              );
-            })}
+        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pt-1">
+          <div className="mt-4 flex flex-col gap-1 px-1">
+            {links.map((link, idx) => (
+              <SidebarLink
+                key={idx}
+                link={link}
+              />
+            ))}
           </div>
         </div>
-        <div className="border-t border-gray-100 pt-3">
+        <div className="pt-3 border-t border-gray-100 space-y-1">
           <UserProfile open={open} />
         </div>
       </SidebarBody>
@@ -187,39 +165,39 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
   );
 };
 
-const Logo = () => {
+const Logo = ({ open, subtitle }: { open: boolean; subtitle: string }) => {
   return (
     <Link
       to="/admin"
-      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+      className={cn(
+        "flex items-center py-2 group transition-all duration-300",
+        open ? "justify-start px-2 gap-3" : "justify-center px-0 gap-0"
+      )}
     >
-      <img
-        src="/Logo.png"
-        alt="BazaarPH Logo"
-        className="h-8 w-8 object-contain flex-shrink-0"
-      />
-      <motion.span
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="font-semibold text-gray-900 dark:text-white whitespace-pre"
-      >
-        BazaarPH Admin
-      </motion.span>
-    </Link>
-  );
-};
+      <div className="w-10 h-10 bg-gradient-to-tr from-[#D97706] to-[#B45309] rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
+        <img
+          src="/BazaarX.png"
+          alt="BazaarX Logo"
+          className="h-6 w-6 brightness-0 invert"
+        />
+      </div>
 
-const LogoIcon = () => {
-  return (
-    <Link
-      to="/admin"
-      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-    >
-      <img
-        src="/Logo.png"
-        alt="BazaarPH Logo"
-        className="h-8 w-8 object-contain flex-shrink-0"
-      />
+      <motion.div
+        animate={{
+          opacity: open ? 1 : 0,
+          width: open ? "auto" : 0,
+          display: open ? "flex" : "none",
+        }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        className="flex-col overflow-hidden whitespace-nowrap"
+      >
+        <span className="font-bold text-xl text-[var(--text-headline)] tracking-tight leading-none">
+          BazaarX
+        </span>
+        <span className="text-[10px] text-[var(--brand-primary)] font-bold tracking-widest uppercase">
+          {subtitle}
+        </span>
+      </motion.div>
     </Link>
   );
 };
@@ -239,27 +217,34 @@ const UserProfile = ({ open }: { open?: boolean }) => {
   if (!user) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1 px-1">
       <SidebarLink
         link={{
           label: user.name,
           href: "/admin/profile",
           icon: (
-            <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-              <span className="text-white text-xs font-medium">
-                {user.name.charAt(0)}
+            <div className="h-8 w-8 flex-shrink-0 rounded-xl bg-gradient-to-br from-[#D97706] to-[#B45309] flex items-center justify-center shadow-lg shadow-amber-500/20">
+              <span className="text-white text-xs font-bold">
+                {user.name.charAt(0).toUpperCase()}
               </span>
             </div>
           ),
         }}
+        className={cn(
+          "text-gray-700 hover:text-amber-600 hover:bg-gray-50 rounded-xl",
+          open ? "px-3" : "px-0"
+        )}
       />
       <button
         onClick={handleLogout}
         disabled={isLoggingOut}
-        className="w-full flex items-center justify-start gap-3 py-3 px-3 rounded-lg hover:bg-red-50 hover:text-red-600 transition-all duration-200 min-h-[48px] text-gray-600"
+        className={cn(
+          "w-full flex items-center gap-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all duration-200 min-h-[44px] text-gray-600 group",
+          open ? "justify-start px-3" : "justify-center px-0"
+        )}
       >
         <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
-          <LogOut className="w-5 h-5 flex-shrink-0" />
+          <LogOut className="w-5 h-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
         </div>
         <motion.span
           animate={{
