@@ -14,6 +14,8 @@ import { useWishlistStore } from '../src/stores/wishlistStore';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { ContributorBadge } from '../src/components/ContributorBadge';
+import type { ContributorTier } from '../src/stores/commentStore';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Profile'>,
@@ -60,6 +62,7 @@ export default function ProfileScreen({ navigation }: Props) {
   // Bazcoins State
   const [bazcoins, setBazcoins] = React.useState(0);
   const [totalOrders, setTotalOrders] = React.useState(0);
+  const [contributorTier, setContributorTier] = React.useState<ContributorTier>('none');
 
   // Fetch Bazcoins and orders from Supabase
   React.useEffect(() => {
@@ -75,6 +78,15 @@ export default function ProfileScreen({ navigation }: Props) {
           .single();
 
         if (buyerData) setBazcoins(buyerData.bazcoins || 0);
+
+        // 1b. Fetch Contributor Tier
+        const { data: tierData } = await supabase
+          .from('contributor_tiers')
+          .select('tier')
+          .eq('user_id', user.id)
+          .single();
+
+        if (tierData) setContributorTier(tierData.tier as ContributorTier);
 
         // 2. Fetch Total Order Count
         // We use { count: 'exact', head: true } to get the number of rows without downloading the data
@@ -450,6 +462,11 @@ export default function ProfileScreen({ navigation }: Props) {
             </View>
             <View style={styles.headerInfo}>
               <Text style={[styles.userName, { color: '#FFFFFF' }]}>{profile.firstName} {profile.lastName}</Text>
+              {contributorTier !== 'none' && (
+                <View style={{ marginTop: 4, marginBottom: 2 }}>
+                  <ContributorBadge tier={contributorTier} size="sm" />
+                </View>
+              )}
               {/* Integrated Stats */}
               <View style={styles.headerStatsRow}>
                 <Pressable

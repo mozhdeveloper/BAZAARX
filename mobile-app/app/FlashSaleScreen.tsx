@@ -158,7 +158,7 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                     <BackToShopButton navigation={navigation} />
                 </View>
 
-                {/* Products Area */
+                {/* Products Area */}
                 <ScrollView
                     style={styles.scrollContent}
                     showsVerticalScrollIndicator={false}

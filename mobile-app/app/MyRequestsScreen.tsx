@@ -44,10 +44,10 @@ interface ProductRequest {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  pending: { label: 'Pending Review', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
-  approved: { label: 'Approved', color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
-  in_progress: { label: 'In Progress', color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
-  rejected: { label: 'Not Available', color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
+  pending:     { label: 'Gathering Interest', color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+  approved:    { label: 'Verified',            color: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
+  in_progress: { label: 'In Sourcing',         color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE' },
+  rejected:    { label: 'Not Available',       color: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
 };
 
 const StatusIcon = ({ status, size = 16 }: { status: string; size?: number }) => {
@@ -251,6 +251,17 @@ export default function MyRequestsScreen({ navigation }: Props) {
                       </View>
                     </View>
                   ) : null}
+
+                  {/* View Contributions */}
+                  <View style={styles.viewContributionsRow}>
+                    <Pressable
+                      style={({ pressed }) => [styles.viewContributionsBtn, pressed && { opacity: 0.75 }]}
+                      onPress={() => navigation.navigate('ProductRequestDetail', { requestId: request.id })}
+                    >
+                      <MessageSquare size={13} color={COLORS.primary} strokeWidth={2} />
+                      <Text style={styles.viewContributionsText}>View Contributions</Text>
+                    </Pressable>
+                  </View>
                 </View>
               );
             })}
@@ -524,5 +535,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#374151',
     lineHeight: 18,
+  },
+  viewContributionsRow: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    alignItems: 'flex-end',
+  },
+  viewContributionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}40`,
+    backgroundColor: `${COLORS.primary}08`,
+  },
+  viewContributionsText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
 });

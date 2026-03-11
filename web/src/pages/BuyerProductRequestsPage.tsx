@@ -319,6 +319,19 @@ export default function BuyerProductRequestsPage() {
                           </div>
                         </div>
                       )}
+
+                      {/* View Contributions */}
+                      <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/requests/${request.id}`)}
+                          className="text-[var(--brand-primary)] border-[var(--brand-primary)]/30 hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/5 gap-1.5"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          View Contributions
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
