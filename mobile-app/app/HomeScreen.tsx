@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
-  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle, Star,
+  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle, Star, FlaskConical, Flame, TrendingUp, Plus,
   Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen, Armchair, SprayCan,
 } from 'lucide-react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -789,6 +789,62 @@ export default function HomeScreen({ navigation }: Props) {
               ))}
             </View>
 
+            {/* ── BAZAARX LAB PIPELINE BANNER ── */}
+            <Pressable
+              onPress={() => navigation.navigate('LabPipeline')}
+              style={({ pressed }) => [styles.labBanner, pressed && { opacity: 0.92 }]}
+            >
+              <LinearGradient
+                colors={['#4C1D95', '#6B46C1', '#7C3AED']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.labBannerGradient}
+              >
+                <View style={styles.labBannerGlow} />
+                <View style={styles.labBannerLeft}>
+                  <View style={styles.labIconBox}>
+                    <FlaskConical size={22} color="#E9D5FF" strokeWidth={2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.labBannerEyebrow}>BAZAARX</Text>
+                    <Text style={styles.labBannerTitle}>Lab Pipeline</Text>
+                    <Text style={styles.labBannerSub}>Community-requested & tested products</Text>
+                  </View>
+                </View>
+                <View style={styles.labBannerRight}>
+                  <View style={styles.labStatChip}>
+                    <Flame size={11} color="#FCD34D" />
+                    <Text style={styles.labStatText}>Community</Text>
+                  </View>
+                  <View style={[styles.labStatChip, { marginTop: 4 }]}>
+                    <TrendingUp size={11} color="#6EE7B7" />
+                    <Text style={styles.labStatText}>Verified</Text>
+                  </View>
+                  <View style={styles.labExploreBtn}>
+                    <Text style={styles.labExploreBtnText}>Explore →</Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </Pressable>
+
+            {/* Lab Quick Actions */}
+            <View style={styles.labActionRow}>
+              <Pressable
+                onPress={() => setShowProductRequest(true)}
+                style={({ pressed }) => [styles.labActionBtn, styles.labRequestBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Plus size={16} color="#FFFFFF" />
+                <Text style={styles.labActionBtnText}>Request a Product</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => navigation.navigate('MyRequests')}
+                style={({ pressed }) => [styles.labActionBtn, styles.labMyRequestsBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Package size={16} color={COLORS.primary} />
+                <Text style={[styles.labActionBtnText, { color: COLORS.primary }]}>My Requests</Text>
+              </Pressable>
+            </View>
+
             {/* FLASH SALE SECTION (No Container) */}
             <LinearGradient
               colors={['#FFF9F9', '#FFF3F3', '#FFF9F9']} // Very light red tint for Flash Sale
@@ -1132,5 +1188,140 @@ const styles = StyleSheet.create({
   paginationDot: {
     height: 8,
     borderRadius: 4,
-  }
+  },
+
+  /* ── Lab Pipeline Banner ── */
+  labBanner: {
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 8,
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#4C1D95',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  labBannerGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    overflow: 'hidden',
+  },
+  labBannerGlow: {
+    position: 'absolute',
+    top: -30,
+    left: -30,
+    width: 100,
+    height: 100,
+    backgroundColor: 'rgba(233, 213, 255, 0.15)',
+    borderRadius: 50,
+  },
+  labBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  labIconBox: {
+    width: 46,
+    height: 46,
+    backgroundColor: 'rgba(233, 213, 255, 0.2)',
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(233, 213, 255, 0.3)',
+  },
+  labBannerEyebrow: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#C4B5FD',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  labBannerTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    lineHeight: 21,
+  },
+  labBannerSub: {
+    fontSize: 11,
+    color: '#DDD6FE',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  labBannerRight: {
+    alignItems: 'flex-end',
+    gap: 0,
+    marginLeft: 10,
+  },
+  labStatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  labStatText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  labExploreBtn: {
+    marginTop: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  labExploreBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  /* Lab Quick Action Row */
+  labActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 0,
+    marginBottom: 8,
+  },
+  labActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  labRequestBtn: {
+    backgroundColor: '#7C3AED',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  labMyRequestsBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: `${COLORS.primary}60`,
+  },
+  labActionBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
 });

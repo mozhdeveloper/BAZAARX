@@ -99,6 +99,8 @@ export type RootStackParamList = {
   ReturnOrders: undefined;
   History: undefined;
   MyRequests: undefined;
+  LabPipeline: undefined;
+  ProductRequestDetail: { requestId: string };
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
@@ -338,6 +340,8 @@ export default function App() {
             <Stack.Screen name="ReturnOrders" getComponent={() => require('./app/ReturnOrdersScreen').default} options={{ headerShown: false }} />
             <Stack.Screen name="History" getComponent={() => require('./app/HistoryScreen').default} />
             <Stack.Screen name="MyRequests" getComponent={() => require('./app/MyRequestsScreen').default} />
+            <Stack.Screen name="LabPipeline" getComponent={() => require('./app/LabPipelineScreen').default} options={{ headerShown: false }} />
+            <Stack.Screen name="ProductRequestDetail" getComponent={() => require('./app/ProductRequestDetailScreen').default} options={{ headerShown: false }} />
             <Stack.Screen name="HelpSupport" getComponent={() => require('./app/HelpCenterScreen').default} />
             <Stack.Screen name="ChatSupport" getComponent={() => require('./app/ChatSupportScreen').default} options={{ headerShown: false }} />
             <Stack.Screen name="CreateTicket" getComponent={() => require('./app/tickets/CreateTicketScreen').default} />
