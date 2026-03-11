@@ -212,7 +212,7 @@ class ChatService {
   /**
    * Enrich conversation with buyer/seller info and computed fields
    */
-  private async enrichConversation(conv: any, sellerId?: string): Promise<Conversation> {
+  private async enrichConversation(conv: any, knownSellerId?: string, callerType: 'buyer' | 'seller' = 'buyer'): Promise<Conversation> {
     // Get buyer info using new schema (first_name, last_name)
     const { data: buyer } = await supabase
       .from('profiles')
@@ -227,10 +227,10 @@ class ChatService {
       .maybeSingle();
 
     // Try to get seller from multiple sources:
-    // 1. Provided sellerId
+    // 1. Provided knownSellerId
     // 2. From order (via order_items -> products -> seller_id)
     // 3. From messages where sender_type is 'seller'
-    let resolvedSellerId = sellerId;
+    let resolvedSellerId = knownSellerId;
     if (!resolvedSellerId && conv.order_id) {
       resolvedSellerId = await this.getSellerIdFromOrder(conv.order_id) || undefined;
     }
@@ -249,8 +249,9 @@ class ChatService {
     }
 
     // Fetch Real-time Presence
+    // Buyers check the seller's presence; Sellers check the buyer's presence.
     let isOnline = false;
-    const targetUserId = resolvedSellerId || conv.buyer_id;
+    const targetUserId = callerType === 'seller' ? conv.buyer_id : resolvedSellerId;
     if (targetUserId) {
         const { data: presence } = await supabase
             .from('user_presence')
@@ -360,7 +361,7 @@ class ChatService {
     // Enrich each conversation
     const enrichedConversations = await Promise.all(
       conversations.map(async (conv) => {
-        return this.enrichConversation(conv, sellerId);
+        return this.enrichConversation(conv, sellerId, 'seller');
       })
     );
 
@@ -595,7 +596,7 @@ class ChatService {
               .maybeSingle();
             
             if (conv) {
-              const enriched = await this.enrichConversation(conv, userId);
+              const enriched = await this.enrichConversation(conv, userId, 'seller');
               if (enriched.seller_id === userId || msg.sender_id === userId) {
                 onUpdate(enriched);
               }
@@ -637,13 +638,14 @@ class ChatService {
   /**
    * Update Global Presence
    */
-  async updateUserPresence(userId: string, status: 'online' | 'offline', userType: 'buyer' | 'seller'): Promise<void> {
-    await supabase.from('user_presence').upsert({ 
+  async updateUserPresence(userId: string, status: 'online' | 'offline', _userType?: string): Promise<void> {
+    const now = new Date().toISOString();
+    await supabase.from('user_presence').upsert({
       user_id: userId,
-      user_type: userType,
       is_online: status === 'online',
-      last_active_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,user_type' });
+      last_seen: now,
+      updated_at: now,
+    }, { onConflict: 'user_id' });
   }
 
   /**
