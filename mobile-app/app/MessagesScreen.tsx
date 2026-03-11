@@ -66,6 +66,18 @@ export default function MessagesScreen() {
     return unsubscribe;
   }, [user?.id]);
 
+  // Real-time presence: update seller dot instantly without a full reload
+  useEffect(() => {
+    const unsubscribe = chatService.subscribeToPresenceUpdates((userId, isOnline) => {
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.seller_id === userId ? { ...conv, is_online: isOnline } : conv
+        )
+      );
+    });
+    return unsubscribe;
+  }, []);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadConversations();
