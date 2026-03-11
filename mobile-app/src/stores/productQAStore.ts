@@ -48,7 +48,7 @@ interface ProductQAStore {
   approveForSampleSubmission: (productId: string) => Promise<void>;
   submitForDigitalReview: (productId: string) => Promise<void>;
   submitForPhysicalReview: (productId: string, logisticsMethod: string) => Promise<void>;
-  submitSample: (productId: string, logisticsMethod: string) => Promise<void>;
+  submitSample: (productId: string, logisticsMethod: string, courierDetails?: { courier: string; trackingNumber: string; batchId?: string }) => Promise<void>;
   passQualityCheck: (productId: string) => Promise<void>;
   rejectProduct: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
   requestRevision: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
@@ -298,7 +298,11 @@ export const useProductQAStore = create<ProductQAStore>()(
         }
       },
 
-      submitSample: async (productId: string, logisticsMethod: string) => {
+      submitSample: async (
+        productId: string,
+        logisticsMethod: string,
+        courierDetails?: { courier: string; trackingNumber: string; batchId?: string }
+      ) => {
         set({ isLoading: true });
         try {
           if (!logisticsMethod || logisticsMethod.trim() === '') {
@@ -309,11 +313,26 @@ export const useProductQAStore = create<ProductQAStore>()(
           if (!product) {
             throw new Error('Product not found');
           }
-          if (product.status !== 'WAITING_FOR_SAMPLE') {
-            throw new Error('Product must be in WAITING_FOR_SAMPLE status');
+          // Permit updates during WAITING_FOR_SAMPLE (initial submission) AND IN_QUALITY_REVIEW (rescheduling)
+          if (product.status !== 'WAITING_FOR_SAMPLE' && product.status !== 'IN_QUALITY_REVIEW') {
+            throw new Error('Product must be in WAITING_FOR_SAMPLE or IN_QUALITY_REVIEW status');
           }
 
-          await qaService.submitSample(productId, logisticsMethod);
+          // Build local string format matching backend parsing (important for instant UI snappiness)
+          let logisticsStr = logisticsMethod;
+          if (courierDetails) {
+            logisticsStr = `${logisticsMethod} (${courierDetails.courier}: ${courierDetails.trackingNumber})`;
+            if (courierDetails.batchId) {
+              logisticsStr = JSON.stringify({
+                method: logisticsMethod,
+                courier: courierDetails.courier,
+                trackingNumber: courierDetails.trackingNumber,
+                batchId: courierDetails.batchId
+              });
+            }
+          }
+
+          await qaService.submitSample(productId, logisticsMethod, courierDetails);
 
           // Update local state
           set((state) => ({
@@ -322,7 +341,7 @@ export const useProductQAStore = create<ProductQAStore>()(
                 ? { 
                     ...p, 
                     status: 'IN_QUALITY_REVIEW' as ProductQAStatus,
-                    logistics: logisticsMethod
+                    logistics: logisticsStr
                   }
                 : p
             ),
