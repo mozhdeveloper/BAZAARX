@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Package,
   XCircle,
@@ -9,8 +9,10 @@ import {
   Store,
   Camera,
   Truck,
-  CheckCircle2,
   ArrowRight,
+  Folder,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { handleImageError } from '@/utils/imageUtils';
 import { Card } from '@/components/ui/card';
@@ -20,11 +22,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useProductQAStore } from '@/stores/productQAStore';
-import { useAuthStore, useProductStore } from '@/stores/sellerStore';
+import { useProductQAStore, type QAProduct } from '@/stores/productQAStore';
+import { useAuthStore, useProductStore, type SellerProduct } from '@/stores/sellerStore';
 import { useToast } from '@/hooks/use-toast';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
 import { cn } from "@/lib/utils";
+import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar } from '@/components/ui/calendar';
 
 const SellerProductStatus = () => {
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
@@ -33,7 +37,17 @@ const SellerProductStatus = () => {
   const [reviewStep, setReviewStep] = useState<'choose' | 'physical'>('choose');
   const [selectedProductStatus, setSelectedProductStatus] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'waiting' | 'qa' | 'revision' | 'verified' | 'rejected'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'waiting' | 'qa' | 'revision' | 'verified' | 'rejected'>('pending');
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
+  const [courierService, setCourierService] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [selectedProductIdForShipment, setSelectedProductIdForShipment] = useState<string | null>(null);
+  const [dropOffModalOpen, setDropOffModalOpen] = useState(false);
+  const [selectedDropOffDate, setSelectedDropOffDate] = useState<Date | undefined>(undefined);
+  const [selectedProductIdForDropOff, setSelectedProductIdForDropOff] = useState<string | null>(null);
+  const [collapsedBatches, setCollapsedBatches] = useState<Set<string>>(new Set());
 
   const { products: qaProducts, submitSample, submitForDigitalReview, submitForPhysicalReview, loadProducts, isLoading } = useProductQAStore();
   const { toast } = useToast();
@@ -69,13 +83,13 @@ const SellerProductStatus = () => {
   const allCount = sellerQAProducts.length + nonQASellerProductsCount;
 
   const statusOptions = [
-    { value: 'all', label: 'All Products', count: allCount },
     { value: 'pending', label: 'Pending', count: pendingCount },
     { value: 'waiting', label: 'Awaiting Sample', count: waitingCount },
     { value: 'qa', label: 'QA Queue', count: qaQueueCount },
     { value: 'revision', label: 'For Revision', count: revisionCount },
     { value: 'verified', label: 'Verified', count: verifiedCount },
     { value: 'rejected', label: 'Rejected', count: rejectedCount },
+    { value: 'all', label: 'All Products', count: allCount },
   ];
 
   // Apply search and filter
@@ -138,28 +152,376 @@ const SellerProductStatus = () => {
 
   const allFilteredProducts = [...filteredQAProducts, ...nonQASellerProducts];
 
-  const openSubmitModal = (productId: string, productStatus?: string) => {
-    setSelectedProduct(productId);
+  interface GroupedProducts {
+    groups: { [key: string]: QAProduct[] };
+    individual: (QAProduct | SellerProduct)[];
+  }
+
+  const groupProductsByBatch = (products: (QAProduct | SellerProduct)[]): GroupedProducts => {
+    const groups: { [key: string]: QAProduct[] } = {};
+    const individual: (QAProduct | SellerProduct)[] = [];
+
+    products.forEach(p => {
+      // Products in QA may have a batchId
+      const qaProduct = p as any as QAProduct;
+      if (qaProduct.batchId) {
+        if (!groups[qaProduct.batchId]) {
+          groups[qaProduct.batchId] = [];
+        }
+        groups[qaProduct.batchId].push(qaProduct);
+      } else {
+        individual.push(p);
+      }
+    });
+
+    return { groups, individual };
+  };
+
+  const { groups: batchGroups, individual: individualProducts } = groupProductsByBatch(allFilteredProducts);
+
+  const toggleBatchCollapse = (batchId: string) => {
+    const newCollapsed = new Set(collapsedBatches);
+    if (newCollapsed.has(batchId)) {
+      newCollapsed.delete(batchId);
+    } else {
+      newCollapsed.add(batchId);
+    }
+    setCollapsedBatches(newCollapsed);
+  };
+
+  const formatLogisticsInfo = (logisticsStr?: string | null) => {
+    if (!logisticsStr) return null;
+    try {
+      const log = JSON.parse(logisticsStr);
+      const method = log.METHOD || log.method || '';
+      const courier = log.COURIER || log.courier || '';
+      const trackingNumber = log.TRACKINGNUMBER || log.trackingNumber || '';
+
+      if (method.toUpperCase() === 'ONSITE VISIT') {
+        return `Onsite Drop-off • ${trackingNumber ? trackingNumber.replace(/SCHEDULED FOR /i, '') : ''}`;
+      } else if (method.toUpperCase() === 'COURIER') {
+        return `${courier} • ${trackingNumber || 'No Tracking'}`;
+      }
+      return method || logisticsStr;
+    } catch {
+      // Handle non-JSON or malformed strings gracefully
+      const lowerStr = logisticsStr.toLowerCase();
+      return lowerStr.includes('onsite') ? 'Onsite Drop-off' : 
+             lowerStr.includes('courier') ? 'Courier Delivery' :
+             logisticsStr;
+    }
+  };
+
+  const renderProductRow = (product: any, idPrefix: string, hideCheckbox: boolean = false, hideActionButtons: boolean = false, hideLogistics: boolean = false) => {
+    const isQA = idPrefix === 'qa';
+    const isSubmittable = isQA 
+      ? product.status === 'PENDING_DIGITAL_REVIEW'
+      : (product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED';
+
+    return (
+      <div key={`${idPrefix}-${product.id}`} className={cn(
+        "p-5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 flex items-center gap-4",
+        selectedProducts.has(product.id) && "bg-orange-50/30"
+      )}>
+        {isSubmittable && !hideCheckbox && (
+          <Checkbox 
+            checked={selectedProducts.has(product.id)}
+            onCheckedChange={() => toggleProductSelection(product.id)}
+            className="border-orange-200 data-[state=checked]:bg-[var(--brand-primary)] data-[state=checked]:border-[var(--brand-primary)]"
+          />
+        )}
+        <div className="flex-1 flex items-center gap-5">
+          {/* Product Image */}
+          <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
+            {(isQA ? product.image : product.images[0]) ? (
+              <img src={isQA ? product.image : product.images[0]} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Package className="w-6 h-6 text-gray-400" />
+              </div>
+            )}
+          </div>
+          {/* Product Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-semibold text-[var(--secondary-foreground)] truncate">{product.name}</h3>
+              {isQA ? (
+                <>
+                  {product.status === 'PENDING_ADMIN_REVIEW' ? (
+                    <Badge className="text-gray-600 bg-gray-100 hover:bg-gray-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      Pending Admin Review
+                    </Badge>
+                  ) : product.status === 'PENDING_DIGITAL_REVIEW' ? (
+                    <Badge className="text-amber-600 bg-amber-50 hover:bg-amber-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      In Digital Review
+                    </Badge>
+                  ) : product.status === 'IN_QUALITY_REVIEW' ? (
+                    <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      In QA Review
+                    </Badge>
+                  ) : product.status === 'FOR_REVISION' ? (
+                    <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      Needs Revision
+                    </Badge>
+                  ) : product.status === 'ACTIVE_VERIFIED' ? (
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      Verified
+                    </Badge>
+                  ) : product.status === 'REJECTED' ? (
+                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      Rejected
+                    </Badge>
+                  ) : product.status === 'WAITING_FOR_SAMPLE' ? (
+                    <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      Awaiting Sample
+                    </Badge>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {product.approvalStatus === 'approved' ? (
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      Approved
+                    </Badge>
+                  ) : product.approvalStatus === 'pending' ? (
+                    <Badge className="text-orange-600 bg-orange-50 hover:bg-orange-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      Pending
+                    </Badge>
+                  ) : product.approvalStatus === 'rejected' ? (
+                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      Rejected
+                    </Badge>
+                  ) : (product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED' ? (
+                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                      Awaiting Sample
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="h-5 px-2 text-[10px] uppercase tracking-wide">{product.approvalStatus || 'Unknown'}</Badge>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-[10px] bg-gray-100 hover:bg-gray-100 text-gray-600 font-normal">{product.category}</Badge>
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                <User className="w-3 h-3" />
+                {isQA ? product.vendor : (seller?.name || 'Your Shop')}
+              </span>
+              {isQA && product.logistics && !hideLogistics && (
+                <span className="text-xs text-gray-400">• {formatLogisticsInfo(product.logistics)}</span>
+              )}
+            </div>
+          </div>
+          {/* Price */}
+          <div className="flex-shrink-0">
+            <p className="text-lg font-bold text-[var(--secondary-foreground)]">₱{product.price.toLocaleString()}</p>
+          </div>
+          
+          {/* Action buttons */}
+          {!hideActionButtons && isQA && product.status === 'WAITING_FOR_SAMPLE' && (
+            <div className="flex-shrink-0 ml-4">
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSubmitModal(product.id, product.status, product.logistics);
+                }}
+                className="bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-full px-4"
+              >
+                {product.logistics?.includes('Courier') 
+                  ? 'Confirm Shipment' 
+                  : product.logistics?.includes('Onsite')
+                    ? 'Schedule Drop-off'
+                    : 'Confirm Sample Sent'}
+              </Button>
+            </div>
+          )}
+          {!hideActionButtons && isQA && product.status === 'PENDING_DIGITAL_REVIEW' && (
+            <div className="flex-shrink-0 ml-4">
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSubmitModal(product.id, product.status);
+                }}
+                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-orange-200"
+              >
+                Submit for QA
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
+          {!hideActionButtons && !isQA && isSubmittable && (
+            <div className="flex-shrink-0 ml-2">
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSubmitModal(product.id, 'accepted');
+                }}
+                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-orange-200"
+              >
+                Submit for QA
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
+          
+          {/* Scheduled Drop-off display for QA Queue */}
+          {!hideLogistics && isQA && product.status === 'IN_QUALITY_REVIEW' && (
+            <div className="flex-shrink-0 ml-4 flex flex-col items-end justify-center">
+              {(() => {
+                if (!product.logistics) return null;
+                try {
+                  const log = JSON.parse(product.logistics);
+                  const method = log.METHOD || log.method || '';
+                  if (method.toUpperCase() === 'ONSITE VISIT') {
+                    const trackingNumber = log.TRACKINGNUMBER || log.trackingNumber || '';
+                    const dateStr = trackingNumber.replace(/SCHEDULED FOR /i, '');
+                    
+                    // Check if date is in the past
+                    let isPast = false;
+                    if (dateStr) {
+                      const scheduledDate = new Date(dateStr);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      isPast = !isNaN(scheduledDate.getTime()) && scheduledDate < today;
+                    }
+
+                    if (isPast) {
+                      return (
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className="text-[10px] text-red-500 font-bold uppercase tracking-wider">Missed Drop-off</span>
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedProductIdForDropOff(product.id);
+                              setDropOffModalOpen(true);
+                            }}
+                            className="bg-red-500 hover:bg-red-600 text-white rounded-full px-4 h-7 text-xs font-semibold shadow-sm"
+                          >
+                            Reschedule
+                          </Button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Scheduled Drop-off</span>
+                        <Badge variant="outline" className="bg-blue-50/80 text-blue-700 border-blue-200 shadow-sm px-3 h-7">
+                          {dateStr}
+                        </Badge>
+                      </>
+                    );
+                  }
+                } catch {
+                  const lowerStr = product.logistics.toLowerCase();
+                  if (lowerStr.includes('onsite')) {
+                    return (
+                      <>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Scheduled Drop-off</span>
+                        <Badge variant="outline" className="bg-blue-50/80 text-blue-700 border-blue-200 shadow-sm px-3 h-7">
+                          Pending
+                        </Badge>
+                      </>
+                    );
+                  }
+                }
+                return null;
+              })()}
+            </div>
+          )}
+        </div>
+        
+        {/* Rejection reason */}
+        {isQA && product.status === 'REJECTED' && product.rejectionReason && (
+          <div className="px-5 pb-5 w-full">
+            <Alert className="border-red-200 bg-red-50">
+              <XCircle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-800">
+                <span className="font-medium">Rejection Reason:</span> {product.rejectionReason}
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const openSubmitModal = (productId: string | string[], productStatus?: string, currentLogistics?: string | null) => {
+    const idToSelect = Array.isArray(productId) ? productId.join(',') : productId;
+    setSelectedProduct(idToSelect);
     setSelectedProductStatus(productStatus || '');
+    
+    // Normalize logistics string for comparison
+    const normalizedLogistics = currentLogistics?.trim();
+    
+    // Direct modal trigger logic for WAITING_FOR_SAMPLE
+    if (productStatus === 'WAITING_FOR_SAMPLE' && normalizedLogistics) {
+      if (normalizedLogistics.includes('Courier')) {
+        setSelectedProductIdForShipment(idToSelect);
+        setShipmentModalOpen(true);
+        return;
+      }
+      if (normalizedLogistics.includes('Onsite')) {
+        setSelectedProductIdForDropOff(idToSelect);
+        setDropOffModalOpen(true);
+        return;
+      }
+    }
+
+    setSubmitModalOpen(true);
     // For WAITING_FOR_SAMPLE, skip the choice step — seller already chose physical
     setReviewStep(productStatus === 'WAITING_FOR_SAMPLE' ? 'physical' : 'choose');
-    setLogisticsMethod('');
-    setSubmitModalOpen(true);
+    setLogisticsMethod(normalizedLogistics || '');
+  };
+
+  const toggleProductSelection = (productId: string) => {
+    const newSelected = new Set(selectedProducts);
+    if (newSelected.has(productId)) {
+      newSelected.delete(productId);
+    } else {
+      newSelected.add(productId);
+    }
+    setSelectedProducts(newSelected);
+  };
+
+  const toggleSelectAll = (productsToSelect: string[]) => {
+    if (selectedProducts.size === productsToSelect.length) {
+      setSelectedProducts(new Set());
+    } else {
+      setSelectedProducts(new Set(productsToSelect));
+    }
+  };
+
+  const getSubmittableProducts = (products: any[]) => {
+    return products.filter(p => {
+      const status = (p as any).status || (p as any).approvalStatus;
+      return status === 'accepted' || status === 'ACCEPTED' || status === 'PENDING_DIGITAL_REVIEW';
+    });
   };
 
   const handleDigitalReview = async () => {
     if (!selectedProduct) return;
+    const productIds = selectedProduct.split(',');
     try {
-      await submitForDigitalReview(selectedProduct);
+      if (productIds.length > 1) {
+        await Promise.all(productIds.map(id => submitForDigitalReview(id)));
+      } else {
+        await submitForDigitalReview(selectedProduct);
+      }
       toast({
         title: 'Digital Review Submitted',
-        description: 'Your product has been queued for digital QA review. Our team will review your photos and listing details.',
+        description: `${productIds.length > 1 ? productIds.length + ' products have' : 'Your product has'} been queued for digital QA review. Our team will review your photos and listing details.`,
         duration: 4000,
       });
       setSubmitModalOpen(false);
       setSelectedProduct(null);
       setReviewStep('choose');
       setSelectedProductStatus('');
+      setSelectedProducts(new Set()); // Reset selection
     } catch (error) {
       console.error('Error submitting digital review:', error);
       toast({ title: 'Submission Failed', description: 'Failed to submit. Please try again.', variant: 'destructive' });
@@ -171,34 +533,152 @@ const SellerProductStatus = () => {
       toast({ title: 'Error', description: 'Please select a logistics method', variant: 'destructive' });
       return;
     }
+    const productIds = selectedProduct.split(',');
     try {
-      if (selectedProductStatus === 'PENDING_DIGITAL_REVIEW') {
-        // Seller chose physical review — move product to WAITING_FOR_SAMPLE with logistics saved
-        await submitForPhysicalReview(selectedProduct, logisticsMethod);
-        toast({
-          title: 'Physical Review Scheduled',
-          description: 'Please send your product sample using the chosen logistics method. We will notify you once received.',
-          duration: 4000,
-        });
-      } else {
-        // WAITING_FOR_SAMPLE — seller confirms physical sample has been dispatched
-        await submitSample(selectedProduct, logisticsMethod);
-        toast({
-          title: 'Sample Submitted Successfully',
-          description: 'Your product sample has been submitted for physical QA review.',
-          duration: 3000,
-        });
+      const batchId = productIds.length > 1 ? `BATCH-${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}` : undefined;
+
+      // 1. Move to WAITING_FOR_SAMPLE state if not already there
+      if (selectedProductStatus === 'PENDING_DIGITAL_REVIEW' || selectedProductStatus === 'accepted' || selectedProductStatus === 'ACCEPTED' || !selectedProductStatus) {
+        if (productIds.length > 1) {
+          await Promise.all(productIds.map(id => submitForPhysicalReview(id, logisticsMethod, batchId)));
+        } else {
+          await submitForPhysicalReview(selectedProduct, logisticsMethod);
+        }
       }
+
+      // 2. Revert Automated Flow (Close modal, don't trigger next)
+      // (The specialized modals will be triggered manually from the folder header button)
+
+      // 3. Complete the basic submission (if already in WAITING_FOR_SAMPLE and no special modal needed)
+      // Actually, since we want manual trigger, we just finish here if it was a transition.
+      // If it WAS already in WAITING_FOR_SAMPLE, we might still want to trigger the basic submitSample
+      if (selectedProductStatus !== 'PENDING_DIGITAL_REVIEW' && selectedProductStatus !== 'accepted' && selectedProductStatus !== 'ACCEPTED' && selectedProductStatus) {
+        if (productIds.length > 1) {
+          await Promise.all(productIds.map(id => submitSample(id, logisticsMethod, { courier: '', trackingNumber: '', batchId: batchId || '' })));
+        } else {
+          await submitSample(selectedProduct, logisticsMethod);
+        }
+      }
+      
+      toast({
+        title: productIds.length > 1 ? 'Bulk Submission Successful' : 'Submission Successful',
+        description: productIds.length > 1 
+          ? `${productIds.length} products have been updated.`
+          : 'Your product status has been updated.',
+        duration: 4000,
+      });
+
       setSubmitModalOpen(false);
       setSelectedProduct(null);
       setLogisticsMethod('');
       setReviewStep('choose');
       setSelectedProductStatus('');
+      setSelectedProducts(new Set());
     } catch (error) {
       console.error('Error submitting sample:', error);
       toast({
         title: 'Submission Failed',
         description: error instanceof Error ? error.message : 'Failed to submit. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleConfirmShipment = async () => {
+    if (!selectedProductIdForShipment || !courierService || !trackingNumber) {
+      toast({ title: 'Error', description: 'Please provide both courier and tracking number', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const productIds = selectedProductIdForShipment.split(',');
+      const fullTracking = `${courierService}: ${trackingNumber}`;
+      
+      const batchId = productIds.length > 1 ? `BATCH-${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}` : undefined;
+      
+      if (productIds.length > 1) {
+        await Promise.all(productIds.map(id => 
+          submitSample(id, 'Drop-off by Courier', {
+            courier: courierService,
+            trackingNumber: trackingNumber,
+            batchId
+          })
+        ));
+      } else {
+        await submitSample(selectedProductIdForShipment, 'Drop-off by Courier', {
+          courier: courierService,
+          trackingNumber: trackingNumber
+        });
+      }
+
+      toast({
+        title: 'Shipment Confirmed',
+        description: 'Tracking information has been saved and your product is now in QA review.',
+        duration: 4000,
+      });
+
+      setShipmentModalOpen(false);
+      setSelectedProductIdForShipment(null);
+      setCourierService('');
+      setTrackingNumber('');
+      setSelectedProducts(new Set());
+    } catch (error) {
+      console.error('Error confirming shipment:', error);
+      toast({
+        title: 'Confirmation Failed',
+        description: 'Failed to confirm shipment. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleScheduleDropOff = async () => {
+    if (!selectedProductIdForDropOff || !selectedDropOffDate) {
+      toast({ title: 'Error', description: 'Please select a drop-off date', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const productIds = selectedProductIdForDropOff.split(',');
+      const formattedDate = selectedDropOffDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      const batchId = productIds.length > 1 ? `BATCH-${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}` : undefined;
+      
+      if (productIds.length > 1) {
+        await Promise.all(productIds.map(id => 
+          submitSample(id, 'Onsite Visit', {
+            courier: 'Onsite Drop-off',
+            trackingNumber: `Scheduled for ${formattedDate}`,
+            batchId
+          })
+        ));
+      } else {
+        await submitSample(selectedProductIdForDropOff, 'Onsite Visit', {
+          courier: 'Onsite Drop-off',
+          trackingNumber: `Scheduled for ${formattedDate}`
+        });
+      }
+
+      toast({
+        title: 'Drop-off Scheduled',
+        description: `Your onsite visit is scheduled for ${formattedDate}.`,
+        duration: 4000,
+      });
+
+      setDropOffModalOpen(false);
+      setSelectedProductIdForDropOff(null);
+      setSelectedDropOffDate(undefined);
+      setSelectedProducts(new Set());
+    } catch (error) {
+      console.error('Error scheduling drop-off:', error);
+      toast({
+        title: 'Scheduling Failed',
+        description: 'Failed to schedule drop-off. Please try again.',
         variant: 'destructive',
       });
     }
@@ -288,188 +768,255 @@ const SellerProductStatus = () => {
                   </div>
                 ) : (
                   <>
-                    {nonQASellerProducts.map((product) => (
-                      <div key={`seller-${product.id}`} className="p-5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
-                        <div className="flex items-center gap-5">
-                          {/* Product Image */}
-                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
-                            {product.images[0] ? (
-                              <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <Package className="w-6 h-6 text-gray-400" />
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Product Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold text-[var(--secondary-foreground)] truncate">{product.name}</h3>
-                              {product.approvalStatus === 'approved' ? (
-                                <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                  Approved
-                                </Badge>
-                              ) : product.approvalStatus === 'pending' ? (
-                                <Badge className="text-orange-600 bg-orange-50 hover:bg-orange-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                  Pending
-                                </Badge>
-                              ) : product.approvalStatus === 'rejected' ? (
-                                <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                  Rejected
-                                </Badge>
-                              ) : (product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED' ? (
-                                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                  Awaiting Sample
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="h-5 px-2 text-[10px] uppercase tracking-wide">{product.approvalStatus || 'Unknown'}</Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="text-[10px] bg-gray-100 hover:bg-gray-100 text-gray-600 font-normal">{product.category}</Badge>
-                              <span className="text-xs text-gray-400 flex items-center gap-1">
-                                <User className="w-3 h-3" />
-                                {seller?.name || 'Your Shop'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Price */}
-                          <div className="flex-shrink-0">
-                            <p className="text-lg font-bold text-[var(--secondary-foreground)]">₱{product.price.toLocaleString()}</p>
-                          </div>
-
-                          {/* Submit for QA button — shown when admin has accepted listing */}
-                          {((product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED') && (
-                            <div className="flex-shrink-0 ml-2">
-                              <Button
-                                size="sm"
-                                onClick={() => openSubmitModal(product.id, 'PENDING_DIGITAL_REVIEW')}
-                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-orange-200"
-                              >
-                                Submit for QA
-                                <ArrowRight className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
-                          )}
+                    {/* Selection Header */}
+                    {getSubmittableProducts(allFilteredProducts).length > 0 && (
+                      <div className="px-5 py-3 bg-gray-50/50 border-b border-gray-100 flex items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <Checkbox 
+                            id="select-all" 
+                            checked={selectedProducts.size === getSubmittableProducts(allFilteredProducts).length && getSubmittableProducts(allFilteredProducts).length > 0}
+                            onCheckedChange={() => toggleSelectAll(getSubmittableProducts(allFilteredProducts).map(p => p.id))}
+                            className="border-orange-200 data-[state=checked]:bg-[var(--brand-primary)] data-[state=checked]:border-[var(--brand-primary)]"
+                          />
+                          <Label htmlFor="select-all" className="text-xs font-bold text-gray-500 cursor-pointer uppercase tracking-wider">
+                            Select All Submittable
+                          </Label>
                         </div>
-                      </div>
-                    ))}
-
-                    {/* Show QA products */}
-                    {filteredQAProducts.map((product, index) => (
-                      <div key={`qa-${product.id}-${index}`}>
-                        <div className="p-5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
-                          <div className="flex items-center gap-5">
-                            {/* Product Image */}
-                            <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
-                              {product.image ? (
-                                <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Package className="w-6 h-6 text-gray-400" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Product Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-[var(--secondary-foreground)] truncate">{product.name}</h3>
-                                {product.status === 'PENDING_ADMIN_REVIEW' ? (
-                                  <Badge className="text-gray-600 bg-gray-100 hover:bg-gray-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Pending Admin Review
-                                  </Badge>
-                                ) : product.status === 'PENDING_DIGITAL_REVIEW' ? (
-                                  <Badge className="text-amber-600 bg-amber-50 hover:bg-amber-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Awaiting Sample
-                                  </Badge>
-                                ) : product.status === 'IN_QUALITY_REVIEW' ? (
-                                  <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    In QA Review
-                                  </Badge>
-                                ) : product.status === 'FOR_REVISION' ? (
-                                  <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Needs Revision
-                                  </Badge>
-                                ) : product.status === 'ACTIVE_VERIFIED' ? (
-                                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Verified
-                                  </Badge>
-                                ) : product.status === 'REJECTED' ? (
-                                  <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Rejected
-                                  </Badge>
-                                ) : product.status === 'WAITING_FOR_SAMPLE' ? (
-                                  <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 h-5 px-2 text-[10px] uppercase tracking-wide">
-                                    Awaiting Sample
-                                  </Badge>
-                                ) : null}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="secondary" className="text-[10px] bg-gray-100 hover:bg-gray-100 text-gray-600 font-normal">{product.category}</Badge>
-                                <span className="text-xs text-gray-400 flex items-center gap-1">
-                                  <User className="w-3 h-3" />
-                                  {product.vendor}
-                                </span>
-                                {product.logistics && (
-                                  <span className="text-xs text-gray-400">• {product.logistics}</span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Price */}
-                            <div className="flex-shrink-0">
-                              <p className="text-lg font-bold text-[var(--secondary-foreground)]">₱{product.price.toLocaleString()}</p>
-                            </div>
-
-                            {/* Action buttons */}
-                            {product.status === 'WAITING_FOR_SAMPLE' && (
-                              <div className="flex-shrink-0 ml-4">
-                                <Button
-                                  size="sm"
-                                  onClick={() => openSubmitModal(product.id, product.status)}
-                                  className="bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-full px-4"
-                                >
-                                  Confirm Sample Sent
-                                </Button>
-                              </div>
-                            )}
-                            {product.status === 'PENDING_DIGITAL_REVIEW' && (
-                              <div className="flex-shrink-0 ml-4">
-                                <Button
-                                  size="sm"
-                                  onClick={() => openSubmitModal(product.id, product.status)}
-                                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-orange-200"
-                                >
-                                  Submit for QA
-                                  <ArrowRight className="w-3.5 h-3.5" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Show rejection reason if product is rejected */}
-                        {product.status === 'REJECTED' && product.rejectionReason && (
-                          <div className="px-5 pb-5">
-                            <Alert className="border-red-200 bg-red-50">
-                              <XCircle className="h-4 w-4 text-red-600" />
-                              <AlertDescription className="text-red-800">
-                                <span className="font-medium">Rejection Reason:</span> {product.rejectionReason}
-                              </AlertDescription>
-                            </Alert>
+                        {selectedProducts.size > 0 && (
+                          <div className="text-xs font-bold text-[var(--brand-primary)] animate-in fade-in slide-in-from-left-2">
+                            {selectedProducts.size} {selectedProducts.size === 1 ? 'product' : 'products'} selected
                           </div>
                         )}
                       </div>
-                    ))}
+                    )}
+
+                    {(() => {
+                      const renderedBatches = new Set<string>();
+                      const result: React.ReactNode[] = [];
+
+                      // 1. Render Non-QA Products
+                      nonQASellerProducts.forEach(product => {
+                        result.push(renderProductRow(product, 'seller'));
+                      });
+
+                      // 2. Render QA Products (with batching)
+                      filteredQAProducts.forEach((product, index) => {
+                        if (product.batchId) {
+                          if (renderedBatches.has(product.batchId)) return;
+                          renderedBatches.add(product.batchId);
+                          
+                          const batchProducts = batchGroups[product.batchId] || [];
+                          result.push(
+                            <div key={`batch-${product.batchId}`} className="border-b border-gray-100 bg-gray-50/20 last:border-0 overflow-hidden">
+                              {/* Batch Folder Header */}
+                              <div 
+                                className="px-5 py-4 bg-white border-b border-gray-100 flex items-center justify-between cursor-pointer hover:bg-gray-50/80 transition-all group"
+                                onClick={() => toggleBatchCollapse(product.batchId)}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center group-hover:bg-orange-200 transition-colors shadow-sm">
+                                    <Folder className="w-5 h-5 text-orange-600" />
+                                  </div>
+                                  <div>
+                                    <span className="text-sm font-bold text-gray-800 tracking-tight">Bulk Shipment Folder</span>
+                                    <p className="text-[11px] text-gray-500 font-mono mt-0.5 opacity-70">{product.batchId}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-6">
+                                  <div className="flex items-center gap-3">
+                                    {batchProducts[0]?.status === 'WAITING_FOR_SAMPLE' && (
+                                      <Button
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openSubmitModal(batchProducts.map(p => p.id), batchProducts[0].status, batchProducts[0].logistics);
+                                        }}
+                                        className="bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl px-4 h-8 text-xs font-bold shadow-sm"
+                                      >
+                                        {batchProducts[0].logistics?.includes('Courier') 
+                                          ? 'Confirm Batch Shipment' 
+                                          : batchProducts[0].logistics?.includes('Onsite')
+                                            ? 'Schedule Batch Drop-off'
+                                            : 'Confirm Samples Sent'}
+                                      </Button>
+                                    )}
+                                    {batchProducts[0]?.status === 'PENDING_DIGITAL_REVIEW' && (
+                                      <Button
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openSubmitModal(batchProducts.map(p => p.id), batchProducts[0].status);
+                                        }}
+                                        className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl px-4 h-8 text-xs font-bold shadow-sm gap-1"
+                                      >
+                                        Submit Batch for QA
+                                        <ArrowRight className="w-3 h-3" />
+                                      </Button>
+                                    )}
+                                    <Badge variant="outline" className="bg-orange-50/50 text-orange-700 border-orange-100 font-bold h-7 px-4 rounded-xl">
+                                      {batchProducts.length} Items
+                                    </Badge>
+                                    {batchProducts[0]?.logistics && (
+                                      <div className="flex items-center">
+                                        {(() => {
+                                          try {
+                                            const log = JSON.parse(batchProducts[0].logistics);
+                                            const method = log.METHOD || log.method || '';
+                                            if (method.toUpperCase() === 'ONSITE VISIT' && batchProducts[0].status === 'IN_QUALITY_REVIEW') {
+                                              const trackingNumber = log.TRACKINGNUMBER || log.trackingNumber || '';
+                                              const dateStr = trackingNumber.replace(/SCHEDULED FOR /i, '');
+                                              
+                                              // Check if date is in the past
+                                              let isPast = false;
+                                              if (dateStr) {
+                                                const scheduledDate = new Date(dateStr);
+                                                const today = new Date();
+                                                today.setHours(0, 0, 0, 0);
+                                                isPast = !isNaN(scheduledDate.getTime()) && scheduledDate < today;
+                                              }
+
+                                              if (isPast) {
+                                                return (
+                                                  <div className="flex items-center gap-3 mr-2">
+                                                    <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 font-bold uppercase tracking-wider h-8">
+                                                      Missed Drop-off
+                                                    </Badge>
+                                                    <Button
+                                                      size="sm"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Get all IDs in this batch to pass to the modal
+                                                        const batchIds = batchProducts.map(p => p.id).join(',');
+                                                        setSelectedProductIdForDropOff(batchIds);
+                                                        setDropOffModalOpen(true);
+                                                      }}
+                                                      className="bg-red-500 hover:bg-red-600 text-white rounded-xl px-4 h-8 text-xs font-bold shadow-sm"
+                                                    >
+                                                      Reschedule Bulk Drop-off
+                                                    </Button>
+                                                  </div>
+                                                );
+                                              }
+
+                                              return (
+                                                <div className="flex flex-col items-end justify-center mr-2">
+                                                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Scheduled</span>
+                                                  <Badge variant="outline" className="bg-blue-50/80 text-blue-700 border-blue-200 shadow-sm px-3 h-7">
+                                                    {dateStr || 'Pending'}
+                                                  </Badge>
+                                                </div>
+                                              );
+                                            }
+                                          } catch {
+                                            const lowerStr = batchProducts[0].logistics.toLowerCase();
+                                            if (lowerStr.includes('onsite') && batchProducts[0].status === 'IN_QUALITY_REVIEW') {
+                                              return (
+                                                <div className="flex flex-col items-end justify-center mr-2">
+                                                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Scheduled</span>
+                                                  <Badge variant="outline" className="bg-blue-50/80 text-blue-700 border-blue-200 shadow-sm px-3 h-7">
+                                                    Pending
+                                                  </Badge>
+                                                </div>
+                                              );
+                                            }
+                                          }
+                                          return (
+                                            <div className="text-xs text-gray-500 font-medium bg-gray-100/50 px-3 py-1 rounded-lg tracking-wide text-[11px] border border-gray-200">
+                                              {formatLogisticsInfo(batchProducts[0].logistics)}
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {collapsedBatches.has(product.batchId) ? (
+                                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-orange-500 transition-colors" />
+                                  ) : (
+                                    <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-orange-500 transition-colors" />
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Batch Items */}
+                              {!collapsedBatches.has(product.batchId) && (
+                                <div className="divide-y divide-gray-100/50 animate-in slide-in-from-top-2 duration-300">
+                                  {batchProducts.map((bProduct, bIndex) => (
+                                    <div key={`batch-item-${bProduct.id}-${bIndex}`} className="pl-6 bg-white/30">
+                                      {renderProductRow(bProduct, 'qa', true, true, true)}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        } else {
+                          result.push(renderProductRow(product, 'qa'));
+                        }
+                      });
+
+                      return result;
+                    })()}
                   </>
                 )}
               </div>
             </Card>
           </div>
         </div>
+
+        {/* Bulk Action Bar */}
+        {selectedProducts.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5">
+            <div className="bg-white border border-orange-100 shadow-2xl rounded-2xl p-4 flex items-center gap-6 backdrop-blur-md">
+              <div className="flex items-center gap-3 pr-6 border-r border-gray-100">
+                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                  <Package className="w-5 h-5 text-[var(--brand-primary)]" />
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-gray-900 leading-none">{selectedProducts.size}</div>
+                  <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Selected</div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setSelectedProducts(new Set())}
+                  className="text-gray-500 hover:text-gray-700 font-bold text-xs"
+                >
+                  Deselect All
+                </Button>
+                <Button 
+                  onClick={() => {
+                    // Check if selection is mixed or uniform
+                    const selectedProductData = Array.from(selectedProducts).map(id => 
+                      allFilteredProducts.find(p => p.id === id)
+                    ).filter(Boolean);
+                    
+                    const statuses = new Set(selectedProductData.map(p => (p as any).status || (p as any).approvalStatus));
+                    const isAllWaiting = statuses.size === 1 && (statuses.has('WAITING_FOR_SAMPLE'));
+                    
+                    // If all are waiting for sample, skip to physical step
+                    if (isAllWaiting) {
+                      // Use the logistics of the first product if they are uniform
+                      const logistics = (selectedProductData[0] as any).logistics;
+                      openSubmitModal(Array.from(selectedProducts), 'WAITING_FOR_SAMPLE', logistics);
+                    } else {
+                      openSubmitModal(Array.from(selectedProducts), 'PENDING_DIGITAL_REVIEW');
+                    }
+                  }}
+                  className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl font-bold px-6 shadow-md transition-all active:scale-95"
+                >
+                  {Array.from(selectedProducts).every(id => {
+                    const p = allFilteredProducts.find(p => p.id === id);
+                    return (p as any)?.status === 'WAITING_FOR_SAMPLE';
+                  }) ? 'Confirm Selections' : 'Submit for QA'}
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* QA Submission Modal */}
@@ -484,7 +1031,7 @@ const SellerProductStatus = () => {
             </DialogTitle>
             <DialogDescription>
               {reviewStep === 'choose'
-                ? 'Choose how you\'d like to submit your product for quality review'
+                ? `Submit ${selectedProduct?.includes(',') ? selectedProduct.split(',').length + ' products' : 'your product'} for quality review`
                 : 'Select how you\'ll send your product sample to our facility'}
             </DialogDescription>
           </DialogHeader>
@@ -493,22 +1040,27 @@ const SellerProductStatus = () => {
             <div className="py-2 space-y-3">
               {/* Digital Review option */}
               <button
-                onClick={handleDigitalReview}
-                className="w-full flex items-start gap-4 p-4 border-2 border-blue-100 rounded-xl hover:border-blue-400 hover:bg-blue-50/50 transition-all text-left group"
+                disabled
+                className="w-full flex items-start gap-4 p-4 border-2 border-gray-100 rounded-xl bg-gray-50/50 cursor-not-allowed opacity-80 text-left group relative overflow-hidden"
               >
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-200 transition-colors">
-                  <Camera className="w-5 h-5 text-blue-600" />
+                <div className="absolute top-2 right-2">
+                  <Badge className="bg-blue-100 text-blue-700 border-0 text-[9px] font-black uppercase tracking-tighter px-1.5 h-4">
+                    Coming Soon
+                  </Badge>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                  <Camera className="w-5 h-5 text-gray-400" />
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-900">Digital Review</div>
-                  <div className="text-sm text-gray-500 mt-0.5">Our QA team reviews your listing photos and product details online. Fastest option — no shipping needed.</div>
+                  <div className="font-semibold text-gray-400">Digital Review (Suspended)</div>
+                  <div className="text-sm text-gray-400 mt-0.5 italic">This feature is temporarily unavailable while we upgrade our verification protocols.</div>
                   <div className="mt-2">
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
-                      <CheckCircle2 className="w-3 h-3" /> Free · 1–2 business days
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
+                      Offline Mode
                     </span>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-gray-400 self-center flex-shrink-0 group-hover:text-blue-500 transition-colors" />
+                <XCircle className="w-4 h-4 text-gray-300 self-center flex-shrink-0" />
               </button>
 
               {/* Physical Sample option */}
@@ -624,11 +1176,135 @@ const SellerProductStatus = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Confirm Shipment Modal */}
+      <Dialog open={shipmentModalOpen} onOpenChange={setShipmentModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Confirm Shipment Details</DialogTitle>
+            <DialogDescription>
+              Provide tracking information for your shipped product sample
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="courier-service" className="text-sm font-semibold text-gray-700">Courier Service</Label>
+              <select
+                id="courier-service"
+                value={courierService}
+                onChange={(e) => setCourierService(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="">Select courier service</option>
+                <option value="Lalamove">Lalamove</option>
+                <option value="Grab Express">Grab Express</option>
+                <option value="J&T Express">J&T Express</option>
+                <option value="NinjaVan">NinjaVan</option>
+                <option value="Flash Express">Flash Express</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tracking-number" className="text-sm font-semibold text-gray-700">Tracking Number</Label>
+              <input
+                id="tracking-number"
+                type="text"
+                placeholder="Enter tracking number"
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-100 placeholder:text-gray-300"
+              />
+            </div>
+
+            <Alert className="bg-blue-50/50 border-blue-100 rounded-xl">
+              <AlertCircle className="h-5 w-5 text-blue-500" />
+              <div className="ml-2">
+                <div className="text-sm font-bold text-blue-900">QA Facility Address</div>
+                <div className="text-xs text-blue-700 mt-1">
+                  BazaarX Quality Assurance Center<br />
+                  123 Commerce Ave, Makati City, Metro Manila 1234
+                </div>
+              </div>
+            </Alert>
+          </div>
+
+          <DialogFooter className="gap-3 sm:gap-0 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShipmentModalOpen(false)}
+              className="rounded-xl border-gray-200 text-gray-600 font-semibold px-6"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmShipment}
+              disabled={!courierService || !trackingNumber}
+              className="bg-[#FFB17A] hover:bg-[#FF9B54] text-white rounded-xl font-bold px-8 shadow-md transition-all active:scale-95"
+            >
+              Confirm Shipment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Drop-off Modal */}
+      <Dialog open={dropOffModalOpen} onOpenChange={setDropOffModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Select Drop-off Date</DialogTitle>
+            <DialogDescription>
+              Select a date for your onsite visit to our facility
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 flex flex-col items-center">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 w-full flex justify-center">
+              <Calendar
+                mode="single"
+                selected={selectedDropOffDate}
+                onSelect={setSelectedDropOffDate}
+                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+              />
+            </div>
+
+            <Alert className="bg-blue-50/50 border-blue-100 rounded-xl mt-6 w-full">
+              <div className="flex gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <Store className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-blue-900">QA Facility Address</div>
+                  <div className="text-xs text-blue-700 mt-1">
+                    BazaarX Quality Assurance Center<br />
+                    123 Commerce Ave, Makati City, Metro Manila 1234<br />
+                    <span className="font-semibold">Operating Hours:</span> Mon-Fri, 9:00 AM - 5:00 PM
+                  </div>
+                </div>
+              </div>
+            </Alert>
+          </div>
+
+          <DialogFooter className="gap-3 sm:gap-0 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setDropOffModalOpen(false)}
+              className="rounded-xl border-gray-200 text-gray-600 font-semibold px-6"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleScheduleDropOff}
+              disabled={!selectedDropOffDate}
+              className="bg-[#2B4C8C] hover:bg-[#1E3A6E] text-white rounded-xl font-bold px-8 shadow-md transition-all active:scale-95"
+            >
+              Confirm Schedule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
-
-
-
 
 export default SellerProductStatus;

@@ -40,6 +40,7 @@ export interface QAProduct {
   rejectionStage?: 'digital' | 'physical'; // Track which stage rejected
   submittedAt?: string;
   approvedAt?: string;
+  batchId?: string | null;
   verifiedAt?: string;
   rejectedAt?: string;
   revisionRequestedAt?: string;
@@ -56,8 +57,8 @@ interface ProductQAStore {
   rejectListing: (productId: string, reason: string) => Promise<void>;
   approveForSampleSubmission: (productId: string) => Promise<void>;
   submitForDigitalReview: (productId: string) => Promise<void>;
-  submitForPhysicalReview: (productId: string, logisticsMethod: string) => Promise<void>;
-  submitSample: (productId: string, logisticsMethod: string) => Promise<void>;
+  submitForPhysicalReview: (productId: string, logisticsMethod: string, batchId?: string) => Promise<void>;
+  submitSample: (productId: string, logisticsMethod: string, trackingInfo?: { courier: string; trackingNumber: string; batchId?: string }) => Promise<void>;
   passQualityCheck: (productId: string) => Promise<void>;
   rejectProduct: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
   requestRevision: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
@@ -219,6 +220,7 @@ export const useProductQAStore = create<ProductQAStore>()(
               category: categoryName,
               status: entry.status,
               logistics: entry.logistics,
+              batchId: entry.batchId,
               image: imageUrl,
               images: imageUrls.length > 0 ? imageUrls : ['https://placehold.co/100?text=Product'],
               variants: variants.length > 0 ? variants : undefined,
@@ -354,7 +356,7 @@ export const useProductQAStore = create<ProductQAStore>()(
       },
 
       // Seller requests physical sample review (PENDING_DIGITAL_REVIEW → WAITING_FOR_SAMPLE)
-      submitForPhysicalReview: async (productId: string, logisticsMethod: string) => {
+      submitForPhysicalReview: async (productId: string, logisticsMethod: string, batchId?: string) => {
         try {
           if (!logisticsMethod || logisticsMethod.trim() === '') {
             throw new Error('Logistics method is required');
@@ -363,7 +365,7 @@ export const useProductQAStore = create<ProductQAStore>()(
           if (!product) throw new Error('Product not found');
 
           if (isSupabaseConfigured()) {
-            await qaService.submitForPhysicalReview(productId, logisticsMethod);
+            await qaService.submitForPhysicalReview(productId, logisticsMethod, batchId);
             await get().loadProducts();
           } else {
             set((state) => ({
@@ -381,7 +383,7 @@ export const useProductQAStore = create<ProductQAStore>()(
       },
 
       // Confirm physical sample has been sent (WAITING_FOR_SAMPLE → IN_QUALITY_REVIEW)
-      submitSample: async (productId: string, logisticsMethod: string) => {
+      submitSample: async (productId: string, logisticsMethod: string, trackingInfo?: { courier: string; trackingNumber: string }) => {
         try {
           if (!logisticsMethod || logisticsMethod.trim() === '') {
             throw new Error('Logistics method is required');
@@ -390,13 +392,13 @@ export const useProductQAStore = create<ProductQAStore>()(
           if (!product) {
             throw new Error('Product not found');
           }
-          if (product.status !== 'WAITING_FOR_SAMPLE') {
-            throw new Error('Product must be in WAITING_FOR_SAMPLE status to confirm sample sent');
+          if (product.status !== 'WAITING_FOR_SAMPLE' && product.status !== 'IN_QUALITY_REVIEW') {
+            throw new Error('Product must be in WAITING_FOR_SAMPLE or IN_QUALITY_REVIEW status to update logistics');
           }
 
           // Update database if configured
           if (isSupabaseConfigured()) {
-            await qaService.submitSample(productId, logisticsMethod);
+            await qaService.submitSample(productId, logisticsMethod, trackingInfo);
             await get().loadProducts();
           } else {
             // Fallback to local state
@@ -577,9 +579,6 @@ export const useProductQAStore = create<ProductQAStore>()(
             return;
           }
 
-          // Check if seller is premium outlet (bypasses assessment)
-          const isPremiumOutlet = await qaService.isPremiumOutlet(productData.sellerId);
-          
           // Create in database if configured
           if (isSupabaseConfigured() && productData.sellerId) {
             await qaService.createQAEntry(
@@ -589,29 +588,17 @@ export const useProductQAStore = create<ProductQAStore>()(
             );
             // Reload using this seller's ID specifically so seller sees their own updated list
             await get().loadProducts(productData.sellerId);
-            
-            // Sync premium outlet products to seller store as approved
-            if (isPremiumOutlet) {
-              syncToSellerStore(productData.id, 'approved');
-            }
           } else {
             // Fallback to local state
             const newQAProduct: QAProduct = {
               ...productData,
-              status: isPremiumOutlet ? 'ACTIVE_VERIFIED' : 'PENDING_DIGITAL_REVIEW',
+              status: 'PENDING_DIGITAL_REVIEW', // Initial status for all products
               logistics: null,
               submittedAt: new Date().toISOString(),
-              approvedAt: isPremiumOutlet ? new Date().toISOString() : undefined,
-              verifiedAt: isPremiumOutlet ? new Date().toISOString() : undefined,
             };
             set((state) => ({
               products: [...state.products, newQAProduct],
             }));
-            
-            // Sync premium outlet products to seller store as approved (local)
-            if (isPremiumOutlet) {
-              syncToSellerStore(productData.id, 'approved');
-            }
           }
         } catch (error) {
           console.error('Error adding product to QA:', error);
