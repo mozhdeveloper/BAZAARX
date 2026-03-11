@@ -116,7 +116,7 @@ const HomePage: React.FC = () => {
             )}
             <ProductRail
               title="Flash Sales"
-              subtitle="Limited time offers from our trusted sellers!"
+              subtitle="Exclusive platform-wide deals — limited time only!"
               products={flashSaleProducts.slice(0, 4)}
               actionLabel="See All Flash Sales"
               actionLink="/flash-sales"

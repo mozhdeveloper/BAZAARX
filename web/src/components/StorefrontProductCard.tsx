@@ -91,6 +91,14 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
                             )}% OFF
                     </div>
                 )}
+                {product.campaignBadge && (
+                    <div
+                        className="absolute top-3 right-3 text-white px-2 py-[2px] rounded text-[9px] font-black uppercase tracking-wider z-10 shadow-sm"
+                        style={{ backgroundColor: product.campaignBadgeColor || '#D97706' }}
+                    >
+                        {product.campaignBadge}
+                    </div>
+                )}
             </div>
 
             <div className="p-3 flex-1 flex flex-col">

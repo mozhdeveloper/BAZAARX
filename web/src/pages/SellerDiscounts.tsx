@@ -26,6 +26,8 @@ import { useAuthStore } from "@/stores/sellerStore";
 import { sellerLinks } from "@/config/sellerLinks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PlatformFlashSalesTab } from "@/components/seller/PlatformFlashSalesTab";
 import {
   Dialog,
   DialogContent,
@@ -496,6 +498,19 @@ export default function SellerDiscounts() {
                 </Button>
               </div>
 
+              {/* Tabs */}
+              <Tabs defaultValue="store" className="w-full">
+                <TabsList className="mb-6 grid w-full max-w-md grid-cols-2 rounded-xl bg-orange-100 p-1">
+                  <TabsTrigger value="store" className="rounded-lg data-[state=active]:bg-[#FF6A00] data-[state=active]:text-white transition-all">
+                    Store Campaigns
+                  </TabsTrigger>
+                  <TabsTrigger value="platform" className="rounded-lg data-[state=active]:bg-[#FF6A00] data-[state=active]:text-white transition-all overflow-hidden relative">
+                    Platform Flash Sales
+                    <Badge className="absolute -top-2 -right-2 bg-red-500 text-[9px] px-1 py-0 h-4 min-w-[16px] flex items-center justify-center animate-pulse shadow-sm">NEW</Badge>
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="store" className="mt-0 outline-none">
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <motion.div
@@ -776,6 +791,12 @@ export default function SellerDiscounts() {
                   ))}
                 </div>
               )}
+                </TabsContent>
+
+                <TabsContent value="platform" className="mt-0 outline-none">
+                  <PlatformFlashSalesTab sellerId={seller?.id || ""} />
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
 

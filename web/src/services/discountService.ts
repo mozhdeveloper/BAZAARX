@@ -86,6 +86,7 @@ export class DiscountService {
         .from('discount_campaigns')
         .select('*')
         .eq('seller_id', sellerId)
+        .eq('campaign_scope', 'store')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -109,6 +110,7 @@ export class DiscountService {
         .from('discount_campaigns')
         .select('*')
         .eq('seller_id', sellerId)
+        .eq('campaign_scope', 'store')
         .eq('status', 'active')
         .order('priority', { ascending: false });
 
@@ -340,8 +342,220 @@ export class DiscountService {
     }
   }
 
+  // ============================================================================
+  // ADMIN FLASH SALES
+  // ============================================================================
+
   /**
-   * Get all active flash sale products across all active flash sale campaigns
+   * Get all active global flash sale slots
+   */
+  async getActiveGlobalFlashSaleSlots() {
+    if (!isSupabaseConfigured()) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('global_flash_sale_slots')
+        .select('*')
+        .gte('end_date', new Date().toISOString())
+        .order('start_date', { ascending: true });
+        
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching active global flash sale slots:', error);
+      throw new Error('Failed to fetch active flash sale slots.');
+    }
+  }
+
+  /**
+   * Get all global flash sale slots (for admin)
+   */
+  async getAllGlobalFlashSaleSlots() {
+    if (!isSupabaseConfigured()) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('global_flash_sale_slots')
+        .select('*')
+        .order('start_date', { ascending: false });
+        
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching global flash sale slots:', error);
+      throw new Error('Failed to fetch flash sale slots.');
+    }
+  }
+
+  /**
+   * Create a global flash sale slot
+   */
+  async createGlobalFlashSaleSlot(slot: { name: string; startDate: string; endDate: string; minDiscountPercentage?: number; campaignType?: string }) {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    
+    try {
+      const { data, error } = await supabase
+        .from('global_flash_sale_slots')
+        .insert([{
+          name: slot.name,
+          start_date: slot.startDate,
+          end_date: slot.endDate,
+          min_discount_percentage: slot.minDiscountPercentage ?? 10,
+          campaign_type: slot.campaignType ?? 'flash_sale'
+        }])
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating global flash sale slot:', error);
+      throw new Error('Failed to create flash sale slot.');
+    }
+  }
+
+  /**
+   * Update a global flash sale slot
+   */
+  async updateGlobalFlashSaleSlot(id: string, updates: { name?: string; startDate?: string; endDate?: string; minDiscountPercentage?: number; campaignType?: string }) {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    
+    try {
+      const dbUpdates: any = {};
+      if (updates.name) dbUpdates.name = updates.name;
+      if (updates.startDate) dbUpdates.start_date = updates.startDate;
+      if (updates.endDate) dbUpdates.end_date = updates.endDate;
+      if (updates.minDiscountPercentage !== undefined) dbUpdates.min_discount_percentage = updates.minDiscountPercentage;
+      if (updates.campaignType) dbUpdates.campaign_type = updates.campaignType;
+
+      const { data, error } = await supabase
+        .from('global_flash_sale_slots')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error updating global flash sale slot:', error);
+      throw new Error('Failed to update flash sale slot.');
+    }
+  }
+
+  /**
+   * Delete a global flash sale slot
+   */
+  async deleteGlobalFlashSaleSlot(id: string) {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    
+    try {
+      const { error } = await supabase
+        .from('global_flash_sale_slots')
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting global flash sale slot:', error);
+      throw new Error('Failed to delete flash sale slot.');
+    }
+  }
+
+  /**
+   * Submit products to a global flash sale slot (for sellers)
+   */
+  async submitToFlashSale(submissions: { slotId: string; sellerId: string; productId: string; submittedPrice: number; submittedStock: number }[]) {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    if (!submissions || submissions.length === 0) return [];
+    
+    try {
+      const dbSubmissions = submissions.map(s => ({
+        slot_id: s.slotId,
+        seller_id: s.sellerId,
+        product_id: s.productId,
+        submitted_price: s.submittedPrice,
+        submitted_stock: s.submittedStock,
+        status: 'pending'
+      }));
+
+      const { data, error } = await supabase
+        .from('flash_sale_submissions')
+        .insert(dbSubmissions)
+        .select();
+        
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error submitting products to flash sale:', error);
+      throw new Error('Failed to submit products to flash sale.');
+    }
+  }
+
+  /**
+   * Get all submissions for a seller
+   */
+  async getFlashSaleSubmissionsBySeller(sellerId: string) {
+    if (!isSupabaseConfigured()) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('flash_sale_submissions')
+        .select('*, global_flash_sale_slots(*), products(name, price, images:product_images(image_url, is_primary))')
+        .eq('seller_id', sellerId);
+        
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching submissions by seller:', error);
+      throw new Error('Failed to fetch flash sale submissions.');
+    }
+  }
+
+  /**
+   * Get all submissions for a slot (for Admin review)
+   */
+  async getFlashSaleSubmissionsBySlot(slotId: string) {
+    if (!isSupabaseConfigured()) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('flash_sale_submissions')
+        .select('*, sellers(store_name), products(name, price, images:product_images(image_url, is_primary))')
+        .eq('slot_id', slotId);
+        
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching submissions for slot:', error);
+      throw new Error('Failed to fetch slot submissions.');
+    }
+  }
+
+  /**
+   * Update submission status (for Admin approval/rejection)
+   */
+  async updateFlashSaleSubmissionStatus(submissionId: string, status: 'approved' | 'rejected') {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    
+    try {
+      const { data, error } = await supabase
+        .from('flash_sale_submissions')
+        .update({ status })
+        .eq('id', submissionId)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error updating submission status:', error);
+      throw new Error('Failed to update submission status.');
+    }
+  }
+
+  /**
+   * Get all active flash sale products across all active flash sale campaigns AND approved global flash sale slots
    */
   async getFlashSaleProducts(): Promise<any[]> {
     if (!isSupabaseConfigured()) {
@@ -349,44 +563,47 @@ export class DiscountService {
     }
 
     try {
-      // 1. Fetch active flash sale campaigns
-      const { data: campaigns, error: campaignsError } = await supabase
-        .from('discount_campaigns')
+      let combinedProducts: any[] = [];
+      const now = new Date().toISOString();
+
+      // 1. Fetch approved products from active Global Flash Sale Slots (Admin level)
+      const { data: activeSlots, error: slotsError } = await supabase
+        .from('global_flash_sale_slots')
         .select('*')
-        .eq('campaign_type', 'flash_sale')
-        .eq('status', 'active')
-        .lte('starts_at', new Date().toISOString())
-        .gte('ends_at', new Date().toISOString())
-        .order('priority', { ascending: false });
+        .lte('start_date', now)
+        .gte('end_date', now);
+        
+      if (!slotsError && activeSlots && activeSlots.length > 0) {
+        const slotIds = activeSlots.map(s => s.id);
+        
+        const { data: slotSubmissions, error: subError } = await supabase
+          .from('flash_sale_submissions')
+          .select(`
+            *,
+            slot:global_flash_sale_slots(*),
+            product:products (
+              id,
+              name,
+              price,
+              seller_id,
+              images:product_images (image_url, is_primary, sort_order),
+              variants:product_variants (stock, price),
+              seller:sellers!products_seller_id_fkey (id, store_name, verified_at),
+              category:categories!products_category_id_fkey (name)
+            )
+          `)
+          .in('slot_id', slotIds)
+          .eq('status', 'approved');
+          
+        if (!subError && slotSubmissions) {
+           combinedProducts = [...combinedProducts, ...slotSubmissions.map(sub => ({...sub, type: 'global_slot'}))];
+        }
+      }
 
-      if (campaignsError) throw campaignsError;
-      if (!campaigns || campaigns.length === 0) return [];
-
-      const campaignIds = campaigns.map(c => c.id);
-
-      // 2. Fetch products in these campaigns
-      const { data: productDiscounts, error: pError } = await supabase
-        .from('product_discounts')
-        .select(`
-          *,
-          campaign:discount_campaigns(*),
-          product:products (
-            id,
-            name,
-            price,
-            seller_id,
-            images:product_images (image_url, is_primary, sort_order),
-            variants:product_variants (stock, price),
-            seller:sellers!products_seller_id_fkey (id, store_name, verified_at),
-            category:categories!products_category_id_fkey (name)
-          )
-        `)
-        .in('campaign_id', campaignIds);
-
-      if (pError) throw pError;
+      if (combinedProducts.length === 0) return [];
 
       // Fetch real sold counts from the product_sold_counts view
-      const productIds = (productDiscounts || []).map((pd: any) => pd.product?.id).filter(Boolean);
+      const productIds = combinedProducts.map((p: any) => p.product?.id).filter(Boolean);
       const soldCountsMap = new Map<string, number>();
       if (productIds.length > 0) {
         const { data: soldData } = await supabase
@@ -399,10 +616,9 @@ export class DiscountService {
       }
 
       // 3. Transform into generic product objects for UI
-      return (productDiscounts || []).map(pd => {
-        const p = pd.product as any;
-        const c = pd.campaign as any;
-
+      return combinedProducts.map(item => {
+        const p = item.product as any;
+        
         let basePrice = p.price;
         if (p.variants && p.variants.length > 0) {
           const variantPrices = p.variants
@@ -413,22 +629,24 @@ export class DiscountService {
           }
         }
 
-        // Calculate discounted price
         let discountedPrice = basePrice;
-        const dType = pd.discount_type || c.discount_type;
-        const dValue = pd.discount_value || c.discount_value;
         let discountBadgePercent = undefined;
         let discountBadgeTooltip = undefined;
+        let campaignId, campaignName, campaignBadge, campaignBadgeColor, campaignEndsAt, campaignStock, campaignSold;
 
-        if (dType === "percentage") {
-          discountedPrice = Math.round(basePrice * (1 - dValue / 100));
-          discountBadgePercent = Math.round(Number(dValue));
-          if (c.max_discount_amount) {
-            discountBadgeTooltip = `Up to ₱${Number(c.max_discount_amount).toLocaleString()} off`;
-          }
-        } else if (dType === "fixed_amount") {
-          discountedPrice = Math.max(0, basePrice - dValue);
+        // It's from a global flash sale slot
+        const slot = item.slot as any;
+        discountedPrice = item.submitted_price;
+        if (basePrice > 0) {
+          discountBadgePercent = Math.round(((basePrice - discountedPrice) / basePrice) * 100);
         }
+        campaignId = slot.id;
+        campaignName = slot.name;
+        campaignBadge = 'FLASH SALE';
+        campaignBadgeColor = '#FF0000';
+        campaignEndsAt = slot.end_date;
+        campaignStock = item.submitted_stock;
+        campaignSold = item.sold_count || 0; // If you track sold count in submissions, else 0 or rely on product generic
 
         // Get primary image
         const images = p.images || [];
@@ -441,8 +659,6 @@ export class DiscountService {
         const primaryImg = rawImg && isSafe(rawImg) ? rawImg : 'https://placehold.co/400x400?text=No+Image';
 
         const totalStock = (p.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
-        const campaignSold = Number(pd.sold_count || 0);
-        const campaignStock = Number(pd.discounted_stock || 0);
         const soldCount = soldCountsMap.get(p.id) || campaignSold || 0;
 
         return {
@@ -452,19 +668,19 @@ export class DiscountService {
           originalPrice: basePrice,
           image: primaryImg,
           images: images.map((i: any) => i.image_url),
-          seller: p.seller?.store_name || 'Generic Store',
-          sellerId: p.seller_id,
-          sellerVerified: !!p.seller?.verified_at,
+          seller: 'BazaarX',
+          sellerId: null,
+          sellerVerified: true,
           category: p.category?.name || 'General',
           stock: totalStock,
           sold: soldCount,
           campaignSold: campaignSold,
           campaignStock: campaignStock,
-          campaignId: c.id,
-          campaignName: c.name,
-          campaignBadge: c.badge_text,
-          campaignBadgeColor: c.badge_color,
-          campaignEndsAt: c.ends_at,
+          campaignId: campaignId,
+          campaignName: campaignName,
+          campaignBadge: campaignBadge,
+          campaignBadgeColor: campaignBadgeColor,
+          campaignEndsAt: campaignEndsAt,
           discountBadgePercent,
           discountBadgeTooltip,
         };
@@ -722,11 +938,8 @@ export class DiscountService {
     }
   }
 
-  // ============================================================================
-  // ADMIN FLASH SALES
-  // ============================================================================
-
   /**
+   * (Deprecated/Legacy: See getAllGlobalFlashSaleSlots instead)
    * Get all flash sale campaigns (admin use — no seller filter)
    */
   async getAllFlashSales(): Promise<DiscountCampaign[]> {

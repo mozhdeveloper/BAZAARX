@@ -70,7 +70,6 @@ export default function FlashSalesPage() {
                     id,
                     campaignName: p.campaignName || "Flash Sale",
                     color: p.campaignBadgeColor || "var(--brand-primary)",
-                    seller: p.seller,
                     endsAt: p.campaignEndsAt,
                     products: []
                 };
@@ -109,7 +108,7 @@ export default function FlashSalesPage() {
                                 Daily <span className="text-[var(--brand-primary)]">Flash Sales</span>
                             </h1>
                             <p className="text-gray-500 text-lg max-w-xl font-medium leading-relaxed">
-                                Exclusive deals created directly by our top sellers. Hurry, these offers disappear when the timer runs out!
+                                Exclusive platform-wide deals with massive discounts. Hurry, these offers disappear when the timer runs out!
                             </p>
                         </div>
                         <div className="relative z-10">
@@ -135,7 +134,6 @@ export default function FlashSalesPage() {
                                                 <h2 className="text-2xl font-black uppercase tracking-tight leading-none" style={{ color: group.color }}>
                                                     {group.campaignName}
                                                 </h2>
-                                                {group.seller && <span className="text-gray-500 text-sm">By {group.seller}</span>}
                                             </div>
                                         </div>
                                         {/* Individual Group Timer Component */}

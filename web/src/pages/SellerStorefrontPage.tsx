@@ -54,6 +54,8 @@ import type { ProductWithSeller } from '@/types/database.types';
 
 import StorefrontReviewsTab, { type Review } from '../components/shop/StorefrontReviewsTab';
 import { supabase } from '@/lib/supabase';
+import StoreBanner from '../components/shop/StoreBanner';
+import { discountService } from '../services/discountService';
 
 export default function SellerStorefrontPage() {
   const navigate = useNavigate();
@@ -114,6 +116,7 @@ export default function SellerStorefrontPage() {
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [followersCount, setFollowersCount] = useState(0);
+  const [activeCampaign, setActiveCampaign] = useState<any | null>(null);
 
   const handleToggleLike = (reviewId: string) => {
     setReviews(prev => prev.map(review => {
@@ -231,6 +234,16 @@ export default function SellerStorefrontPage() {
           });
         } catch (reviewError) {
           console.error('Error fetching reviews:', reviewError);
+        }
+
+        // Fetch active store campaigns for this seller
+        try {
+          const campaigns = await discountService.getActiveCampaigns(sellerId);
+          if (campaigns && campaigns.length > 0) {
+            setActiveCampaign(campaigns[0]);
+          }
+        } catch (campaignError) {
+          console.error('Error fetching active campaigns:', campaignError);
         }
       } catch (error) {
         console.error('Error fetching seller data:', error);
@@ -361,6 +374,9 @@ export default function SellerStorefrontPage() {
       campaignDiscount: (p as any).campaignDiscount || null,
       discountBadgePercent: (p as any).discountBadgePercent,
       discountBadgeTooltip: (p as any).discountBadgeTooltip,
+      campaignBadge: (p as any).campaignBadge || null,
+      campaignBadgeColor: (p as any).campaignBadgeColor || null,
+      campaignEndsAt: (p as any).campaignEndsAt || null,
       image: (p.images && p.images.length > 0 && p.images[0].image_url) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
       rating: p.rating || 5.0,
       review_count: p.review_count || 0,
@@ -618,6 +634,13 @@ export default function SellerStorefrontPage() {
           {/* Products Tab */}
           <TabsContent value="products">
             <div className="space-y-6">
+              {/* Store Campaign Banner */}
+              {activeCampaign && (
+                <StoreBanner 
+                  campaign={activeCampaign} 
+                  products={displayProducts.filter(p => !!p.campaignDiscount)} 
+                />
+              )}
               {/* Filters and Controls */}
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-4">
