@@ -93,7 +93,7 @@ const mapOrderReviews = (order: any): OrderReviewSnapshot[] => {
   const joinedReviews = Array.isArray(order?.reviews) ? order.reviews : [];
 
   const normalized = joinedReviews
-    .filter((review: any) => Boolean(review) && review.is_hidden !== true)
+    .filter((review: any) => Boolean(review))
     .map((review: any) => {
       const submittedAt = new Date(
         review.created_at || review.updated_at || order.updated_at || order.created_at || Date.now(),

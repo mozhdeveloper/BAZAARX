@@ -67,6 +67,7 @@ export interface BuyerReturnRequestSnapshot {
   refundAmount: number;
   submittedAt: Date;
   status: 'pending' | 'seller_review' | 'counter_offered' | 'approved' | 'rejected' | 'escalated' | 'return_in_transit' | 'return_received' | 'refunded';
+  resolvedBy?: string;
   rejectedReason?: string | null;
   description?: string | null;
   evidenceUrls?: string[];
@@ -145,7 +146,7 @@ export interface SellerOrderSnapshot {
   buyerEmail: string;
   items: SellerOrderItemSnapshot[];
   total: number;
-  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled" | "returned" | "reviewed";
   paymentStatus: "pending" | "paid" | "refunded";
   paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online";
   orderDate: string;
