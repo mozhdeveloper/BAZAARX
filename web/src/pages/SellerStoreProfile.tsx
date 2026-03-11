@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { uploadSellerDocument, validateDocumentFile } from "@/utils/storage";
+import { uploadSellerDocument, validateDocumentFile, uploadStoreBanner } from "@/utils/storage";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { categoryService } from "@/services/categoryService";
@@ -66,6 +66,12 @@ export function SellerStoreProfile() {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  
+  // Banner upload state
+  const [bannerLoading, setBannerLoading] = useState(false);
+  const [bannerError, setBannerError] = useState<string | null>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  
   const getSellerId = () =>
     seller?.id || useAuthStore.getState().seller?.id || null;
 
@@ -136,10 +142,10 @@ export function SellerStoreProfile() {
         sellerId,
       });
 
-      // Create a unique filename
+      // Create a unique filename with folder structure
       const timestamp = Date.now();
       const ext = file.name.split(".").pop();
-      const filename = `${sellerId}-${timestamp}.${ext}`;
+      const filename = `${sellerId}/avatar_${timestamp}.${ext}`;
 
       // Upload to Supabase Storage
       const { data, error: uploadError } = await supabase.storage
@@ -172,9 +178,9 @@ export function SellerStoreProfile() {
       const avatarUrl = publicData.publicUrl;
       console.log("Generated public URL:", avatarUrl);
 
-      // Update profile in database
+      // Update seller in database (sellers table, not profiles!)
       const { error: updateError, data: updateData } = await supabase
-        .from("profiles")
+        .from("sellers")
         .update({ avatar_url: avatarUrl })
         .eq("id", sellerId);
 
@@ -208,6 +214,79 @@ export function SellerStoreProfile() {
       console.error("Avatar upload error:", errorMessage, err);
       setAvatarError(errorMessage);
       setAvatarLoading(false);
+    }
+  };
+
+  // Handle banner upload
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const sellerId = getSellerId();
+    if (!file || !sellerId) {
+      setBannerError("No file selected or seller ID missing");
+      return;
+    }
+
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!validTypes.includes(file.type)) {
+      setBannerError(
+        "Please upload a valid image file (JPEG, PNG, WebP, or GIF)"
+      );
+      return;
+    }
+
+    // Validate file size (5MB max)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setBannerError("File size must be less than 5MB");
+      return;
+    }
+
+    try {
+      setBannerLoading(true);
+      setBannerError(null);
+
+      console.log("Starting banner upload...", {
+        filename: file.name,
+        filesize: file.size,
+        fileType: file.type,
+        sellerId,
+      });
+
+      const bannerUrl = await uploadStoreBanner(file, sellerId);
+      if (!bannerUrl) throw new Error("Upload failed - no URL returned");
+
+      console.log("Banner upload successful:", bannerUrl);
+
+      // Update sellers table
+      const { error: updateError } = await supabase
+        .from("sellers")
+        .update({ store_banner_url: bannerUrl })
+        .eq("id", sellerId);
+
+      if (updateError) {
+        console.error("Database update error:", updateError);
+        throw new Error(`Database update failed: ${updateError.message}`);
+      }
+
+      console.log("Banner database update successful");
+
+      // Update local state
+      updateSellerDetails({ ...seller, banner: bannerUrl });
+
+      // Reset input
+      if (bannerInputRef.current) {
+        bannerInputRef.current.value = "";
+      }
+
+      console.log("Banner upload completed successfully");
+      setBannerLoading(false);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to upload banner";
+      console.error("Banner upload error:", errorMessage, err);
+      setBannerError(errorMessage);
+      setBannerLoading(false);
     }
   };
 
@@ -2236,17 +2315,56 @@ export function SellerStoreProfile() {
                     <Image className="h-5 w-5 text-[var(--brand-primary)]" />
                     Store Banner
                   </h3>
-                  <div className="border-2 border-dashed border-[var(--brand-accent-light)] rounded-2xl p-12 text-center hover:border-[var(--brand-primary)] hover:bg-[var(--brand-accent-light)]/50 transition-all cursor-pointer group">
-                    <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 transition-transform">
-                      <Upload className="h-8 w-8 text-[var(--brand-primary)]" />
+                  
+                  {/* Banner Preview */}
+                  {seller?.banner ? (
+                    <div className="mb-6 relative group">
+                      <img 
+                        src={seller.banner} 
+                        alt="Store Banner" 
+                        className="w-full h-48 object-cover rounded-xl"
+                      />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                        <button 
+                          onClick={() => bannerInputRef.current?.click()}
+                          disabled={bannerLoading}
+                          className="px-4 py-2 bg-white rounded-lg font-medium text-gray-800"
+                        >
+                          {bannerLoading ? "Uploading..." : "Change Banner"}
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-[var(--text-secondary)] font-bold mb-2">
-                      Click to upload store banner
-                    </p>
-                    <p className="text-sm text-[var(--text-muted)]">
-                      Recommended size: 1200x400px (Max 5MB)
-                    </p>
-                  </div>
+                  ) : (
+                    <div 
+                      className="border-2 border-dashed border-[var(--brand-accent-light)] rounded-2xl p-12 text-center hover:border-[var(--brand-primary)] hover:bg-[var(--brand-accent-light)]/50 transition-all cursor-pointer group"
+                      onClick={() => bannerInputRef.current?.click()}
+                    >
+                      <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 transition-transform">
+                        <Upload className="h-8 w-8 text-[var(--brand-primary)]" />
+                      </div>
+                      <p className="text-[var(--text-secondary)] font-bold mb-2">
+                        Click to upload store banner
+                      </p>
+                      <p className="text-sm text-[var(--text-muted)]">
+                        Recommended size: 1200x400px (Max 5MB)
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Hidden file input */}
+                  <input
+                    ref={bannerInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleBannerUpload}
+                    disabled={bannerLoading}
+                  />
+
+                  {/* Error message */}
+                  {bannerError && (
+                    <p className="text-sm text-red-600 mt-2">{bannerError}</p>
+                  )}
                 </Card>
               </div>
             </div>

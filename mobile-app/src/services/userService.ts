@@ -85,7 +85,7 @@ export class UserService {
         }
 
         try {
-            const fileName = `avatar_${userId}_${Date.now()}.${fileExt}`;
+            const fileName = `${userId}/avatar_${Date.now()}.${fileExt}`;
             const filePath = `${fileName}`;
 
             const { error: uploadError } = await supabase.storage

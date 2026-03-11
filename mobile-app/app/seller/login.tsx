@@ -99,7 +99,7 @@ export default function SellerLoginScreen() {
           name: fullName,
           email: authData.user.email || '',
           phone: (profile as any)?.phone || '',
-          avatar: (profile as any)?.avatar_url || ''
+          avatar: sellerData.avatar_url || (profile as any)?.avatar_url || ''
         });
 
         // Sync with AuthStore (seller info)

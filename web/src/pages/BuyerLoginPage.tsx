@@ -92,6 +92,7 @@ export default function BuyerLoginPage() {
         lastName,
         phone: profileAny?.phone || "",
         avatar:
+          (buyerData as any)?.avatar_url ||
           profileAny?.avatar_url ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(
             displayFullName

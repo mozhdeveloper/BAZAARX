@@ -23,6 +23,7 @@ export interface SellerCoreData {
     store_description: string | null;
     store_contact_number: string | null;
     avatar_url: string | null;
+    store_banner_url: string | null;
     owner_name?: string | null;
     approval_status: 'pending' | 'verified' | 'rejected' | 'needs_resubmission' | 'blacklisted';
     verified_at: string | null;
@@ -80,6 +81,7 @@ export type SellerInsert = {
     store_description?: string | null;
     store_contact_number?: string | null;
     avatar_url?: string | null;
+    store_banner_url?: string | null;
     approval_status?: 'pending' | 'verified' | 'rejected' | 'needs_resubmission' | 'blacklisted';
 };
 
