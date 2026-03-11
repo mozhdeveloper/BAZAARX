@@ -55,11 +55,11 @@ const BuyerAnnouncementsPage: React.FC = () => {
 
           {/* Back nav */}
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/shop')}
             className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm mb-5 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
-            Back
+            Back to Shop
           </button>
 
           {/* Header */}

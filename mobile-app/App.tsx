@@ -118,6 +118,17 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+  const [unreadMsgCount, setUnreadMsgCount] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!user?.id) return;
+    const fetchCount = () =>
+      chatService.getUnreadCount(user.id, 'buyer').then(setUnreadMsgCount);
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   return (
     <Tab.Navigator
@@ -179,6 +190,18 @@ function MainTabs() {
         component={MessagesScreen}
         options={{
           tabBarIcon: ({ color, size }) => <MessageCircle size={size} color={color} />,
+          tabBarBadge: unreadMsgCount > 0 ? (unreadMsgCount > 9 ? '9+' : unreadMsgCount) : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: '#D97706',
+            borderWidth: 1,
+            borderColor: '#FFD89A',
+            color: '#FFFFFF',
+            fontSize: 10,
+            fontWeight: '900',
+            minWidth: 20,
+            height: 20,
+            borderRadius: 10,
+          },
         }}
       />
       <Tab.Screen

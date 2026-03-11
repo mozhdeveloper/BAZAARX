@@ -106,6 +106,18 @@ const mapOrderReviews = (order: any): OrderReviewSnapshot[] => {
         comment: review.comment || "",
         images: mapReviewImages(review),
         submittedAt,
+        sellerReply: review.seller_reply
+          ? {
+              message:
+                typeof review.seller_reply === 'string'
+                  ? review.seller_reply
+                  : (review.seller_reply as any)?.message || '',
+              repliedAt:
+                typeof review.seller_reply === 'object'
+                  ? (review.seller_reply as any)?.replied_at || null
+                  : null,
+            }
+          : null,
       } satisfies OrderReviewSnapshot;
     })
     .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());

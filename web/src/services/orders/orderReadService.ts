@@ -131,6 +131,7 @@ export class OrderReadService {
           variant_snapshot,
           rating,
           comment,
+          seller_reply,
           is_hidden,
           created_at,
           updated_at,

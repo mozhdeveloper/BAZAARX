@@ -59,10 +59,11 @@ import { QuantityStepper } from '../src/components/QuantityStepper';
 import { AddToWishlistModal } from '../src/components/AddToWishlistModal';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
-import { trendingProducts } from '../src/data/products';
+// trendingProducts removed — related products are now fetched from Supabase by category
 import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import BackToShopButton from '../src/components/BackToShopButton';
 import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { productService } from '../src/services/productService';
 import { sellerService } from '../src/services/sellerService';
@@ -176,6 +177,39 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     };
     loadDiscount();
   }, [product.id]);
+
+  const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchRelated = async () => {
+      const categoryId = (product as any).category_id;
+      if (!categoryId) return;
+      try {
+        const results = await productService.getProducts({ categoryId, limit: 5 });
+        const normalized = results
+          .filter((p: any) => p.id !== product.id)
+          .slice(0, 4)
+          .map((p: any) => ({
+            ...p,
+            image:
+              p.primary_image ||
+              p.primary_image_url ||
+              (Array.isArray(p.images) && p.images.length > 0 && typeof p.images[0] === 'string'
+                ? p.images[0]
+                : '') ||
+              '',
+            seller:
+              typeof p.seller === 'object'
+                ? p.seller?.store_name || 'Verified Seller'
+                : p.seller || 'Verified Seller',
+          }));
+        setRelatedProducts(normalized);
+      } catch {
+        // related products are optional
+      }
+    };
+    fetchRelated();
+  }, [(product as any).category_id]);
 
   // Structured variants from product_variants table
   const productVariants = product.variants || [];
@@ -471,10 +505,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Constants
   const cartItemCount = useCartStore((state) => state.items.length);
-
-  const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
-
-
 
   const fetchReviews = async (page = 1, append = false, currentFilters = reviewFilters) => {
     if (!product.id) return;
@@ -951,7 +981,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <ShoppingCart size={20} color="#78350F" />
             {cartItemCount > 0 && (
               <View style={[styles.badge, { right: -2, top: -2 }]}>
-                <Text style={styles.badgeText}>{cartItemCount}</Text>
+                <Text style={styles.badgeText}>{cartItemCount > 9 ? '9+' : cartItemCount}</Text>
               </View>
             )}
           </Pressable>
@@ -974,9 +1004,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       >
         {/* Back Button & Title Area strictly inside Rounded Container */}
         <View style={{ paddingHorizontal: 20, marginBottom: 15 }}>
-          <Pressable onPress={() => navigation.goBack()} style={{ marginBottom: 15 }}>
-            <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 }}>
+            <Pressable onPress={() => navigation.goBack()}>
+              <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
+            </Pressable>
+            <BackToShopButton navigation={navigation} />
+          </View>
 
           <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
