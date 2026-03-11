@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { handleImageError } from '@/utils/imageUtils';
 import { Navigate } from 'react-router-dom';
 import {
@@ -11,12 +11,9 @@ import {
     Search,
     Eye,
     Calendar,
-    Tag,
-    DollarSign,
     ChevronLeft,
     ChevronRight,
     Store,
-    Shield,
     X,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -34,13 +31,11 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
-    DialogFooter,
 } from '../components/ui/dialog';
-import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { useToast } from '../hooks/use-toast';
 import { qaTeamService, type QAAssessmentItem, type QADashboardStats } from '../services/qaTeamService';
-import { useProductQAStore } from '../stores/productQAStore';
+import QAForm from '../components/QAForm';
 
 type QATab = 'digital' | 'verified' | 'revision' | 'rejected';
 
@@ -62,12 +57,8 @@ const AdminQADashboard = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProduct, setSelectedProduct] = useState<QAAssessmentItem | null>(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
-    const [showRejectModal, setShowRejectModal] = useState(false);
-    const [showRevisionModal, setShowRevisionModal] = useState(false);
-    const [rejectionReason, setRejectionReason] = useState('');
-    const [revisionReason, setRevisionReason] = useState('');
+    const [showQAForm, setShowQAForm] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
     const loadData = async () => {
         setIsLoading(true);
         try {
@@ -114,47 +105,6 @@ const AdminQADashboard = () => {
         }
 
         return filtered;
-    };
-
-    const handlePassDigitalReview = async (assessment: QAAssessmentItem) => {
-        try {
-            await qaTeamService.passDigitalReview(assessment.product_id, 'qa-user');
-            toast({ title: 'Success', description: 'Product approved and verified!' });
-            await loadData();
-            setShowDetailModal(false);
-        } catch {
-            toast({ title: 'Error', description: 'Failed to approve product', variant: 'destructive' });
-        }
-    };
-
-    const handleReject = async () => {
-        if (!selectedProduct || !rejectionReason.trim()) return;
-        try {
-            await qaTeamService.rejectProduct(selectedProduct.product_id, 'qa-user', rejectionReason, 'digital');
-            toast({ title: 'Product Rejected', description: 'Seller has been notified.' });
-            setShowRejectModal(false);
-            setRejectionReason('');
-            setSelectedProduct(null);
-            setShowDetailModal(false);
-            await loadData();
-        } catch {
-            toast({ title: 'Error', description: 'Failed to reject product', variant: 'destructive' });
-        }
-    };
-
-    const handleRequestRevision = async () => {
-        if (!selectedProduct || !revisionReason.trim()) return;
-        try {
-            await qaTeamService.requestRevision(selectedProduct.product_id, 'qa-user', revisionReason, 'digital');
-            toast({ title: 'Revision Requested', description: 'Seller has been notified.' });
-            setShowRevisionModal(false);
-            setRevisionReason('');
-            setSelectedProduct(null);
-            setShowDetailModal(false);
-            await loadData();
-        } catch {
-            toast({ title: 'Error', description: 'Failed to request revision', variant: 'destructive' });
-        }
     };
 
     const filteredAssessments = getFilteredAssessments();
@@ -331,186 +281,185 @@ const AdminQADashboard = () => {
                         </div>
                     )}
 
-                    <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                        <DialogContent className="sm:max-w-[700px] max-h-[90vh] p-0 flex flex-col overflow-hidden border-none shadow-2xl">
-                            <div className="sticky top-0 z-40 px-6 py-4 bg-white/95 backdrop-blur-md flex flex-col gap-1">
-                                <div className="flex justify-between items-start">
-                                    <DialogTitle className="text-xl text-[var(--text-headline)] pr-8">{selectedProduct?.product?.name || 'Product Details'}</DialogTitle>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full absolute right-4 top-4 hover:bg-base" onClick={() => setShowDetailModal(false)}>
-                                        <X className="w-4 h-4 text-gray-400 hover:text-gray-700" />
-                                    </Button>
-                                </div>
-                                <DialogDescription className="text-[var(--text-muted)]">Review product information, variants, and timeline history.</DialogDescription>
-                            </div>
+                    <Dialog open={showDetailModal} onOpenChange={(open) => {
+                        setShowDetailModal(open);
+                        if (!open) {
+                            setShowQAForm(false);
+                        }
+                    }}>
+                        <DialogContent className={cn(
+                            "max-h-[95vh] p-0 flex flex-col overflow-hidden border-none shadow-2xl transition-all duration-500 ease-in-out",
+                            showQAForm ? "sm:max-w-[1200px]" : "sm:max-w-[700px]"
+                        )}>
+                            <div className="flex h-full overflow-hidden">
+                                {/* Product Details Column */}
+                                <div className={cn(
+                                    "flex flex-col h-[95vh] transition-all duration-500",
+                                    showQAForm ? "w-1/2" : "w-full"
+                                )}>
+                                    <div className="sticky top-0 z-40 px-6 py-4 bg-white/95 backdrop-blur-md flex flex-col gap-1 border-b border-gray-50">
+                                        <div className="flex justify-between items-start">
+                                            <DialogTitle className="text-xl text-[var(--text-headline)] pr-8">{selectedProduct?.product?.name || 'Product Details'}</DialogTitle>
+                                            {!showQAForm && (
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full absolute right-4 top-4 hover:bg-base" onClick={() => setShowDetailModal(false)}>
+                                                    <X className="w-4 h-4 text-gray-400 hover:text-gray-700" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <DialogDescription className="text-[var(--text-muted)]">Review product information, variants, and timeline history.</DialogDescription>
+                                    </div>
 
-                            <div className="flex-1 overflow-y-auto scrollbar-hide px-10">
-                                {selectedProduct && (
-                                    <div className="space-y-4 pt-4 pb-8">
-                                        <div className="flex flex-col md:flex-row gap-8">
-                                            <div className="w-full md:w-1/2 relative">
-                                                <div className="absolute top-4 left-4 z-20">{getStatusBadge(selectedProduct.status)}</div>
-                                                {selectedProduct.product?.images && (
-                                                    <div className="relative rounded-2xl border border-gray-100 bg-gray-50/50 p-2 shadow-sm overflow-hidden">
-                                                        <div className="h-64 sm:h-80 bg-white rounded-xl overflow-hidden flex items-center justify-center">
-                                                            <img src={selectedProduct.product.images[currentImageIndex]?.image_url} alt="Product" className="h-full w-full object-contain" />
-                                                        </div>
-                                                        {selectedProduct.product.images.length > 1 && (
-                                                            <div className="flex justify-between items-center mt-3 px-2">
-                                                                <Button size="icon" variant="outline" className="h-8 w-8 rounded-full border-[var(--btn-border)] text-[var(--text-muted)] hover:bg-base hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)] transition-all" onClick={() => setCurrentImageIndex(Math.max(0, currentImageIndex - 1))} disabled={currentImageIndex === 0}>
-                                                                    <ChevronLeft className="w-4 h-4" />
-                                                                </Button>
-                                                                <span className="text-sm font-medium text-gray-500 font-inter">{currentImageIndex + 1} / {selectedProduct.product.images.length}</span>
-                                                                <Button size="icon" variant="outline" className="h-8 w-8 rounded-full border-[var(--btn-border)] text-[var(--text-muted)] hover:bg-base hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)] transition-all" onClick={() => setCurrentImageIndex(Math.min(selectedProduct.product.images.length - 1, currentImageIndex + 1))} disabled={currentImageIndex === selectedProduct.product.images.length - 1}>
-                                                                    <ChevronRight className="w-4 h-4" />
-                                                                </Button>
+                                    <div className="flex-1 overflow-y-auto scrollbar-hide px-10">
+                                        {selectedProduct && (
+                                            <div className="space-y-4 pt-4 pb-8">
+                                                <div className="flex flex-col md:flex-row gap-8">
+                                                    <div className="w-full md:w-1/2 relative">
+                                                        <div className="absolute top-4 left-4 z-20">{getStatusBadge(selectedProduct.status)}</div>
+                                                        {selectedProduct.product?.images && (
+                                                            <div className="relative rounded-2xl border border-gray-100 bg-gray-50/50 p-2 shadow-sm overflow-hidden">
+                                                                <div className="h-64 sm:h-80 bg-white rounded-xl overflow-hidden flex items-center justify-center">
+                                                                    <img src={selectedProduct.product.images[currentImageIndex]?.image_url} alt="Product" className="h-full w-full object-contain" />
+                                                                </div>
+                                                                {selectedProduct.product.images.length > 1 && (
+                                                                    <div className="flex justify-between items-center mt-3 px-2">
+                                                                        <Button size="icon" variant="outline" className="h-8 w-8 rounded-full border-[var(--btn-border)] text-[var(--text-muted)] hover:bg-base hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)] transition-all" onClick={() => setCurrentImageIndex(Math.max(0, currentImageIndex - 1))} disabled={currentImageIndex === 0}>
+                                                                            <ChevronLeft className="w-4 h-4" />
+                                                                        </Button>
+                                                                        <span className="text-sm font-medium text-gray-500 font-inter">{currentImageIndex + 1} / {selectedProduct.product.images.length}</span>
+                                                                        <Button size="icon" variant="outline" className="h-8 w-8 rounded-full border-[var(--btn-border)] text-[var(--text-muted)] hover:bg-base hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)] transition-all" onClick={() => setCurrentImageIndex(Math.min(selectedProduct.product.images.length - 1, currentImageIndex + 1))} disabled={currentImageIndex === selectedProduct.product.images.length - 1}>
+                                                                            <ChevronRight className="w-4 h-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
-                                                )}
-                                            </div>
 
-                                            <div className="w-full md:w-1/2 flex flex-col justify-center space-y-4 py-2">
-                                                {[
-                                                    { label: 'Seller', value: selectedProduct.product?.seller?.store_name },
-                                                    { label: 'Category', value: selectedProduct.product?.category?.name },
-                                                    { label: 'Price', value: `₱${selectedProduct.product?.price?.toLocaleString()}`, isPrice: true }
-                                                ].map(item => (
-                                                    <div key={item.label} className="space-y-0.5">
-                                                        <Label className="text-[var(--text-headline)] font-bold text-lg">{item.label}</Label>
-                                                        <p className={cn("text-md", item.isPrice ? "text-2xl font-bold text-[var(--brand-primary)]" : "text-[var(--text-secondary)]")}>{item.value || 'N/A'}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <hr className="my-6 border-gray-100" />
-                                        <div>
-                                            <Label className="text-lg font-semibold text-gray-900 mb-3 block">Description</Label>
-                                            <p className="text-sm text-gray-600 leading-relaxed">{selectedProduct.product?.description}</p>
-                                        </div>
-
-                                        {selectedProduct.product?.variants && selectedProduct.product.variants.length > 0 && (
-                                            <>
-                                                <hr className="my-6 border-gray-100" />
-                                                <div>
-                                                    <Label className="text-lg font-semibold text-gray-900 mb-3 block">Variants</Label>
-                                                    <div className="grid sm:grid-cols-2 gap-2">
-                                                        {selectedProduct.product.variants.map((v: any) => (
-                                                            <div key={v.id} className="flex flex-col text-sm bg-white border border-gray-100 shadow-sm rounded-lg p-3">
-                                                                <span className="font-medium text-gray-900 mb-1">{v.variant_name}</span>
-                                                                <span className="text-gray-500 flex justify-between">
-                                                                    <span className="text-[var(--brand-primary)] font-medium">₱{v.price?.toLocaleString()}</span>
-                                                                    <span>Stock: {v.stock}</span>
-                                                                </span>
+                                                    <div className="w-full md:w-1/2 flex flex-col justify-center space-y-4 py-2">
+                                                        {[
+                                                            { label: 'Seller', value: selectedProduct.product?.seller?.store_name },
+                                                            { label: 'Category', value: selectedProduct.product?.category?.name },
+                                                            { label: 'Price', value: `₱${selectedProduct.product?.price?.toLocaleString()}`, isPrice: true }
+                                                        ].map(item => (
+                                                            <div key={item.label} className="space-y-0.5">
+                                                                <Label className="text-[var(--text-headline)] font-bold text-lg">{item.label}</Label>
+                                                                <p className={cn("text-md", item.isPrice ? "text-2xl font-bold text-[var(--brand-primary)]" : "text-[var(--text-secondary)]")}>{item.value || 'N/A'}</p>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
-                                            </>
-                                        )}
 
-                                        <hr className="my-6 border-gray-100" />
-                                        <div>
-                                            <div className="space-y-3 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-300 before:to-transparent">
-                                                <div className="relative flex items-center justify-between md:flex-row-reverse group is-active mb-4">
-                                                    <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-primary shadow shrink-0 md:order-1 text-white/0"></div>
-                                                    <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                                        <div className="flex items-center justify-between mb-1">
-                                                            <div className="font-semibold text-sm text-gray-900">Submitted</div>
-                                                            <div className="text-xs text-gray-500">{new Date(selectedProduct.submitted_at || selectedProduct.created_at).toLocaleString()}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="hidden md:block w-[calc(50%-1.5rem)] md:order-2">
-                                                        <Label className="text-lg font-semibold text-gray-900 mb-0">Timeline</Label>
-                                                    </div>
+                                                <hr className="my-6 border-gray-100" />
+                                                <div>
+                                                    <Label className="text-lg font-semibold text-gray-900 mb-3 block">Description</Label>
+                                                    <p className="text-sm text-gray-600 leading-relaxed">{selectedProduct.product?.description}</p>
                                                 </div>
 
-                                                {selectedProduct.admin_accepted_at && (
-                                                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                                        <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-blue-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-white/0"></div>
-                                                        <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <div className="font-semibold text-sm text-gray-900">Admin Accepted</div>
-                                                                <div className="text-xs text-gray-500">{new Date(selectedProduct.admin_accepted_at).toLocaleString()}</div>
+                                                {selectedProduct.product?.variants && selectedProduct.product.variants.length > 0 && (
+                                                    <>
+                                                        <hr className="my-6 border-gray-100" />
+                                                        <div>
+                                                            <Label className="text-lg font-semibold text-gray-900 mb-3 block">Variants</Label>
+                                                            <div className="grid sm:grid-cols-2 gap-2">
+                                                                {selectedProduct.product.variants.map((v: any) => (
+                                                                    <div key={v.id} className="flex flex-col text-sm bg-white border border-gray-100 shadow-sm rounded-lg p-3">
+                                                                        <span className="font-medium text-gray-900 mb-1">{v.variant_name}</span>
+                                                                        <span className="text-gray-500 flex justify-between">
+                                                                            <span className="text-[var(--brand-primary)] font-medium">₱{v.price?.toLocaleString()}</span>
+                                                                            <span>Stock: {v.stock}</span>
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         </div>
-                                                    </div>
+                                                    </>
                                                 )}
 
-                                                {selectedProduct.revision_requested_at && (
-                                                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                                        <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-orange-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-white/0"></div>
-                                                        <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] bg-white p-3 rounded-xl border border-gray-100 shadow-sm border-l-4 border-l-orange-500">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <div className="font-semibold text-sm text-gray-900">Revision Requested</div>
-                                                                <div className="text-xs text-gray-500">{new Date(selectedProduct.revision_requested_at).toLocaleString()}</div>
+                                                <hr className="my-6 border-gray-100" />
+                                                <div>
+                                                    <div className="space-y-3 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-300 before:to-transparent">
+                                                        <div className="relative flex items-center justify-between md:flex-row-reverse group is-active mb-4">
+                                                            <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-primary shadow shrink-0 md:order-1 text-white/0"></div>
+                                                            <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <div className="font-semibold text-sm text-gray-900">Submitted</div>
+                                                                    <div className="text-xs text-gray-500">{new Date(selectedProduct.submitted_at || selectedProduct.created_at).toLocaleString()}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="hidden md:block w-[calc(50%-1.5rem)] md:order-2">
+                                                                <Label className="text-lg font-semibold text-gray-900 mb-0">Timeline</Label>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                )}
 
-                                                {selectedProduct.verified_at && (
-                                                    <div className="relative flex items-center justify-between md:justify-normal md:flex-row-reverse group is-active">
-                                                        <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-green-500 shadow shrink-0 md:order-1 md:-translate-x-1/2 text-white/0"></div>
-                                                        <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <div className="font-semibold text-sm text-gray-900">QA Verified</div>
-                                                                <div className="text-xs text-gray-500">{new Date(selectedProduct.verified_at).toLocaleString()}</div>
+                                                        {selectedProduct.admin_accepted_at && (
+                                                            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                                                <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-blue-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-white/0"></div>
+                                                                <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                                                    <div className="flex items-center justify-between mb-1">
+                                                                        <div className="font-semibold text-sm text-gray-900">Admin Accepted</div>
+                                                                        <div className="text-xs text-gray-500">{new Date(selectedProduct.admin_accepted_at).toLocaleString()}</div>
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                        </div>
+                                                        )}
+
+                                                        {selectedProduct.revision_requested_at && (
+                                                            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                                                <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-orange-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 text-white/0"></div>
+                                                                <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] bg-white p-3 rounded-xl border border-gray-100 shadow-sm border-l-4 border-l-orange-500">
+                                                                    <div className="flex items-center justify-between mb-1">
+                                                                        <div className="font-semibold text-sm text-gray-900">Revision Requested</div>
+                                                                        <div className="text-xs text-gray-500">{new Date(selectedProduct.revision_requested_at).toLocaleString()}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {selectedProduct.verified_at && (
+                                                            <div className="relative flex items-center justify-between md:justify-normal md:flex-row-reverse group is-active">
+                                                                <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-green-500 shadow shrink-0 md:order-1 md:-translate-x-1/2 text-white/0"></div>
+                                                                <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                                                    <div className="flex items-center justify-between mb-1">
+                                                                        <div className="font-semibold text-sm text-gray-900">QA Verified</div>
+                                                                        <div className="text-xs text-gray-500">{new Date(selectedProduct.verified_at).toLocaleString()}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                )}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
+
+                                    {!showQAForm && (
+                                        <div className="sticky bottom-0 z-30 px-6 py-4 bg-gray-50/95 backdrop-blur-md border-t border-gray-100 flex flex-wrap gap-2 justify-end">
+                                            {selectedProduct?.status === 'pending_digital_review' && (
+                                                <Button className="bg-base text-gray-600 hover:text-[var(--brand-accent)] hover:bg-base" onClick={() => setShowQAForm(true)}>
+                                                    Assess Product<ChevronRight className='h-4 w-4 ml-1 -mr-2'></ChevronRight>
+                                                </Button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* QA Form Column */}
+                                {showQAForm && selectedProduct && (
+                                    <QAForm
+                                        selectedProduct={selectedProduct}
+                                        onCloseForm={() => setShowQAForm(false)}
+                                        onCloseModal={() => setShowDetailModal(false)}
+                                        onSubmitSuccess={async () => {
+                                            await loadData();
+                                            setShowDetailModal(false);
+                                        }}
+                                    />
                                 )}
                             </div>
-
-                            <div className="sticky bottom-0 z-30 px-6 py-4 bg-gray-50/95 backdrop-blur-md border-t border-gray-100 flex flex-wrap gap-2 justify-end">
-                                {selectedProduct?.status === 'pending_digital_review' && (
-                                    <>
-                                        <Button variant="outline" className="text-[var(--text-muted)] border-[var(--btn-border)] hover:text-red-600 hover:bg-base hover:border-red-600" onClick={() => setShowRejectModal(true)}>Reject Product</Button>
-                                        <Button variant="outline" className="text-[var(--text-muted)] border-[var(--btn-border)] hover:text-[var(--brand-accent)] hover:bg-base hover:border-[var(--brand-accent)]" onClick={() => setShowRevisionModal(true)}>Request Revision</Button>
-                                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handlePassDigitalReview(selectedProduct)}>Approve Product</Button>
-                                    </>
-                                )}
-                            </div>
                         </DialogContent>
                     </Dialog>
 
-                    <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
-                        <DialogContent className="sm:max-w-[500px] border-none shadow-2xl">
-                            <DialogHeader>
-                                <DialogTitle className="flex items-center gap-2 text-red-600"><XCircle className="w-6 h-6" /> Reject Product</DialogTitle>
-                                <DialogDescription className="text-[var(--text-muted)]">Provide a reason for rejecting "{selectedProduct?.product?.name}"</DialogDescription>
-                            </DialogHeader>
-                            <div className="py-2">
-                                <Label className="mb-2 block text-[var(--text-headline)]">Rejection Reason *</Label>
-                                <Textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Reason for rejection..." rows={5} />
-                            </div>
-                            <DialogFooter>
-                                <Button variant="outline" className="border-[var--(btn-border)] hover:border-gray-300 text-[var(--text-muted)] hover:text-gray-600 hover:bg-gray-50" onClick={() => setShowRejectModal(false)}>Cancel</Button>
-                                <Button variant="destructive" onClick={handleReject} disabled={!rejectionReason.trim()}>Reject Product</Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-
-                    <Dialog open={showRevisionModal} onOpenChange={setShowRevisionModal}>
-                        <DialogContent className="sm:max-w-[500px] border-none shadow-2xl">
-                            <DialogHeader>
-                                <DialogTitle className="flex items-center gap-2 text-[var(--brand-accent)]"><RefreshCw className="w-6 h-6" /> Request Revision</DialogTitle>
-                                <DialogDescription className="text-[var(--text-muted)]">Tell the seller what needs to be revised.</DialogDescription>
-                            </DialogHeader>
-                            <div className="py-2">
-                                <Label className="mb-2 block text-[var(--text-headline)]">Revision Notes *</Label>
-                                <Textarea value={revisionReason} onChange={(e) => setRevisionReason(e.target.value)} placeholder="Revision notes..." rows={5} />
-                            </div>
-                            <DialogFooter>
-                                <Button variant="outline" className="border-[var--(btn-border)] hover:border-gray-300 text-[var(--text-muted)] hover:text-gray-600 hover:bg-gray-50" onClick={() => setShowRevisionModal(false)}>Cancel</Button>
-                                <Button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white" onClick={handleRequestRevision} disabled={!revisionReason.trim()}>Send Request</Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                    {/* Removed unused modals */}
                 </div>
             </main>
         </div>
