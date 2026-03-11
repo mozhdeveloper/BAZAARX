@@ -1349,7 +1349,7 @@ export const useProductStore = create<ProductStore>()(
 
                     // Call the new relational service we created
                     const results = await bulkUploadService.processBulkUpload(bulkProducts, sellerId);
-                    
+
                     // Refresh the products list to show new items
                     await get().fetchProducts({ sellerId });
 
@@ -1357,7 +1357,8 @@ export const useProductStore = create<ProductStore>()(
                     supabase.functions.invoke('backfill-vectors-v2').catch(e =>
                         console.warn('[bulkAddProducts] Embedding backfill trigger failed:', e)
                     );
-                    
+
+
                     return results;
                 } catch (error) {
                     console.error("Error bulk adding products:", error);
@@ -1952,6 +1953,8 @@ export const useOrderStore = create<OrderStore>()(
                     throw new Error(`Order ${id} not found`);
                 }
 
+
+
                 // Store previous status for rollback if needed
                 const previousStatus = order.status;
 
@@ -2029,6 +2032,7 @@ export const useOrderStore = create<OrderStore>()(
                     console.log(
                         `Updating order ${id} in database with seller ${sellerId}...`,
                     );
+
                     const success = await orderMutationService.updateOrderStatus(
                         {
                             orderId: id,

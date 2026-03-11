@@ -32,7 +32,7 @@ interface DbReviewRow {
   rating: number;
   comment: string | null;
   helpful_count: number;
-  seller_reply: string | null;
+  seller_reply: { message: string; replied_at?: string | null } | string | null;
   is_hidden: boolean;
   is_edited: boolean;
   created_at: string;
@@ -364,7 +364,9 @@ export default function BuyerReviewsPage() {
                         {review.seller_reply && (
                           <div className="bg-[var(--brand-wash)] rounded-lg p-4 mt-3 border-l-4 border-[var(--brand-primary)]">
                             <p className="text-sm font-medium text-[var(--text-headline)] mb-1">Seller's Response:</p>
-                            <p className="text-sm text-[var(--text-primary)]">{review.seller_reply}</p>
+                            <p className="text-sm text-[var(--text-primary)]">
+                              {typeof review.seller_reply === 'object' ? review.seller_reply.message : review.seller_reply}
+                            </p>
                           </div>
                         )}
 

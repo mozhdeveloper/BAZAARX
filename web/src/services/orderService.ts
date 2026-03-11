@@ -266,7 +266,7 @@ const normalizeReviewRows = (reviews: any[]) => {
     }
 
     return reviews
-        .filter((review) => Boolean(review) && review.is_hidden !== true)
+        .filter((review) => Boolean(review))
         .map((review) => ({
             ...review,
             review_images: Array.isArray(review.review_images)
@@ -1512,6 +1512,7 @@ export class OrderService {
         userId?: string,
         userRole?: string,
     ): Promise<boolean> {
+
         if (!isSupabaseConfigured()) {
             const order = this.mockOrders.find((o) => o.id === orderId);
             if (order) {
@@ -1544,6 +1545,9 @@ export class OrderService {
                 updatePayload.payment_status = newStatuses.payment_status;
             }
 
+            // test this
+            console.log("updatePayload:", updatePayload);
+
             const { error: orderError } = await supabase
                 .from("orders")
                 .update(updatePayload)
@@ -1563,6 +1567,22 @@ export class OrderService {
                 });
 
             if (historyError) throw historyError;
+
+            // Insert cancellation record so buyer-side queries can detect cancelled orders
+            if (status === "cancelled") {
+                const { error: cancellationInsertError } = await supabase
+                    .from("order_cancellations")
+                    .insert({
+                        order_id: orderId,
+                        reason: note || "Order cancelled",
+                        cancelled_at: new Date().toISOString(),
+                        cancelled_by: userId || null,
+                    });
+
+                if (cancellationInsertError) {
+                    console.warn("[OrderService] Failed to insert cancellation record:", cancellationInsertError);
+                }
+            }
 
             // When a seller cancels an order, resolve any associated return requests
             if (status === "cancelled" && userRole === "seller") {

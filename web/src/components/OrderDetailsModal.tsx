@@ -108,7 +108,7 @@ export function OrderDetailsModal({
             setIsEditingCustomer(false);
             setIsEditingNotes(false);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [order?.id]);
 
     if (!isOpen || !order) return null;

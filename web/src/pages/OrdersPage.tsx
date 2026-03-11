@@ -383,6 +383,10 @@ export default function OrdersPage() {
       return matchesSearch && matchesStatus;
     });
 
+    // Log all cancelled orders
+    const cancelledOrders = orders.filter(order => order.status === "cancelled");
+    console.log("Cancelled Orders:", cancelledOrders);
+
     console.log("Filtered Orders:", filtered);
 
     // If viewing reviewed tab, sort by review.submittedAt desc

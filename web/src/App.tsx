@@ -7,7 +7,9 @@ import { ChatBubble } from "./components/ChatBubbleAI";
 import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
 import TrackingForm from "./components/TrackingForm";
 import PageLoader from "./components/PageLoader";
-import { usePresence } from './hooks/usePresence';
+import { usePresence } from './hooks/usePresence'; import { ErrorBoundary } from "react-error-boundary";
+import { OrderErrorFallback } from "./components/OrderErrorFallback";
+
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
 // ---------------------------------------------------------------------------
@@ -202,7 +204,9 @@ function App() {
               path="/order/:orderId"
               element={
                 // <ProtectedBuyerRoute>
-                <OrderDetailPage />
+                <ErrorBoundary FallbackComponent={OrderErrorFallback}>
+                  <OrderDetailPage />
+                </ErrorBoundary>
                 // </ProtectedBuyerRoute>
               }
             />
