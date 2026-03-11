@@ -120,9 +120,9 @@ const Dashboard: React.FC<DashboardProps> = ({
       value: stats.totalSellers.toLocaleString(),
       change: stats.sellersGrowth,
       icon: Store,
-      color: 'from-orange-500 to-orange-600',
-      bgColor: 'bg-orange-50',
-      textColor: 'text-orange-700'
+      color: 'from-[var(--brand-primary)] to-[var(--brand-accent)]',
+      bgColor: 'bg-[var(--brand-accent-light)]/30',
+      textColor: 'text-[var(--brand-primary)]'
     },
     {
       title: 'Total Buyers',
@@ -144,7 +144,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   ];
 
-  const categoryColors = ['#FF6A00', '#FF8533', '#FFA366', '#FFBC80'];
+  const categoryColors = ['#D97706', '#E58C1A', '#F5DDB0', '#FDE8C8'];
 
   const pieData = topCategories.map((category, index) => ({
     name: category.name,
@@ -172,7 +172,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       case 'success':
         return 'text-green-600 bg-green-50';
       case 'warning':
-        return 'text-orange-600 bg-orange-50';
+        return 'text-[var(--brand-primary)] bg-[var(--brand-accent-light)]/30';
       case 'error':
         return 'text-red-600 bg-red-50';
       default:
@@ -193,21 +193,14 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">
                   Admin Dashboard
                 </h1>
-                <p className="text-gray-600">
+                <p className="text-[var(--text-muted)]">
                   Welcome back, {user?.name}! Here's what's happening in your marketplace.
                 </p>
               </div>
-              <div className="flex items-center gap-4">
-                <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-                  {stats.pendingApprovals} Pending Approvals
-                </Badge>
-                <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-white" />
-                </div>
-              </div>
+
             </div>
           </div>
 
@@ -219,20 +212,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
               >
-                <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-100 transition-colors"></div>
+                <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[var(--brand-accent-light)]/50 to-[var(--brand-primary)]/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
                   <CardContent className="p-6 relative z-10">
                     <div className="flex flex-col">
                       <div className="mb-4">
-                        <card.icon className={`h-5 w-5 text-gray-500 group-hover:text-orange-600 transition-colors`} />
+                        <card.icon className={`h-5 w-5 text-gray-500 group-hover:text-[var(--brand-accent)] transition-colors`} />
                       </div>
-                      
+
                       <div className="space-y-1">
                         <p className="text-sm font-medium text-gray-400">
                           {card.title}
                         </p>
                         <div className="flex items-end gap-3 mt-1">
-                          <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-orange-600">
+                          <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">
                             {card.value}
                           </p>
                           <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 ${card.change >= 0 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
@@ -260,7 +253,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               transition={{ duration: 0.6, delay: 0.3 }}
               className="lg:col-span-2"
             >
-              <Card className="shadow-sm">
+              <Card className="border-none shadow-md">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-gray-900">
                     Revenue Overview
@@ -272,8 +265,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <AreaChart data={revenueChart}>
                         <defs>
                           <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#FF6A00" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#FF6A00" stopOpacity={0} />
+                            <stop offset="5%" stopColor="#D97706" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#D97706" stopOpacity={0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -301,7 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <Area
                           type="monotone"
                           dataKey="revenue"
-                          stroke="#FF6A00"
+                          stroke="#D97706"
                           strokeWidth={3}
                           fill="url(#revenueGradient)"
                         />
@@ -318,7 +311,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
             >
-              <Card className="shadow-sm">
+              <Card className="border-none shadow-md">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-gray-900">
                     Top Categories
@@ -382,7 +375,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             transition={{ duration: 0.6, delay: 0.5 }}
             className="mt-8"
           >
-            <Card className="shadow-sm">
+            <Card className="border-none shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold text-gray-900">
                   Recent Activity

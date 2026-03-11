@@ -178,11 +178,11 @@ const AdminTrustedBrands: React.FC = () => {
           <div className="max-w-7xl mx-auto px-8 py-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-2">
                   <ShieldCheck className="h-7 w-7 text-amber-500" />
-                  <h1 className="text-2xl font-bold text-gray-900">Trusted Brands</h1>
+                  <h1 className="text-3xl font-bold text-[var(--text-headline)]">Trusted Brands</h1>
                 </div>
-                <p className="text-gray-600 mt-1">Manage trusted sellers whose products bypass QA verification</p>
+                <p className="text-[var(--text-muted)]">Manage trusted sellers whose products bypass QA verification</p>
               </div>
               <div className="flex items-center gap-3">
                 <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-sm px-3 py-1">

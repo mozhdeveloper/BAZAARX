@@ -49,7 +49,7 @@ export default function AdminTickets() {
     // Handle reply submission
     const handleSendReply = async () => {
         if (!replyText.trim() || !selectedTicket) return;
-        
+
         await addTicketReply(selectedTicket.dbId || selectedTicket.id, {
             senderId: 'admin',
             senderName: 'Admin',
@@ -93,8 +93,8 @@ export default function AdminTickets() {
                     {/* Header */}
                     <div className="flex items-center justify-between mb-8 text-[var(--font-sans)]">
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-900 mb-2">Support Tickets</h1>
-                            <p className="text-gray-600">Review and manage buyer support requests</p>
+                            <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Support Tickets</h1>
+                            <p className="text-[var(--text-muted)]">Review and manage buyer support requests</p>
                         </div>
                         <div className="flex items-center gap-4">
                             <Button

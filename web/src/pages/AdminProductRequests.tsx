@@ -43,27 +43,27 @@ type AdminTab = 'pipeline' | 'testing' | 'suppliers' | 'analytics';
 /* ── Pipeline column config ──────────────────────────────────── */
 
 const PIPELINE_COLUMNS = [
-  { key: 'pending',      label: 'GATHERING\nINTEREST', borderColor: 'border-amber-400',  textColor: 'text-amber-700',  bgColor: 'bg-amber-50' },
-  { key: 'in_progress',  label: 'SOURCING',            borderColor: 'border-amber-600',  textColor: 'text-amber-800',  bgColor: 'bg-amber-50/60' },
-  { key: 'testing',      label: 'LAB TESTING',         borderColor: 'border-orange-500', textColor: 'text-orange-700', bgColor: 'bg-orange-50' },
-  { key: 'approved',     label: 'VERIFIED',            borderColor: 'border-green-500',  textColor: 'text-green-700',  bgColor: 'bg-green-50' },
-  { key: 'live',         label: 'LIVE',                borderColor: 'border-gray-400',   textColor: 'text-gray-600',   bgColor: 'bg-gray-50' },
+  { key: 'pending', label: 'GATHERING\nINTEREST', borderColor: 'border-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
+  { key: 'in_progress', label: 'SOURCING', borderColor: 'border-amber-600', textColor: 'text-amber-800', bgColor: 'bg-amber-50/60' },
+  { key: 'testing', label: 'LAB TESTING', borderColor: 'border-orange-500', textColor: 'text-orange-700', bgColor: 'bg-orange-50' },
+  { key: 'approved', label: 'VERIFIED', borderColor: 'border-green-500', textColor: 'text-green-700', bgColor: 'bg-green-50' },
+  { key: 'live', label: 'LIVE', borderColor: 'border-gray-400', textColor: 'text-gray-600', bgColor: 'bg-gray-50' },
 ] as const;
 
 /* ── Mock data for tabs that have no DB tables yet ─────────── */
 
 const MOCK_SUPPLIERS = [
-  { id: '1', name: 'TechSource Global',           status: 'verified',   products: 12, avgPrice: 45,  reliability: 92 },
-  { id: '2', name: 'QualityFirst Manufacturing',  status: 'verified',   products: 8,  avgPrice: 38,  reliability: 88 },
-  { id: '3', name: 'BulkTech Supplies',           status: 'monitoring', products: 5,  avgPrice: 52,  reliability: 76 },
+  { id: '1', name: 'TechSource Global', status: 'verified', products: 12, avgPrice: 45, reliability: 92 },
+  { id: '2', name: 'QualityFirst Manufacturing', status: 'verified', products: 8, avgPrice: 38, reliability: 88 },
+  { id: '3', name: 'BulkTech Supplies', status: 'monitoring', products: 5, avgPrice: 52, reliability: 76 },
 ];
 
 const MOCK_FAILURE_REASONS = [
   { reason: 'Spec mismatch (claimed vs actual)', count: 12 },
-  { reason: 'Failed durability testing',         count: 8 },
-  { reason: 'Quality control issues',            count: 6 },
-  { reason: 'Authenticity concerns',             count: 4 },
-  { reason: 'Safety non-compliance',             count: 3 },
+  { reason: 'Failed durability testing', count: 8 },
+  { reason: 'Quality control issues', count: 6 },
+  { reason: 'Authenticity concerns', count: 4 },
+  { reason: 'Safety non-compliance', count: 3 },
 ];
 
 const AdminProductRequests: React.FC = () => {
@@ -136,9 +136,9 @@ const AdminProductRequests: React.FC = () => {
       pending: [], in_progress: [], testing: [], approved: [], live: [],
     };
     requests.forEach((r) => {
-      if (r.status === 'pending')      map.pending.push(r);
+      if (r.status === 'pending') map.pending.push(r);
       else if (r.status === 'in_progress') map.in_progress.push(r);
-      else if (r.status === 'approved')    map.approved.push(r);
+      else if (r.status === 'approved') map.approved.push(r);
       // rejected is excluded from the pipeline board
     });
     return map;
@@ -169,10 +169,10 @@ const AdminProductRequests: React.FC = () => {
   /* ── Tab config ────────────────────────────────────────────── */
 
   const TABS: { key: AdminTab; label: string; icon: React.ElementType }[] = [
-    { key: 'pipeline',  label: 'PIPELINE',       icon: FlaskConical },
-    { key: 'testing',   label: 'TESTING QUEUE',  icon: ShieldCheck },
-    { key: 'suppliers', label: 'SUPPLIERS',       icon: DollarSign },
-    { key: 'analytics', label: 'ANALYTICS',       icon: BarChart3 },
+    { key: 'pipeline', label: 'PIPELINE', icon: FlaskConical },
+    { key: 'testing', label: 'TESTING QUEUE', icon: ShieldCheck },
+    { key: 'suppliers', label: 'SUPPLIERS', icon: DollarSign },
+    { key: 'analytics', label: 'ANALYTICS', icon: BarChart3 },
   ];
 
   return (
@@ -184,8 +184,8 @@ const AdminProductRequests: React.FC = () => {
         <div className="bg-[#1a1a1a] text-white px-8 py-8 border-b-4 border-[var(--brand-primary)]">
           <div className="max-w-7xl mx-auto flex items-end justify-between">
             <div>
-              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">BAZAARX LAB</h1>
-              <p className="text-white/50 text-sm mt-1">Admin Mission Control</p>
+              <h1 className="text-3xl font-bold tracking-tight text-white mb-2">BAZAARX LAB</h1>
+              <p className="text-white/60">Admin Mission Control</p>
             </div>
             <div className="flex gap-8">
               <div className="text-right">
@@ -207,11 +207,10 @@ const AdminProductRequests: React.FC = () => {
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${
-                  activeTab === key
+                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === key
                     ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
                     : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
+                  }`}
               >
                 <Icon className="h-4 w-4" />
                 {label}
@@ -336,68 +335,68 @@ const AdminProductRequests: React.FC = () => {
                     .filter(r => r.status === 'in_progress' || r.status === 'approved')
                     .filter(r => !searchQuery || r.productName.toLowerCase().includes(searchQuery.toLowerCase()))
                     .map((req) => (
-                    <Card key={req.id} className="border-2 border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/40 transition-colors">
-                      <CardContent className="p-6">
-                        <div className="flex items-start justify-between gap-4 mb-3">
-                          <h3 className="text-lg font-bold text-[var(--text-headline)]">{req.productName}</h3>
-                          <Badge className="bg-amber-100 text-amber-700 border border-amber-300 rounded-full text-xs font-bold">
-                            IN TESTING
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-4">{req.description}</p>
+                      <Card key={req.id} className="border-2 border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/40 transition-colors">
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <h3 className="text-lg font-bold text-[var(--text-headline)]">{req.productName}</h3>
+                            <Badge className="bg-amber-100 text-amber-700 border border-amber-300 rounded-full text-xs font-bold">
+                              IN TESTING
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-4">{req.description}</p>
 
-                        {/* Meta line */}
-                        <div className="flex flex-wrap items-center gap-5 text-xs text-gray-500 mb-4">
-                          <span className="flex items-center gap-1"><Package className="h-3.5 w-3.5 text-amber-600" /> Samples Received: 3</span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5 text-blue-600" /> Tests Completed: 2/5</span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-gray-400" /> Started: 2 days ago</span>
-                        </div>
+                          {/* Meta line */}
+                          <div className="flex flex-wrap items-center gap-5 text-xs text-gray-500 mb-4">
+                            <span className="flex items-center gap-1"><Package className="h-3.5 w-3.5 text-amber-600" /> Samples Received: 3</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5 text-blue-600" /> Tests Completed: 2/5</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-gray-400" /> Started: 2 days ago</span>
+                          </div>
 
-                        {/* Test progress cards */}
-                        <div className="grid grid-cols-3 gap-3 mb-5">
-                          {[
-                            { name: 'DURABILITY',  result: 'Passed 500-bend test', done: true },
-                            { name: 'SPEC CHECK',  result: 'Matches claimed specs', done: true },
-                            { name: 'HEAT TEST',   result: 'In progress…',         done: false },
-                          ].map(({ name, result, done }) => (
-                            <div key={name} className="rounded-xl border border-gray-200 p-4">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-bold uppercase tracking-wider text-gray-700">{name}</span>
-                                {done ? (
-                                  <CheckCircle className="h-4 w-4 text-green-600" />
-                                ) : (
-                                  <Clock className="h-4 w-4 text-amber-500" />
-                                )}
+                          {/* Test progress cards */}
+                          <div className="grid grid-cols-3 gap-3 mb-5">
+                            {[
+                              { name: 'DURABILITY', result: 'Passed 500-bend test', done: true },
+                              { name: 'SPEC CHECK', result: 'Matches claimed specs', done: true },
+                              { name: 'HEAT TEST', result: 'In progress…', done: false },
+                            ].map(({ name, result, done }) => (
+                              <div key={name} className="rounded-xl border border-gray-200 p-4">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs font-bold uppercase tracking-wider text-gray-700">{name}</span>
+                                  {done ? (
+                                    <CheckCircle className="h-4 w-4 text-green-600" />
+                                  ) : (
+                                    <Clock className="h-4 w-4 text-amber-500" />
+                                  )}
+                                </div>
+                                <p className={`text-xs ${done ? 'text-green-700' : 'text-gray-500'}`}>{result}</p>
                               </div>
-                              <p className={`text-xs ${done ? 'text-green-700' : 'text-gray-500'}`}>{result}</p>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
 
-                        {/* Actions */}
-                        <div className="flex gap-3">
-                          <Button
-                            className="bg-green-700 hover:bg-green-800 text-white gap-1.5"
-                            onClick={() => handleUpdateStatus(req.id, 'approved')}
-                            disabled={updatingId === req.id}
-                          >
-                            <CheckCircle className="h-4 w-4" /> Mark as Verified
-                          </Button>
-                          <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 gap-1.5"
-                            onClick={() => handleUpdateStatus(req.id, 'rejected')}
-                            disabled={updatingId === req.id}
-                          >
-                            <XCircle className="h-4 w-4" /> Fail Product
-                          </Button>
-                          <Button variant="outline" className="gap-1.5">
-                            <Upload className="h-4 w-4" /> Upload Test Video
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          {/* Actions */}
+                          <div className="flex gap-3">
+                            <Button
+                              className="bg-green-700 hover:bg-green-800 text-white gap-1.5"
+                              onClick={() => handleUpdateStatus(req.id, 'approved')}
+                              disabled={updatingId === req.id}
+                            >
+                              <CheckCircle className="h-4 w-4" /> Mark as Verified
+                            </Button>
+                            <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 gap-1.5"
+                              onClick={() => handleUpdateStatus(req.id, 'rejected')}
+                              disabled={updatingId === req.id}
+                            >
+                              <XCircle className="h-4 w-4" /> Fail Product
+                            </Button>
+                            <Button variant="outline" className="gap-1.5">
+                              <Upload className="h-4 w-4" /> Upload Test Video
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                 </div>
               )}
             </div>
@@ -421,11 +420,10 @@ const AdminProductRequests: React.FC = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-4">
                             <h3 className="text-lg font-bold text-[var(--text-headline)]">{s.name}</h3>
-                            <Badge className={`rounded-full text-xs font-bold uppercase ${
-                              s.status === 'verified'
+                            <Badge className={`rounded-full text-xs font-bold uppercase ${s.status === 'verified'
                                 ? 'bg-green-50 text-green-700 border border-green-300'
                                 : 'bg-amber-50 text-amber-700 border border-amber-300'
-                            }`}>
+                              }`}>
                               {s.status}
                             </Badge>
                           </div>
@@ -463,10 +461,10 @@ const AdminProductRequests: React.FC = () => {
               {/* KPI cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 {[
-                  { label: 'TOTAL REQUESTS',   value: stats.total.toString(), change: '+12%', positive: true },
-                  { label: 'PASS RATE',         value: '82%',                 change: '+5%',  positive: true },
-                  { label: 'AVG TEST TIME',     value: '4.2d',                change: '-8%',  positive: false },
-                  { label: 'COMMUNITY GROWTH',  value: '1.2k',               change: '+23%', positive: true },
+                  { label: 'TOTAL REQUESTS', value: stats.total.toString(), change: '+12%', positive: true },
+                  { label: 'PASS RATE', value: '82%', change: '+5%', positive: true },
+                  { label: 'AVG TEST TIME', value: '4.2d', change: '-8%', positive: false },
+                  { label: 'COMMUNITY GROWTH', value: '1.2k', change: '+23%', positive: true },
                 ].map(({ label, value, change, positive }) => (
                   <Card key={label} className="border border-gray-200">
                     <CardContent className="p-5">
@@ -504,9 +502,8 @@ const AdminProductRequests: React.FC = () => {
 
       {/* ═══════ TOAST NOTIFICATION ═══════ */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-lg shadow-xl text-sm font-medium transition-all ${
-          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-        }`}>
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-lg shadow-xl text-sm font-medium transition-all ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+          }`}>
           {toast.type === 'success' ? '✓ ' : '✕ '}{toast.message}
         </div>
       )}
@@ -526,22 +523,20 @@ const AdminProductRequests: React.FC = () => {
               <div className="flex border-b border-gray-200 mb-5">
                 <button
                   onClick={() => setDetailTab('review')}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${
-                    detailTab === 'review'
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${detailTab === 'review'
                       ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
                       : 'border-transparent text-gray-400 hover:text-gray-600'
-                  }`}
+                    }`}
                 >
                   <Eye size={14} />
                   Request Details
                 </button>
                 <button
                   onClick={() => setDetailTab('contributions')}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${
-                    detailTab === 'contributions'
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${detailTab === 'contributions'
                       ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
                       : 'border-transparent text-gray-400 hover:text-gray-600'
-                  }`}
+                    }`}
                 >
                   <Users size={14} />
                   Contributions
