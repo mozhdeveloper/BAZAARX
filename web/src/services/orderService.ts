@@ -895,6 +895,7 @@ export class OrderService {
                         variant_snapshot,
                         rating,
                         comment,
+                        seller_reply,
                         is_hidden,
                         created_at,
                         updated_at,
@@ -1127,6 +1128,7 @@ export class OrderService {
                         variant_snapshot,
                         rating,
                         comment,
+                        seller_reply,
                         is_hidden,
                         created_at,
                         updated_at,
@@ -2275,6 +2277,42 @@ export class OrderService {
             }
 
             console.log(`✅ Successfully created ${successCount} review(s) for order ${cleanOrderId}`);
+
+            // Notify the seller of the new review(s)
+            if (successCount > 0) {
+                try {
+                    const reviewedProductId = reviews.find(r => r.productId)?.productId;
+                    if (reviewedProductId) {
+                        const { data: productRow } = await supabase
+                            .from('products')
+                            .select('seller_id, name')
+                            .eq('id', reviewedProductId)
+                            .single();
+                        if (productRow?.seller_id) {
+                            const { data: buyerProfile } = await supabase
+                                .from('profiles')
+                                .select('first_name, last_name')
+                                .eq('id', buyerId)
+                                .single();
+                            const buyerName = [buyerProfile?.first_name, buyerProfile?.last_name]
+                                .filter(Boolean).join(' ') || 'A buyer';
+                            const avgRating = Math.round(
+                                reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+                            );
+                            await notificationService.notifySellerNewReview({
+                                sellerId: productRow.seller_id,
+                                productId: reviewedProductId,
+                                productName: productRow.name || 'Product',
+                                rating: avgRating,
+                                buyerName,
+                            });
+                        }
+                    }
+                } catch (notifErr) {
+                    console.warn('[Review] Failed to send seller notification:', notifErr);
+                }
+            }
+
             return true;
         } catch (error) {
             console.error("Error submitting review:", error);

@@ -140,14 +140,14 @@ export default function BuyerProfilePage() {
                 <div className="max-w-6xl mx-auto px-4 relative z-10">
                     <div className="mb-4">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={() => navigate('/shop')}
                             className="flex items-center gap-1 text-white/80 hover:text-[var(--brand-primary)] transition-colors mb-4 group px-3 -ml-2"
                         >
                             <ChevronLeft
                                 size={20}
                                 className="group-hover:-translate-x-0.5 transition-transform"
                             />
-                            <span className="text-sm font-medium">Back</span>
+                            <span className="text-sm font-medium">Back to Shop</span>
                         </button>
                     </div>
 

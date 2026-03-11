@@ -211,7 +211,7 @@ export class NotificationService {
       
       const { count, error } = await supabase
         .from(tableName)
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .eq(userIdColumn, userId) // Enforce ID filtering
         .is('read_at', null); // Unread = read_at is null
 
@@ -708,6 +708,66 @@ export class NotificationService {
     } catch (err) {
       console.error('[NotificationService] getActiveAnnouncements exception:', err);
       return [];
+    }
+  }
+
+  /**
+   * Notify seller when a buyer submits a new review for their product
+   */
+  async notifySellerNewReview(params: {
+    sellerId: string;
+    productId: string;
+    productName: string;
+    rating: number;
+    buyerName: string;
+  }): Promise<Notification | null> {
+    if (!params.sellerId) return null;
+    try {
+      const stars = '★'.repeat(params.rating) + '☆'.repeat(5 - params.rating);
+      return this.createNotification({
+        userId: params.sellerId,
+        userType: 'seller',
+        type: 'seller_new_review',
+        title: 'New Review Received',
+        message: `${params.buyerName} reviewed "${params.productName}" ${stars} (${params.rating}/5)`,
+        icon: 'Star',
+        iconBg: 'bg-yellow-500',
+        actionUrl: '/seller/reviews',
+        actionData: { productId: params.productId },
+        priority: 'normal',
+      });
+    } catch (err) {
+      console.error('[NotificationService] notifySellerNewReview error:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Notify buyer when a seller replies to their review
+   */
+  async notifyBuyerSellerReply(params: {
+    buyerId: string;
+    orderId: string;
+    productName: string;
+    sellerName: string;
+  }): Promise<Notification | null> {
+    if (!params.buyerId) return null;
+    try {
+      return this.createNotification({
+        userId: params.buyerId,
+        userType: 'buyer',
+        type: 'seller_review_reply',
+        title: 'Seller Replied to Your Review',
+        message: `${params.sellerName} replied to your review on "${params.productName}"`,
+        icon: 'MessageSquare',
+        iconBg: 'bg-blue-500',
+        actionUrl: `/order/${params.orderId}`,
+        actionData: { orderId: params.orderId },
+        priority: 'normal',
+      });
+    } catch (err) {
+      console.error('[NotificationService] notifyBuyerSellerReply error:', err);
+      return null;
     }
   }
 

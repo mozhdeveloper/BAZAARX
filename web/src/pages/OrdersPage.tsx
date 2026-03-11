@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useCartStore } from "../stores/cartStore";
 import { Button } from "../components/ui/button";
-import { useBuyerStore } from "../stores/buyerStore";
+import { useBuyerStore, CartItem } from "../stores/buyerStore";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import TrackingModal from "../components/TrackingModal";
@@ -44,7 +44,8 @@ export default function OrdersPage() {
   const location = useLocation();
   const { orders, updateOrderStatus, updateOrderWithReturnRequest, hydrateBuyerOrders } =
     useCartStore();
-  const { profile } = useBuyerStore();
+  const { profile, initializeCart, setBuyAgainItems } = useBuyerStore();
+
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -463,14 +464,14 @@ export default function OrdersPage() {
           className="mb-4"
         >
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/shop')}
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <ChevronLeft
               size={20}
               className="group-hover:-translate-x-0.5 transition-transform"
             />
-            <span className="text-sm font-medium">Back</span>
+            <span className="text-sm font-medium">Back to Shop</span>
           </button>
           <h1 className="text-xl lg:text-3xl font-bold text-gray-900">My Orders</h1>
           <p className="text-gray-500 text-sm">Track and manage all your orders</p>
@@ -657,6 +658,14 @@ export default function OrdersPage() {
                               </div>
                             )}
                         </div>
+                        {(order.review as any).sellerReply && (
+                          <div className="mt-2 flex items-start gap-2 border-l-2 border-[var(--brand-primary)] pl-3">
+                            <div>
+                              <p className="text-xs font-semibold text-[var(--brand-primary)] mb-0.5">Seller's Reply</p>
+                              <p className="text-sm text-gray-600 italic">{(order.review as any).sellerReply.message}</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -832,7 +841,7 @@ export default function OrdersPage() {
                                 </Button>
                               )}
 
-                              {/* Buy Again - Opens first product's detail page */}
+                              {/* Buy Again - Re-purchase all items directly to checkout */}
                               <Button
                                 onClick={() => {
                                   if (!order.items || order.items.length === 0) {
@@ -844,6 +853,55 @@ export default function OrdersPage() {
                                     return;
                                   }
 
+                                  const cartItems: CartItem[] = order.items.map((item: any) => ({
+                                    id: item.productId || item.id,
+                                    name: item.name,
+                                    price: item.price,
+                                    originalPrice: item.originalPrice,
+                                    stock: 99,
+                                    image: item.image,
+                                    images: item.image ? [item.image] : [],
+                                    seller: {
+                                      id: item.sellerId || '',
+                                      name: item.seller || 'Verified Seller',
+                                      avatar: '',
+                                      rating: 0,
+                                      totalReviews: 0,
+                                      followers: 0,
+                                      isVerified: false,
+                                      description: '',
+                                      location: '',
+                                      established: '',
+                                      products: [],
+                                      badges: [],
+                                      responseTime: '',
+                                      categories: [],
+                                    },
+                                    sellerId: item.sellerId || '',
+                                    rating: item.rating || 0,
+                                    totalReviews: 0,
+                                    category: item.category || '',
+                                    sold: 0,
+                                    isFreeShipping: false,
+                                    location: '',
+                                    description: '',
+                                    specifications: {},
+                                    variants: [],
+                                    quantity: item.quantity,
+                                    selectedVariant: (item.selectedVariant || item.variant) ? {
+                                      id: item.selectedVariant?.id || item.variant?.id || '',
+                                      name: item.selectedVariant?.name || item.variant?.name ||
+                                        `${item.variant?.size || ''} ${item.variant?.color || ''}`.trim() || 'Standard',
+                                      price: item.price,
+                                      stock: 99,
+                                      size: item.selectedVariant?.size || item.variant?.size,
+                                      color: item.selectedVariant?.color || item.variant?.color,
+                                    } : undefined,
+                                    selected: true,
+                                  }));
+
+                                  setBuyAgainItems(cartItems);
+                                  navigate('/checkout', { state: { fromBuyAgain: true } });
                                   // Navigate to the first product's detail page
                                   const firstItem = order.items[0];
                                   const productId = (firstItem as any).productId || firstItem.id;
@@ -939,6 +997,13 @@ export default function OrdersPage() {
                                     ))}
                                   </div>
                                 )}
+
+                              {(order.review as any)?.sellerReply && (
+                                <div className="w-full sm:max-w-md border-l-2 border-[var(--brand-primary)] pl-3 text-left mt-1">
+                                  <p className="text-xs font-semibold text-[var(--brand-primary)] mb-0.5">Seller's Reply</p>
+                                  <p className="text-sm text-gray-600 italic">{(order.review as any).sellerReply.message}</p>
+                                </div>
+                              )}
                             </div>
                           ) : null}
                       </div>

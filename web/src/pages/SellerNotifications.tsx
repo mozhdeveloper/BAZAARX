@@ -16,6 +16,7 @@ import {
   Tag,
   AlertTriangle,
   Wrench,
+  Star,
 } from "lucide-react";
 import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,14 @@ function getNotificationIcon(type: string, actionData?: any) {
     return <XCircle className="w-5 h-5 text-red-600" />;
   if (type.includes("return"))
     return <Package className="w-5 h-5 text-yellow-600" />;
+  if (type === "product_rejected" || type.includes("product_rejected"))
+    return <XCircle className="w-5 h-5 text-red-600" />;
+  if (type === "product_approved" || type.includes("product_approved"))
+    return <CheckCircle className="w-5 h-5 text-green-600" />;
+  if (type === "product_sample_request" || type.includes("sample"))
+    return <Package className="w-5 h-5 text-orange-500" />;
+  if (type === "seller_new_review" || type.includes("review"))
+    return <Star className="w-5 h-5 text-amber-500" />;
   return <Bell className="w-5 h-5 text-gray-600" />;
 }
 
@@ -77,6 +86,10 @@ function getNotificationBgColor(type: string, actionData?: any) {
   if (type.includes("delivered")) return "bg-green-50";
   if (type.includes("cancelled")) return "bg-red-50";
   if (type.includes("return")) return "bg-yellow-50";
+  if (type === "product_rejected" || type.includes("product_rejected")) return "bg-red-50";
+  if (type === "product_approved" || type.includes("product_approved")) return "bg-green-50";
+  if (type === "product_sample_request" || type.includes("sample")) return "bg-orange-50";
+  if (type === "seller_new_review" || type.includes("review")) return "bg-amber-50";
   return "bg-gray-50";
 }
 
@@ -206,13 +219,23 @@ export function SellerNotifications() {
       return;
     }
 
-    // Extract Order ID or Number from action_data
+    // Extract Order ID from action_data — prefer UUID (orderId) for reliable match
     const data = n.action_data as any;
     const orderId = data?.orderId || data?.id;
     const orderNumber = data?.orderNumber || data?.order_number;
 
-    // Priority: Use Order Number if available, else UUID
-    const targetId = orderNumber || orderId;
+    // Priority: Use UUID if available (always resolves correctly), else fall back to order number
+    const targetId = orderId || orderNumber;
+
+    // Review notifications → go to the seller reviews page
+    if (n.type === "seller_new_review") {
+      if (accessTier === "approved") {
+        navigate("/seller/reviews");
+      } else {
+        navigate("/seller/unverified");
+      }
+      return;
+    }
 
     // 1. For Order Notifications: Force the correct query param format "?ID"
     // This fixes both new and existing notifications in the database

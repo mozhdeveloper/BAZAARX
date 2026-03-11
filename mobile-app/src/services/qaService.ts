@@ -835,9 +835,28 @@ export class QAService {
   /**
    * Submit sample (Seller confirms physical sample sent → IN_QUALITY_REVIEW)
    */
-  async submitSample(productId: string, logisticsMethod: string): Promise<void> {
+  async submitSample(
+    productId: string,
+    logisticsMethod: string,
+    courierDetails?: { courier: string; trackingNumber: string; batchId?: string }
+  ): Promise<void> {
+    let logisticsStr = logisticsMethod;
+    let bId = courierDetails?.batchId;
+
+    if (courierDetails) {
+      logisticsStr = `${logisticsMethod} (${courierDetails.courier}: ${courierDetails.trackingNumber})`;
+      if (courierDetails.batchId) {
+        logisticsStr = JSON.stringify({
+          method: logisticsMethod,
+          courier: courierDetails.courier,
+          trackingNumber: courierDetails.trackingNumber,
+          batchId: courierDetails.batchId
+        });
+      }
+    }
+
     return this.updateQAStatus(productId, 'IN_QUALITY_REVIEW', {
-      logistics: logisticsMethod,
+      logistics: logisticsStr,
     });
   }
 

@@ -17,10 +17,12 @@ import {
   Store,
   X,
   RotateCcw,
+  ShoppingBag,
 } from "lucide-react";
 import { Order } from "../stores/cartStore";
-import { useBuyerStore } from "../stores/buyerStore";
+import { useBuyerStore, CartItem } from "../stores/buyerStore";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import {
   Card,
   CardContent,
@@ -57,7 +59,7 @@ export default function OrderDetailPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isFirstLoad = useRef(true);
-  const { profile } = useBuyerStore();
+  const { profile, setBuyAgainItems } = useBuyerStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [dbOrder, setDbOrder] = useState<(Order & DbOrderData) | null>(null);
@@ -814,14 +816,14 @@ export default function OrderDetailPage() {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/shop')}
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <ChevronLeft
               size={20}
               className="group-hover:-translate-x-0.5 transition-transform"
             />
-            <span className="text-sm font-medium">Back</span>
+            <span className="text-sm font-medium">Back to Shop</span>
           </button>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1203,6 +1205,33 @@ export default function OrderDetailPage() {
                   ))}
                 </div>
 
+                {/* Your Review — shown when order is reviewed */}
+                {dbOrder?.is_reviewed && order.review && (
+                  <div className="pt-4 border-t border-dashed border-[var(--btn-border)] space-y-2">
+                    <div className="flex items-center gap-2">
+                      <RotateCcw className="w-4 h-4 text-[var(--brand-accent)]" />
+                      <span className="text-sm font-semibold text-gray-900">Your Review</span>
+                      <div className="flex items-center gap-0.5 ml-auto">
+                        {[1,2,3,4,5].map(star => (
+                          <span key={star} className={`text-sm ${star <= order.review!.rating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                        ))}
+                        <span className="text-xs text-gray-500 ml-1">{order.review.rating}/5</span>
+                      </div>
+                    </div>
+                    {order.review.comment && (
+                      <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        "{order.review.comment}"
+                      </p>
+                    )}
+                    {order.review.sellerReply && (
+                      <div className="border-l-2 border-[var(--brand-primary)] pl-3">
+                        <p className="text-xs font-semibold text-[var(--brand-primary)] mb-0.5">Seller's Reply</p>
+                        <p className="text-sm text-gray-600 italic">{order.review.sellerReply.message}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="pt-4 border-t border-dashed border-[var(--btn-border)] space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Subtotal</span>
@@ -1271,6 +1300,71 @@ export default function OrderDetailPage() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Buy Again - shown for received/reviewed orders */}
+                  {(order.status === 'received' || order.status === 'reviewed') && (
+                    <div className="pt-4 mt-2">
+                      <Button
+                        onClick={() => {
+                          if (!order.items || order.items.length === 0) return;
+
+                          const cartItems: CartItem[] = order.items.map((item: any) => ({
+                            id: item.productId || item.id,
+                            name: item.name,
+                            price: item.price,
+                            originalPrice: item.originalPrice,
+                            stock: 99,
+                            image: item.image,
+                            images: item.image ? [item.image] : [],
+                            seller: {
+                              id: item.sellerId || '',
+                              name: item.seller || 'Verified Seller',
+                              avatar: '',
+                              rating: 0,
+                              totalReviews: 0,
+                              followers: 0,
+                              isVerified: false,
+                              description: '',
+                              location: '',
+                              established: '',
+                              products: [],
+                              badges: [],
+                              responseTime: '',
+                              categories: [],
+                            },
+                            sellerId: item.sellerId || '',
+                            rating: item.rating || 0,
+                            totalReviews: 0,
+                            category: item.category || '',
+                            sold: 0,
+                            isFreeShipping: false,
+                            location: '',
+                            description: '',
+                            specifications: {},
+                            variants: [],
+                            quantity: item.quantity,
+                            selectedVariant: (item.selectedVariant || item.variant) ? {
+                              id: item.selectedVariant?.id || item.variant?.id || '',
+                              name: item.selectedVariant?.name || item.variant?.name ||
+                                `${item.variant?.size || ''} ${item.variant?.color || ''}`.trim() || 'Standard',
+                              price: item.price,
+                              stock: 99,
+                              size: item.selectedVariant?.size || item.variant?.size,
+                              color: item.selectedVariant?.color || item.variant?.color,
+                            } : undefined,
+                            selected: true,
+                          }));
+
+                          setBuyAgainItems(cartItems);
+                          navigate('/checkout', { state: { fromBuyAgain: true } });
+                        }}
+                        className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md shadow-orange-500/20"
+                      >
+                        <ShoppingBag className="w-4 h-4 mr-2" />
+                        Buy Again
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -18,6 +18,8 @@ import {
   Tag,
   AlertTriangle,
   Wrench,
+  Star,
+  MessageSquare,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCartStore } from "@/stores/cartStore";
@@ -64,6 +66,12 @@ function getNotificationStyles(type: string, actionData?: any) {
   }
   if (t.includes("processing")) {
     return { icon: <Package className="w-5 h-5 text-blue-500" />, bg: undefined };
+  }
+  if (t === "seller_new_review" || t.includes("review")) {
+    return { icon: <Star className="w-5 h-5 text-amber-500" />, bg: "bg-amber-50" };
+  }
+  if (t === "seller_review_reply") {
+    return { icon: <MessageSquare className="w-5 h-5 text-amber-500" />, bg: "bg-amber-50" };
   }
 
   return { icon: <Bell className="w-5 h-5 text-gray-600" />, bg: undefined };
@@ -171,9 +179,17 @@ export function NotificationsDropdown() {
       return;
     }
 
+    // Seller reply to review — go to My Orders > Reviewed tab
+    if (n.type === 'seller_review_reply') {
+      navigate('/orders?status=reviewed');
+      return;
+    }
+
     const data = n.action_data as any;
     if (data?.orderNumber) {
       navigate(`/order/${data.orderNumber}`);
+    } else if (data?.orderId) {
+      navigate(`/order/${data.orderId}`);
     } else if (n.action_url) {
       navigate(n.action_url);
     } else {

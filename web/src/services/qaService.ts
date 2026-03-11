@@ -101,6 +101,7 @@ export interface QAProductDB {
   rejection_reason: string | null;
   rejection_stage: 'digital' | 'physical' | null;
   submitted_at: string;
+  batchId: string | null;
   approved_at: string | null;
   verified_at: string | null;
   rejected_at: string | null;
@@ -139,43 +140,75 @@ export class QAService {
   }): Promise<QAProductDB> {
     // Use pre-joined data if available (from enriched queries), otherwise fetch individually
     let logisticsDetails: string | null = null;
+    let batchId: string | null = null;
     let rejectionDesc: string | null = null;
     let revisionDesc: string | null = null;
 
-    if (assessment.logistics_records !== undefined) {
+    if (assessment.logistics_records !== undefined && assessment.logistics_records !== null) {
       // Data was pre-joined in the query
-      logisticsDetails = assessment.logistics_records?.[0]?.details || null;
+      const records = assessment.logistics_records;
+      const rawDetails = Array.isArray(records) && records.length > 0 ? records[0].details : null;
+      
+      // Try to parse JSON if it looks like one
+      if (rawDetails && (rawDetails.startsWith('{') || rawDetails.startsWith('['))) {
+        try {
+          const parsed = JSON.parse(rawDetails);
+          logisticsDetails = parsed.method || rawDetails;
+          batchId = parsed.batchId || null;
+        } catch (e) {
+          logisticsDetails = rawDetails;
+        }
+      } else {
+        logisticsDetails = rawDetails;
+      }
+      
       rejectionDesc = assessment.rejection_records?.[0]?.description || null;
       revisionDesc = assessment.revision_records?.[0]?.description || null;
     } else {
       // Fallback: fetch individually using maybeSingle() to avoid 406 errors
-      const { data: logistics } = await supabase
-        .from('product_assessment_logistics')
-        .select('details')
-        .eq('assessment_id', assessment.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const { data: logistics } = await supabase
+          .from('product_assessment_logistics')
+          .select('details')
+          .eq('assessment_id', assessment.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      const { data: rejection } = await supabase
-        .from('product_rejections')
-        .select('description, vendor_submitted_category, admin_reclassified_category')
-        .eq('assessment_id', assessment.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        const rawDetails = logistics?.details || null;
+        if (rawDetails && (rawDetails.startsWith('{') || rawDetails.startsWith('['))) {
+          try {
+            const parsed = JSON.parse(rawDetails);
+            logisticsDetails = parsed.method || rawDetails;
+            batchId = parsed.batchId || null;
+          } catch (e) {
+            logisticsDetails = rawDetails;
+          }
+        } else {
+          logisticsDetails = rawDetails;
+        }
 
-      const { data: revision } = await supabase
-        .from('product_revisions')
-        .select('description')
-        .eq('assessment_id', assessment.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        const { data: rejection } = await supabase
+          .from('product_rejections')
+          .select('description')
+          .eq('assessment_id', assessment.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      logisticsDetails = logistics?.details || null;
-      rejectionDesc = rejection?.description || null;
-      revisionDesc = revision?.description || null;
+        const { data: revision } = await supabase
+          .from('product_revisions')
+          .select('description')
+          .eq('assessment_id', assessment.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        rejectionDesc = rejection?.description || null;
+        revisionDesc = revision?.description || null;
+      } catch (err) {
+        console.error('Error in transformToLegacy fallback:', err);
+      }
     }
 
     const legacyStatus = NEW_TO_LEGACY_STATUS[assessment.status] || 'PENDING_DIGITAL_REVIEW';
@@ -192,6 +225,7 @@ export class QAService {
       vendor,
       status: legacyStatus,
       logistics: logisticsDetails,
+      batchId: batchId as string | null,
       rejection_reason: rejectionDesc || revisionDesc || null,
       rejection_stage: assessment.status === 'rejected' ? 'digital' : null,
       submitted_at: assessment.submitted_at,
@@ -409,10 +443,10 @@ export class QAService {
     }
 
     try {
-      const isPremium = await this.isPremiumOutlet(sellerId);
-      const status = isPremium ? 'verified' : 'pending_admin_review';
-      const verifiedAt = isPremium ? new Date().toISOString() : null;
-      const productApprovalStatus = isPremium ? 'approved' : 'pending';
+      // All products must follow the QA workflow regardless of seller tier
+      const status = 'pending_admin_review';
+      const verifiedAt = null;
+      const productApprovalStatus = 'pending';
 
       // Upsert so retries are idempotent (unique constraint on product_id)
       const { error } = await supabase
@@ -433,22 +467,7 @@ export class QAService {
         throw error;
       }
 
-      // Also update the product's approval_status for Premium Outlet sellers
-      if (isPremium) {
-        const { error: productError } = await supabase
-          .from('products')
-          .update({ 
-            approval_status: 'approved',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', productId);
-
-        if (productError) {
-          console.warn('[QA Service] Could not update product approval_status:', productError);
-        } else {
-          console.log(`[QA Service] Product ${productId} approval_status updated to approved`);
-        }
-      }
+      // Removed isPremium bypass logic here to enforce workflow
 
       console.log(`[QA Service] Assessment created for product ${productId} with status: ${status}`);
       // Return minimal object — caller will reload from DB to get full data
@@ -593,6 +612,7 @@ export class QAService {
     status: ProductQAStatus,
     metadata?: {
       logistics?: string;
+      batchId?: string;
       rejectionReason?: string;
       rejectionStage?: 'digital' | 'physical';
       adminId?: string;
@@ -674,15 +694,51 @@ export class QAService {
             description: metadata?.rejectionReason || null,
             created_by: metadata?.adminId || null,
           });
-      } else if (newStatus === 'pending_physical_review' && metadata?.logistics) {
-        // Create logistics record
-        await supabase
+      }
+
+      // Record logistics if provided
+      if (metadata?.logistics || metadata?.batchId) {
+        // Check if record exists first to be robust against missing unique constraints
+        const { data: existingLogistics } = await supabase
           .from('product_assessment_logistics')
-          .insert({
-            assessment_id: assessment.id,
-            details: metadata.logistics,
-            created_by: metadata?.adminId || null,
-          });
+          .select('id, details')
+          .eq('assessment_id', assessment.id)
+          .maybeSingle();
+
+        // If batchId is provided, we might want to store it as structured JSON string if details is just text
+        // For simplicity and compatibility, we'll append it or use a structured format if detected
+        let finalLogistics = metadata?.logistics || '';
+        if (metadata?.batchId) {
+          // If logistics is empty but batchId exists, we still want to save batchId
+          // We'll use a JSON-like string if batchId is present
+          const detailsObj = {
+            method: metadata.logistics || '',
+            batchId: metadata.batchId
+          };
+          finalLogistics = JSON.stringify(detailsObj);
+        }
+
+        if (existingLogistics) {
+          const { error: updateError } = await supabase
+            .from('product_assessment_logistics')
+            .update({
+              details: finalLogistics,
+              created_by: metadata?.adminId || null,
+            })
+            .eq('id', existingLogistics.id);
+          
+          if (updateError) console.error('Error updating logistics details:', updateError);
+        } else {
+          const { error: insertError } = await supabase
+            .from('product_assessment_logistics')
+            .insert({
+              assessment_id: assessment.id,
+              details: finalLogistics,
+              created_by: metadata?.adminId || null,
+            });
+          
+          if (insertError) console.error('Error inserting logistics details:', insertError);
+        }
       }
 
       // Map assessment status to product approval_status
@@ -831,18 +887,39 @@ export class QAService {
   /**
    * Seller chooses physical review: records logistics and moves to WAITING_FOR_SAMPLE
    */
-  async submitForPhysicalReview(productId: string, logisticsMethod: string): Promise<void> {
+  async submitForPhysicalReview(productId: string, logisticsMethod: string, batchId?: string): Promise<void> {
     return this.updateQAStatus(productId, 'WAITING_FOR_SAMPLE', {
       logistics: logisticsMethod,
+      batchId
     });
   }
 
   /**
    * Submit sample (Seller confirms physical sample sent)
    */
-  async submitSample(productId: string, logisticsMethod: string): Promise<void> {
+  async submitSample(
+    productId: string,
+    logisticsMethod: string,
+    courierDetails?: { courier: string; trackingNumber: string; batchId?: string }
+  ): Promise<void> {
+    let logisticsStr = logisticsMethod;
+    let bId = courierDetails?.batchId;
+
+    if (courierDetails) {
+      logisticsStr = `${logisticsMethod} (${courierDetails.courier}: ${courierDetails.trackingNumber})`;
+      if (courierDetails.batchId) {
+        logisticsStr = JSON.stringify({
+          method: logisticsMethod,
+          courier: courierDetails.courier,
+          trackingNumber: courierDetails.trackingNumber,
+          batchId: courierDetails.batchId
+        });
+      }
+    }
+
     return this.updateQAStatus(productId, 'IN_QUALITY_REVIEW', {
-      logistics: logisticsMethod,
+      logistics: logisticsStr,
+      batchId: bId
     });
   }
 
