@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, Store, ShoppingCart, MessageCircle, User } from 'lucide-react-native';
+import { AppState, AppStateStatus, LogBox } from 'react-native';
 import type { CartItem } from './src/types';
 
 // ---------------------------------------------------------------------------
@@ -33,6 +34,9 @@ import AddressSetupScreen from './app/onboarding/AddressSetupScreen';
 
 // Import types
 import type { Product, Order } from './src/types';
+import { supabase } from './src/lib/supabase';
+import { useAuthStore } from './src/stores/authStore';
+import { chatService } from './src/services/chatService';
 
 export type TabParamList = {
   Home: undefined;
@@ -186,13 +190,10 @@ function MainTabs() {
   );
 }
 
-import { supabase } from './src/lib/supabase';
-import { useAuthStore } from './src/stores/authStore';
-import { LogBox } from 'react-native';
-
-// ... (existing imports)
-
 export default function App() {
+  const { user } = useAuthStore();
+  const appState = useRef(AppState.currentState);
+
   React.useEffect(() => {
     // Suppress refresh token errors - they're handled automatically by auth service
     LogBox.ignoreLogs([
@@ -210,6 +211,29 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Global Presence Listener
+  React.useEffect(() => {
+    if (!user?.id) return;
+
+    // Mark online as soon as they log in or open the app
+    chatService.updateUserPresence(user.id, 'online', 'mobile');
+
+    // Listen to the app moving to background/foreground
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        chatService.updateUserPresence(user.id, 'online', 'mobile');
+      } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+        chatService.updateUserPresence(user.id, 'offline', 'mobile');
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+      chatService.updateUserPresence(user.id, 'offline', 'mobile');
+    };
+  }, [user?.id]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

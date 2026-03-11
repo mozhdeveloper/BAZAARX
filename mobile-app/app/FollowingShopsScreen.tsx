@@ -127,35 +127,47 @@ export default function FollowingShopsScreen({ navigation }: Props) {
                         </Text>
                     </View>
                 ) : (
-                    followingShops.map((shop) => (
+                    followingShops.map((shop) => {
+                        const shopName = shop.store_name || shop.name || 'Shop';
+                        const avatarUri = safeImageUri(shop.avatar_url, PLACEHOLDER_BANNER);
+                        const location = [shop.city, shop.province].filter(Boolean).join(', ') || shop.location || 'Philippines';
+                        const followersCount: number = shop.followers_count ?? 0;
+                        const productsCount: number = shop.products_count ?? 0;
+                        const followersLabel = followersCount > 1000 ? (followersCount / 1000).toFixed(1) + 'k' : followersCount;
+                        return (
                         <Pressable key={shop.id} style={styles.shopCard} onPress={() => handleVisitShop(shop)}>
-                            <Image source={{ uri: safeImageUri(shop.banner, PLACEHOLDER_BANNER) }} style={styles.shopImage} />
+                            {/* Banner: use avatar as banner fallback since there's no banner field */}
+                            <Image source={{ uri: avatarUri }} style={styles.shopImage} />
                             <View style={styles.overlay} />
                             <View style={styles.logoContainer}>
-                                <Text style={{ fontSize: 24 }}>{shop.logo}</Text>
+                                {shop.avatar_url ? (
+                                    <Image source={{ uri: safeImageUri(shop.avatar_url) }} style={styles.logoImage} />
+                                ) : (
+                                    <Store size={28} color="#D97706" />
+                                )}
                             </View>
                             <View style={styles.shopInfo}>
                                 <View style={styles.shopHeader}>
-                                    <Text style={styles.shopName}>{shop.name}</Text>
+                                    <Text style={styles.shopName}>{shopName}</Text>
                                     <View style={styles.ratingBadge}>
                                         <Star size={14} color="#FBBF24" fill="#FBBF24" />
-                                        <Text style={styles.ratingText}>{shop.rating}</Text>
+                                        <Text style={styles.ratingText}>{(shop.rating ?? 0).toFixed(1)}</Text>
                                     </View>
                                 </View>
 
                                 <View style={styles.locationRow}>
                                     <MapPin size={14} color="#6B7280" />
-                                    <Text style={styles.locationText}>{shop.location}</Text>
+                                    <Text style={styles.locationText}>{location}</Text>
                                 </View>
 
                                 <View style={styles.statsRow}>
                                     <View style={styles.statItem}>
                                         <Users size={14} color="#6B7280" />
-                                        <Text style={styles.statText}>{shop.followers_count > 1000 ? (shop.followers_count / 1000).toFixed(1) + 'k' : shop.followers_count} followers</Text>
+                                        <Text style={styles.statText}>{followersLabel} followers</Text>
                                     </View>
                                     <View style={styles.statItem}>
                                         <Store size={14} color="#6B7280" />
-                                        <Text style={styles.statText}>{shop.products_count} products</Text>
+                                        <Text style={styles.statText}>{productsCount} products</Text>
                                     </View>
                                 </View>
 
@@ -181,7 +193,8 @@ export default function FollowingShopsScreen({ navigation }: Props) {
                                 </View>
                             </View>
                         </Pressable>
-                    ))
+                        );
+                    })
                 )}
             </ScrollView>
         </View>
@@ -267,6 +280,12 @@ const styles = StyleSheet.create({
         borderWidth: 3,
         borderColor: '#FFF',
         zIndex: 10,
+        overflow: 'hidden',
+    },
+    logoImage: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
     },
     shopInfo: {
         padding: 16,

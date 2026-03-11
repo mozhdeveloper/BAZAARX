@@ -708,7 +708,55 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         };
 
     } catch (error: any) {
-        console.error('[Checkout] ❌ Checkout processing failed:', error);
+        console.error('[Checkout] \u274c Checkout processing failed:', error);
         return { success: false, error: error.message || 'Unknown error occurred' };
     }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Checkout Context — single concurrent fetch for addresses + seller metadata
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CheckoutContextSellerMeta {
+    id: string;
+    store_name: string | null;
+    shipping_origin: string | null;
+    is_verified: boolean;
+    avatar_url: string | null;
+}
+
+export interface CheckoutContextResult {
+    addresses: any[];
+    defaultAddress: any | null;
+    sellers: Record<string, CheckoutContextSellerMeta>;
+}
+
+/**
+ * Calls the `get-checkout-context` Edge Function which concurrently fetches
+ * user addresses and seller metadata via Promise.all on the server, replacing
+ * multiple waterfall requests with a single round-trip.
+ */
+export const getCheckoutContext = async (
+    productIds: string[],
+): Promise<CheckoutContextResult> => {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const { data, error } = await supabase.functions.invoke<CheckoutContextResult>(
+        'get-checkout-context',
+        {
+            body: { productIds },
+            headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+        },
+    );
+
+    if (error) {
+        console.error('[checkoutService] getCheckoutContext error:', error);
+        const msg = error.message || '';
+        if (msg.includes('401') || msg.includes('non-2xx status code') || msg.includes('Unauthorized')) {
+            throw new Error('AUTH_EXPIRED');
+        }
+        throw new Error(msg || 'Failed to load checkout context');
+    }
+
+    return data ?? { addresses: [], defaultAddress: null, sellers: {} };
 };

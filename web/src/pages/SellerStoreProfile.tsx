@@ -239,7 +239,12 @@ export function SellerStoreProfile() {
 
   const [isVerified, setIsVerified] = useState(seller?.isVerified || false);
   const [approvalStatus, setApprovalStatus] = useState<
-    "pending" | "approved" | "verified" | "rejected" | "needs_resubmission"
+    | "pending"
+    | "approved"
+    | "verified"
+    | "rejected"
+    | "needs_resubmission"
+    | "blacklisted"
   >(seller?.approvalStatus || "pending");
 
   const [reapplyLoading, setReapplyLoading] = useState(false);
@@ -250,6 +255,23 @@ export function SellerStoreProfile() {
     items: { documentField: string; reason?: string; createdAt?: string }[];
   } | null>(null);
   const [documentsUpdatedAt, setDocumentsUpdatedAt] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Draft staging state for partial rejection resubmission
+  const [draftDocuments, setDraftDocuments] = useState<{
+    businessPermitUrl?: string;
+    validIdUrl?: string;
+    proofOfAddressUrl?: string;
+    dtiRegistrationUrl?: string;
+    taxIdUrl?: string;
+  }>({});
+  const [draftDocumentFieldUpdatedAt, setDraftDocumentFieldUpdatedAt] = useState<Record<string, string | null>>({
+    business_permit_url: null,
+    valid_id_url: null,
+    proof_of_address_url: null,
+    dti_registration_url: null,
+    tax_id_url: null,
+  });
 
   const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string }[] = [
     { value: "sole_proprietor", label: "Sole Proprietorship" },
@@ -313,6 +335,16 @@ export function SellerStoreProfile() {
     return placeholders.includes(v);
   };
 
+  // Determine if we should use draft documents (during partial rejection resubmission)
+  const useDraftDocuments =
+    approvalStatus === "needs_resubmission" ||
+    (approvalStatus === "rejected" && latestRejection?.rejectionType === "partial");
+
+  // Compute displayed documents (drafts during resubmission, live otherwise)
+  const displayedDocuments = useDraftDocuments
+    ? { ...documents, ...draftDocuments }
+    : documents;
+
   // Compute list of missing required items (fields + documents)
   const getMissingItems = () => {
     const missing: string[] = [];
@@ -345,17 +377,56 @@ export function SellerStoreProfile() {
       if (isEmptyField(seller?.accountNumber)) missing.push("Account Number");
     }
 
-    // Documents
-    if (!documents.businessPermitUrl) missing.push("Business Permit");
-    if (!documents.validIdUrl) missing.push("Government-Issued ID");
-    if (!documents.proofOfAddressUrl) missing.push("Proof of Address");
-    if (!documents.dtiRegistrationUrl) missing.push("DTI/SEC Registration");
-    if (!documents.taxIdUrl) missing.push("BIR Tax ID (TIN)");
+    // Documents - during partial rejection, only check rejected documents
+    // During normal flow, check all documents
+    if (useDraftDocuments && latestRejection?.rejectionType === "partial") {
+      // Only require the rejected documents to be updated
+      const rejectedDocFields = latestRejection.items.map(item => item.documentField);
+      
+      if (rejectedDocFields.includes("business_permit_url") && !displayedDocuments.businessPermitUrl) 
+        missing.push("Business Permit");
+      if (rejectedDocFields.includes("valid_id_url") && !displayedDocuments.validIdUrl) 
+        missing.push("Government-Issued ID");
+      if (rejectedDocFields.includes("proof_of_address_url") && !displayedDocuments.proofOfAddressUrl) 
+        missing.push("Proof of Address");
+      if (rejectedDocFields.includes("dti_registration_url") && !displayedDocuments.dtiRegistrationUrl) 
+        missing.push("DTI/SEC Registration");
+      if (rejectedDocFields.includes("tax_id_url") && !displayedDocuments.taxIdUrl) 
+        missing.push("BIR Tax ID (TIN)");
+    } else {
+      // Normal flow - check all documents
+      if (!displayedDocuments.businessPermitUrl) missing.push("Business Permit");
+      if (!displayedDocuments.validIdUrl) missing.push("Government-Issued ID");
+      if (!displayedDocuments.proofOfAddressUrl) missing.push("Proof of Address");
+      if (!displayedDocuments.dtiRegistrationUrl) missing.push("DTI/SEC Registration");
+      if (!displayedDocuments.taxIdUrl) missing.push("BIR Tax ID (TIN)");
+    }
 
     return missing;
   };
 
   const isLocked = isVerified || (approvalStatus === "pending" && getMissingItems().length === 0);
+
+  // Check if there are rejected documents that haven't been re-uploaded
+  const getRejectedDocuments = () => {
+    if (!latestRejection || latestRejection.rejectionType !== "partial") {
+      return [];
+    }
+    // Check each rejected item against draft uploads
+    return latestRejection.items.filter((item) => {
+      const draftUpdatedAt = draftDocumentFieldUpdatedAt[item.documentField];
+      // If no draft upload timestamp, document hasn't been updated
+      if (!draftUpdatedAt || !item.createdAt) return true;
+      // Check if draft is newer than rejection
+      return new Date(draftUpdatedAt).getTime() <= new Date(item.createdAt).getTime();
+    });
+  };
+
+  // Check if all rejected documents have been updated
+  const hasUpdatedRejectedDocs = () => {
+    const rejectedDocs = getRejectedDocuments();
+    return rejectedDocs.length === 0;
+  };
 
   // Handler: reapply for verification (set approval_status back to pending)
   const handleReapply = async () => {
@@ -375,10 +446,80 @@ export function SellerStoreProfile() {
       return;
     }
 
+    // Check if partially rejected documents have been updated
+    const rejectedDocs = getRejectedDocuments();
+    if (rejectedDocs.length > 0) {
+      const rejectedDocNames = rejectedDocs
+        .map(d => documentFieldLabels[d.documentField] || d.documentField.replace(/_/g, ' '))
+        .join(', ');
+      toast({
+        variant: "destructive",
+        title: "Documents Need Updates",
+        description: `Please re-upload the following rejected documents: ${rejectedDocNames}`,
+      });
+      return;
+    }
+
     try {
       setReapplyLoading(true);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseClient: any = supabase;
+
+      // If we have draft documents, copy them to live documents before submitting
+      if (useDraftDocuments && Object.keys(draftDocuments).length > 0) {
+        // First, get or create the live document record
+        const { data: existingLiveDoc } = await supabaseClient
+          .from("seller_verification_documents")
+          .select("seller_id")
+          .eq("seller_id", sellerId)
+          .maybeSingle();
+
+        const draftToLiveData: Record<string, string> = {};
+        if (draftDocuments.businessPermitUrl) draftToLiveData.business_permit_url = draftDocuments.businessPermitUrl;
+        if (draftDocuments.validIdUrl) draftToLiveData.valid_id_url = draftDocuments.validIdUrl;
+        if (draftDocuments.proofOfAddressUrl) draftToLiveData.proof_of_address_url = draftDocuments.proofOfAddressUrl;
+        if (draftDocuments.dtiRegistrationUrl) draftToLiveData.dti_registration_url = draftDocuments.dtiRegistrationUrl;
+        if (draftDocuments.taxIdUrl) draftToLiveData.tax_id_url = draftDocuments.taxIdUrl;
+
+        if (Object.keys(draftToLiveData).length > 0) {
+          draftToLiveData.updated_at = new Date().toISOString();
+
+          if (existingLiveDoc) {
+            await supabaseClient
+              .from("seller_verification_documents")
+              .update(draftToLiveData)
+              .eq("seller_id", sellerId);
+          } else {
+            await supabaseClient
+              .from("seller_verification_documents")
+              .insert({
+                seller_id: sellerId,
+                ...draftToLiveData,
+              });
+          }
+        }
+
+        // Clear the draft documents after copying
+        await supabaseClient
+          .from("seller_verification_document_drafts")
+          .delete()
+          .eq("seller_id", sellerId);
+
+        // Update local state
+        setDocuments((prev) => ({
+          ...prev,
+          ...draftDocuments,
+        }));
+        setDraftDocuments({});
+        setDraftDocumentFieldUpdatedAt({
+          business_permit_url: null,
+          valid_id_url: null,
+          proof_of_address_url: null,
+          dti_registration_url: null,
+          tax_id_url: null,
+        });
+      }
+
       const { error } = await supabaseClient
         .from("sellers")
         .update({ approval_status: "pending" })
@@ -456,6 +597,43 @@ export function SellerStoreProfile() {
           });
         }
 
+        // Fetch draft documents for resubmission staging
+        const { data: draftData, error: draftError } = await supabase
+          .from("seller_verification_document_drafts")
+          .select(
+            "business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, updated_at, business_permit_updated_at, valid_id_updated_at, proof_of_address_updated_at, dti_registration_updated_at, tax_id_updated_at",
+          )
+          .eq("seller_id", sellerId)
+          .maybeSingle();
+
+        if (draftError && draftError.code !== "PGRST116") {
+          console.error("Error fetching draft seller documents:", draftError);
+        } else if (draftData) {
+          setDraftDocuments({
+            businessPermitUrl: draftData.business_permit_url || undefined,
+            validIdUrl: draftData.valid_id_url || undefined,
+            proofOfAddressUrl: draftData.proof_of_address_url || undefined,
+            dtiRegistrationUrl: draftData.dti_registration_url || undefined,
+            taxIdUrl: draftData.tax_id_url || undefined,
+          });
+          setDraftDocumentFieldUpdatedAt({
+            business_permit_url: draftData.business_permit_updated_at || null,
+            valid_id_url: draftData.valid_id_updated_at || null,
+            proof_of_address_url: draftData.proof_of_address_updated_at || null,
+            dti_registration_url: draftData.dti_registration_updated_at || null,
+            tax_id_url: draftData.tax_id_updated_at || null,
+          });
+        } else {
+          setDraftDocuments({});
+          setDraftDocumentFieldUpdatedAt({
+            business_permit_url: null,
+            valid_id_url: null,
+            proof_of_address_url: null,
+            dti_registration_url: null,
+            tax_id_url: null,
+          });
+        }
+
         const { data: rejectionData, error: rejectionError } = await supabase
           .from("seller_rejections")
           .select(
@@ -494,9 +672,9 @@ export function SellerStoreProfile() {
     };
 
     fetchSellerData();
-  }, [seller?.id]);
+  }, [seller?.id, refreshKey]);
 
-  // Handle document upload
+  // Handle document upload - saves to drafts during partial rejection
   const handleDocumentUpload = async (
     file: File,
     docKey: string,
@@ -526,72 +704,114 @@ export function SellerStoreProfile() {
         throw new Error("Upload failed");
       }
 
-      // Update seller_verification_documents table
-      // First check if record exists
-      const { data: existingDoc } = await supabase
-        .from("seller_verification_documents")
-        .select("seller_id")
-        .eq("seller_id", sellerId)
-        .single();
-
       const uploadTimestamp = new Date().toISOString();
 
-      const updateData: Record<string, string> = {
-        [columnName]: documentUrl,
-        updated_at: uploadTimestamp,
-      };
+      // During partial rejection, save to draft table instead of live table
+      if (useDraftDocuments) {
+        // Save to draft staging table
+        const { data: existingDraft } = await supabase
+          .from("seller_verification_document_drafts")
+          .select("seller_id")
+          .eq("seller_id", sellerId)
+          .maybeSingle();
 
-      let error;
-      if (existingDoc) {
-        // Update existing record
-        const result = await supabase
-          .from("seller_verification_documents")
-          .update(updateData)
-          .eq("seller_id", sellerId);
-        error = result.error;
-      } else {
-        // Insert new record
-        const result = await supabase
-          .from("seller_verification_documents")
-          .insert({
-            seller_id: sellerId,
-            ...updateData,
-          });
-        error = result.error;
-      }
+        const draftUpdatedAtColumn = {
+          business_permit_url: "business_permit_updated_at",
+          valid_id_url: "valid_id_updated_at",
+          proof_of_address_url: "proof_of_address_updated_at",
+          dti_registration_url: "dti_registration_updated_at",
+          tax_id_url: "tax_id_updated_at",
+        }[columnName];
 
-      if (error) {
-        throw error;
-      }
+        const draftUpdateData: Record<string, string> = {
+          [columnName]: documentUrl,
+          updated_at: uploadTimestamp,
+          ...(draftUpdatedAtColumn && { [draftUpdatedAtColumn]: uploadTimestamp }),
+        };
 
-      // Update local state
-      setDocuments((prev) => ({
-        ...prev,
-        [docKey]: documentUrl,
-      }));
-      setDocumentsUpdatedAt(uploadTimestamp);
-
-      updateSellerDetails({ [docKey]: documentUrl });
-
-      setLatestRejection((prev) => {
-        if (!prev || prev.rejectionType !== "partial") {
-          return prev;
+        let error;
+        if (existingDraft) {
+          const result = await supabase
+            .from("seller_verification_document_drafts")
+            .update(draftUpdateData)
+            .eq("seller_id", sellerId);
+          error = result.error;
+        } else {
+          const result = await supabase
+            .from("seller_verification_document_drafts")
+            .insert({
+              seller_id: sellerId,
+              ...draftUpdateData,
+            });
+          error = result.error;
         }
 
-        const nextItems = prev.items.filter(
-          (item) => item.documentField !== columnName,
-        );
+        if (error) throw error;
 
-        return {
+        // Update local draft state
+        setDraftDocuments((prev) => ({
           ...prev,
-          items: nextItems,
-        };
-      });
+          [docKey]: documentUrl,
+        }));
+        if (draftUpdatedAtColumn) {
+          setDraftDocumentFieldUpdatedAt((prev) => ({
+            ...prev,
+            [columnName]: uploadTimestamp,
+          }));
+        }
 
-      toast({
-        title: "Document Uploaded",
-        description: "Your file has been uploaded and marked for review.",
-      });
+        toast({
+          title: "Document Updated",
+          description: "Document saved as draft. Click 'Resubmit Application' when all documents are updated.",
+        });
+      } else {
+        // Normal upload - save to live documents table
+        const { data: existingDoc } = await supabase
+          .from("seller_verification_documents")
+          .select("seller_id")
+          .eq("seller_id", sellerId)
+          .maybeSingle();
+
+        const updateData: Record<string, string> = {
+          [columnName]: documentUrl,
+          updated_at: uploadTimestamp,
+        };
+
+        let error;
+        if (existingDoc) {
+          const result = await supabase
+            .from("seller_verification_documents")
+            .update(updateData)
+            .eq("seller_id", sellerId);
+          error = result.error;
+        } else {
+          const result = await supabase
+            .from("seller_verification_documents")
+            .insert({
+              seller_id: sellerId,
+              ...updateData,
+            });
+          error = result.error;
+        }
+
+        if (error) throw error;
+
+        // Update local live documents state
+        setDocuments((prev) => ({
+          ...prev,
+          [docKey]: documentUrl,
+        }));
+        setDocumentsUpdatedAt(uploadTimestamp);
+        updateSellerDetails({ [docKey]: documentUrl });
+
+        toast({
+          title: "Document Uploaded",
+          description: "Your file has been uploaded and marked for review.",
+        });
+      }
+
+      // Refresh data to ensure UI is in sync
+      setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error("Error uploading document:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to upload document. Please try again.";
@@ -620,16 +840,30 @@ export function SellerStoreProfile() {
 
     if (!item) return undefined;
 
-    if (documentsUpdatedAt && item.createdAt) {
-      const docUpdatedAtValue = new Date(documentsUpdatedAt).getTime();
-      const itemCreatedAtValue = new Date(item.createdAt).getTime();
+    // During partial rejection, check draft upload timestamp
+    if (useDraftDocuments) {
+      const draftUpdatedAt = draftDocumentFieldUpdatedAt[columnName];
+      if (draftUpdatedAt && item.createdAt) {
+        const draftTime = new Date(draftUpdatedAt).getTime();
+        const rejectionTime = new Date(item.createdAt).getTime();
+        if (Number.isFinite(draftTime) && Number.isFinite(rejectionTime) && draftTime > rejectionTime) {
+          // Document has been re-uploaded, no longer show rejection
+          return undefined;
+        }
+      }
+    } else {
+      // Normal flow - check live document timestamp
+      if (documentsUpdatedAt && item.createdAt) {
+        const docUpdatedAtValue = new Date(documentsUpdatedAt).getTime();
+        const itemCreatedAtValue = new Date(item.createdAt).getTime();
 
-      if (
-        Number.isFinite(docUpdatedAtValue) &&
-        Number.isFinite(itemCreatedAtValue) &&
-        docUpdatedAtValue > itemCreatedAtValue
-      ) {
-        return undefined;
+        if (
+          Number.isFinite(docUpdatedAtValue) &&
+          Number.isFinite(itemCreatedAtValue) &&
+          docUpdatedAtValue > itemCreatedAtValue
+        ) {
+          return undefined;
+        }
       }
     }
 
@@ -1721,7 +1955,7 @@ export function SellerStoreProfile() {
                   </div>
 
                   {/* Document-Level Rejection Banner */}
-                  {requiresResubmission && (
+                  {requiresResubmission && getRejectedDocuments().length > 0 && (
                     <div className="mb-8 p-5 bg-red-50 border-2 border-red-200 rounded-xl space-y-3">
                       <p className="text-base font-bold text-red-900 flex items-center gap-2">
                         <AlertCircle className="h-5 w-5" />
@@ -1730,17 +1964,15 @@ export function SellerStoreProfile() {
                       {latestRejection?.description && (
                         <p className="text-sm text-red-800">{latestRejection.description}</p>
                       )}
-                      {latestRejection?.items?.length ? (
-                        <div className="space-y-1 mt-2 p-3 bg-white/50 rounded-lg">
-                          {latestRejection.items.map((item) => (
-                            <p key={item.documentField} className="text-sm text-red-900 font-medium flex items-start gap-2">
-                              <span className="text-red-500">•</span>
-                              {documentFieldLabels[item.documentField] || item.documentField}
-                              {item.reason ? `: ${item.reason}` : ""}
-                            </p>
-                          ))}
-                        </div>
-                      ) : null}
+                      <div className="space-y-1 mt-2 p-3 bg-white/50 rounded-lg">
+                        {getRejectedDocuments().map((item) => (
+                          <p key={item.documentField} className="text-sm text-red-900 font-medium flex items-start gap-2">
+                            <span className="text-red-500">•</span>
+                            {documentFieldLabels[item.documentField] || item.documentField}
+                            {item.reason ? `: ${item.reason}` : ""}
+                          </p>
+                        ))}
+                      </div>
                     </div>
                   )}
 

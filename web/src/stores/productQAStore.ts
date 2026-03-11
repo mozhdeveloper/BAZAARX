@@ -555,69 +555,69 @@ export const useProductQAStore = create<ProductQAStore>()(
         set({ products: initialProducts });
       },
 
-      // addProductToQA: async (productData) => {
-      //   try {
-      //     // Validation
-      //     if (!productData.id || !productData.name || !productData.vendor) {
-      //       throw new Error('Product data is incomplete');
-      //     }
-      //     if (!productData.price || productData.price <= 0) {
-      //       throw new Error('Product price must be greater than 0');
-      //     }
-      //     // Category is optional — default to 'Uncategorized' so assessment always gets created
-      //     if (!productData.category || productData.category.trim() === '') {
-      //       console.warn('Product category missing, defaulting to Uncategorized');
-      //       productData = { ...productData, category: 'Uncategorized' };
-      //     }
+      addProductToQA: async (productData) => {
+        try {
+          // Validation
+          if (!productData.id || !productData.name || !productData.vendor) {
+            throw new Error('Product data is incomplete');
+          }
+          if (!productData.price || productData.price <= 0) {
+            throw new Error('Product price must be greater than 0');
+          }
+          // Category is optional — default to 'Uncategorized' so assessment always gets created
+          if (!productData.category || productData.category.trim() === '') {
+            console.warn('Product category missing, defaulting to Uncategorized');
+            productData = { ...productData, category: 'Uncategorized' };
+          }
           
-      //     // Check for duplicate
-      //     const exists = get().products.find(p => p.id === productData.id);
-      //     if (exists) {
-      //       console.warn(`Product ${productData.id} already exists in QA flow`);
-      //       return;
-      //     }
+          // Check for duplicate
+          const exists = get().products.find(p => p.id === productData.id);
+          if (exists) {
+            console.warn(`Product ${productData.id} already exists in QA flow`);
+            return;
+          }
 
-      //     // Check if seller is premium outlet (bypasses assessment)
-      //     const isPremiumOutlet = await qaService.isPremiumOutlet(productData.sellerId);
+          // Check if seller is premium outlet (bypasses assessment)
+          const isPremiumOutlet = await qaService.isPremiumOutlet(productData.sellerId);
           
-      //     // Create in database if configured
-      //     if (isSupabaseConfigured() && productData.sellerId) {
-      //       await qaService.createQAEntry(
-      //         productData.id,
-      //         productData.vendor,
-      //         productData.sellerId
-      //       );
-      //       // Reload using this seller's ID specifically so seller sees their own updated list
-      //       await get().loadProducts(productData.sellerId);
+          // Create in database if configured
+          if (isSupabaseConfigured() && productData.sellerId) {
+            await qaService.createQAEntry(
+              productData.id,
+              productData.vendor,
+              productData.sellerId
+            );
+            // Reload using this seller's ID specifically so seller sees their own updated list
+            await get().loadProducts(productData.sellerId);
             
-      //       // Sync premium outlet products to seller store as approved
-      //       if (isPremiumOutlet) {
-      //         syncToSellerStore(productData.id, 'approved');
-      //       }
-      //     } else {
-      //       // Fallback to local state
-      //       const newQAProduct: QAProduct = {
-      //         ...productData,
-      //         status: isPremiumOutlet ? 'ACTIVE_VERIFIED' : 'PENDING_DIGITAL_REVIEW',
-      //         logistics: null,
-      //         submittedAt: new Date().toISOString(),
-      //         approvedAt: isPremiumOutlet ? new Date().toISOString() : undefined,
-      //         verifiedAt: isPremiumOutlet ? new Date().toISOString() : undefined,
-      //       };
-      //       set((state) => ({
-      //         products: [...state.products, newQAProduct],
-      //       }));
+            // Sync premium outlet products to seller store as approved
+            if (isPremiumOutlet) {
+              syncToSellerStore(productData.id, 'approved');
+            }
+          } else {
+            // Fallback to local state
+            const newQAProduct: QAProduct = {
+              ...productData,
+              status: isPremiumOutlet ? 'ACTIVE_VERIFIED' : 'PENDING_DIGITAL_REVIEW',
+              logistics: null,
+              submittedAt: new Date().toISOString(),
+              approvedAt: isPremiumOutlet ? new Date().toISOString() : undefined,
+              verifiedAt: isPremiumOutlet ? new Date().toISOString() : undefined,
+            };
+            set((state) => ({
+              products: [...state.products, newQAProduct],
+            }));
             
-      //       // Sync premium outlet products to seller store as approved (local)
-      //       if (isPremiumOutlet) {
-      //         syncToSellerStore(productData.id, 'approved');
-      //       }
-      //     }
-      //   } catch (error) {
-      //     console.error('Error adding product to QA:', error);
-      //     throw error;
-      //   }
-      // },
+            // Sync premium outlet products to seller store as approved (local)
+            if (isPremiumOutlet) {
+              syncToSellerStore(productData.id, 'approved');
+            }
+          }
+        } catch (error) {
+          console.error('Error adding product to QA:', error);
+          throw error;
+        }
+      },
     }),
     {
       name: 'bazaarx-product-qa-shared',

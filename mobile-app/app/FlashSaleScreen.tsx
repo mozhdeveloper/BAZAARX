@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Timer, Zap, Store, Star, CheckCircle2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProductCard } from '../src/components/ProductCard';
+import BackToShopButton from '../src/components/BackToShopButton';
 import { productService } from '../src/services/productService';
 import { discountService } from '../src/services/discountService';
 import { COLORS } from '../src/constants/theme';
@@ -152,7 +153,12 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                     </View>
                 </LinearGradient>
 
-                {/* Products Area */}
+                {/* Back to Shop */}
+                <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+                    <BackToShopButton navigation={navigation} />
+                </View>
+
+                {/* Products Area */
                 <ScrollView
                     style={styles.scrollContent}
                     showsVerticalScrollIndicator={false}

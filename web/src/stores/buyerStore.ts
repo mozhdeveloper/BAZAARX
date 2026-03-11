@@ -484,6 +484,11 @@ interface BuyerStore {
 
   initializeBuyerProfile: (userId: string, profileData: any) => Promise<BuyerProfile>;
 
+  // Checkout Context — prefetched seller metadata from Edge Function
+  sellerMetadata: Record<string, any>;
+  isLoadingCheckoutContext: boolean;
+  loadCheckoutContext: (productIds: string[]) => Promise<void>;
+
 }
 
 
@@ -632,7 +637,55 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
     },
 
-    logout: () => set({ profile: null, addresses: [], notifications: [], cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
+    logout: () => set({ profile: null, addresses: [], notifications: [], cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null, sellerMetadata: {}, isLoadingCheckoutContext: false }),
+
+    // Checkout Context
+    sellerMetadata: {},
+    isLoadingCheckoutContext: false,
+    loadCheckoutContext: async (productIds: string[]) => {
+      // Skip if already loading or no product IDs supplied
+      if (get().isLoadingCheckoutContext || productIds.length === 0) return;
+
+      set({ isLoadingCheckoutContext: true });
+      try {
+        // Dynamically import to avoid circular dependency issues
+        const { getCheckoutContext } = await import('@/services/checkoutService');
+
+        // Single call to Edge Function — addresses + sellers fetched concurrently inside
+        const ctx = await getCheckoutContext(productIds);
+
+       // Merge addresses from Edge Function into existing address book
+        if (ctx.addresses && ctx.addresses.length > 0) {
+          const mapped = ctx.addresses.map((a: any) => ({
+            id: a.id,
+            label: a.label ?? '',
+            firstName: a.first_name ?? '',
+            lastName: a.last_name ?? '',
+            fullName: `${a.first_name ?? ''} ${a.last_name ?? ''}`.trim(),
+            phone: a.phone_number ?? a.phone ?? '', // Added phone_number
+            street: a.address_line_1 ?? a.street ?? '', // Added address_line_1
+            barangay: a.barangay ?? '',
+            city: a.city ?? '',
+            province: a.province ?? '',
+            region: a.region ?? '',
+            postalCode: a.postal_code ?? '',
+            isDefault: a.is_default ?? false,
+            coordinates: a.coordinates ?? undefined,
+          }));
+          set({ addresses: mapped });
+        }
+
+        set({ sellerMetadata: ctx.sellers ?? {} });
+      } catch (error: any) {
+        console.error('[BuyerStore] loadCheckoutContext failed:', error);
+        if (error?.message === 'AUTH_EXPIRED') {
+          throw error;
+        }
+        // Non-fatal: checkout can still proceed without prefetched seller metadata
+      } finally {
+        set({ isLoadingCheckoutContext: false });
+      }
+    },
 
     // Address Book
     addresses: [],

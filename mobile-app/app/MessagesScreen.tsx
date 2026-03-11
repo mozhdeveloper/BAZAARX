@@ -9,18 +9,11 @@ import {
   RefreshControl,
   ActivityIndicator,
   StatusBar,
+  FlatList,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Bot,
-  ChevronLeft,
-  MessageSquare,
-  Search,
-  Store,
-  X,
-} from 'lucide-react-native';
+import { Bot, ChevronLeft, MessageSquare, Search, Store, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../src/constants/theme';
@@ -41,18 +34,14 @@ export default function MessagesScreen() {
 
   const loadConversations = useCallback(async () => {
     if (!user?.id) {
-      console.log('[MessagesScreen] No user ID, skipping load');
       setLoading(false);
       return;
     }
-
-    console.log('[MessagesScreen] Loading conversations for user:', user.id);
     try {
       const convs = await chatService.getBuyerConversations(user.id);
-      console.log('[MessagesScreen] Loaded conversations:', convs.length);
       setConversations(convs);
     } catch (error) {
-      console.error('[MessagesScreen] Error loading conversations:', error);
+      console.error(error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -63,10 +52,8 @@ export default function MessagesScreen() {
     loadConversations();
   }, [loadConversations]);
 
-  // Subscribe to conversation updates
   useEffect(() => {
     if (!user?.id) return;
-
     const unsubscribe = chatService.subscribeToConversations(
       user.id,
       'buyer',
@@ -76,7 +63,6 @@ export default function MessagesScreen() {
         );
       }
     );
-
     return unsubscribe;
   }, [user?.id]);
 
@@ -85,25 +71,18 @@ export default function MessagesScreen() {
     loadConversations();
   };
 
-  /* Removed console.log for filtered length */
-  const uniqueConversations = React.useMemo(() => {
+  const uniqueConversations = useMemo(() => {
     const uniqueIds = new Set();
     const unique: Conversation[] = [];
-
     conversations.forEach(conv => {
       if (!uniqueIds.has(conv.id)) {
         uniqueIds.add(conv.id);
         unique.push(conv);
       }
     });
-
-    if (unique.length !== conversations.length) {
-      console.warn('[MessagesScreen] Found duplicate conversations!', conversations.length, '->', unique.length);
-    }
     return unique;
   }, [conversations]);
 
-  // Memoized: avoids re-filtering on every keystroke-unrelated re-render
   const filteredConversations = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return uniqueConversations.filter(conv =>
@@ -112,37 +91,25 @@ export default function MessagesScreen() {
     );
   }, [uniqueConversations, searchQuery]);
 
+  // Extract online users for the horizontal list
+  const onlineUsers = useMemo(() => uniqueConversations.filter(c => c.is_online), [uniqueConversations]);
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString([], { weekday: 'short' });
-    } else {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
+    if (diffDays === 0) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'short' });
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
-  // If a conversation is selected, show the chat screen
-  // Removed conditional rendering, now navigating to 'Chat' screen
-
-
   return (
-    <View
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* HEADER */}
-      <View
-        style={[styles.headerContainer, { paddingTop: insets.top + 5, backgroundColor: COLORS.background }]}
-      >
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 5 }]}>
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIcon}>
             <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
@@ -154,7 +121,6 @@ export default function MessagesScreen() {
         </View>
       </View>
 
-      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
           <Search size={18} color="#9CA3AF" />
@@ -176,60 +142,66 @@ export default function MessagesScreen() {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading conversations...</Text>
         </View>
       ) : filteredConversations.length === 0 ? (
-        <ScrollView
-          contentContainerStyle={styles.emptyContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
-          }
-        >
+        <ScrollView contentContainerStyle={styles.emptyContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
           <View style={styles.emptyState}>
             <View style={styles.iconContainer}>
               <MessageSquare size={48} color="#D1D5DB" />
             </View>
             <Text style={styles.emptyTitle}>No messages yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Start chatting with sellers by visiting their store or product page!
-            </Text>
-
-            <Pressable style={styles.startChatButton} onPress={() => setShowAIChat(true)}>
-              <Bot size={20} color="#FFF" style={{ marginRight: 8 }} />
-              <Text style={styles.startChatText}>Ask AI Assistant</Text>
-            </Pressable>
           </View>
         </ScrollView>
       ) : (
-        <ScrollView
-          style={styles.conversationsList}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
-          }
-        >
+        <ScrollView style={styles.conversationsList} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+          
+          {/* Active Online Users Horizontal List */}
+          {onlineUsers.length > 0 && (
+            <View style={styles.activeUsersContainer}>
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={onlineUsers}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
+                renderItem={({ item }) => (
+                  <Pressable
+                    style={styles.activeUserItem}
+                    onPress={() => navigation.navigate('Chat', { conversation: item, currentUserId: user?.id || '', userType: 'buyer' })}
+                  >
+                    <View style={styles.activeAvatarWrapper}>
+                      {item.seller_avatar ? (
+                        <Image source={{ uri: item.seller_avatar }} style={styles.activeAvatar} />
+                      ) : (
+                        <View style={[styles.activeAvatar, styles.placeholderAvatar]}>
+                          <Store size={20} color="#FFFFFF" />
+                        </View>
+                      )}
+                      <View style={styles.tealOnlineIndicator} />
+                    </View>
+                    <Text style={styles.activeUserName} numberOfLines={1}>
+                      {item.seller_store_name?.split(' ')[0] || 'Store'}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+            </View>
+          )}
+
           {filteredConversations.map(conv => (
             <Pressable
               key={conv.id}
               style={styles.conversationItem}
-              onPress={() => {
-                navigation.navigate('Chat', {
-                  conversation: conv,
-                  currentUserId: user?.id || '',
-                  userType: 'buyer',
-                });
-              }}
+              onPress={() => navigation.navigate('Chat', { conversation: conv, currentUserId: user?.id || '', userType: 'buyer' })}
             >
               <View style={styles.avatar}>
                 {conv.seller_avatar ? (
-                  <Image
-                    source={{ uri: conv.seller_avatar }}
-                    style={styles.avatarImage}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                  />
+                  <Image source={{ uri: conv.seller_avatar }} style={styles.avatarImage} contentFit="cover" />
                 ) : (
                   <Store size={20} color="#FFFFFF" />
                 )}
+                {/* 👈 NEW: Conditional check for Offline/Online dot */}
+                <View style={conv.is_online ? styles.tealOnlineIndicatorSmall : styles.offlineIndicatorSmall} />
               </View>
 
               <View style={styles.conversationContent}>
@@ -243,10 +215,7 @@ export default function MessagesScreen() {
                 </View>
                 <View style={styles.conversationFooter}>
                   <Text
-                    style={[
-                      styles.lastMessage,
-                      (conv.buyer_unread_count || 0) > 0 && styles.unreadMessage,
-                    ]}
+                    style={[styles.lastMessage, (conv.buyer_unread_count || 0) > 0 && styles.unreadMessage]}
                     numberOfLines={1}
                   >
                     {conv.last_message || 'Start a conversation'}
@@ -272,165 +241,45 @@ export default function MessagesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  headerContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 4,
-    zIndex: 10,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    position: 'relative',
-    height: 40,
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  headerContainer: { paddingHorizontal: 20, paddingBottom: 4, zIndex: 10, backgroundColor: COLORS.background },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 40 },
+  headerIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
+  searchContainer: { paddingHorizontal: 16, paddingVertical: 8 },
   searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF', // Changed to White for cleaner shadow
-    borderRadius: 12,
-    paddingHorizontal: 16, // Slightly wider padding
-    paddingVertical: 2,
-    gap: 12, // Increased gap slightly
-
-    // Soft Shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF',
+    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 2, gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
-
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1F2937',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
+  searchInput: { flex: 1, fontSize: 15, color: '#1F2937' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   emptyState: { alignItems: 'center', maxWidth: 280 },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F9FAFB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 8 },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  startChatButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    elevation: 2,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  startChatText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-  conversationsList: {
-    flex: 1,
-  },
-  conversationItem: {
-    flexDirection: 'row',
-    padding: 16,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#F3F4F6',
-    gap: 12,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  conversationContent: {
-    flex: 1,
-    gap: 4,
-  },
-  conversationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  storeName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
-    flex: 1,
-    marginRight: 8,
-  },
-  conversationTime: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  conversationFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  lastMessage: {
-    fontSize: 14,
-    color: '#6B7280',
-    flex: 1,
-    marginRight: 8,
-  },
-  unreadMessage: {
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  unreadBadge: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  unreadCount: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
+  iconContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  
+  // Active Users List
+  activeUsersContainer: { paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', backgroundColor: '#FFFFFF' },
+  activeUserItem: { alignItems: 'center', width: 64 },
+  activeAvatarWrapper: { position: 'relative', marginBottom: 6 },
+  activeAvatar: { width: 56, height: 56, borderRadius: 28 },
+  placeholderAvatar: { backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+  tealOnlineIndicator: { position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, backgroundColor: '#0D9488', borderWidth: 2, borderColor: '#FFFFFF' },
+  activeUserName: { fontSize: 12, color: '#4B5563', textAlign: 'center' },
+  
+  conversationsList: { flex: 1 },
+  conversationItem: { flexDirection: 'row', padding: 16, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', gap: 12 },
+  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 24 },
+  tealOnlineIndicatorSmall: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#0D9488', borderWidth: 2, borderColor: '#FFFFFF' },
+  offlineIndicatorSmall: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#9CA3AF', borderWidth: 2, borderColor: '#FFFFFF' },
+  conversationContent: { flex: 1, gap: 4 },
+  conversationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  storeName: { fontSize: 15, fontWeight: '700', color: '#1F2937', flex: 1, marginRight: 8 },
+  conversationTime: { fontSize: 12, color: '#9CA3AF' },
+  conversationFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  lastMessage: { fontSize: 14, color: '#6B7280', flex: 1, marginRight: 8 },
+  unreadMessage: { fontWeight: '600', color: '#1F2937' },
+  unreadBadge: { backgroundColor: COLORS.primary, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  unreadCount: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
 });

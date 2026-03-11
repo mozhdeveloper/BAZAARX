@@ -610,7 +610,7 @@ const SearchPage: React.FC = () => {
           </aside>
 
           {/* Main Content */}
-          <main className="flex-1">
+          <main className="flex-1 min-h-[calc(100vh-200px)] flex flex-col">
             {/* NEW: Store Matches Section */}
             {matchedStores.length > 0 && (
               <div className="mb-8">
@@ -890,7 +890,7 @@ const SearchPage: React.FC = () => {
               );
             })()
               : (
-                <div className="text-center py-20">
+                <div className="flex-1 flex flex-col items-center justify-center py-20">
                   <h3 className="text-xl font-bold text-[var(--text-headline)]">No products found</h3>
                   <p className="text-[var(--text-muted)] mt-2">Try adjusting your filters or search query</p>
                   <button

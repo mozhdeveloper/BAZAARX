@@ -125,6 +125,10 @@ const AdminSellers: React.FC = () => {
     () => getFilteredSellers("rejected"),
     [getFilteredSellers],
   );
+  const blacklistedSellers = useMemo(
+    () => getFilteredSellers("blacklisted"),
+    [getFilteredSellers],
+  );
   const resubmissionSellers = useMemo(
     () => getFilteredSellers("needs_resubmission"),
     [getFilteredSellers],
@@ -202,6 +206,16 @@ const AdminSellers: React.FC = () => {
 
   const handlePartialReject = async () => {
     if (!selectedSeller || selectedPartialRejections.length === 0) return;
+
+    if (
+      selectedSeller.status === "needs_resubmission" &&
+      selectedPartialRejections.length === 1
+    ) {
+      const proceed = window.confirm(
+        "This seller is already in resubmission. If multiple documents are incorrect, select all of them in a single partial rejection so the seller cannot resubmit after updating only one. Proceed with only 1 document selected?"
+      );
+      if (!proceed) return;
+    }
 
     await partiallyRejectSeller(selectedSeller.id, {
       note: partialRejectNote.trim() || undefined,
@@ -299,6 +313,12 @@ const AdminSellers: React.FC = () => {
             Needs Resubmission
           </Badge>
         );
+      case "blacklisted":
+        return (
+          <Badge className="bg-red-200 text-red-900 border-red-300 font-bold">
+            Blacklisted
+          </Badge>
+        );
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -310,6 +330,8 @@ const AdminSellers: React.FC = () => {
         return <CheckCircle className="w-4 h-4 text-green-600" />;
       case "rejected":
         return <XCircle className="w-4 h-4 text-red-600" />;
+      case "blacklisted":
+        return <Ban className="w-4 h-4 text-red-600" />;
       case "suspended":
         return <Ban className="w-4 h-4 text-orange-600" />;
       case "pending":
@@ -334,6 +356,54 @@ const AdminSellers: React.FC = () => {
         Standard
       </Badge>
     );
+  };
+
+  const getRestrictionBadge = (seller: Seller) => {
+    const now = new Date();
+    const isPermanentlyBlacklisted =
+      Boolean(seller.isPermanentlyBlacklisted) || Boolean(seller.blacklistedAt);
+
+    if (isPermanentlyBlacklisted) {
+      return (
+        <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+          Permanently Blacklisted
+        </Badge>
+      );
+    }
+
+    if (seller.tempBlacklistUntil && seller.tempBlacklistUntil > now) {
+      return (
+        <Badge className="bg-red-50 text-red-700 border-red-200 text-xs">
+          Temp Blacklisted ({seller.tempBlacklistCount || 0}/3)
+        </Badge>
+      );
+    }
+
+    if (seller.coolDownUntil && seller.coolDownUntil > now) {
+      return (
+        <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
+          Cooling Down ({seller.cooldownCount || 0}/3)
+        </Badge>
+      );
+    }
+
+    if (seller.status === "blacklisted") {
+      return (
+        <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+          Blacklisted
+        </Badge>
+      );
+    }
+
+    if (seller.reapplicationAttempts && seller.reapplicationAttempts > 0) {
+      return (
+        <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">
+          Attempts: {seller.reapplicationAttempts}/3
+        </Badge>
+      );
+    }
+
+    return null;
   };
 
   const handleTogglePremiumOutlet = async (sellerId: string, isPremium: boolean) => {
@@ -439,6 +509,7 @@ const AdminSellers: React.FC = () => {
                     {getStatusBadge(seller.status)}
                   </>
                 )}
+                {getRestrictionBadge(seller)}
               </div>
             </div>
 
@@ -567,6 +638,8 @@ const AdminSellers: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={!hasCompleteRequirements(seller)}
+                    title={!hasCompleteRequirements(seller) ? "Cannot reject - incomplete documents" : ""}
                     onClick={() => {
                       selectSeller(seller);
                       initializePartialReject(seller);
@@ -580,6 +653,8 @@ const AdminSellers: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={!hasCompleteRequirements(seller)}
+                    title={!hasCompleteRequirements(seller) ? "Cannot reject - incomplete documents" : ""}
                     onClick={() => {
                       selectSeller(seller);
                       setShowRejectDialog(true);
@@ -625,6 +700,8 @@ const AdminSellers: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={!hasCompleteRequirements(seller)}
+                    title={!hasCompleteRequirements(seller) ? "Cannot reject - incomplete documents" : ""}
                     onClick={() => {
                       selectSeller(seller);
                       initializePartialReject(seller);
@@ -639,6 +716,8 @@ const AdminSellers: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={!hasCompleteRequirements(seller)}
+                    title={!hasCompleteRequirements(seller) ? "Cannot reject - incomplete documents" : ""}
                     onClick={() => {
                       selectSeller(seller);
                       setShowRejectDialog(true);
@@ -745,7 +824,7 @@ const AdminSellers: React.FC = () => {
             onValueChange={setActiveTab}
             className="space-y-6"
           >
-            <TabsList className="grid w-full grid-cols-5 lg:w-auto">
+            <TabsList className="grid w-full grid-cols-6 lg:w-auto">
               <TabsTrigger value="pending" className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 Pending ({filteredPendingSellers.length})
@@ -764,6 +843,10 @@ const AdminSellers: React.FC = () => {
               <TabsTrigger value="rejected" className="flex items-center gap-2">
                 <XCircle className="w-4 h-4" />
                 Rejected ({rejectedSellers.length})
+              </TabsTrigger>
+              <TabsTrigger value="blacklisted" className="flex items-center gap-2">
+                <Ban className="w-4 h-4" />
+                Blacklisted ({blacklistedSellers.length})
               </TabsTrigger>
               <TabsTrigger
                 value="suspended"
@@ -866,6 +949,27 @@ const AdminSellers: React.FC = () => {
                   </h3>
                   <p className="text-gray-600">
                     No seller applications have been rejected.
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="blacklisted">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AnimatePresence mode="popLayout">
+                  {blacklistedSellers.map((seller) => (
+                    <SellerCard key={seller.id} seller={seller} />
+                  ))}
+                </AnimatePresence>
+              </div>
+              {blacklistedSellers.length === 0 && (
+                <div className="text-center py-12">
+                  <Ban className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No blacklisted sellers
+                  </h3>
+                  <p className="text-gray-600">
+                    No sellers are currently blacklisted.
                   </p>
                 </div>
               )}
