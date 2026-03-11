@@ -42,6 +42,7 @@ interface SubmitOrderReviewInput {
     comment: string;
     images?: string[];
     imageFiles?: File[];
+    isAnonymous?: boolean;
   }[];
 }
 

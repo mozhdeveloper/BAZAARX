@@ -69,6 +69,7 @@ export const mapDbReturnRequestToBuyerReturnRequest = (
     refundAmount: request.refundAmount ?? fallbackRefundAmount,
     submittedAt: new Date(request.createdAt),
     status: request.status,
+    resolvedBy: request.resolvedBy ?? undefined,
     rejectedReason: request.rejectedReason,
     description: request.description ?? null,
     evidenceUrls: request.evidenceUrls ?? [],
@@ -95,13 +96,20 @@ export const mergeBuyerOrdersWithReturnRequests = (
       return order;
     }
 
+    // If the order is already cancelled (from DB status mapping), preserve it.
+    // If the return request was rejected by the seller, also show as cancelled.
+    const isSellerCancelled =
+      request.status === 'rejected' && request.resolvedBy === 'seller';
+    const keepCancelled = order.status === 'cancelled';
     return {
       ...order,
-      status: 'returned',
+      status: isSellerCancelled || keepCancelled ? 'cancelled' : 'returned',
       returnRequest: mapDbReturnRequestToBuyerReturnRequest(request, order.total),
     };
   });
 };
+
+
 
 export const isBuyerOrderWithinReturnWindow = (
   order: Pick<BuyerOrderSnapshot, "shipmentStatus" | "deliveryDate" | "deliveredAt" | "createdAt">,
