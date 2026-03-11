@@ -780,14 +780,14 @@ export default function CheckoutPage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/shop')}
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <ChevronLeft
               size={20}
               className="group-hover:-translate-x-0.5 transition-transform"
             />
-            <span className="text-sm font-medium">Back</span>
+            <span className="text-sm font-medium">Back to Shop</span>
           </button>
           <div>
             <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-1">

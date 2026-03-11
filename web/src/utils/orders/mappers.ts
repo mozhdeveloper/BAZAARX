@@ -93,7 +93,7 @@ const mapOrderReviews = (order: any): OrderReviewSnapshot[] => {
   const joinedReviews = Array.isArray(order?.reviews) ? order.reviews : [];
 
   const normalized = joinedReviews
-    .filter((review: any) => Boolean(review) && review.is_hidden !== true)
+    .filter((review: any) => Boolean(review))
     .map((review: any) => {
       const submittedAt = new Date(
         review.created_at || review.updated_at || order.updated_at || order.created_at || Date.now(),
@@ -106,6 +106,18 @@ const mapOrderReviews = (order: any): OrderReviewSnapshot[] => {
         comment: review.comment || "",
         images: mapReviewImages(review),
         submittedAt,
+        sellerReply: review.seller_reply
+          ? {
+              message:
+                typeof review.seller_reply === 'string'
+                  ? review.seller_reply
+                  : (review.seller_reply as any)?.message || '',
+              repliedAt:
+                typeof review.seller_reply === 'object'
+                  ? (review.seller_reply as any)?.replied_at || null
+                  : null,
+            }
+          : null,
       } satisfies OrderReviewSnapshot;
     })
     .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());

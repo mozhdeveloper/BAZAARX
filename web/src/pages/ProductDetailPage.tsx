@@ -371,7 +371,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         The product you're looking for doesn't exist.
                     </p>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={() => navigate('/shop')}
                         className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
                     >
                         <div className="p-1.5">
@@ -628,13 +628,13 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 md:py-6 -mt-6">
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={() => navigate('/shop')}
                     className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
                 >
                     <div className="p-1.5 rounded-full hover:bg-[var(--brand-wash)] transition-colors">
                         <ChevronLeft className="w-4 h-4" />
                     </div>
-                    <span className="font-medium text-sm">Back</span>
+                    <span className="font-medium text-sm">Back to Shop</span>
                 </button>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16">

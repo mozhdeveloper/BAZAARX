@@ -99,6 +99,8 @@ export type RootStackParamList = {
   ReturnOrders: undefined;
   History: undefined;
   MyRequests: undefined;
+  LabPipeline: undefined;
+  ProductRequestDetail: { requestId: string };
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
@@ -116,6 +118,17 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+  const [unreadMsgCount, setUnreadMsgCount] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!user?.id) return;
+    const fetchCount = () =>
+      chatService.getUnreadCount(user.id, 'buyer').then(setUnreadMsgCount);
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   return (
     <Tab.Navigator
@@ -177,6 +190,18 @@ function MainTabs() {
         component={MessagesScreen}
         options={{
           tabBarIcon: ({ color, size }) => <MessageCircle size={size} color={color} />,
+          tabBarBadge: unreadMsgCount > 0 ? (unreadMsgCount > 9 ? '9+' : unreadMsgCount) : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: '#D97706',
+            borderWidth: 1,
+            borderColor: '#FFD89A',
+            color: '#FFFFFF',
+            fontSize: 10,
+            fontWeight: '900',
+            minWidth: 20,
+            height: 20,
+            borderRadius: 10,
+          },
         }}
       />
       <Tab.Screen
@@ -338,6 +363,8 @@ export default function App() {
             <Stack.Screen name="ReturnOrders" getComponent={() => require('./app/ReturnOrdersScreen').default} options={{ headerShown: false }} />
             <Stack.Screen name="History" getComponent={() => require('./app/HistoryScreen').default} />
             <Stack.Screen name="MyRequests" getComponent={() => require('./app/MyRequestsScreen').default} />
+            <Stack.Screen name="LabPipeline" getComponent={() => require('./app/LabPipelineScreen').default} options={{ headerShown: false }} />
+            <Stack.Screen name="ProductRequestDetail" getComponent={() => require('./app/ProductRequestDetailScreen').default} options={{ headerShown: false }} />
             <Stack.Screen name="HelpSupport" getComponent={() => require('./app/HelpCenterScreen').default} />
             <Stack.Screen name="ChatSupport" getComponent={() => require('./app/ChatSupportScreen').default} options={{ headerShown: false }} />
             <Stack.Screen name="CreateTicket" getComponent={() => require('./app/tickets/CreateTicketScreen').default} />

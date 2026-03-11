@@ -35,7 +35,7 @@ class ProductRequestService {
       status: row.status,
       priority: row.priority || 'medium',
       estimatedDemand: row.estimated_demand || 0,
-      adminNotes: row.admin_notes,
+      adminNotes: row.admin_notes ?? undefined,
     };
   }
 
@@ -80,6 +80,21 @@ class ProductRequestService {
     } catch (error) {
       console.error('Failed to load user product requests:', error);
       return [];
+    }
+  }
+
+  async getRequestById(id: string): Promise<ProductRequest | null> {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      const { data, error } = await supabase
+        .from('product_requests')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error || !data) return null;
+      return this.mapRow(data);
+    } catch {
+      return null;
     }
   }
 

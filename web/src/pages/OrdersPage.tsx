@@ -4,28 +4,22 @@ import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   Package,
   Clock,
-  Truck,
   CheckCircle,
   XCircle,
   Eye,
   Search,
-  Filter,
-  Calendar,
   MapPin,
   Star,
   ChevronLeft,
-  ArrowLeft,
   RotateCcw,
   X,
-  ShoppingBag,
   Store,
   ChevronRight,
-  Bell,
   PackageCheck,
 } from "lucide-react";
 import { useCartStore } from "../stores/cartStore";
 import { Button } from "../components/ui/button";
-import { useBuyerStore } from "../stores/buyerStore";
+import { useBuyerStore, CartItem } from "../stores/buyerStore";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import TrackingModal from "../components/TrackingModal";
@@ -50,7 +44,8 @@ export default function OrdersPage() {
   const location = useLocation();
   const { orders, updateOrderStatus, updateOrderWithReturnRequest, hydrateBuyerOrders } =
     useCartStore();
-  const { profile, initializeCart } = useBuyerStore();
+  const { profile, initializeCart, setBuyAgainItems } = useBuyerStore();
+
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -214,7 +209,7 @@ export default function OrdersPage() {
         duration: 1000,
       });
 
-      void loadBuyerOrders();
+      await loadBuyerOrders();
     } catch (e) {
       console.error("Error canceling order:", e);
       toast({
@@ -323,7 +318,7 @@ export default function OrdersPage() {
       if (order && order.returnRequest) {
         setViewReturnDetails(order);
         setStatusFilter("returned");
-        
+
         // Clear params to avoid re-opening on manual tab switch
         setSearchParams(prev => {
           prev.delete("viewOrder");
@@ -346,9 +341,9 @@ export default function OrdersPage() {
     { value: "reviewed", label: "Reviewed" },
   ];
 
-  /* 
-     Helper: we need to handle mapping DB statuses (processing, ready_to_ship) to UI statuses (confirmed) 
-     if the DB uses different strings. 
+  /*
+     Helper: we need to handle mapping DB statuses (processing, ready_to_ship) to UI statuses (confirmed)
+     if the DB uses different strings.
      Database.types.ts says: pending_payment, paid, processing, ready_to_ship, shipped...
      UI statuses seem to be: pending, confirmed, shipped, delivered, cancelled.
   */
@@ -367,8 +362,8 @@ export default function OrdersPage() {
     return `${orderId}-${itemId}-${variantId}-${index}`;
   };
 
-  const filteredOrders = useMemo(() => orders
-    .filter((order) => {
+  const filteredOrders = useMemo(() => {
+    const filtered = orders.filter((order) => {
       const matchesSearch =
         order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         order.items.some(
@@ -381,9 +376,27 @@ export default function OrdersPage() {
         statusFilter === "all" || order.status === statusFilter;
 
       return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt)),
-  [orders, searchQuery, statusFilter]); // Sort newest first
+    });
+
+    // If viewing reviewed tab, sort by review.submittedAt desc
+    if (statusFilter === "reviewed") {
+      return filtered.sort((a, b) => {
+        const aTime = a.review?.submittedAt ? new Date(a.review.submittedAt).getTime() : getTimestamp(a.createdAt);
+        const bTime = b.review?.submittedAt ? new Date(b.review.submittedAt).getTime() : getTimestamp(b.createdAt);
+        return bTime - aTime;
+      });
+    }
+    // If viewing cancelled tab, sort by cancelledAt desc (fallback to createdAt)
+    if (statusFilter === "cancelled") {
+      return filtered.sort((a, b) => {
+        const aTime = a.cancelledAt ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
+        const bTime = b.cancelledAt ? getTimestamp(b.cancelledAt) : getTimestamp(b.createdAt);
+        return bTime - aTime;
+      });
+    }
+    // Otherwise, sort by createdAt desc
+    return filtered.sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
+  }, [orders, searchQuery, statusFilter]);
 
   const formatDate = (date: Date | string) => {
     const dateObj = date instanceof Date ? date : new Date(date);
@@ -408,8 +421,6 @@ export default function OrdersPage() {
   const selectedOrderData = selectedOrder
     ? orders.find((o) => o.id === selectedOrder)
     : null;
-
-  // Always show orders page with sample orders - users should see this immediately
 
   return (
     <div className="min-h-screen bg-[var(--brand-wash)]">
@@ -453,14 +464,14 @@ export default function OrdersPage() {
           className="mb-4"
         >
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/shop')}
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <ChevronLeft
               size={20}
               className="group-hover:-translate-x-0.5 transition-transform"
             />
-            <span className="text-sm font-medium">Back</span>
+            <span className="text-sm font-medium">Back to Shop</span>
           </button>
           <h1 className="text-xl lg:text-3xl font-bold text-gray-900">My Orders</h1>
           <p className="text-gray-500 text-sm">Track and manage all your orders</p>
@@ -647,6 +658,14 @@ export default function OrdersPage() {
                               </div>
                             )}
                         </div>
+                        {(order.review as any).sellerReply && (
+                          <div className="mt-2 flex items-start gap-2 border-l-2 border-[var(--brand-primary)] pl-3">
+                            <div>
+                              <p className="text-xs font-semibold text-[var(--brand-primary)] mb-0.5">Seller's Reply</p>
+                              <p className="text-sm text-gray-600 italic">{(order.review as any).sellerReply.message}</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -822,7 +841,7 @@ export default function OrdersPage() {
                                 </Button>
                               )}
 
-                              {/* Buy Again - Opens first product's detail page */}
+                              {/* Buy Again - Re-purchase all items directly to checkout */}
                               <Button
                                 onClick={() => {
                                   if (!order.items || order.items.length === 0) {
@@ -834,10 +853,59 @@ export default function OrdersPage() {
                                     return;
                                   }
 
+                                  const cartItems: CartItem[] = order.items.map((item: any) => ({
+                                    id: item.productId || item.id,
+                                    name: item.name,
+                                    price: item.price,
+                                    originalPrice: item.originalPrice,
+                                    stock: 99,
+                                    image: item.image,
+                                    images: item.image ? [item.image] : [],
+                                    seller: {
+                                      id: item.sellerId || '',
+                                      name: item.seller || 'Verified Seller',
+                                      avatar: '',
+                                      rating: 0,
+                                      totalReviews: 0,
+                                      followers: 0,
+                                      isVerified: false,
+                                      description: '',
+                                      location: '',
+                                      established: '',
+                                      products: [],
+                                      badges: [],
+                                      responseTime: '',
+                                      categories: [],
+                                    },
+                                    sellerId: item.sellerId || '',
+                                    rating: item.rating || 0,
+                                    totalReviews: 0,
+                                    category: item.category || '',
+                                    sold: 0,
+                                    isFreeShipping: false,
+                                    location: '',
+                                    description: '',
+                                    specifications: {},
+                                    variants: [],
+                                    quantity: item.quantity,
+                                    selectedVariant: (item.selectedVariant || item.variant) ? {
+                                      id: item.selectedVariant?.id || item.variant?.id || '',
+                                      name: item.selectedVariant?.name || item.variant?.name ||
+                                        `${item.variant?.size || ''} ${item.variant?.color || ''}`.trim() || 'Standard',
+                                      price: item.price,
+                                      stock: 99,
+                                      size: item.selectedVariant?.size || item.variant?.size,
+                                      color: item.selectedVariant?.color || item.variant?.color,
+                                    } : undefined,
+                                    selected: true,
+                                  }));
+
+                                  setBuyAgainItems(cartItems);
+                                  navigate('/checkout', { state: { fromBuyAgain: true } });
                                   // Navigate to the first product's detail page
                                   const firstItem = order.items[0];
                                   const productId = (firstItem as any).productId || firstItem.id;
-                                  
+
                                   if (!productId) {
                                     toast({
                                       title: "Cannot buy again",
@@ -929,6 +997,13 @@ export default function OrdersPage() {
                                     ))}
                                   </div>
                                 )}
+
+                              {(order.review as any)?.sellerReply && (
+                                <div className="w-full sm:max-w-md border-l-2 border-[var(--brand-primary)] pl-3 text-left mt-1">
+                                  <p className="text-xs font-semibold text-[var(--brand-primary)] mb-0.5">Seller's Reply</p>
+                                  <p className="text-sm text-gray-600 italic">{(order.review as any).sellerReply.message}</p>
+                                </div>
+                              )}
                             </div>
                           ) : null}
                       </div>
@@ -1201,15 +1276,14 @@ export default function OrdersPage() {
                         <span className="text-sm font-medium text-gray-700">
                           Status:
                         </span>
-                        <p className={`font-medium ${
-                          ['approved', 'refunded'].includes(viewReturnDetails.returnRequest.status) 
-                            ? 'text-green-600' 
-                            : viewReturnDetails.returnRequest.status === 'rejected'
+                        <p className={`font-medium ${['approved', 'refunded'].includes(viewReturnDetails.returnRequest.status)
+                          ? 'text-green-600'
+                          : viewReturnDetails.returnRequest.status === 'rejected'
                             ? 'text-red-600'
                             : viewReturnDetails.returnRequest.status === 'escalated'
-                            ? 'text-purple-600'
-                            : 'text-orange-600'
-                        }`}>
+                              ? 'text-purple-600'
+                              : 'text-orange-600'
+                          }`}>
                           {(() => {
                             const s = viewReturnDetails.returnRequest.status;
                             if (s === 'approved') return 'Approved';
@@ -1566,7 +1640,7 @@ export default function OrdersPage() {
                   Confirm Order Received
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Have you received your order <span className="font-semibold">{orderToConfirmReceived.orderNumber || orderToConfirmReceived.id}</span>? 
+                  Have you received your order <span className="font-semibold">{orderToConfirmReceived.orderNumber || orderToConfirmReceived.id}</span>?
                   This will confirm that the package was delivered to you.
                 </p>
                 <p className="text-sm text-amber-600 mb-6">

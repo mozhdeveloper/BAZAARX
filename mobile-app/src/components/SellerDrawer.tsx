@@ -37,6 +37,8 @@ import {
 } from 'lucide-react-native';
 import { useSellerStore } from '../stores/sellerStore';
 import { useAuthStore } from '../stores/authStore';
+import { chatService } from '../services/chatService';
+import { notificationService } from '../services/notificationService';
 
 interface MenuItem {
   icon: any;
@@ -62,6 +64,14 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
   const insets = useSafeAreaInsets();
   const { seller, logout } = useSellerStore();
   const { switchRole } = useAuthStore();
+  const [unreadMsgCount, setUnreadMsgCount] = React.useState(0);
+  const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
+
+  useEffect(() => {
+    if (!visible || !seller?.id) return;
+    chatService.getUnreadCount(seller.id, 'seller').then(setUnreadMsgCount);
+    notificationService.getUnreadCount(seller.id, 'seller').then(setUnreadNotifCount);
+  }, [visible, seller?.id]);
 
   const drawerWidth = Math.min(Dimensions.get('window').width * 0.85, 320);
   const translateX = useRef(new Animated.Value(-drawerWidth)).current;
@@ -222,9 +232,14 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
                         </View>
                         <Text style={styles.menuItemLabel}>{item.label}</Text>
                       </View>
-                      {item.inTab && (
-                        <View style={styles.tabBadge}>
-                          <Text style={styles.tabBadgeText}>Tab</Text>
+                      {item.route === 'Notifications' && unreadNotifCount > 0 && (
+                        <View style={styles.badgePill}>
+                          <Text style={styles.badgePillText}>{unreadNotifCount > 9 ? '9+' : unreadNotifCount}</Text>
+                        </View>
+                      )}
+                      {item.route === 'Messages' && unreadMsgCount > 0 && (
+                        <View style={styles.badgePill}>
+                          <Text style={styles.badgePillText}>{unreadMsgCount > 9 ? '9+' : unreadMsgCount}</Text>
                         </View>
                       )}
                     </TouchableOpacity>
@@ -394,6 +409,20 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#6B7280',
+  },
+  badgePill: {
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgePillText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   logoutItem: {
     marginTop: 8,

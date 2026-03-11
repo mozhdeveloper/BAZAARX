@@ -7,7 +7,9 @@ import { ChatBubble } from "./components/ChatBubbleAI";
 import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
 import TrackingForm from "./components/TrackingForm";
 import PageLoader from "./components/PageLoader";
-import { usePresence } from './hooks/usePresence';
+import { usePresence } from './hooks/usePresence'; import { ErrorBoundary } from "react-error-boundary";
+import { OrderErrorFallback } from "./components/OrderErrorFallback";
+
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
 // ---------------------------------------------------------------------------
@@ -48,6 +50,8 @@ const BuyerReviewsPage = lazy(() => import("./pages/BuyerReviewsPage"));
 const BuyerFollowingPage = lazy(() => import("./pages/BuyerFollowingPage"));
 const BuyerSettingsPage = lazy(() => import("./pages/BuyerSettingsPage"));
 const BuyerProductRequestsPage = lazy(() => import("./pages/BuyerProductRequestsPage"));
+const ProductRequestDetailPage = lazy(() => import("./pages/ProductRequestDetailPage"));
+const CommunityRequestsPage = lazy(() => import("./pages/CommunityRequestsPage"));
 const BuyerLoginPage = lazy(() => import("./pages/BuyerLoginPage"));
 const BuyerSignupPage = lazy(() => import("./pages/BuyerSignupPage"));
 const BuyerSupport = lazyNamed(() => import("./pages/BuyerSupport"), "BuyerSupport");
@@ -202,7 +206,9 @@ function App() {
               path="/order/:orderId"
               element={
                 // <ProtectedBuyerRoute>
-                <OrderDetailPage />
+                <ErrorBoundary FallbackComponent={OrderErrorFallback}>
+                  <OrderDetailPage />
+                </ErrorBoundary>
                 // </ProtectedBuyerRoute>
               }
             />
@@ -256,6 +262,11 @@ function App() {
                 <BuyerProductRequestsPage />
                 //</ProtectedBuyerRoute>
               }
+            />
+            <Route path="/requests" element={<CommunityRequestsPage />} />
+            <Route
+              path="/requests/:id"
+              element={<ProductRequestDetailPage />}
             />
             <Route
               path="/settings"

@@ -114,14 +114,14 @@ export default function BuyerProductRequestsPage() {
           className="mb-8"
         >
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/shop')}
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <ChevronLeft
               size={20}
               className="group-hover:-translate-x-0.5 transition-transform"
             />
-            <span className="text-sm font-medium">Back</span>
+            <span className="text-sm font-medium">Back to Shop</span>
           </button>
 
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -319,6 +319,19 @@ export default function BuyerProductRequestsPage() {
                           </div>
                         </div>
                       )}
+
+                      {/* View Contributions */}
+                      <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/requests/${request.id}`)}
+                          className="text-[var(--brand-primary)] border-[var(--brand-primary)]/30 hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/5 gap-1.5"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          View Contributions
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>

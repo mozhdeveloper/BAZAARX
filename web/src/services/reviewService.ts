@@ -4,6 +4,7 @@
  */
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Database } from '@/types/database.types';
+import { notificationService } from './notificationService';
 
 export type Review = Database['public']['Tables']['reviews']['Row'];
 export type ReviewInsert = Database['public']['Tables']['reviews']['Insert'];
@@ -1143,6 +1144,29 @@ export class ReviewService {
       if (error) {
         console.error('Error adding seller reply:', error);
         throw new Error('Failed to submit reply');
+      }
+
+      // Notify the buyer that the seller replied to their review
+      try {
+        const buyerId = (data as any)?.buyer_id;
+        const orderId = (data as any)?.order_id;
+        const productName = (data as any)?.product?.name || 'a product';
+        if (buyerId && orderId) {
+          const { data: sellerRow } = await supabase
+            .from('sellers')
+            .select('store_name')
+            .eq('id', sellerId)
+            .single();
+          const sellerName = sellerRow?.store_name || 'The seller';
+          await notificationService.notifyBuyerSellerReply({
+            buyerId,
+            orderId,
+            productName,
+            sellerName,
+          });
+        }
+      } catch (notifErr) {
+        console.warn('[Review] Failed to send buyer notification:', notifErr);
       }
 
       return mapReviewRowToFeedItem(data);

@@ -12,9 +12,11 @@ import {
   MessageCircle,
   Headset,
   Package,
+  Lightbulb,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
+import { chatService } from "../services/chatService";
 import { useBuyerStore } from "../stores/buyerStore";
 import VisualSearchModal from "./VisualSearchModal";
 import ProductRequestModal from "./ProductRequestModal";
@@ -40,6 +42,19 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+
+  useEffect(() => {
+    if (!profile?.id || location.pathname === '/messages') {
+      setUnreadMessageCount(0);
+      return;
+    }
+    const fetchCount = () =>
+      chatService.getUnreadCount(profile.id, 'buyer').then(setUnreadMessageCount);
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000);
+    return () => clearInterval(interval);
+  }, [profile?.id, location.pathname]);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Check if we're on the search page
@@ -202,7 +217,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
               </svg>
               {profile && getTotalCartItems() > 0 && (
                 <Badge className="absolute top-0 right-0 min-w-[1.25rem] h-5 px-1 flex items-center justify-center bg-red-500 text-white border-none rounded-full text-xs">
-                  {getTotalCartItems() > 99 ? "99+" : getTotalCartItems()}
+                  {getTotalCartItems() > 9 ? "9+" : getTotalCartItems()}
                 </Badge>
               )}
             </button>
@@ -241,6 +256,23 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
               title="Messages"
             >
               <MessageCircle className="h-6 w-6" />
+              {unreadMessageCount > 0 && (
+                <Badge className="absolute top-0 right-0 min-w-[1.25rem] h-5 px-1 flex items-center justify-center bg-red-500 text-white border-none rounded-full text-xs">
+                  {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                </Badge>
+              )}
+            </button>
+
+            {/* Community Requests */}
+            <button
+              onClick={() => navigate("/requests")}
+              className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname.startsWith("/requests")
+                ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
+                : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
+                }`}
+              title="Community Requests"
+            >
+              <Lightbulb className="h-6 w-6" />
             </button>
 
             {/* Notifications */}

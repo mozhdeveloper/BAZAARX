@@ -144,6 +144,7 @@ export function SellerOrders() {
   const targetOrder = orders.find(
     (o) =>
       o.orderNumber === selectedOrderNumber ||
+      (o as any).order_number === selectedOrderNumber ||
       o.id === selectedOrderNumber
   );
 

@@ -125,10 +125,11 @@ export default function BuyerFollowingPage() {
           className="mb-8"
         >
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/shop')}
             className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-all group mb-4"
           >
             <ChevronLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+            <span className="text-sm font-medium">Back to Shop</span>
           </button>
 
           <h1 className="text-3xl font-extrabold font-heading text-[var(--text-headline)] tracking-tight mb-2">Following</h1>

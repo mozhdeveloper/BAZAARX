@@ -75,6 +75,18 @@ CREATE TABLE public.announcements (
   CONSTRAINT announcements_pkey PRIMARY KEY (id),
   CONSTRAINT announcements_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admins(id)
 );
+CREATE TABLE public.bazcoin_transactions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  amount integer NOT NULL,
+  balance_after integer NOT NULL,
+  reason text NOT NULL,
+  reference_id uuid,
+  reference_type text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT bazcoin_transactions_pkey PRIMARY KEY (id),
+  CONSTRAINT bazcoin_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.buyer_notifications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   buyer_id uuid NOT NULL,
@@ -149,6 +161,24 @@ CREATE TABLE public.categories (
   CONSTRAINT categories_pkey PRIMARY KEY (id),
   CONSTRAINT categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.categories(id)
 );
+CREATE TABLE public.comment_upvotes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  comment_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT comment_upvotes_pkey PRIMARY KEY (id),
+  CONSTRAINT comment_upvotes_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.product_request_comments(id),
+  CONSTRAINT comment_upvotes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.contributor_tiers (
+  user_id uuid NOT NULL,
+  tier text NOT NULL DEFAULT 'none'::text CHECK (tier = ANY (ARRAY['none'::text, 'bronze'::text, 'silver'::text, 'gold'::text])),
+  max_upvotes integer NOT NULL DEFAULT 0,
+  bc_multiplier numeric NOT NULL DEFAULT 1.00,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT contributor_tiers_pkey PRIMARY KEY (user_id),
+  CONSTRAINT contributor_tiers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.conversations (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   buyer_id uuid NOT NULL,
@@ -180,6 +210,7 @@ CREATE TABLE public.discount_campaigns (
   applies_to text NOT NULL DEFAULT 'specific_products'::text CHECK (applies_to = ANY (ARRAY['all_products'::text, 'specific_products'::text, 'specific_categories'::text])),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  campaign_scope text NOT NULL DEFAULT 'store'::text,
   CONSTRAINT discount_campaigns_pkey PRIMARY KEY (id),
   CONSTRAINT discount_campaigns_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
@@ -196,6 +227,27 @@ CREATE TABLE public.featured_products (
   CONSTRAINT featured_products_pkey PRIMARY KEY (id),
   CONSTRAINT featured_products_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
   CONSTRAINT featured_products_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
+);
+CREATE TABLE public.flash_sale_submissions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  slot_id uuid NOT NULL,
+  seller_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  submitted_price numeric NOT NULL,
+  submitted_stock integer NOT NULL,
+  status USER-DEFINED NOT NULL DEFAULT 'pending'::submission_status,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT flash_sale_submissions_slot_id_fkey FOREIGN KEY (slot_id) REFERENCES public.global_flash_sale_slots(id),
+  CONSTRAINT flash_sale_submissions_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id),
+  CONSTRAINT flash_sale_submissions_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+CREATE TABLE public.global_flash_sale_slots (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
+  start_date timestamp with time zone NOT NULL,
+  end_date timestamp with time zone NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT global_flash_sale_slots_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.low_stock_alerts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -523,6 +575,22 @@ CREATE TABLE public.product_rejections (
   CONSTRAINT product_rejections_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
   CONSTRAINT product_rejections_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
+CREATE TABLE public.product_request_comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  type text NOT NULL CHECK (type = ANY (ARRAY['sourcing'::text, 'qc'::text, 'general'::text])),
+  content text NOT NULL,
+  is_admin_only boolean NOT NULL DEFAULT false,
+  bc_awarded integer NOT NULL DEFAULT 0,
+  upvotes integer NOT NULL DEFAULT 0,
+  admin_upvotes integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT product_request_comments_pkey PRIMARY KEY (id),
+  CONSTRAINT product_request_comments_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.product_requests(id),
+  CONSTRAINT product_request_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.product_requests (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   product_name text NOT NULL,
@@ -688,18 +756,29 @@ CREATE TABLE public.registries (
   event_type text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  category text,
+  image_url text DEFAULT ''::text,
+  shared_date text,
+  privacy text NOT NULL DEFAULT 'link'::text CHECK (privacy = ANY (ARRAY['public'::text, 'link'::text, 'private'::text])),
+  delivery jsonb DEFAULT '{"showAddress": false}'::jsonb,
   CONSTRAINT registries_pkey PRIMARY KEY (id),
   CONSTRAINT registries_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id)
 );
 CREATE TABLE public.registry_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   registry_id uuid NOT NULL,
-  product_id uuid NOT NULL,
+  product_id uuid,
   quantity_desired integer NOT NULL CHECK (quantity_desired > 0),
   priority text NOT NULL DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
   notes text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  product_name text,
+  product_snapshot jsonb,
+  is_most_wanted boolean NOT NULL DEFAULT false,
+  received_qty integer NOT NULL DEFAULT 0,
+  requested_qty integer NOT NULL DEFAULT 1,
+  selected_variant jsonb,
   CONSTRAINT registry_items_pkey PRIMARY KEY (id),
   CONSTRAINT registry_items_registry_id_fkey FOREIGN KEY (registry_id) REFERENCES public.registries(id),
   CONSTRAINT registry_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
@@ -838,6 +917,23 @@ CREATE TABLE public.seller_tiers (
   CONSTRAINT seller_tiers_pkey PRIMARY KEY (id),
   CONSTRAINT seller_tiers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
+CREATE TABLE public.seller_verification_document_drafts (
+  seller_id uuid NOT NULL,
+  business_permit_url text,
+  valid_id_url text,
+  proof_of_address_url text,
+  dti_registration_url text,
+  tax_id_url text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  business_permit_updated_at timestamp with time zone,
+  valid_id_updated_at timestamp with time zone,
+  proof_of_address_updated_at timestamp with time zone,
+  dti_registration_updated_at timestamp with time zone,
+  tax_id_updated_at timestamp with time zone,
+  CONSTRAINT seller_verification_document_drafts_pkey PRIMARY KEY (seller_id),
+  CONSTRAINT seller_verification_document_drafts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
+);
 CREATE TABLE public.seller_verification_documents (
   seller_id uuid NOT NULL,
   business_permit_url text,
@@ -856,11 +952,18 @@ CREATE TABLE public.sellers (
   store_description text,
   avatar_url text,
   owner_name text,
-  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'verified'::text, 'rejected'::text, 'needs_resubmission'::text])),
+  approval_status text NOT NULL DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'verified'::text, 'rejected'::text, 'needs_resubmission'::text, 'blacklisted'::text])),
   verified_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   store_contact_number text,
+  reapplication_attempts integer DEFAULT 0,
+  blacklisted_at timestamp with time zone,
+  cool_down_until timestamp with time zone,
+  cooldown_count integer DEFAULT 0,
+  temp_blacklist_count integer DEFAULT 0,
+  temp_blacklist_until timestamp with time zone,
+  is_permanently_blacklisted boolean DEFAULT false,
   CONSTRAINT sellers_pkey PRIMARY KEY (id),
   CONSTRAINT sellers_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
 );

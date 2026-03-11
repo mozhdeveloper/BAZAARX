@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Star, Camera, Package, ThumbsUp, ChevronDown, CheckCircle2 } from "lucide-react";
+import { X, Star, Camera, Package, ThumbsUp, ChevronDown, CheckCircle2, EyeOff } from "lucide-react";
 import { Button } from "./ui/button";
 import { useBuyerStore } from "../stores/buyerStore";
 import { orderMutationService } from "../services/orders/orderMutationService";
@@ -58,6 +58,7 @@ export function ReviewModal({
   const [submittingItems, setSubmittingItems] = useState<Record<string, boolean>>({});
   const [submittedItems, setSubmittedItems] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   const { addReview, profile } = useBuyerStore();
   const { toast } = useToast();
@@ -119,7 +120,8 @@ export function ReviewModal({
           rating,
           comment: reviewTexts[itemId] || "",
           images: cleanedImages,
-          imageFiles: currentFiles
+          imageFiles: currentFiles,
+          isAnonymous,
         }]
       });
 
@@ -134,7 +136,7 @@ export function ReviewModal({
         productId: itemId,
         sellerId: sellerId || "seller-1",
         buyerId: buyerId,
-        buyerName: session?.user?.user_metadata?.full_name || profile?.name || "Anonymous",
+        buyerName: session?.user?.user_metadata?.full_name || (profile ? `${profile.firstName} ${profile.lastName}`.trim() : "") || "Anonymous",
         buyerAvatar: profile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${buyerId}`,
         rating,
         comment: reviewTexts[itemId] || "Great product!",
@@ -383,6 +385,43 @@ export function ReviewModal({
                                         </button>
                                       ))}
                                     </div>
+                                  </div>
+
+                                  {/* Anonymous Toggle */}
+                                  <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                      <div className={cn(
+                                        "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                                        isAnonymous ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]" : "bg-gray-100 text-gray-400"
+                                      )}>
+                                        <EyeOff className="w-4 h-4" />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-semibold text-gray-900">Post Anonymously</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                          {isAnonymous ? "Your name will be hidden from this review" : "Your name will be visible on this review"}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={isAnonymous}
+                                      onClick={() => setIsAnonymous(prev => !prev)}
+                                      disabled={isItemSubmitting}
+                                      className={cn(
+                                        "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2",
+                                        isAnonymous ? "bg-[var(--brand-primary)]" : "bg-gray-200"
+                                      )}
+                                    >
+                                      <span
+                                        aria-hidden="true"
+                                        className={cn(
+                                          "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                          isAnonymous ? "translate-x-5" : "translate-x-0"
+                                        )}
+                                      />
+                                    </button>
                                   </div>
 
                                   {/* Explicit Label: Description */}
