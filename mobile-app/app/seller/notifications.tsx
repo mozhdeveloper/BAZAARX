@@ -20,10 +20,56 @@ import {
   X,
   ChevronDown,
   ArrowLeft,
+  ShoppingBag,
+  XCircle,
+  CheckCircle,
+  RotateCcw,
+  MessageSquare,
+  Package,
+  Star,
+  Truck,
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import { notificationService, type Notification } from '../../src/services/notificationService';
 import SellerDrawer from '../../src/components/SellerDrawer';
+
+const getNotificationStyles = (type: string) => {
+  const t = type.toLowerCase();
+  if (t.includes('new_order') || t.includes('order')) {
+    return { Icon: ShoppingBag, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
+  }
+  if (t.includes('received') || t.includes('confirmed')) {
+    return { Icon: CheckCircle, color: '#0D9488', bg: '#CCFBF1', border: '#99F6E4' };
+  }
+  if (t.includes('cancelled') || t.includes('cancellation')) {
+    return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
+  }
+  if (t.includes('return')) {
+    return { Icon: RotateCcw, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
+  }
+  if (t.includes('message')) {
+    return { Icon: MessageSquare, color: '#7C3AED', bg: '#EDE9FE', border: '#DDD6FE' };
+  }
+  if (t === 'product_rejected' || t.includes('product_rejected')) {
+    return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
+  }
+  if (t === 'product_approved' || t.includes('product_approved')) {
+    return { Icon: CheckCircle, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
+  }
+  if (t === 'product_sample_request' || t.includes('sample')) {
+    return { Icon: Package, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
+  }
+  if (t.includes('product') || t.includes('verification')) {
+    return { Icon: Package, color: '#4F46E5', bg: '#E0E7FF', border: '#C7D2FE' };
+  }
+  if (t.includes('review')) {
+    return { Icon: Star, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' };
+  }
+  if (t.includes('shipped') || t.includes('delivered')) {
+    return { Icon: Truck, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
+  }
+  return { Icon: Bell, color: '#4B5563', bg: '#F3F4F6', border: '#E5E7EB' };
+};
 
 const SelectionModal = ({ visible, onClose, options, current, onSelect, title }: any) => (
   <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -134,6 +180,8 @@ export default function SellerNotificationsScreen() {
       }
     } else if (n.type.includes('message')) {
       (navigation as any).navigate('Messages');
+    } else if (n.type === 'seller_new_review' || n.type.includes('review')) {
+      (navigation as any).navigate('Reviews');
     }
   }, [navigation]);
 
@@ -161,9 +209,14 @@ export default function SellerNotificationsScreen() {
         pressed && styles.cardPressed
       ]}
     >
-      <View style={styles.notificationIcon}>
-        <Bell size={20} color={item.is_read ? '#9CA3AF' : '#D97706'} />
-      </View>
+      {(() => {
+        const { Icon, color, bg, border } = getNotificationStyles(item.type);
+        return (
+          <View style={[styles.notificationIcon, { backgroundColor: bg, borderWidth: 1, borderColor: border }]}>
+            <Icon size={20} color={item.is_read ? '#9CA3AF' : color} />
+          </View>
+        );
+      })()}
       <View style={styles.notificationContent}>
         <View style={styles.cardHeader}>
           <Text style={[styles.notificationTitle, !item.is_read && styles.boldText]} numberOfLines={1}>
@@ -284,7 +337,7 @@ const styles = StyleSheet.create({
   unreadCard: { backgroundColor: '#FFF4EC' }, // Tint for Unread
   readCard: { backgroundColor: '#FFFFFF' }, // White for Read
   cardPressed: { opacity: 0.7 },
-  notificationIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  notificationIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   notificationContent: { flex: 1 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   notificationTitle: { fontSize: 15, color: '#374151', fontWeight: '400', flex: 1, marginRight: 8 },

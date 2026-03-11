@@ -9,7 +9,7 @@ import {
   StatusBar,
   RefreshControl
 } from 'react-native';
-import { ArrowLeft, Bell, Truck, CheckCircle2, XCircle, Package, Settings, MessageSquare, Headphones, RotateCcw } from 'lucide-react-native';
+import { ArrowLeft, Bell, Truck, CheckCircle2, XCircle, Package, Settings, MessageSquare, Headphones, RotateCcw, Star } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
@@ -58,6 +58,9 @@ const getStyles = (type: string) => {
   }
   if (t.includes('return')) {
     return { Icon: RotateCcw, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
+  }
+  if (t === 'seller_new_review' || t === 'seller_review_reply' || t.includes('review')) {
+    return { Icon: Star, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' };
   }
   return { Icon: Bell, color: '#4B5563', bg: '#F3F4F6', border: '#E5E7EB' };
 };
@@ -128,6 +131,12 @@ export default function NotificationsScreen({ navigation }: Props) {
     if (n.type.includes('message') && n.action_data?.conversationId) {
       // Navigate to orders (chat is accessed through order detail)
       navigation.navigate('Orders' as any);
+      return;
+    }
+
+    // Seller reply to review — go to Orders > Reviewed tab
+    if (n.type === 'seller_review_reply') {
+      navigation.navigate('Orders' as any, { initialTab: 'reviewed' });
       return;
     }
 

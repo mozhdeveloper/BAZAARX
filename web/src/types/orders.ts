@@ -55,6 +55,7 @@ export interface OrderReviewSnapshot {
   comment: string;
   images: string[];
   submittedAt: Date;
+  sellerReply?: { message: string; repliedAt: string | null } | null;
 }
 
 export interface BuyerReturnRequestSnapshot {

@@ -228,7 +228,7 @@ class NotificationService {
       // Change: Select only the ID to reduce data transfer/overhead
       const { count, error } = await supabase
         .from(table)
-        .select('id', { count: 'exact', head: true }) // Optimization: just check IDs
+        .select('id', { count: 'exact' })
         .eq(userIdColumn, userId)
         .is('read_at', null);
 

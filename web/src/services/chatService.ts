@@ -120,7 +120,7 @@ class ChatService {
     // Get last message - use maybeSingle to handle conversations with no messages yet
     const { data: lastMsg } = await supabase
       .from('messages')
-      .select('content, message_content, message_type, created_at')
+      .select('content, created_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -129,19 +129,19 @@ class ChatService {
     // Get unread counts
     const { count: buyerUnread } = await supabase
       .from('messages')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('conversation_id', conversationId)
       .eq('sender_type', 'seller')
       .eq('is_read', false);
 
     const { count: sellerUnread } = await supabase
       .from('messages')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('conversation_id', conversationId)
       .eq('sender_type', 'buyer')
       .eq('is_read', false);
 
-    const displayContent = lastMsg?.message_type === 'system' ? lastMsg?.message_content : (lastMsg?.content || lastMsg?.message_content || '');
+    const displayContent = lastMsg?.content || '';
 
     return {
       lastMessage: displayContent || '',
@@ -254,10 +254,10 @@ class ChatService {
     if (targetUserId) {
         const { data: presence } = await supabase
             .from('user_presence')
-            .select('status')
+            .select('is_online')
             .eq('user_id', targetUserId)
             .maybeSingle();
-        isOnline = presence?.status === 'online';
+        isOnline = presence?.is_online === true;
     }
 
     // Get conversation stats
@@ -388,7 +388,7 @@ class ChatService {
 
     return (data || []).map((msg: any) => ({
       ...msg,
-      content: msg.message_type === 'system' ? msg.message_content : msg.content
+      content: msg.content
     }));
   }
 
@@ -514,9 +514,6 @@ class ChatService {
         },
         (payload) => {
           const newMsg = payload.new as Message;
-          if (newMsg.message_type === 'system') {
-            newMsg.content = newMsg.message_content || '';
-          }
           onMessage(newMsg);
         }
       )
@@ -627,7 +624,7 @@ class ChatService {
         (payload) => {
           const newRecord = payload.new as any;
           if (newRecord && newRecord.user_id) {
-             onPresenceChange(newRecord.user_id, newRecord.status === 'online');
+             onPresenceChange(newRecord.user_id, newRecord.is_online === true);
           }
         }
       )
@@ -640,14 +637,13 @@ class ChatService {
   /**
    * Update Global Presence
    */
-  async updateUserPresence(userId: string, status: 'online' | 'offline', platform: 'mobile' | 'web' | 'both'): Promise<void> {
+  async updateUserPresence(userId: string, status: 'online' | 'offline', userType: 'buyer' | 'seller'): Promise<void> {
     await supabase.from('user_presence').upsert({ 
-      user_id: userId, 
-      status: status, 
-      active_platform: platform,
-      last_seen: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' });
+      user_id: userId,
+      user_type: userType,
+      is_online: status === 'online',
+      last_active_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,user_type' });
   }
 
   /**
@@ -678,7 +674,7 @@ class ChatService {
       const convIds = convs.map(c => c.id);
       const { count } = await supabase
         .from('messages')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .in('conversation_id', convIds)
         .eq('sender_type', 'seller')
         .eq('is_read', false);
@@ -697,7 +693,7 @@ class ChatService {
 
       const { count } = await supabase
         .from('messages')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .in('conversation_id', convIds)
         .eq('sender_type', 'buyer')
         .eq('is_read', false);
