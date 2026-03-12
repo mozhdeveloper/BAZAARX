@@ -24,6 +24,7 @@ export interface DiscountCampaign {
   sellerId: string;
   name: string;
   description?: string;
+  campaignScope?: 'store' | 'global';
   campaignType: CampaignType;
   discountType: DiscountType;
   discountValue: number;
@@ -95,6 +96,7 @@ export interface ActiveDiscount {
 export interface CreateCampaignFormData {
   name: string;
   description: string;
+  campaignScope?: 'store' | 'global';
   campaignType: CampaignType;
   discountType: DiscountType;
   discountValue: string;
@@ -135,3 +137,33 @@ export const campaignStatusColors: Record<CampaignStatus, string> = {
   ended: 'bg-gray-100 text-gray-700',
   cancelled: 'bg-red-100 text-red-700'
 };
+
+export interface GlobalFlashSaleSlot {
+  id: string;
+  name: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
+  min_discount_percentage: number;
+  status: 'upcoming' | 'active' | 'ended';
+  created_at: string;
+}
+
+export interface FlashSaleSubmission {
+  id: string;
+  slot_id: string;
+  seller_id: string;
+  product_id: string;
+  submitted_price: number;
+  submitted_stock: number;
+  status: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string;
+  created_at: string;
+  updated_at: string;
+  // Joined fields for UI
+  product_name?: string;
+  product_image?: string;
+  original_price?: number;
+  store_name?: string;
+}
+

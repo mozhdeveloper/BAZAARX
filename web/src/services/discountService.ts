@@ -9,7 +9,9 @@ import type {
   DiscountCampaign,
   ProductDiscount,
   DiscountUsage,
-  ActiveDiscount
+  ActiveDiscount,
+  GlobalFlashSaleSlot,
+  FlashSaleSubmission
 } from '@/types/discount';
 
 export class DiscountService {
@@ -44,6 +46,7 @@ export class DiscountService {
             seller_id: campaign.sellerId ?? null,
             name: campaign.name,
             description: campaign.description,
+            campaign_scope: campaign.campaignScope,
             campaign_type: campaign.campaignType,
             discount_type: campaign.discountType,
             discount_value: campaign.discountValue,
@@ -134,6 +137,7 @@ export class DiscountService {
         .update({
           name: updates.name,
           description: updates.description,
+          campaign_scope: updates.campaignScope,
           campaign_type: updates.campaignType,
           discount_type: updates.discountType,
           discount_value: updates.discountValue,
@@ -748,6 +752,179 @@ export class DiscountService {
   }
 
   // ============================================================================
+  // GLOBAL FLASH SALE SLOTS & SUBMISSIONS
+  // ============================================================================
+
+  /**
+   * Get all global flash sale slots
+   */
+  async getGlobalFlashSaleSlots(): Promise<GlobalFlashSaleSlot[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const { data, error } = await supabase
+        .from('global_flash_sale_slots')
+        .select('*')
+        .order('start_time', { ascending: true });
+      if (error) throw error;
+      return data as GlobalFlashSaleSlot[];
+    } catch (error) {
+      console.error('Error fetching global flash sale slots:', error);
+      throw new Error('Failed to fetch flash sale slots.');
+    }
+  }
+
+  /**
+   * Create a global flash sale slot
+   */
+  async createGlobalFlashSaleSlot(slot: Partial<GlobalFlashSaleSlot>): Promise<GlobalFlashSaleSlot> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    try {
+      const { data, error } = await supabase
+        .from('global_flash_sale_slots')
+        .insert([{
+          name: slot.name,
+          description: slot.description,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          min_discount_percentage: slot.min_discount_percentage,
+          status: slot.status || 'upcoming'
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      return data as GlobalFlashSaleSlot;
+    } catch (error) {
+      console.error('Error creating global flash sale slot:', error);
+      throw new Error('Failed to create flash sale slot.');
+    }
+  }
+
+  /**
+   * Update a global flash sale slot
+   */
+  async updateGlobalFlashSaleSlot(id: string, updates: Partial<GlobalFlashSaleSlot>): Promise<GlobalFlashSaleSlot> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    try {
+      const { data, error } = await supabase
+        .from('global_flash_sale_slots')
+        .update({
+          name: updates.name,
+          description: updates.description,
+          start_time: updates.start_time,
+          end_time: updates.end_time,
+          min_discount_percentage: updates.min_discount_percentage,
+          status: updates.status,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as GlobalFlashSaleSlot;
+    } catch (error) {
+      console.error('Error updating global flash sale slot:', error);
+      throw new Error('Failed to update flash sale slot.');
+    }
+  }
+
+  /**
+   * Delete a global flash sale slot
+   */
+  async deleteGlobalFlashSaleSlot(id: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    try {
+      const { error } = await supabase
+        .from('global_flash_sale_slots')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting global flash sale slot:', error);
+      throw new Error('Failed to delete flash sale slot.');
+    }
+  }
+
+  /**
+   * Get submissions for a slot
+   */
+  async getFlashSaleSubmissions(slotId: string): Promise<FlashSaleSubmission[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      // Intentionally omitting type casting on join alias for simplicity
+      const { data, error } = await supabase
+        .from('flash_sale_submissions')
+        .select(`
+          *,
+          product:products (name, price, images:product_images(image_url, is_primary)),
+          seller:sellers (store_name)
+        `)
+        .eq('slot_id', slotId);
+
+      if (error) throw error;
+
+      return (data || []).map((item: any) => {
+        const primaryImage = item.product?.images?.find((img: any) => img.is_primary)?.image_url 
+                          || item.product?.images?.[0]?.image_url;
+        return {
+          ...item,
+          product_name: item.product?.name,
+          product_image: primaryImage,
+          original_price: item.product?.price,
+          store_name: item.seller?.store_name
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching flash sale submissions:', error);
+      throw new Error('Failed to fetch submissions.');
+    }
+  }
+
+  /**
+   * Create a flash sale submission (Seller Tier requirement)
+   */
+  async createFlashSaleSubmission(submission: Partial<FlashSaleSubmission>): Promise<FlashSaleSubmission> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    try {
+      const { data, error } = await supabase
+        .from('flash_sale_submissions')
+        .insert([{
+          slot_id: submission.slot_id,
+          seller_id: submission.seller_id,
+          product_id: submission.product_id,
+          submitted_price: submission.submitted_price,
+          submitted_stock: submission.submitted_stock,
+          status: 'pending'
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      return data as FlashSaleSubmission;
+    } catch (error) {
+      console.error('Error creating flash sale submission:', error);
+      throw new Error('Failed to create submission.');
+    }
+  }
+
+  /**
+   * Update submission status (Approve/Reject)
+   */
+  async updateSubmissionStatus(id: string, status: 'approved' | 'rejected', rejectionReason?: string): Promise<FlashSaleSubmission> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    try {
+      const { data, error } = await supabase
+        .from('flash_sale_submissions')
+        .update({ status, rejection_reason: rejectionReason, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as FlashSaleSubmission;
+    } catch (error) {
+      console.error('Error updating submission status:', error);
+      throw new Error('Failed to update submission status.');
+    }
+  }
+
+  // ============================================================================
   // PRIVATE HELPER FUNCTIONS
   // ============================================================================
 
@@ -757,6 +934,7 @@ export class DiscountService {
       sellerId: data.seller_id as string,
       name: data.name as string,
       description: (data.description as string | null) || undefined,
+      campaignScope: data.campaign_scope as DiscountCampaign['campaignScope'],
       campaignType: data.campaign_type as DiscountCampaign['campaignType'],
       discountType: data.discount_type as DiscountCampaign['discountType'],
       discountValue: parseFloat(String(data.discount_value)),
