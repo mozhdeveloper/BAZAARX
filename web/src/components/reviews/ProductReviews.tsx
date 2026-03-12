@@ -321,7 +321,7 @@ export function ProductReviews({
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-lg text-gray-500 overflow-hidden">
-                        {review.buyerAvatar ? (
+                        {!review.isHidden && review.buyerAvatar ? (
                           <img
                             src={review.buyerAvatar}
                             alt={review.buyerName}
@@ -333,7 +333,7 @@ export function ProductReviews({
                       </div>
                       <div>
                         <h4 className="font-bold text-gray-900 text-sm">
-                          {review.buyerName || "Anonymous Buyer"}
+                          {review.isHidden ? "Anonymous Buyer" : (review.buyerName || "Anonymous Buyer")}
                         </h4>
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs text-gray-400">

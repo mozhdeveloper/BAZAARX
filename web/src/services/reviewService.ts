@@ -377,7 +377,7 @@ export class ReviewService {
   ): Promise<ProductReviewsResult> {
     if (!isSupabaseConfigured()) {
       let productReviews = this.mockReviews
-        .filter((review) => review.product_id === productId && !review.is_hidden)
+        .filter((review) => review.product_id === productId)
         .sort((a, b) => {
           if (sortBy === 'helpful') {
             return (b.helpful_count || 0) - (a.helpful_count || 0);
@@ -408,7 +408,7 @@ export class ReviewService {
       }
 
       let statsReviews = this.mockReviews
-        .filter((review) => review.product_id === productId && !review.is_hidden);
+        .filter((review) => review.product_id === productId);
 
       if (withImages) {
         statsReviews = statsReviews.filter(r => (r as any).review_images?.length > 0 || Array.isArray((r as any).images) && (r as any).images.length > 0);
@@ -504,8 +504,7 @@ export class ReviewService {
           `,
           { count: 'exact' },
         )
-        .eq('product_id', productId)
-        .eq('is_hidden', false);
+        .eq('product_id', productId);
 
       if (rating) {
         query = query.eq('rating', rating);
@@ -541,8 +540,7 @@ export class ReviewService {
             )
           `,
         )
-        .eq('product_id', productId)
-        .eq('is_hidden', false);
+        .eq('product_id', productId);
 
       if (variantId) {
         statsQuery = statsQuery.filter('order_item.variant_id', 'eq', variantId);
@@ -729,7 +727,6 @@ export class ReviewService {
             )
           )
         `)
-        .eq('is_hidden', false)
         .in('product_id', productIds)
         .order('created_at', { ascending: false });
 
