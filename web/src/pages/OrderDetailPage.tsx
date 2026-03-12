@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Input } from "../components/ui/input";
 import { jsPDF } from 'jspdf';
 import {
   ChevronLeft,
@@ -1301,8 +1300,8 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
 
-                  {/* Buy Again - shown for received/reviewed orders */}
-                  {(order.status === 'received' || order.status === 'reviewed') && (
+                  {/* Buy Again - shown for delivered/received/reviewed orders */}
+                  {(order.status === 'delivered' || order.status === 'received' || order.status === 'reviewed') && (
                     <div className="pt-4 mt-2">
                       <Button
                         onClick={() => {
