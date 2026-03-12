@@ -11,6 +11,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowRight,
+  ChevronLeft,
 } from "lucide-react";
 import { useBuyerStore } from "../stores/buyerStore";
 import { Checkbox } from "../components/ui/checkbox";
@@ -281,15 +282,23 @@ export default function BuyerSignupPage() {
       </div>
 
       <div className="relative z-10 min-h-screen flex flex-col md:flex-row items-center justify-center p-6 lg:p-12">
+        <Link
+          to="/"
+          className="absolute top-6 left-6 md:top-12 md:left-12 z-50 flex items-center gap-1 text-[var(--text-primary)] hover:text-[var(--brand-primary)] transition-colors font-medium text-sm"
+        >
+          <ChevronLeft size={18} />
+          Back to Home
+        </Link>
+
         <motion.div
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           className="w-full md:w-1/2 flex flex-col items-center justify-center mb-12 md:mb-0"
         >
-          <h1 className="font-fondamento text-[13vw] leading-[0.85] text-[#FF6A00] tracking-tighter cursor-default select-none transition-all duration-300">
+          <h1 className="font-fondamento text-[13vw] leading-[0.85] text-[var(--brand-primary)] tracking-tighter cursor-default select-none transition-all duration-300">
             BazaarX
           </h1>
-          <p className="text-orange-500 font-bold text-[10px] lg:text-xs uppercase tracking-[0.2em] mb-2 lg:mb-5 whitespace-nowrap">
+          <p className="text-[var(--brand-primary)] font-bold text-[10px] lg:text-xs uppercase tracking-[0.2em] mb-2 lg:mb-5 whitespace-nowrap">
             From Global Factories Directly to Your Doorstep
           </p>
         </motion.div>
@@ -298,20 +307,22 @@ export default function BuyerSignupPage() {
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md bg-white/80 backdrop-blur-xl p-10 rounded-[50px] shadow-[0_20px_50px_rgba(255,106,0,0.1)] border border-white/50 md:ml-32"
+          className="w-full max-w-md bg-white/80 backdrop-blur-xl p-10 rounded-3xl shadow-[0_20px_50px_rgba(255,106,0,0.1)] border border-white/50 md:ml-32"
         >
-          <div className="mb-8">
-            <div className="w-10 h-10 bg-white shadow-sm rounded-[var(--radius-md)] flex items-center justify-center mb-4 overflow-hidden border border-[var(--border)]">
-              <img src="/BazaarX.png" alt="BazaarX" className="w-8 h-8 object-contain" />
+          <div className="mb-8 flex justify-between items-start">
+            <div>
+              <h2 className="text-2xl font-bold text-[var(--text-primary)] font-heading">
+                {isSwitchMode ? "Complete Buyer Profile" : "Create Account"}
+              </h2>
+              <p className="text-[var(--text-muted)] text-sm font-sans mt-1">
+                {isSwitchMode
+                  ? "Add your name to finish switching to buyer mode."
+                  : "Join thousand of Filipino shoppers."}
+              </p>
             </div>
-            <h2 className="text-2xl font-bold text-[var(--text-primary)] font-heading">
-              {isSwitchMode ? "Complete Buyer Profile" : "Create Account"}
-            </h2>
-            <p className="text-[var(--text-secondary)] text-sm font-sans">
-              {isSwitchMode
-                ? "Add your name to finish switching to buyer mode."
-                : "Join thousand of Filipino shoppers."}
-            </p>
+            <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
+              <img src="/BazaarX.png" alt="BazaarX" className="w-12 h-12 object-contain" />
+            </div>
           </div>
 
           {error && (
@@ -319,14 +330,14 @@ export default function BuyerSignupPage() {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-4 bg-red-50 text-[var(--color-error)] rounded-[var(--radius-md)] flex items-center gap-3 text-sm border border-red-100"
+                className="mb-2 -mt-4 p-4 bg-red-50 text-[var(--color-error)] rounded-[var(--radius-md)] flex items-center gap-3 text-sm border border-red-100"
               >
                 <AlertCircle size={18} /> {error}
               </motion.div>
             </AnimatePresence>
           )}
 
-          <form onSubmit={handleSignup} className="space-y-5">
+          <form onSubmit={handleSignup} className="space-y-3">
             {/* First Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -345,7 +356,7 @@ export default function BuyerSignupPage() {
                     placeholder="Juan"
                     value={formData.firstName}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                 </div>
@@ -368,7 +379,7 @@ export default function BuyerSignupPage() {
                     placeholder="Dela Cruz"
                     value={formData.lastName}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                 </div>
@@ -392,7 +403,7 @@ export default function BuyerSignupPage() {
                   value={formData.email}
                   onChange={handleChange}
                   readOnly={isSwitchMode}
-                  className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                   disabled={isLoading}
                 />
               </div>
@@ -415,7 +426,7 @@ export default function BuyerSignupPage() {
                   value={formData.phone}
                   onChange={handleChange}
                   readOnly={isSwitchMode}
-                  className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                   disabled={isLoading}
                 />
               </div>
@@ -438,7 +449,7 @@ export default function BuyerSignupPage() {
                     placeholder="••••••••"
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-11 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    className="w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                   <button
@@ -447,7 +458,7 @@ export default function BuyerSignupPage() {
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                     disabled={isLoading}
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                 </div>
               </div>
@@ -468,7 +479,7 @@ export default function BuyerSignupPage() {
                     placeholder="••••••••"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-11 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    className="w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                   <button
@@ -477,23 +488,23 @@ export default function BuyerSignupPage() {
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                     disabled={isLoading}
                   >
-                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showConfirmPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-start gap-2 pt-2">
+            <div className="flex items-start gap-2 pt-1">
               <Checkbox
                 id="terms"
                 checked={formData.terms}
                 onCheckedChange={(checked) =>
                   setFormData((prev) => ({ ...prev, terms: !!checked }))
                 }
-                className="rounded-md border-[var(--border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+                className="rounded-md border-[var(--border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] cursor-pointer"
                 disabled={isLoading}
               />
-              <div className="flex-1 text-xs text-[var(--text-primary)]">
+              <label htmlFor="terms" className="flex-1 text-sm text-[var(--text-primary)] cursor-pointer select-none">
                 I agree to the{" "}
                 <Link
                   to="/terms"
@@ -508,69 +519,69 @@ export default function BuyerSignupPage() {
                 >
                   Privacy Policy
                 </Link>
-              </div>
+              </label>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="btn-primary w-full h-14 text-lg rounded-[var(--radius-md)] shadow-[var(--shadow-medium)] flex items-center justify-center gap-2 mt-2"
+              className="btn-primary w-full h-14 text-md uppercase rounded-[var(--radius-md)] shadow-[var(--shadow-medium)] flex items-center justify-center gap-2 mt-2"
             >
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-[var(--brand-primary)]/30 border-t-[var(--brand-primary)] rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <>{isSwitchMode ? "Complete Buyer Setup" : "Sign Up"} <ArrowRight size={18} /></>
+                <>{isSwitchMode ? "Complete Buyer Setup" : "Sign Up"}</>
               )}
             </button>
 
             {!isSwitchMode && (
-            <>
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[var(--border)]"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-[var(--text-muted)] font-medium font-sans uppercase tracking-wider">Or sign up with</span>
-              </div>
-            </div>
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-[var(--border)]"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-4 bg-white text-sm text-[var(--text-muted)]">or sign up with</span>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={handleGoogleSignup}
-                className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
-                disabled={isLoading}
-              >
-                <img
-                  src="https://www.svgrepo.com/show/475656/google-color.svg"
-                  className="w-5 h-5"
-                  alt="Google"
-                />
-                <span>Google</span>
-              </button>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignup}
+                    className="w-full h-12 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
+                    disabled={isLoading}
+                  >
+                    <img
+                      src="https://www.svgrepo.com/show/475656/google-color.svg"
+                      className="w-4 h-4"
+                      alt="Google"
+                    />
+                    <span>Google</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleFacebookSignup}
-                className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
-                disabled={isLoading}
-              >
-                <img
-                  src="https://www.svgrepo.com/show/475647/facebook-color.svg"
-                  className="w-5 h-5"
-                  alt="Facebook"
-                />
-                <span>Facebook</span>
-              </button>
-            </div>
-            </>
+                  <button
+                    type="button"
+                    onClick={handleFacebookSignup}
+                    className="w-full h-12 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
+                    disabled={isLoading}
+                  >
+                    <img
+                      src="https://www.svgrepo.com/show/475647/facebook-color.svg"
+                      className="w-4 h-4"
+                      alt="Facebook"
+                    />
+                    <span>Facebook</span>
+                  </button>
+                </div>
+              </>
             )}
           </form>
 
           {!isSwitchMode && (
-          <div className="mt-8 text-center text-[var(--text-secondary)] text-sm">
-            Already have an account? <Link to="/login" className="text-[var(--brand-primary)] font-bold hover:underline ml-1">Sign in here!</Link>
-          </div>
+            <div className="mt-8 text-center text-[var(--text-secondary)] text-sm">
+              Already have an account? <Link to="/login" className="text-[var(--brand-primary)] font-bold hover:underline ml-1">Log in here!</Link>
+            </div>
           )}
         </motion.div>
       </div>

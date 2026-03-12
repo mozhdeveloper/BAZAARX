@@ -106,14 +106,6 @@ const HomePage: React.FC = () => {
       {!flashLoading && flashSaleProducts.length > 0 && (
         <Suspense fallback={<SectionLoader />}>
           <div id="bazaar-flash-sales">
-            {/* Countdown Banner */}
-            {flashEndsAt && (
-              <div style={{ background: 'linear-gradient(90deg,#b91c1c,#ef4444)', color: '#fff' }}
-                className="w-full flex items-center justify-center gap-4 py-3 text-sm font-bold tracking-wide">
-                <span>⚡ FLASH SALE ENDS IN</span>
-                <CampaignCountdown endsAt={flashEndsAt} variant="banner" />
-              </div>
-            )}
             <ProductRail
               title="Flash Sales"
               subtitle="Limited time offers from our trusted sellers!"
@@ -121,6 +113,7 @@ const HomePage: React.FC = () => {
               actionLabel="See All Flash Sales"
               actionLink="/flash-sales"
               isFlash={true}
+              countdownEndDate={flashEndsAt ? new Date(flashEndsAt) : undefined}
             />
           </div>
         </Suspense>

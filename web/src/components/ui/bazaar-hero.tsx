@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { ArrowUpRight, Menu, Search, Bot, ShoppingBag, Store, Camera, Sparkles, Truck, ShieldCheck, CircleCheck } from "lucide-react";
+import { ArrowUpRight, Menu, Search, Bot, ShoppingBag, Store, Camera, Sparkles, Truck, ShieldCheck, CircleCheck, User, ArrowRight } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   motion,
@@ -101,95 +101,14 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
             >
               <div className="flex items-center w-full">
                 {/* Left Section: Desktop Nav + Mobile Menu */}
-                <div className="flex-1 flex items-center justify-start gap-8">
-                  <Sheet>
-                    <SheetTrigger asChild className="lg:hidden">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hover:text-[var(--brand-primary)] transition-colors h-9 w-9"
-                      >
-                        <Menu className="w-5 h-5" />
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent
-                      side="left"
-                      className="w-[300px] sm:w-[400px] p-0 bg-white/95 backdrop-blur-md border-r border-border/50"
-                    >
-                      <SheetHeader className="p-6 text-left border-b border-border/50">
-                        <SheetTitle className="flex items-center justify-between">
-                          <a href="#" className="flex items-center gap-2">
-                            <img
-                              src="/BazaarX.png"
-                              alt="BazaarX Logo"
-                              className="h-10 w-auto object-contain"
-                            />
-                          </a>
-                        </SheetTitle>
-                        <div className="flex gap-2 mt-4">
-                          <Link
-                            to="/"
-                            className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border ${mode === 'buyer' ? 'border-[var(--brand-primary)] text-[var(--brand-primary)] bg-[var(--brand-accent-light)]' : 'border-gray-200 text-gray-600'}`}
-                          >
-                            Buyer
-                          </Link>
-                          <Link
-                            to="/sell"
-                            className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border ${mode === 'seller' ? 'border-[var(--brand-primary)] text-[var(--brand-primary)] bg-[var(--brand-accent-light)]' : 'border-gray-200 text-gray-600'}`}
-                          >
-                            Seller
-                          </Link>
-                        </div>
-                      </SheetHeader>
-                      <nav className="flex flex-col p-6 space-y-1">
-                        {navigation.map((item) => (
-                          <Button
-                            key={item.name}
-                            variant="ghost"
-                            className="justify-start px-2 h-12 text-base font-medium hover:bg-accent hover:text-[var(--brand-primary)] transition-colors"
-                            onClick={() => {
-                              if (item.href.startsWith("#")) {
-                                document.getElementById(item.href.slice(1))?.scrollIntoView({ behavior: 'smooth' });
-                              } else {
-                                navigate(item.href);
-                              }
-                            }}
-                          >
-                            {item.name}
-                          </Button>
-                        ))}
-                      </nav>
-                      <Separator className="mx-6" />
-                      <div className="p-6 flex flex-col gap-4">
-                        <Link to="/search">
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start gap-2 h-12 hover:bg-accent transition-colors"
-                          >
-                            <Search className="w-4 h-4" />
-                            Search Products
-                          </Button>
-                        </Link>
-                      </div>
-                      <Separator className="mx-6" />
-                      <div className="p-6">
-                        <Link to={mode === 'buyer' ? '/sell' : '/seller/auth'}>
-                          <Button className="w-full h-12 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] transition-all duration-300 shadow-lg hover:shadow-xl">
-                            Start Selling
-                            <ArrowUpRight className="w-4 h-4 ml-2" />
-                          </Button>
-                        </Link>
-                      </div>
-                    </SheetContent>
-                  </Sheet>
-
-                  {/* Desktop Nav: All tabs on the left */}
-                  <nav className="hidden lg:flex items-center gap-6">
+                <div className="flex-1 flex items-center justify-start gap-4 lg:gap-8">
+                  {/* Nav: All tabs on the left */}
+                  <nav className="flex items-center gap-3 lg:gap-6 flex-wrap sm:flex-nowrap">
                     {navigation.map((item) => (
                       <Link
                         key={item.name}
                         to={item.href}
-                        className="group relative py-1"
+                        className="group relative py-1 whitespace-nowrap"
                         onClick={(e) => {
                           if (item.href.startsWith("#")) {
                             e.preventDefault();
@@ -211,38 +130,81 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                   </nav>
                 </div>
 
-                {/* Center Section: Logo */}
-                <div className="flex-shrink-0">
-                  <Link
-                    to="/"
-                    className="flex items-center gap-2 hover:scale-110 transition-transform duration-300 transform origin-center"
-                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                  >
-                    <img
-                      src="/BazaarX.png"
-                      alt="BazaarX Logo"
-                      className="h-10 sm:h-12 w-auto object-contain"
-                    />
-                  </Link>
+                <div className="flex-1 flex justify-center px-4 max-w-2xl">
+                  {mode === "buyer" ? (
+                    <div className="w-full transition-all duration-300 ease-in-out sm:min-w-[200px] md:min-w-[300px] lg:min-w-[400px]">
+                      <div className="w-full bg-white hover:bg-white backdrop-blur-md rounded-xl border border-[var(--btn-border)] flex items-center px-2 sm:px-3 py-1 relative shadow-sm group transition-all duration-300">
+                        <Search className="h-3.5 w-3.5 text-[var(--text-muted)] group-focus-within:text-[var(--brand-primary)] transition-colors mr-1 sm:mr-2 flex-shrink-0" />
+                        <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Search"
+                          className="flex-1 h-7 bg-transparent border-none focus:ring-0 outline-none text-[12px] sm:text-[13px] text-gray-900 placeholder:text-gray-400 w-full min-w-0"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && searchQuery.trim()) {
+                              navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-shrink-0 mx-2">
+                      <Link
+                        to="/"
+                        className="flex items-center gap-2 hover:scale-110 transition-transform duration-300 transform origin-center"
+                        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                      >
+                        <img
+                          src="/BazaarX.png"
+                          alt="BazaarX Logo"
+                          className="h-8 md:h-10 lg:h-12 w-auto object-contain"
+                        />
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
-                {/* Right Section: Header Actions */}
-                <div className="flex-1 flex items-center justify-end gap-8">
-                  <div className="hidden md:flex items-center gap-2">
-                    {mode === "buyer" && (
-                      <Link to="/sell">
-                        <Button
-                          variant="secondary"
-                          className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl hover:bg-[var(--brand-primary-dark)] transition-all duration-300 group h-10"
-                        >
-                          <span className="pl-5 py-1.5 text-sm text-[var(--text-primary)] hover:text-white">
-                            Start Selling
-                          </span>
-                          <div className="rounded-full flex items-center justify-center m-auto bg-[var(--brand-primary)] w-8 h-8 ml-3 group-hover:bg-[var(--brand-primary-dark)] group-hover:scale-110 transition-all duration-300">
-                            <ArrowUpRight className="w-4 h-4 text-white" />
-                          </div>
-                        </Button>
-                      </Link>
+                <div className="flex-1 flex items-center justify-end gap-2 lg:gap-8 min-w-max">
+                  <div className="flex items-center gap-2">
+                    {mode === "buyer" ? (
+                      <div className="flex items-center gap-3 pr-2">
+                        <Link to="/login">
+                          <Button
+                            variant="ghost"
+                            className="bg-transparent hover:bg-transparent flex items-center gap-2 px-2 group"
+                          >
+                            <span className="text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors">Login</span>
+                            <User className="w-5 h-5 text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors" />
+                          </Button>
+                        </Link>
+                        <Link to="/sell">
+                          <Button
+                            variant="secondary"
+                            className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl hover:bg-[var(--brand-primary-dark)] transition-all duration-300 group h-10 hidden sm:flex"
+                          >
+                            <span className="pl-5 py-1.5 text-sm text-[var(--text-primary)] group-hover:text-white transition-colors duration-300">
+                              Start Selling
+                            </span>
+                            <div className="rounded-full flex items-center justify-center m-auto bg-[var(--brand-primary)] w-8 h-8 ml-3 group-hover:bg-[var(--brand-primary-dark)] group-hover:scale-110 transition-all duration-300">
+                              <ArrowUpRight className="w-4 h-4 text-white" />
+                            </div>
+                          </Button>
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 pr-2">
+                        <Link to="/seller/login">
+                          <Button
+                            variant="ghost"
+                            className="bg-transparent hover:bg-transparent flex items-center gap-2 px-2 group"
+                          >
+                            <span className="text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors">Login</span>
+                            <User className="w-5 h-5 text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors" />
+                          </Button>
+                        </Link>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -258,23 +220,23 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
             title={null}
             subtitle={null}
           >
-            <div className={`w-full grid items-center ${mode === "buyer" ? "grid-cols-1 lg:grid-cols-2 gap-24 lg:gap-30" : "grid-cols-1 max-w-6xl mx-auto py-12 lg:py-20"}`}>
+            <div className={`w-full grid items-center ${mode === "buyer" ? "grid-cols-2 gap-8 md:gap-16 lg:gap-30" : "grid-cols-1 max-w-6xl mx-auto py-12 lg:py-20"}`}>
               {/* Left Column: Branding & Search */}
               <motion.div
                 initial={{ opacity: 0, x: -50 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className={`flex flex-col items-center ${mode === "buyer" ? "lg:items-start text-center lg:text-left" : "text-center"} gap-6 sm:gap-8 w-full`}
+                className={`flex flex-col gap-6 sm:gap-8 w-full ${mode === "buyer" ? "items-start text-left" : "items-center text-center max-w-4xl mx-auto"}`}
               >
-                <div className="flex flex-col gap-6 sm:gap-8">
+                <div className="flex flex-col gap-6 sm:gap-8 w-full">
                   {/* Branding + Main Headline */}
-                  <div className="flex flex-col gap-4">
+                  <div className={`flex flex-col gap-4 ${mode === "seller" ? "items-center" : ""}`}>
                     {mode === "buyer" ? (
                       <span className="font-bold tracking-tighter text-5xl sm:text-7xl text-[var(--brand-primary)] leading-none">
                         BazaarX
                       </span>
                     ) : (
-                      <span className="font-bold tracking-tight text-4xl sm:text-6xl text-[var(--text-headline)] whitespace-nowrap">
+                      <span className="font-bold tracking-tight text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-[var(--text-headline)] leading-tight whitespace-nowrap">
                         Build your business with <span className="text-[var(--brand-primary)]">BazaarX.</span>
                       </span>
                     )}
@@ -299,30 +261,22 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                     </p>
                   </div>
 
-                  <div className={`w-full mt-2 ${mode === "seller" ? "flex justify-center" : "max-w-2xl"}`}>
-                    {mode === "buyer" ? (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5, duration: 0.8 }}
-                      >
-                        <div className="flex-1 w-full bg-white rounded-xl border border-[var(--btn-border)] flex items-center px-4 py-1 relative shadow group transition-all duration-200 focus-within:ring-1 focus-within:ring-[var(--brand-primary)] focus-within:ring-offset-0">
-                          <Search className="h-4 w-4 text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors mr-2 flex-shrink-0" />
-                          <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search products, categories, stores..."
-                            className="flex-1 h-12 sm:h-10 bg-transparent border-none focus:ring-0 outline-none text-base sm:text-sm text-gray-900 placeholder:text-gray-400"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && searchQuery.trim()) {
-                                navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-                              }
-                            }}
-                          />
-                        </div>
-                      </motion.div>
-                    ) : (
+                  {mode === "buyer" ? (
+                    <div className="w-full mt-2 flex flex-col sm:flex-row items-center lg:justify-start gap-4">
+                      <Link to="/about-us" className="w-full sm:w-auto">
+                        <Button variant="outline" className="h-10 rounded-xl border-2 border-[var(--btn-border)] text-[var(--text-muted)] hover:border-[var(--brand-accent)] hover:text-[var(--brand-accent)] bg-white/50 hover:bg-white backdrop-blur-sm transition-all duration-300 shadow-sm hover:shadow-md text-sm w-full sm:w-auto">
+                          Learn More
+                        </Button>
+                      </Link>
+                      <Link to="/shop" className="w-full sm:w-auto">
+                        <Button className="h-10 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] transition-all duration-300 shadow-lg hover:shadow-xl text-sm group w-full sm:w-auto">
+                          Start Shopping
+                          <ArrowRight className="w-5 h-5 ml-2" />
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="w-full mt-2 flex justify-center">
                       <div className="flex justify-center">
                         <Link to="/seller/auth">
                           <Button className="h-16 px-10 rounded-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] transition-all duration-300 shadow-lg hover:shadow-xl text-xl font-bold group">
@@ -331,18 +285,17 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                           </Button>
                         </Link>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
 
-              {/* Right Column: Featured Product Card */}
               {mode === "buyer" && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8, x: 50 }}
                   animate={{ opacity: 1, scale: 1, x: 0 }}
                   transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
-                  className="hidden lg:flex justify-center items-center relative"
+                  className="flex justify-center items-center relative"
                 >
                   {/* Decorative Elements */}
                   <div className="absolute -top-12 -right-12 w-64 h-64 bg-[var(--brand-accent)] opacity-5 rounded-full blur-[80px]" />

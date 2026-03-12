@@ -43,14 +43,14 @@ export function BazaarGuarantee() {
                 <div className="absolute top-0 right-0 w-[60%] h-[100%] bg-gradient-to-bl from-[var(--brand-primary)]/20 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-[var(--brand-primary)]/10 blur-[120px] rounded-full pointer-events-none" />
 
-                <div className="flex flex-col lg:flex-row items-stretch min-h-[320px] relative z-10">
+                <div className="flex flex-row items-stretch min-h-[320px] relative z-10">
                     {/* Left Content */}
-                    <div className="lg:flex-[1.6] p-8 lg:p-12 flex flex-col justify-center gap-6">
+                    <div className="flex-[1.6] p-6 md:p-8 lg:p-12 flex flex-col justify-center gap-6">
                         <div className="space-y-2">
                             <span className="text-[var(--brand-primary)] font-bold text-xs uppercase tracking-[0.2em]">
                                 The BazaarX Guarantee
                             </span>
-                            <h2 className="text-4xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
+                            <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
                                 Quality isn't a promise. It's a <span className="text-[var(--brand-primary)] italic font-fondamento">process.</span>
                             </h2>
                             <p className="text-[var(--text-muted)] text-medium max-w-2xl leading-relaxed">
@@ -67,11 +67,11 @@ export function BazaarGuarantee() {
                     </div>
 
                     {/* Right Grid */}
-                    <div className="flex-1 p-6 lg:p-10 relative">
+                    <div className="flex-1 p-6 md:p-10 relative">
                         {/* Subtle background glow */}
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[var(--brand-primary)] opacity-15 blur-[120px] pointer-events-none" />
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-full">
+                        <div className="grid grid-cols-2 gap-4 h-full">
                             {steps.map((step, idx) => (
                                 <motion.div
                                     key={idx}
