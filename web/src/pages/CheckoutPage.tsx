@@ -1434,9 +1434,9 @@ export default function CheckoutPage() {
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
-                            const { addressService } = await import('../services/addressService');
-                            await addressService.deleteAddress(addr.id);
-                            deleteAddress(addr.id);
+                            const success = await deleteAddress(addr.id);
+                            if (!success) throw new Error("Failed to delete");
+
                             setDeleteConfirmId(null);
                             if (selectedAddress?.id === addr.id) {
                               setSelectedAddress(addresses.find(a => a.id !== addr.id) || null);
