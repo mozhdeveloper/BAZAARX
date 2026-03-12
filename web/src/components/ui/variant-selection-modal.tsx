@@ -175,8 +175,8 @@ export function VariantSelectionModal({
             console.log('✅ Image updated to:', newImage);
 
             // Reset quantity if exceeds stock
-            if (quantity > matchedVariant.stock) {
-                setQuantity(Math.min(1, matchedVariant.stock));
+            if (quantity > matchedVariant.stock || matchedVariant.stock === 0) {
+                setQuantity(Math.max(1, matchedVariant.stock));
             }
         }
     }, [

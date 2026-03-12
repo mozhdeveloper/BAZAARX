@@ -401,6 +401,19 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
         if (!normalizedProduct) return;
 
+        // Stock validation - prevent adding out of stock items
+        const currentVariant = getSelectedVariant();
+        const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
+
+        if (stockQty === 0) {
+            toast({
+                title: "Out of Stock",
+                description: "This product is currently unavailable.",
+                variant: "destructive",
+            });
+            return;
+        }
+
         const productImage = normalizedProduct.image;
         const productImages = normalizedProduct.images;
 
