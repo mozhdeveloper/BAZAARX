@@ -28,6 +28,8 @@ import {
   LayoutGrid,
   Image,
   Package,
+  Ban,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "../hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -352,6 +354,23 @@ export function SellerStoreProfile() {
     tax_id_url: null,
   });
 
+  // Seller restriction state (cooldown, temp blacklist)
+  const [sellerRestrictions, setSellerRestrictions] = useState<{
+    coolDownUntil: Date | null;
+    tempBlacklistUntil: Date | null;
+    isPermanentlyBlacklisted: boolean;
+    attempts: number;
+    cooldownCount: number;
+    tempBlacklistCount: number;
+  }>({
+    coolDownUntil: null,
+    tempBlacklistUntil: null,
+    isPermanentlyBlacklisted: false,
+    attempts: 0,
+    cooldownCount: 0,
+    tempBlacklistCount: 0,
+  });
+
   const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string }[] = [
     { value: "sole_proprietor", label: "Sole Proprietorship" },
     { value: "partnership", label: "Partnership" },
@@ -631,10 +650,10 @@ export function SellerStoreProfile() {
       if (!sellerId) return;
 
       try {
-        // Fetch seller approval status
+        // Fetch seller approval status and restrictions
         const { data: sellerData, error: sellerError } = await supabase
           .from("sellers")
-          .select("approval_status")
+          .select("approval_status, reapplication_attempts, cooldown_count, temp_blacklist_count, blacklisted_at, cool_down_until, temp_blacklist_until, is_permanently_blacklisted")
           .eq("id", sellerId)
           .single();
 
@@ -652,6 +671,17 @@ export function SellerStoreProfile() {
           setIsVerified(
             normalizedStatus === "verified" || normalizedStatus === "approved",
           );
+
+          // Set seller restrictions
+          const now = new Date();
+          setSellerRestrictions({
+            coolDownUntil: sellerData.cool_down_until ? new Date(sellerData.cool_down_until) : null,
+            tempBlacklistUntil: sellerData.temp_blacklist_until ? new Date(sellerData.temp_blacklist_until) : null,
+            isPermanentlyBlacklisted: sellerData.is_permanently_blacklisted || false,
+            attempts: sellerData.reapplication_attempts || 0,
+            cooldownCount: sellerData.cooldown_count || 0,
+            tempBlacklistCount: sellerData.temp_blacklist_count || 0,
+          });
         }
 
         // Fetch verification documents from separate table
@@ -959,6 +989,60 @@ export function SellerStoreProfile() {
     proof_of_address_url: "Proof of Address",
     dti_registration_url: "DTI/SEC Registration",
     tax_id_url: "BIR Tax ID (TIN)",
+  };
+
+  // Helper: Format remaining time for cooldown/blacklist
+  const formatRemainingTime = (targetDate: Date | null): string => {
+    if (!targetDate) return "";
+    const now = new Date();
+    const diff = targetDate.getTime() - now.getTime();
+    if (diff <= 0) return "";
+
+    const hours = Math.ceil(diff / (1000 * 60 * 60));
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+
+    if (days > 1) return `${days} days`;
+    if (hours > 1) return `${hours} hours`;
+    return "Less than an hour";
+  };
+
+  // Helper: Get restriction status message
+  const getRestrictionStatus = () => {
+    const now = new Date();
+
+    if (sellerRestrictions.isPermanentlyBlacklisted) {
+      return {
+        type: "permanent",
+        title: "Permanently Blacklisted",
+        message: "You have been permanently blacklisted from the platform. Please contact support for assistance.",
+        color: "red",
+        icon: Ban,
+      };
+    }
+
+    if (sellerRestrictions.tempBlacklistUntil && sellerRestrictions.tempBlacklistUntil > now) {
+      const remaining = formatRemainingTime(sellerRestrictions.tempBlacklistUntil);
+      return {
+        type: "temp_blacklist",
+        title: "Temporarily Blacklisted",
+        message: `You can resubmit in ${remaining}. (${sellerRestrictions.tempBlacklistCount}/3 temporary blacklists)`,
+        color: "orange",
+        icon: AlertTriangle,
+      };
+    }
+
+    if (sellerRestrictions.coolDownUntil && sellerRestrictions.coolDownUntil > now) {
+      const remaining = formatRemainingTime(sellerRestrictions.coolDownUntil);
+      return {
+        type: "cooldown",
+        title: "Cooldown Period",
+        message: `You can resubmit in ${remaining}. (${sellerRestrictions.cooldownCount}/3 cooldowns)`,
+        color: "yellow",
+        icon: Clock,
+      };
+    }
+
+    return null;
   };
 
   const handleSaveBasic = async () => {
@@ -1363,6 +1447,38 @@ export function SellerStoreProfile() {
                           </Badge>
                         </div>
                       </div>
+
+                      {/* Restriction Status Banner */}
+                      {(() => {
+                        const restriction = getRestrictionStatus();
+                        if (!restriction) return null;
+                        
+                        const colorClasses = {
+                          red: "bg-red-50 border-red-200 text-red-700",
+                          orange: "bg-orange-50 border-orange-200 text-orange-700",
+                          yellow: "bg-yellow-50 border-yellow-200 text-yellow-700",
+                        };
+                        
+                        const IconComponent = restriction.icon;
+                        
+                        return (
+                          <div className={`w-full mb-4 p-4 ${colorClasses[restriction.color as keyof typeof colorClasses]} border rounded-lg`}>
+                            <div className="flex items-start gap-3">
+                              <IconComponent className="h-5 w-5 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-bold text-sm">{restriction.title}</p>
+                                <p className="text-sm mt-1 opacity-90">{restriction.message}</p>
+                                {(sellerRestrictions.attempts > 0 || sellerRestrictions.cooldownCount > 0) && (
+                                  <p className="text-xs mt-2 opacity-75">
+                                    Failed attempts: {sellerRestrictions.attempts}/3
+                                    {sellerRestrictions.cooldownCount > 0 && ` • Cooldowns: ${sellerRestrictions.cooldownCount}/3`}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Avatar Error */}
                       {avatarError && (
