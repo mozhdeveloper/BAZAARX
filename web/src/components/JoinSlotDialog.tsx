@@ -18,101 +18,49 @@ import { discountService } from "@/services/discountService";
 import { useToast } from "@/hooks/use-toast";
 import type { DiscountCampaign } from "@/types/discount";
 
-interface AddProductsToCampaignDialogProps {
+interface JoinSlotDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  campaign: DiscountCampaign | null;
+  slot: DiscountCampaign | null;
   sellerId: string;
-  onProductsAdded?: () => void;
+  onJoined?: () => void;
 }
 
 interface ProductSelection {
   productId: string;
   selected: boolean;
-  discountedStock?: number;
-  productDiscountId?: string;
-  isExisting: boolean;
+  discountedPrice?: number;
+  committedStock?: number;
 }
 
-export function AddProductsToCampaignDialog({
+export function JoinSlotDialog({
   open,
   onOpenChange,
-  campaign,
+  slot,
   sellerId,
-  onProductsAdded,
-}: AddProductsToCampaignDialogProps) {
+  onJoined,
+}: JoinSlotDialogProps) {
   const { products, fetchProducts } = useProductStore();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selections, setSelections] = useState<
     Record<string, ProductSelection>
   >({});
-  const [existingProducts, setExistingProducts] = useState<Set<string>>(
-    new Set(),
-  );
   const [loading, setLoading] = useState(false);
 
-  // Load seller's products
   useEffect(() => {
     if (open && sellerId) {
       fetchProducts({ sellerId });
     }
   }, [open, sellerId, fetchProducts]);
 
-  // Reset selections when dialog opens with a new campaign
   useEffect(() => {
     if (open) {
       setSelections({});
-      setExistingProducts(new Set());
     }
-  }, [campaign?.id, open]);
+  }, [slot?.id, open]);
 
-  // Load products already in campaign
-  useEffect(() => {
-    const loadExistingProducts = async () => {
-      if (!campaign?.id) return;
-
-      try {
-        const campaignProducts = await discountService.getProductsInCampaign(
-          campaign.id,
-        );
-        
-        const productIds = new Set(campaignProducts.map((p) => p.productId));
-        setExistingProducts(productIds);
-
-        // Initialize selections with existing products (pre-selected)
-        const existingSelections: Record<string, ProductSelection> = {};
-        campaignProducts.forEach((p) => {
-          existingSelections[p.productId] = {
-            productId: p.productId,
-            selected: true,
-            discountedStock: p.discountedStock,
-            productDiscountId: p.id,
-            isExisting: true,
-          };
-        });
-        
-        // Merge with current selections (don't overwrite new selections)
-        setSelections((prev) => {
-          const merged = { ...existingSelections };
-          Object.keys(prev).forEach((key) => {
-            if (!merged[key]) {
-              merged[key] = prev[key];
-            }
-          });
-          return merged;
-        });
-      } catch (error) {
-        console.error("Failed to load campaign products:", error);
-      }
-    };
-
-    if (open) {
-      loadExistingProducts();
-    }
-  }, [campaign?.id, open]);
-
-  // Filter products by search and seller — only verified (approved) products
+  // Only show verified (approved) products for flash sale submission
   const filteredProducts = products.filter((product) => {
     const matchesSeller = product.sellerId === sellerId;
     const matchesSearch = product.name
@@ -124,35 +72,44 @@ export function AddProductsToCampaignDialog({
   });
 
   const handleToggleProduct = (productId: string) => {
-    const isExisting = existingProducts.has(productId);
+    const product = products.find(p => p.id === productId);
     setSelections((prev) => ({
       ...prev,
       [productId]: {
         productId,
         selected: !prev[productId]?.selected,
-        discountedStock: prev[productId]?.discountedStock,
-        productDiscountId: prev[productId]?.productDiscountId,
-        isExisting,
+        discountedPrice: prev[productId]?.discountedPrice,
+        committedStock: prev[productId]?.committedStock ?? product?.stock ?? 0,
       },
     }));
   };
 
-  const handleSetStock = (productId: string, stock: number) => {
-    const isExisting = existingProducts.has(productId);
+  const handleSetPrice = (productId: string, price: number) => {
     setSelections((prev) => ({
       ...prev,
       [productId]: {
         ...prev[productId],
         productId,
         selected: prev[productId]?.selected || false,
-        discountedStock: stock > 0 ? stock : undefined,
-        isExisting,
+        discountedPrice: price > 0 ? price : undefined,
       },
     }));
   };
 
-  const handleAddProducts = async () => {
-    if (!campaign?.id) return;
+  const handleSetStock = (productId: string, stock: number) => {
+    setSelections((prev) => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        productId,
+        selected: prev[productId]?.selected || false,
+        committedStock: stock >= 0 ? stock : 0,
+      },
+    }));
+  };
+
+  const handleJoinSlot = async () => {
+    if (!slot?.id) return;
 
     const selectedProducts = Object.values(selections).filter(
       (s) => s.selected,
@@ -161,79 +118,39 @@ export function AddProductsToCampaignDialog({
     if (selectedProducts.length === 0) {
       toast({
         title: "No Products Selected",
-        description: "Please select at least one product to add",
+        description: "Please select at least one product to join the slot",
         variant: "destructive",
       });
       return;
     }
 
-    // Get products to add (new products only)
-    const newProducts = selectedProducts.filter(
-      (s) => !s.isExisting,
-    );
-
-    // Get products to remove (existing products that were deselected)
-    const productsToRemove = Object.values(selections)
-      .filter((s) => s.isExisting && !s.selected)
-      .map((s) => s.productId);
+    const submissions = selectedProducts.map((s) => ({
+      productId: s.productId,
+      submittedPrice: s.discountedPrice!,
+      stock: s.committedStock || 0,
+    }));
 
     setLoading(true);
     try {
-      // Remove deselected products first
-      if (productsToRemove.length > 0) {
-        await discountService.removeProductsFromCampaign(
-          campaign.id,
-          productsToRemove,
-        );
-      }
-
-      // Add new products
-      if (newProducts.length > 0) {
-        const productIds = newProducts.map((s) => s.productId);
-        const overrides = newProducts
-          .filter((s) => s.discountedStock)
-          .map((s) => ({
-            productId: s.productId,
-            discountedStock: s.discountedStock!,
-          }));
-
-        await discountService.addProductsToCampaign(
-          campaign.id,
-          sellerId,
-          productIds,
-          overrides.length > 0 ? overrides : undefined,
-        );
-      }
+      await discountService.joinFlashSaleSlot(slot.id, sellerId, submissions);
 
       toast({
-        title: "Products Updated",
-        description: `${newProducts.length} added, ${productsToRemove.length} removed`,
+        title: "Successfully Joined Slot",
+        description: `You have submitted ${submissions.length} products to the flash sale.`,
       });
 
-      // Reset and close
       setSelections({});
       setSearchQuery("");
-      setExistingProducts(new Set());
       onOpenChange(false);
 
-      if (onProductsAdded) {
-        onProductsAdded();
+      if (onJoined) {
+        onJoined();
       }
     } catch (error) {
-      console.error("Failed to update products:", error);
-
-      const isDuplicateError =
-        error instanceof Error &&
-        (error.message.includes("duplicate key") ||
-          error.message.includes("23505"));
-
+      console.error("Failed to join slot:", error);
       toast({
         title: "Error",
-        description: isDuplicateError
-          ? "One or more products are already in this campaign"
-          : error instanceof Error
-            ? error.message
-            : "Failed to update products in campaign",
+        description: "Failed to join the flash sale slot.",
         variant: "destructive",
       });
     } finally {
@@ -249,13 +166,12 @@ export function AddProductsToCampaignDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col bg-white border-none shadow-2xl scrollbar-hide">
         <DialogHeader>
-          <DialogTitle>Add Products to Campaign</DialogTitle>
+          <DialogTitle>Join Flash Sale Slot</DialogTitle>
           <DialogDescription>
-            {campaign?.name && `Select products to add to "${campaign.name}"`}
+            {slot?.name && `Select products to submit to "${slot.name}"`}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
@@ -266,19 +182,15 @@ export function AddProductsToCampaignDialog({
           />
         </div>
 
-        {/* Campaign Info */}
-        {campaign && (
+        {slot && (
           <div className="bg-[var(--brand-accent-light)]/30 border border-[var(--brand-accent-light)]/50 rounded-2xl p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-black text-[var(--text-headline)]">
-                  Campaign: {campaign.name}
+                  Slot: {slot.name}
                 </p>
                 <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wider mt-0.5">
-                  Discount:{" "}
-                  {campaign.discountType === "percentage"
-                    ? `${campaign.discountValue}%`
-                    : `₱${campaign.discountValue}`}
+                  Minimum Discount: {slot.discountValue}%
                 </p>
               </div>
               {selectedCount > 0 && (
@@ -290,7 +202,6 @@ export function AddProductsToCampaignDialog({
           </div>
         )}
 
-        {/* Products List */}
         <div className="flex-1 overflow-y-auto border border-gray-100 rounded-2xl bg-white scrollbar-hide">
           {filteredProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-gray-500">
@@ -300,10 +211,10 @@ export function AddProductsToCampaignDialog({
           ) : (
             <div className="divide-y">
               {filteredProducts.map((product) => {
-                const isInCampaign = existingProducts.has(product.id);
                 const isSelected = selections[product.id]?.selected || false;
-                const stockLimit = selections[product.id]?.discountedStock;
+                const discountedPrice = selections[product.id]?.discountedPrice;
                 const productImage = product.images?.[0];
+                const minPrice = product.price * (1 - (slot?.discountValue || 0) / 100);
 
                 return (
                   <div
@@ -311,7 +222,6 @@ export function AddProductsToCampaignDialog({
                     className={`p-4 hover:bg-gray-50 transition-colors`}
                   >
                     <div className="flex items-start gap-4">
-                      {/* Checkbox */}
                       <div className="flex items-center pt-1">
                         <Checkbox
                           checked={isSelected}
@@ -321,7 +231,6 @@ export function AddProductsToCampaignDialog({
                         />
                       </div>
 
-                      {/* Product Image */}
                       <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
                         {productImage ? (
                           <img
@@ -336,7 +245,6 @@ export function AddProductsToCampaignDialog({
                         )}
                       </div>
 
-                      {/* Product Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -348,41 +256,55 @@ export function AddProductsToCampaignDialog({
                               {product.stock}
                             </p>
                           </div>
-                          {isInCampaign && (
-                            <Badge className="bg-green-100 text-green-700">
-                              <Check className="h-3 w-3 mr-1" />
-                              Added
-                            </Badge>
-                          )}
                         </div>
 
-                        {/* Stock Limit Input (only if selected) */}
                         {isSelected && (
-                          <div className="mt-3 flex items-center gap-2">
-                            <Label
-                              htmlFor={`stock-${product.id}`}
-                              className="text-xs text-gray-600 whitespace-nowrap"
-                            >
-                              Stock Limit (optional):
-                            </Label>
-                            <Input
-                              id={`stock-${product.id}`}
-                              type="number"
-                              min="0"
-                              max={product.stock}
-                              placeholder={`Max: ${product.stock}`}
-                              value={stockLimit || ""}
-                              onChange={(e) =>
-                                handleSetStock(
-                                  product.id,
-                                  parseInt(e.target.value) || 0,
-                                )
-                              }
-                              className="w-32 h-9 text-sm focus:ring-0 focus-visible:ring-0 border-gray-200 focus:border-[var(--brand-primary)] rounded-lg transition-all"
-                            />
-                            <span className="text-xs text-gray-500">
-                              units at discount
-                            </span>
+                          <div className="mt-3 flex flex-wrap items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <Label
+                                htmlFor={`price-${product.id}`}
+                                className="text-xs text-gray-600 whitespace-nowrap"
+                              >
+                                Price (₱):
+                              </Label>
+                              <Input
+                                id={`price-${product.id}`}
+                                type="number"
+                                min="0"
+                                max={product.price}
+                                placeholder={`Min: ${minPrice.toFixed(2)}`}
+                                value={selections[product.id]?.discountedPrice || ""}
+                                onChange={(e) =>
+                                  handleSetPrice(
+                                    product.id,
+                                    parseInt(e.target.value) || 0,
+                                  )
+                                }
+                                className="w-28 h-9 text-sm focus:ring-0 focus-visible:ring-0 border-gray-200 focus:border-[var(--brand-primary)] rounded-lg transition-all"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Label
+                                htmlFor={`stock-${product.id}`}
+                                className="text-xs text-gray-600 whitespace-nowrap"
+                              >
+                                Commit Stock:
+                              </Label>
+                              <Input
+                                id={`stock-${product.id}`}
+                                type="number"
+                                min="1"
+                                max={product.stock}
+                                value={selections[product.id]?.committedStock || ""}
+                                onChange={(e) =>
+                                  handleSetStock(
+                                    product.id,
+                                    parseInt(e.target.value) || 0,
+                                  )
+                                }
+                                className="w-24 h-9 text-sm focus:ring-0 focus-visible:ring-0 border-gray-200 focus:border-[var(--brand-primary)] rounded-lg transition-all"
+                              />
+                            </div>
                           </div>
                         )}
                       </div>
@@ -399,7 +321,6 @@ export function AddProductsToCampaignDialog({
             variant="outline"
             onClick={() => {
               setSelections({});
-              setExistingProducts(new Set());
               setSearchQuery("");
               onOpenChange(false);
             }}
@@ -409,13 +330,13 @@ export function AddProductsToCampaignDialog({
             Cancel
           </Button>
           <Button
-            onClick={handleAddProducts}
+            onClick={handleJoinSlot}
             disabled={selectedCount === 0 || loading}
             className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all px-8 h-11"
           >
             {loading
-              ? "Adding..."
-              : `Add ${selectedCount} Product${selectedCount !== 1 ? "s" : ""}`}
+              ? "Submitting..."
+              : `Submit ${selectedCount} Product${selectedCount !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>

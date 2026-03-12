@@ -641,40 +641,72 @@ export default function SellerStorefrontPage() {
       </div>
 
       {
-    activeCampaigns.length > 0 && (
+    activeCampaigns
+      .filter(campaign => campaign.endsAt > new Date())
+      .length > 0 && (
       <div className="max-w-7xl mx-auto px-4 pt-6 space-y-4">
-        {activeCampaigns.map(campaign => (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            key={campaign.id}
-            className="p-4 rounded-xl shadow-md border overflow-hidden relative flex flex-col md:flex-row items-center justify-between gap-4 text-white"
-            style={{ backgroundColor: campaign.badgeColor || '#FF6A00' }}
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-            <div className="flex items-center gap-4 relative z-10 w-full sm:w-auto">
-              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                <Zap className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg md:text-xl">{campaign.name}</h3>
-                <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <Badge variant="secondary" className="bg-white text-orange-600 border-0 font-bold hover:bg-white text-xs">
-                    {campaign.campaignType === 'flash_sale' ? 'Flash Sale' : 'Store Sale'}
-                  </Badge>
-                  {campaign.badgeText && <span className="text-white/90 text-sm font-medium tracking-wide">• {campaign.badgeText}</span>}
-                  <span className="text-white/90 text-sm font-medium tracking-wide">• Up to {campaign.discountValue}{campaign.discountType === 'percentage' ? '%' : '₱'} OFF</span>
+        {activeCampaigns
+          .filter(campaign => campaign.endsAt > new Date())
+          .map(campaign => {
+            const campaignProductImages = displayProducts.filter(
+              p => (p as any).campaignDiscount
+            ).slice(0, 5);
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                key={campaign.id}
+                className="p-4 rounded-2xl shadow-lg border overflow-hidden relative text-white"
+                style={{ backgroundColor: campaign.badgeColor || '#FF6A00' }}
+              >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+
+                {/* Top row: info + timer */}
+                <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm shrink-0">
+                      <Zap className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg md:text-xl leading-tight">{campaign.name}</h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <Badge variant="secondary" className="bg-white text-orange-600 border-0 font-bold hover:bg-white text-xs">
+                          {campaign.campaignType === 'flash_sale' ? 'Flash Sale' : 'Store Sale'}
+                        </Badge>
+                        {campaign.badgeText && <span className="text-white/90 text-sm font-medium tracking-wide">• {campaign.badgeText}</span>}
+                        <span className="text-white/90 text-sm font-medium tracking-wide">• Up to {campaign.discountValue}{campaign.discountType === 'percentage' ? '%' : '₱'} OFF</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-black/15 px-4 py-2 rounded-xl backdrop-blur-sm shrink-0 text-right">
+                    <p className="text-[10px] text-white/80 font-bold uppercase tracking-wider mb-0.5">Ends In</p>
+                    <div className="text-xl font-black font-mono tracking-widest">
+                      <CountdownTimer endDate={campaign.endsAt} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="relative z-10 sm:text-right w-full sm:w-auto bg-black/10 sm:bg-transparent p-3 sm:p-0 rounded-lg sm:rounded-none flex sm:block items-center justify-between sm:justify-end">
-              <p className="text-xs text-white/80 font-bold uppercase tracking-wider mb-1">Ends In</p>
-              <div className="text-xl md:text-2xl font-black font-mono tracking-widest bg-black/20 sm:bg-black/20 px-4 py-1.5 rounded-lg backdrop-blur-sm flex items-center justify-center min-w-[120px]">
-                <CountdownTimer endDate={campaign.endsAt} />
-              </div>
-            </div>
-          </motion.div>
-        ))}
+
+                {/* Product thumbnails */}
+                {campaignProductImages.length > 0 && (
+                  <div className="relative z-10 flex items-center gap-2 flex-wrap">
+                    {campaignProductImages.map(p => (
+                      <div key={p.id} className="w-12 h-12 rounded-lg overflow-hidden border-2 border-white/30 bg-white/10 shadow-md shrink-0">
+                        <img
+                          src={p.image}
+                          alt={p.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    ))}
+                    <span className="text-white/80 text-xs font-medium pl-1">
+                      {displayProducts.length} item{displayProducts.length !== 1 ? 's' : ''} on sale
+                    </span>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
       </div>
     )
   }

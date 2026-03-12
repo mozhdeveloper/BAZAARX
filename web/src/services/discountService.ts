@@ -358,6 +358,7 @@ export class DiscountService {
         .from('discount_campaigns')
         .select('*')
         .eq('campaign_type', 'flash_sale')
+        .eq('campaign_scope', 'global')
         .eq('status', 'active')
         .lte('starts_at', new Date().toISOString())
         .gte('ends_at', new Date().toISOString())
@@ -844,8 +845,114 @@ export class DiscountService {
   }
 
   /**
+   * Get a seller's existing submissions for a specific slot (to prevent duplicates)
+   */
+  async getSellerSubmissionsForSlot(slotId: string, sellerId: string): Promise<FlashSaleSubmission[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const { data, error } = await supabase
+        .from('flash_sale_submissions')
+        .select(`
+          *,
+          product:products (name, price, images:product_images(image_url, is_primary))
+        `)
+        .eq('slot_id', slotId)
+        .eq('seller_id', sellerId);
+      if (error) throw error;
+      return (data || []).map((item: any) => ({
+        ...item,
+        product_name: item.product?.name,
+        product_image: item.product?.images?.find((i: any) => i.is_primary)?.image_url || item.product?.images?.[0]?.image_url,
+        original_price: item.product?.price,
+      }));
+    } catch (error) {
+      console.error('Error fetching seller submissions for slot:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get active global flash sale products from global_flash_sale_slots + approved submissions.
+   * This is what the shop page should display.
+   */
+  async getGlobalFlashSaleProducts(): Promise<any[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const now = new Date().toISOString();
+
+      // 1. Fetch active global slots
+      const { data: slots, error: slotsError } = await supabase
+        .from('global_flash_sale_slots')
+        .select('*')
+        .eq('status', 'active')
+        .lte('start_time', now)
+        .gte('end_time', now);
+
+      if (slotsError) throw slotsError;
+      if (!slots || slots.length === 0) return [];
+
+      const slotIds = slots.map((s: any) => s.id);
+
+      // 2. Fetch approved submissions for these slots
+      const { data: submissions, error: subError } = await supabase
+        .from('flash_sale_submissions')
+        .select(`
+          *,
+          product:products (
+            id, name, price, seller_id,
+            images:product_images (image_url, is_primary, sort_order),
+            variants:product_variants (stock, price),
+            seller:sellers!products_seller_id_fkey (id, store_name),
+            category:categories!products_category_id_fkey (name)
+          )
+        `)
+        .in('slot_id', slotIds)
+        .eq('status', 'approved');
+
+      if (subError) throw subError;
+
+      // 3. Map to product display objects
+      const slotMap = new Map(slots.map((s: any) => [s.id, s]));
+
+      return (submissions || []).map((sub: any) => {
+        const p = sub.product as any;
+        const slot = slotMap.get(sub.slot_id) as any;
+        const basePrice = sub.submitted_price || p?.price || 0;
+        const originalPrice = p?.price || 0;
+        const discountPct = originalPrice > 0 ? Math.round((1 - basePrice / originalPrice) * 100) : 0;
+        const images = p?.images || [];
+        const primaryImg = images.find((i: any) => i.is_primary)?.image_url || images[0]?.image_url || 'https://placehold.co/400x400?text=No+Image';
+        const totalStock = (p?.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+
+        return {
+          id: p?.id,
+          name: p?.name,
+          price: basePrice,
+          originalPrice,
+          image: primaryImg,
+          images: images.map((i: any) => i.image_url),
+          seller: p?.seller?.store_name || 'Store',
+          sellerId: p?.seller_id,
+          category: p?.category?.name || 'General',
+          stock: totalStock,
+          sold: 0,
+          campaignId: sub.slot_id,
+          campaignName: slot?.name || 'Flash Sale',
+          campaignBadgeColor: '#FF6A00',
+          campaignEndsAt: slot?.end_time,
+          discountBadgePercent: discountPct > 0 ? discountPct : undefined,
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching global flash sale products:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get submissions for a slot
    */
+
   async getFlashSaleSubmissions(slotId: string): Promise<FlashSaleSubmission[]> {
     if (!isSupabaseConfigured()) return [];
     try {
@@ -924,9 +1031,44 @@ export class DiscountService {
     }
   }
 
+  /**
+   * Join a global flash sale slot by submitting multiple products at once.
+   */
+  async joinFlashSaleSlot(
+    slotId: string,
+    sellerId: string,
+    submissions: { productId: string; submittedPrice: number; stock: number }[]
+  ): Promise<FlashSaleSubmission[]> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+    if (!submissions || submissions.length === 0) return [];
+
+    try {
+      const rows = submissions.map(s => ({
+        slot_id: slotId,
+        seller_id: sellerId,
+        product_id: s.productId,
+        submitted_price: s.submittedPrice,
+        submitted_stock: s.stock,
+        status: 'pending'
+      }));
+
+      const { data, error } = await supabase
+        .from('flash_sale_submissions')
+        .insert(rows)
+        .select();
+
+      if (error) throw error;
+      return (data || []) as FlashSaleSubmission[];
+    } catch (error) {
+      console.error('Error joining flash sale slot:', error);
+      throw new Error('Failed to join flash sale slot.');
+    }
+  }
+
   // ============================================================================
   // PRIVATE HELPER FUNCTIONS
   // ============================================================================
+
 
   private transformCampaign(data: Record<string, unknown>): DiscountCampaign {
     return {
