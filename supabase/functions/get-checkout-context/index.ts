@@ -40,6 +40,7 @@ Deno.serve(async (req: Request) => {
       supabaseClient
         .from('shipping_addresses')
         .select('*')
+        .eq('user_id', user.id)
         .order('is_default', { ascending: false }),
 
       productIds.length > 0
