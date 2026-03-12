@@ -158,8 +158,11 @@ const normalizeProductForShop = (row: any): Product => {
   const originalPriceRaw = row.originalPrice ?? row.original_price;
   const originalPrice = toNumber(originalPriceRaw, 0);
 
-  const categoryName = typeof row.category === 'string' ? row.category : row.category?.name || '';
+  const categoryName = typeof row.category === 'string' ? row.category : (row.category?.name || '');
   const categoryId = row.category_id || (row.category && typeof row.category === 'object' ? row.category.id : undefined);
+  
+  // Note: if ProductService already transformed it, category is a string.
+  // We want to ensure category_id is always available from the source row.
 
   return {
     ...row,
@@ -376,8 +379,18 @@ export default function ShopScreen({ navigation, route }: Props) {
         productCategory.toLowerCase().includes(normalizedQuery) ||
         productSeller.includes(normalizedQuery);
 
-      // Strict database ID match (or 'all')
-      const categoryMatch = selectedCategory === 'all' || product.category_id === selectedCategory;
+      // Support multiple matching strategies for robustness:
+      // 1. "All" selection
+      // 2. Exact UUID ID match
+      // 3. Exact name match (case-insensitive)
+      // 4. Slugified name match
+      const categoryMatch = 
+        selectedCategory === 'all' || 
+        product.category_id === selectedCategory ||
+        (typeof product.category === 'string' && (
+          product.category.toLowerCase() === selectedCategory.toLowerCase() ||
+          normalizeCategoryKey(product.category) === normalizeCategoryKey(selectedCategory)
+        ));
       const priceMatch = productPrice >= min && productPrice <= max;
 
       return searchMatch && categoryMatch && priceMatch;

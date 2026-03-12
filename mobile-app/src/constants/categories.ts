@@ -11,4 +11,6 @@ export const CURATED_CATEGORY_IMAGES: Record<string, string> = {
   'accessories': 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=300&auto=format&fit=crop',
   'apparel': 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=300&auto=format&fit=crop',
   'men-s-apparel': 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=300&auto=format&fit=crop',
+  'others': 'https://images.unsplash.com/photo-1516251193007-45ef944ab0c6?q=80&w=300&auto=format&fit=crop',
+  'other': 'https://images.unsplash.com/photo-1516251193007-45ef944ab0c6?q=80&w=300&auto=format&fit=crop',
 };

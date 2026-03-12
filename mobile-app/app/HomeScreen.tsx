@@ -1,3 +1,4 @@
+// Forced sync at 2026-03-12 11:30
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
@@ -13,6 +14,7 @@ import {
   TouchableOpacity,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,10 +61,12 @@ type Props = CompositeScreenProps<
 >;
 
 // 5 columns, 20px padding each side, 10px gaps
-const { width } = Dimensions.get('window');
-const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const HORIZONTAL_PADDING = 20;
+const GRID_GAP = 10;
+const STATIC_CATEGORY_ITEM_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4)) / 5;
 
-const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string; iconValue: string | null; imageUrl?: string | null }) => {
+const CategoryItem = React.memo(({ label, iconValue, imageUrl, itemWidth }: { label: string; iconValue: string | null; imageUrl?: string | null; itemWidth: number }) => {
   const [imageError, setImageError] = useState(false);
   const isIconName = iconValue ? /^[a-z0-9-]+$/.test(iconValue) : false;
   const displayValue = iconValue || 'tag';
@@ -79,6 +83,9 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
     <View style={styles.categoryItm}>
       {finalImageUri ? (
         <View style={[styles.categoryIconBox, {
+          width: itemWidth - 2,
+          height: itemWidth - 2,
+          borderRadius: (itemWidth - 2) / 2,
           backgroundColor: 'transparent',
           shadowColor: COLORS.primary,
           shadowOffset: { width: 0, height: 4 },
@@ -99,6 +106,9 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
         <LinearGradient
           colors={['#FFFFFF', '#FFFBF0']}
           style={[styles.categoryIconBox, {
+            width: itemWidth - 2,
+            height: itemWidth - 2,
+            borderRadius: (itemWidth - 2) / 2,
             shadowColor: COLORS.primary,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.08,
@@ -131,6 +141,9 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const CATEGORY_ITEM_WIDTH = (screenWidth - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4)) / 5;
+
   const BRAND_COLOR = COLORS.primary;
   const { user, isGuest } = useAuthStore();
 
@@ -229,7 +242,7 @@ export default function HomeScreen({ navigation }: Props) {
       image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80', // Headphones
       gradient: ['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)'],
       screen: 'Shop',
-      params: { category: 'electronics' }
+      params: { category: 'electronics' } // Note: Ideally these should be IDs from DB
     },
     {
       id: '3',
@@ -240,7 +253,7 @@ export default function HomeScreen({ navigation }: Props) {
       image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800&q=80', // Working Office Chair link
       gradient: ['rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0.85)'],
       screen: 'Shop',
-      params: { category: 'home' }
+      params: { category: 'home-living' } // Changed from 'home' to match likely slug/id
     }
   ];
 
@@ -458,7 +471,7 @@ export default function HomeScreen({ navigation }: Props) {
     const interval = setInterval(() => {
       let nextSlide = activeSlide + 1;
       if (nextSlide >= promoSlides.length) nextSlide = 0;
-      scrollRef.current?.scrollTo({ x: nextSlide * width, animated: true });
+      scrollRef.current?.scrollTo({ x: nextSlide * SCREEN_WIDTH, animated: true });
       setActiveSlide(nextSlide);
     }, 4000);
     return () => clearInterval(interval);
@@ -771,7 +784,7 @@ export default function HomeScreen({ navigation }: Props) {
                 showsHorizontalScrollIndicator={false}
                 onScroll={(e) => {
                   const x = e.nativeEvent.contentOffset.x;
-                  const index = Math.round(x / width);
+                  const index = Math.round(x / SCREEN_WIDTH);
                   if (index !== activeSlide) setActiveSlide(index);
                 }}
                 scrollEventThrottle={16}
@@ -779,7 +792,7 @@ export default function HomeScreen({ navigation }: Props) {
                 {promoSlides.map((slide) => (
                   <Pressable
                     key={slide.id}
-                    style={[styles.promoBox, { width: width - 40 }]}
+                    style={[styles.promoBox, { width: SCREEN_WIDTH - 40 }]}
                     onPress={() => {
                       if (slide.screen) {
                         navigation.navigate(slide.screen as any, slide.params);
@@ -837,10 +850,10 @@ export default function HomeScreen({ navigation }: Props) {
               {dbCategories.slice(0, 10).map((item) => (
                 <Pressable
                   key={item.id}
-                  style={styles.categoryGridItem}
+                  style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
                   onPress={() => navigation.navigate('Shop', { category: item.id })}
                 >
-                  <CategoryItem label={item.name} iconValue={item.icon} imageUrl={item.image_url} />
+                  <CategoryItem label={item.name} iconValue={item.icon} imageUrl={item.image_url} itemWidth={CATEGORY_ITEM_WIDTH} />
                 </Pressable>
               ))}
             </View>
@@ -1050,11 +1063,11 @@ export default function HomeScreen({ navigation }: Props) {
               {dbCategories.map((item) => (
                 <Pressable
                   key={item.id}
-                  style={styles.categoryGridItem}
+                  style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
                   onPress={() => navigation.navigate('Shop', { category: item.id })}
                 >
                   {/* Change iconName to iconValue here */}
-                  <CategoryItem label={item.name} iconValue={item.icon} />
+                  <CategoryItem label={item.name} iconValue={item.icon} itemWidth={CATEGORY_ITEM_WIDTH} />
                 </Pressable>
               ))}
             </View>
@@ -1183,12 +1196,12 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 5 },
   sectionTitle: { fontSize: 19, fontWeight: 'bold', color: COLORS.textHeadline },
   seeAll: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 10, gap: 10 },
-  categoryGridItem: { width: CATEGORY_ITEM_WIDTH, alignItems: 'center' },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: HORIZONTAL_PADDING, marginBottom: 10, gap: GRID_GAP },
+  categoryGridItem: { alignItems: 'center' },
   categoryItm: { alignItems: 'center', gap: 6 },
-  categoryIconBox: { width: CATEGORY_ITEM_WIDTH - 2, height: CATEGORY_ITEM_WIDTH - 2, borderRadius: (CATEGORY_ITEM_WIDTH - 2) / 2, justifyContent: 'center', alignItems: 'center' },
+  categoryIconBox: { justifyContent: 'center', alignItems: 'center' },
   categoryLabel: { fontSize: 11, color: COLORS.textHeadline, fontWeight: '700', textAlign: 'center', lineHeight: 14, marginTop: 10 },
-  itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
+  itemBoxContainerVertical: { width: (SCREEN_WIDTH - 48) / 2, marginBottom: 12 },
   section: { paddingHorizontal: 20, marginVertical: 5 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
   productRequestButtonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
