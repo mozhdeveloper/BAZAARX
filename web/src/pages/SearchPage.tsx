@@ -211,10 +211,10 @@ const SearchPage: React.FC = () => {
   }, [sellerProducts, categories]);
 
   const otherProductsCount = useMemo(() => {
-    const activeCategoryNames = new Set(categories.map(c => c.name));
+    const activeCategoryNames = new Set(categories.map(c => c.name.toLowerCase()));
     let count = 0;
     for (const [catName, catCount] of Object.entries(categoryCounts)) {
-      if (!activeCategoryNames.has(catName)) {
+      if (!activeCategoryNames.has(catName.toLowerCase()) || catName.toLowerCase() === 'others') {
         count += catCount;
       }
     }
@@ -335,9 +335,9 @@ const SearchPage: React.FC = () => {
     // Category Filter
     if (selectedCategory !== 'All') {
       if (selectedCategory === 'Others') {
-        const isActiveCategory = categories.some(c => c.name === p.category);
-        if (isActiveCategory) return false;
-      } else if (!p.category.includes(selectedCategory)) {
+        const isActiveCategory = categories.some(c => c.name.toLowerCase() === p.category.toLowerCase() && c.name.toLowerCase() !== 'others');
+        if (isActiveCategory && p.category.toLowerCase() !== 'others') return false;
+      } else if (!p.category.toLowerCase().includes(selectedCategory.toLowerCase())) {
         return false;
       }
     }
@@ -423,7 +423,7 @@ const SearchPage: React.FC = () => {
                       {sellerProducts.filter(p => p.approvalStatus === 'approved' && p.isActive).length}
                     </span>
                   </button>
-                  {categories.map(cat => (
+                  {categories.filter(c => c.name.toLowerCase() !== 'others').map(cat => (
                     <button
                       key={cat.id}
                       onClick={() => { manualScrollRef.current = true; setSelectedCategory(cat.name); }}
@@ -542,32 +542,7 @@ const SearchPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Rating Filter */}
-                  <div className="space-y-3">
-                    <h3 className="font-bold text-gray-900 text-sm">Minimum Rating</h3>
-                    <div className="flex flex-col gap-2">
-                      {[4, 3, 2, 1].map((rating) => (
-                        <button
-                          key={rating}
-                          onClick={() => { manualScrollRef.current = true; setMinRating(minRating === rating ? 0 : rating); }}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${minRating === rating
-                            ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
-                            : "text-[var(--text-primary)] hover:bg-gray-50"
-                            }`}
-                        >
-                          <div className="flex items-center gap-0.5">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`w-3.5 h-3.5 ${i < rating ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}`}
-                              />
-                            ))}
-                          </div>
-                          <span className="text-xs">{rating}+ stars</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+
 
                   {/* Brands Section */}
                   <div className="space-y-3">

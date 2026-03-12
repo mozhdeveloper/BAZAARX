@@ -283,10 +283,10 @@ export default function ShopPage() {
   }, [allProducts]);
 
   const otherProductsCount = useMemo(() => {
-    const activeCategoryNames = new Set(categories.map(c => c.name));
+    const activeCategoryNames = new Set(categories.map(c => c.name.toLowerCase()));
     let count = 0;
     for (const [catName, catCount] of categoryCountMap.entries()) {
-      if (!activeCategoryNames.has(catName)) {
+      if (!activeCategoryNames.has(catName.toLowerCase()) || catName.toLowerCase() === 'others') {
         count += catCount;
       }
     }
@@ -294,7 +294,7 @@ export default function ShopPage() {
   }, [categories, categoryCountMap]);
 
   const categoryOptions = useMemo(() => {
-    const options = ["All Categories", ...categories.map((cat) => cat.name)];
+    const options = ["All Categories", ...categories.filter(c => c.name.toLowerCase() !== 'others').map((cat) => cat.name)];
     if (otherProductsCount > 0) {
       options.push("Others");
     }
@@ -384,7 +384,7 @@ export default function ShopPage() {
       const matchesCategory =
         selectedCategory === "All Categories" ||
         (selectedCategory === "Others"
-          ? !categories.some(c => c.name.toLowerCase() === product.category.toLowerCase())
+          ? !categories.some(c => c.name.toLowerCase() === product.category.toLowerCase() && c.name.toLowerCase() !== 'others')
           : product.category.toLowerCase() === selectedCategory.toLowerCase());
 
       // Use slider price range instead of predefined ranges
@@ -809,7 +809,7 @@ export default function ShopPage() {
                           {allProducts.length}
                         </span>
                       </button>
-                      {categories.map((cat) => (
+                      {categories.filter(c => c.name.toLowerCase() !== 'others').map((cat) => (
                         <button
                           key={cat.id}
                           onClick={() => {
@@ -938,35 +938,7 @@ export default function ShopPage() {
                         </div>
                       </div>
 
-                      {/* Rating Filter */}
-                      <div className="space-y-3">
-                        <h3 className="font-bold text-[var(--text-headline)] text-sm">Minimum Rating</h3>
-                        <div className="flex flex-col gap-2">
-                          {[4, 3, 2, 1].map((rating) => (
-                            <button
-                              key={rating}
-                              onClick={() => {
-                                manualScrollRef.current = true;
-                                setMinRating(minRating === rating ? 0 : rating);
-                              }}
-                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${minRating === rating
-                                ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-bold border border-[var(--brand-primary)]/30"
-                                : "text-[var(--text-primary)] hover:bg-gray-50"
-                                }`}
-                            >
-                              <div className="flex items-center gap-0.5">
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`w-3.5 h-3.5 ${i < rating ? "text-yellow-400 fill-yellow-400" : "text-gray-200"}`}
-                                  />
-                                ))}
-                              </div>
-                              <span className="text-xs">{rating}+ stars</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+
 
                       {/* Brands Section */}
                       <div className="space-y-3">

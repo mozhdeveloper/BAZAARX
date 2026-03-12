@@ -39,8 +39,11 @@ const FlashCountdown = ({ endDate }: { endDate: Date }) => {
   const pad = (n: number) => String(n).padStart(2, '0');
 
   return (
-    <div className="flex items-center gap-2 my-4">
-      <span className="text-sm font-semibold text-red-600 uppercase tracking-wider">Ends in</span>
+    <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 text-red-600">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+        <span className="text-sm font-bold uppercase tracking-wider">Ends in</span>
+      </div>
       <div className="flex gap-1">
         {[
           { val: timeLeft.hours, label: 'h' },
@@ -98,17 +101,20 @@ const ProductRail: React.FC<ProductRailProps> = ({
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <h2 className="text-4xl lg:text-5xl font-bold text-[var(--text-headline)] mb-6 tracking-tight">
+              <h2 className={`text-4xl lg:text-5xl font-bold text-[var(--text-headline)] tracking-tight ${countdownEndDate ? 'mb-3' : 'mb-6'}`}>
                 {title}
               </h2>
+              {countdownEndDate && (
+                <div className="mb-6">
+                  <FlashCountdown endDate={countdownEndDate} />
+                </div>
+              )}
             </motion.div>
             {subtitle && (
               <p className="text-xl text-[var(--text-primary)] mb-8 leading-relaxed font-medium">
                 {subtitle}
               </p>
             )}
-
-            {countdownEndDate && <FlashCountdown endDate={countdownEndDate} />}
 
             <Link
               to={actionLink || "#"}
