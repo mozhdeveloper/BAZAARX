@@ -201,7 +201,6 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [sellers, setSellers] = useState<any[]>([]);
   const [categoryChips, setCategoryChips] = useState<CategoryChip[]>(DEFAULT_CATEGORY_CHIPS);
 
   const { searchQuery: initialSearchQuery, customResults, category: initialCategory } = route.params || {};
@@ -235,16 +234,12 @@ export default function ShopScreen({ navigation, route }: Props) {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [productsResult, categoriesResult, sellersResult] = await Promise.allSettled([
+        const [productsResult, categoriesResult] = await Promise.allSettled([
           productService.getProducts({
             isActive: true,
             approvalStatus: 'approved',
           }),
-          categoryService.getActiveCategories(), // <-- Change this line
-          supabase
-            .from('sellers')
-            .select('id, store_name, verified_at, approval_status')
-            .order('created_at', { ascending: false }),
+          categoryService.getActiveCategories(),
         ]);
 
         if (productsResult.status === 'fulfilled') {
@@ -267,17 +262,6 @@ export default function ShopScreen({ navigation, route }: Props) {
           setCategoryChips(DEFAULT_CATEGORY_CHIPS);
         }
 
-        if (sellersResult.status === 'fulfilled') {
-          if (sellersResult.value.error) {
-            console.error('[ShopScreen] Failed loading sellers:', sellersResult.value.error);
-            setSellers([]);
-          } else {
-            setSellers(sellersResult.value.data || []);
-          }
-        } else {
-          console.error('[ShopScreen] Failed loading sellers:', sellersResult.reason);
-          setSellers([]);
-        }
       } catch (err) {
         console.error('[ShopScreen] Error loading data:', err);
       } finally {
@@ -410,41 +394,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     return filtered;
   }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults, minPrice, maxPrice, categoryChips]);
 
-  // Pre-index products by seller_id for O(n+m) verified stores computation
-  const productsBySeller = useMemo(() => {
-    const map = new Map<string, typeof dbProducts>();
-    dbProducts.forEach(product => {
-      const sellerId = product.seller_id || product.sellerId;
-      if (!sellerId) return;
-      if (!map.has(sellerId)) map.set(sellerId, []);
-      map.get(sellerId)!.push(product);
-    });
-    return map;
-  }, [dbProducts]);
-
-  const verifiedStores = useMemo(() => {
-    return (sellers || [])
-      .map((seller) => {
-        const storeProducts = (productsBySeller.get(seller.id) || []).slice(0, 2);
-
-        const productRatings = storeProducts.map((product) => toNumber(product.rating, 0)).filter((rating) => rating > 0);
-        const computedRating =
-          productRatings.length > 0
-            ? Math.round((productRatings.reduce((sum, rating) => sum + rating, 0) / productRatings.length) * 10) / 10
-            : 4.8;
-
-        return {
-          id: seller.id,
-          name: seller.store_name || 'Store',
-          verified: !!seller.verified_at || seller.approval_status === 'verified',
-          rating: computedRating,
-          products: storeProducts
-            .map((product) => product.image)
-            .filter((image: unknown): image is string => typeof image === 'string' && image.length > 0),
-        };
-      })
-      .filter(s => s.products.length > 0);
-  }, [sellers, productsBySeller]);
 
   // Memoized FlatList callbacks to prevent re-creating functions on each render
   const handleProductPress = useCallback((product: Product) => {
@@ -472,7 +421,7 @@ export default function ShopScreen({ navigation, route }: Props) {
     );
   }, [isLoading]);
 
-  // Scrollable header: category chips + featured stores
+  // Scrollable header: category chips
   const listHeaderComponent = useMemo(() => (
     <View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
@@ -486,42 +435,8 @@ export default function ShopScreen({ navigation, route }: Props) {
           </Pressable>
         ))}
       </ScrollView>
-      {verifiedStores.length > 0 && searchQuery.trim() === '' && (
-        <View style={styles.storesSection}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Featured Stores</Text>
-            <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Verified Shops' })}>
-              <Text style={{ color: BRAND_COLOR, fontWeight: '700' }}>See All</Text>
-            </Pressable>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
-            {verifiedStores.map((store) => (
-              <Pressable key={store.id} style={styles.storeCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
-                <View style={styles.storeHeader}>
-                  <View style={styles.storeLogo}><Text style={{ fontSize: 20 }}>🏬</Text></View>
-                  <View style={styles.storeInfo}>
-                    <View style={styles.storeNameRow}>
-                      <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-                      {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
-                    </View>
-                    <View style={styles.ratingRow}>
-                      <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
-                      <Text style={styles.ratingText}>{store.rating}</Text>
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.storeProducts}>
-                  {store.products.map((url, i) => (
-                    <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
-                  ))}
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      )}
     </View>
-  ), [categoryChips, selectedCategory, verifiedStores, searchQuery, navigation]);
+  ), [categoryChips, selectedCategory]);
 
   return (
     <View
@@ -720,20 +635,6 @@ const styles = StyleSheet.create({
   categoryScroll: { paddingHorizontal: 20, paddingVertical: 8, gap: 10 },
   chip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 25, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' },
   chipText: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
-  storesSection: { marginTop: 5 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: '900', color: COLORS.textPrimary }, // Amber standard -> TextPrimary
-  storesScroll: { paddingHorizontal: 20, paddingVertical: 15, gap: 15 },
-  storeCard: { width: 260, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
-  storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  storeLogo: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
-  storeInfo: { flex: 1 },
-  storeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  storeName: { fontSize: 14, fontWeight: '700' },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  ratingText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
-  storeProducts: { flexDirection: 'row', gap: 8 },
-  storeProductThumb: { flex: 1, height: 60, borderRadius: 8, backgroundColor: '#F3F4F6' },
   productsSection: { paddingHorizontal: 20, marginTop: 15 },
   productsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 0 },
   cardWrapper: { width: (width - 48) / 2, marginBottom: 12 },

@@ -70,6 +70,7 @@ export default function StoreDetailScreen() {
                 // Fetch fresh seller data
                 const seller = await sellerService.getSellerById(store.id);
                 if (seller) {
+                    const logoUrl = seller.avatar_url || (seller as any).avatar || (seller as any).logo || store.logo;
                     setStoreData({
                         ...store,
                         ...seller,
@@ -77,7 +78,7 @@ export default function StoreDetailScreen() {
                         location: seller.city ? `${seller.city}, ${seller.province}` : (seller.business_profile?.address_line_1 || store.location),
                         description: seller.store_description || store.description,
                         rating: seller.rating || store.rating || 0,
-                        logo: seller.store_name?.substring(0, 2).toUpperCase() || store.logo
+                        logo: logoUrl
                     });
                 }
 
@@ -122,11 +123,17 @@ export default function StoreDetailScreen() {
                 if (products && products.length > 0) {
                     // Map database products to display format
                     const mappedProducts = products.map(p => {
+                        // Get all images
+                        const images = (p as any).images?.map((img: any) => 
+                            typeof img === 'string' ? img : img.image_url
+                        ).filter(Boolean) || [];
+
                         // Get primary image or first image
-                        const primaryImage = (p as any).images?.find((img: any) => img.is_primary)?.image_url
-                            || (p as any).images?.[0]?.image_url
-                            || (p as any).images?.[0]
+                        const primaryImageStr = (p as any).images?.find((img: any) => img.is_primary)?.image_url
+                            || images[0]
                             || 'https://placehold.co/400?text=Product';
+                        
+                        const primaryImage = safeImageUri(primaryImageStr);
 
                         // Get category name from join
                         const categoryName = typeof (p as any).category === 'object'
@@ -141,6 +148,7 @@ export default function StoreDetailScreen() {
                             campaignDiscountType: (p as any).campaignDiscountType,
                             campaignDiscountValue: (p as any).campaignDiscountValue,
                             image: primaryImage,
+                            images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
                             rating: (p as any).rating || 5.0,
                             sold: (p as any).sold || (p as any).sales_count || 0,
                             category: categoryName,
@@ -408,7 +416,15 @@ export default function StoreDetailScreen() {
                     <View style={styles.storeInfoContent}>
                         <View style={styles.mainInfo}>
                             <View style={styles.logoContainer}>
-                                <Text style={styles.logoText}>{store.logo}</Text>
+                                {storeData.logo && (storeData.logo.startsWith('http') || storeData.logo.startsWith('/') || storeData.logo.startsWith('data:')) ? (
+                                    <Image 
+                                        source={{ uri: safeImageUri(storeData.logo) }} 
+                                        style={{ width: '100%', height: '100%', borderRadius: 35 }} 
+                                        resizeMode="cover" 
+                                    />
+                                ) : (
+                                    <Text style={styles.logoText}>{storeData.logo || storeData.name?.substring(0, 2).toUpperCase() || 'S'}</Text>
+                                )}
                             </View>
                             <View style={styles.textInfo}>
                                 <View style={styles.nameLockup}>

@@ -311,10 +311,12 @@ export default function HomeScreen({ navigation }: Props) {
           const images = row.images?.map((img: any) =>
             typeof img === 'string' ? img : img.image_url
           ).filter(Boolean) || [];
-          const primaryImage = row.images?.find((img: any) => img.is_primary)?.image_url
+          const primaryImage = safeImageUri(
+            row.images?.find((img: any) => img.is_primary)?.image_url
             || images[0]
             || row.primary_image
-            || '';
+            || ''
+          );
 
           const rawVariants = Array.isArray(row.variants) ? row.variants : [];
           const variants = rawVariants.map((v: any) => ({
@@ -328,14 +330,14 @@ export default function HomeScreen({ navigation }: Props) {
             option_2_value: v.option_2_value,
             price: v.price ?? row.price,
             stock: v.stock ?? 0,
-            thumbnail_url: v.thumbnail_url,
+            thumbnail_url: v.thumbnail_url ? safeImageUri(v.thumbnail_url) : undefined,
           }));
 
           return {
             ...row,
             price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
             image: primaryImage,
-            images: images.length > 0 ? images : [primaryImage],
+            images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
             seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
           } as Product;
         });
@@ -558,10 +560,10 @@ export default function HomeScreen({ navigation }: Props) {
         return {
           id: seller.id,
           name: seller.store_name || seller.storeName || 'Store',
-          logo: seller.avatar || seller.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.store_name || seller.storeName || 'S')}&background=FFD89A&color=78350F`,
+          logo: safeImageUri(seller.avatar_url || seller.avatar || seller.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.store_name || seller.storeName || 'S')}&background=FFD89A&color=78350F`),
           verified: seller.approval_status === 'verified' || !!seller.verified_at,
           rating: computedRating,
-          products: storeProducts.map((product) => product.image).filter((image: unknown): image is string => typeof image === 'string' && image.length > 0),
+          products: storeProducts.map((product) => safeImageUri(product.image)).filter((image: unknown): image is string => typeof image === 'string' && image.length > 0),
         };
       })
       .filter(s => s.products.length > 0)
@@ -959,7 +961,7 @@ export default function HomeScreen({ navigation }: Props) {
               <View style={{ marginTop: 20, marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
                   <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Stores</Text>
-                  <Pressable onPress={() => navigation.navigate('Shop', {})}>
+                  <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Featured Stores' })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
