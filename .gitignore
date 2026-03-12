@@ -21,6 +21,7 @@ dist-ssr
 general.md
 plan.md
 codegen.md
+docs/plans/
 
 # Editor directories and files
 .vscode/*

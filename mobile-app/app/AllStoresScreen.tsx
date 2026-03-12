@@ -33,14 +33,14 @@ export default function AllStoresScreen() {
                     // Map database stores to display format
                     const mappedStores = stores.map(s => ({
                         id: s.id,
-                        name: s.business_name || s.store_name || 'Store',
-                        logo: (s.store_name || s.business_name || 'S').substring(0, 1).toUpperCase(),
-                        banner: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=300&fit=crop',
+                        name: s.store_name || s.business_name || 'Store',
+                        logo: s.avatar_url || (s.store_name || s.business_name || 'S').substring(0, 1).toUpperCase(),
+                        banner: (s as any).banner_url || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=300&fit=crop',
                         rating: s.rating || 5.0,
                         location: s.city || s.province || 'Philippines',
-                        followers: 0, // backend doesn't return this yet in list view efficiently
+                        followers: 0,
                         products: Array(s.products_count || 0).fill({}),
-                        categories: [], // Categories not on SellerData type
+                        categories: [],
                         isVerified: s.is_verified
                     }));
                     setRealStores(mappedStores);
@@ -66,7 +66,11 @@ export default function AllStoresScreen() {
             <Image source={{ uri: safeImageUri(item.banner, PLACEHOLDER_BANNER) }} style={styles.shopImage} contentFit="cover" cachePolicy="memory-disk" />
             <View style={styles.overlay} />
             <View style={styles.logoContainer}>
-                <Text style={{ fontSize: 24 }}>{item.logo}</Text>
+                {item.logo && item.logo.length > 1 ? (
+                     <Image source={{ uri: safeImageUri(item.logo) }} style={{ width: '100%', height: '100%', borderRadius: 30 }} contentFit="cover" />
+                ) : (
+                     <Text style={{ fontSize: 24, fontWeight: '700', color: BRAND_COLOR }}>{item.logo}</Text>
+                )}
             </View>
             <View style={styles.shopInfo}>
                 <View style={styles.shopHeader}>

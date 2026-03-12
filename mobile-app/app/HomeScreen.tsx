@@ -1,3 +1,4 @@
+// Forced sync at 2026-03-12 11:30
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
@@ -13,6 +14,7 @@ import {
   TouchableOpacity,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,10 +61,12 @@ type Props = CompositeScreenProps<
 >;
 
 // 5 columns, 20px padding each side, 10px gaps
-const { width } = Dimensions.get('window');
-const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const HORIZONTAL_PADDING = 20;
+const GRID_GAP = 10;
+const STATIC_CATEGORY_ITEM_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4)) / 5;
 
-const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string; iconValue: string | null; imageUrl?: string | null }) => {
+const CategoryItem = React.memo(({ label, iconValue, imageUrl, itemWidth }: { label: string; iconValue: string | null; imageUrl?: string | null; itemWidth: number }) => {
   const [imageError, setImageError] = useState(false);
   const isIconName = iconValue ? /^[a-z0-9-]+$/.test(iconValue) : false;
   const displayValue = iconValue || 'tag';
@@ -79,6 +83,9 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
     <View style={styles.categoryItm}>
       {finalImageUri ? (
         <View style={[styles.categoryIconBox, {
+          width: itemWidth - 2,
+          height: itemWidth - 2,
+          borderRadius: (itemWidth - 2) / 2,
           backgroundColor: 'transparent',
           shadowColor: COLORS.primary,
           shadowOffset: { width: 0, height: 4 },
@@ -99,6 +106,9 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
         <LinearGradient
           colors={['#FFFFFF', '#FFFBF0']}
           style={[styles.categoryIconBox, {
+            width: itemWidth - 2,
+            height: itemWidth - 2,
+            borderRadius: (itemWidth - 2) / 2,
             shadowColor: COLORS.primary,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.08,
@@ -131,6 +141,9 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl }: { label: string
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const CATEGORY_ITEM_WIDTH = (screenWidth - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4)) / 5;
+
   const BRAND_COLOR = COLORS.primary;
   const { user, isGuest } = useAuthStore();
 
@@ -152,7 +165,7 @@ export default function HomeScreen({ navigation }: Props) {
   const deliveryCoordinates = sessionAddress.coordinates;
   const [showLocationModal, setShowLocationModal] = useState(false);
 
-  const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -175,6 +188,39 @@ export default function HomeScreen({ navigation }: Props) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Load recent searches from AsyncStorage on mount
+  useEffect(() => {
+    const loadRecentSearches = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('recentSearches');
+        if (saved) {
+          setRecentSearches(JSON.parse(saved));
+        }
+      } catch (e) {
+        console.error('[HomeScreen] Failed to load recent searches:', e);
+      }
+    };
+    loadRecentSearches();
+  }, []);
+
+  const saveRecentSearch = useCallback(async (term: string) => {
+    if (!term.trim()) return;
+    const cleanTerm = term.trim();
+    
+    setRecentSearches(prev => {
+      // Remove term if it already exists, then add to front
+      const filtered = prev.filter(t => t.toLowerCase() !== cleanTerm.toLowerCase());
+      const updated = [cleanTerm, ...filtered].slice(0, 10);
+      
+      // Persist to AsyncStorage
+      AsyncStorage.setItem('recentSearches', JSON.stringify(updated)).catch(e => {
+        console.error('[HomeScreen] Failed to save recent searches:', e);
+      });
+      
+      return updated;
+    });
+  }, []);
+
   const promoSlides = [
     {
       id: '1',
@@ -196,7 +242,7 @@ export default function HomeScreen({ navigation }: Props) {
       image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80', // Headphones
       gradient: ['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)'],
       screen: 'Shop',
-      params: { category: 'electronics' }
+      params: { category: 'electronics' } // Note: Ideally these should be IDs from DB
     },
     {
       id: '3',
@@ -207,7 +253,7 @@ export default function HomeScreen({ navigation }: Props) {
       image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800&q=80', // Working Office Chair link
       gradient: ['rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0.85)'],
       screen: 'Shop',
-      params: { category: 'home' }
+      params: { category: 'home-living' } // Changed from 'home' to match likely slug/id
     }
   ];
 
@@ -265,10 +311,12 @@ export default function HomeScreen({ navigation }: Props) {
           const images = row.images?.map((img: any) =>
             typeof img === 'string' ? img : img.image_url
           ).filter(Boolean) || [];
-          const primaryImage = row.images?.find((img: any) => img.is_primary)?.image_url
+          const primaryImage = safeImageUri(
+            row.images?.find((img: any) => img.is_primary)?.image_url
             || images[0]
             || row.primary_image
-            || '';
+            || ''
+          );
 
           const rawVariants = Array.isArray(row.variants) ? row.variants : [];
           const variants = rawVariants.map((v: any) => ({
@@ -282,14 +330,14 @@ export default function HomeScreen({ navigation }: Props) {
             option_2_value: v.option_2_value,
             price: v.price ?? row.price,
             stock: v.stock ?? 0,
-            thumbnail_url: v.thumbnail_url,
+            thumbnail_url: v.thumbnail_url ? safeImageUri(v.thumbnail_url) : undefined,
           }));
 
           return {
             ...row,
             price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
             image: primaryImage,
-            images: images.length > 0 ? images : [primaryImage],
+            images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
             seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
           } as Product;
         });
@@ -425,7 +473,7 @@ export default function HomeScreen({ navigation }: Props) {
     const interval = setInterval(() => {
       let nextSlide = activeSlide + 1;
       if (nextSlide >= promoSlides.length) nextSlide = 0;
-      scrollRef.current?.scrollTo({ x: nextSlide * width, animated: true });
+      scrollRef.current?.scrollTo({ x: nextSlide * SCREEN_WIDTH, animated: true });
       setActiveSlide(nextSlide);
     }, 4000);
     return () => clearInterval(interval);
@@ -512,10 +560,10 @@ export default function HomeScreen({ navigation }: Props) {
         return {
           id: seller.id,
           name: seller.store_name || seller.storeName || 'Store',
-          logo: seller.avatar || seller.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.store_name || seller.storeName || 'S')}&background=FFD89A&color=78350F`,
+          logo: safeImageUri(seller.avatar_url || seller.avatar || seller.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.store_name || seller.storeName || 'S')}&background=FFD89A&color=78350F`),
           verified: seller.approval_status === 'verified' || !!seller.verified_at,
           rating: computedRating,
-          products: storeProducts.map((product) => product.image).filter((image: unknown): image is string => typeof image === 'string' && image.length > 0),
+          products: storeProducts.map((product) => safeImageUri(product.image)).filter((image: unknown): image is string => typeof image === 'string' && image.length > 0),
         };
       })
       .filter(s => s.products.length > 0)
@@ -525,8 +573,11 @@ export default function HomeScreen({ navigation }: Props) {
   // flashCountdown state is declared above with other state (before the consolidated timer)
 
   const handleProductPress = useCallback((product: Product) => {
+    if (searchQuery.trim()) {
+      saveRecentSearch(searchQuery);
+    }
     navigation.navigate('ProductDetail', { product });
-  }, [navigation]);
+  }, [navigation, searchQuery, saveRecentSearch]);
 
   // Memoized scroll handler — avoids re-creating the function on every render
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -597,6 +648,11 @@ export default function HomeScreen({ navigation }: Props) {
               value={searchQuery}
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
+              onSubmitEditing={() => {
+                if (searchQuery.trim()) {
+                  saveRecentSearch(searchQuery);
+                }
+              }}
             />
             <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color={COLORS.primary} /></Pressable>
           </View>
@@ -621,11 +677,21 @@ export default function HomeScreen({ navigation }: Props) {
               <View style={styles.recentSection}>
                 <Text style={styles.discoveryTitle}>Recent Searches</Text>
                 {recentSearches.map((term, i) => (
-                  <Pressable key={i} style={styles.searchRecentItem} onPress={() => setSearchQuery(term)}>
+                  <Pressable 
+                    key={i} 
+                    style={styles.searchRecentItem} 
+                    onPress={() => {
+                      setSearchQuery(term);
+                      saveRecentSearch(term); // Move to top
+                    }}
+                  >
                     <Clock size={16} color="#9CA3AF" />
                     <Text style={styles.searchRecentText}>{term}</Text>
                   </Pressable>
                 ))}
+                {recentSearches.length === 0 && (
+                  <Text style={{ color: '#9CA3AF', fontSize: 14, fontStyle: 'italic', marginTop: 10 }}>No recent searches</Text>
+                )}
               </View>
             ) : (
               <View style={styles.resultsSection}>
@@ -674,7 +740,12 @@ export default function HomeScreen({ navigation }: Props) {
                         <Pressable
                           key={s.id}
                           style={styles.storeSearchResultCard}
-                          onPress={() => navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } })}
+                          onPress={() => {
+                            if (searchQuery.trim()) {
+                              saveRecentSearch(searchQuery);
+                            }
+                            navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } });
+                          }}
                         >
                           <View style={styles.storeSearchIcon}><Text style={{ fontSize: 20 }}>🏬</Text></View>
                           <View style={{ flex: 1 }}>
@@ -715,7 +786,7 @@ export default function HomeScreen({ navigation }: Props) {
                 showsHorizontalScrollIndicator={false}
                 onScroll={(e) => {
                   const x = e.nativeEvent.contentOffset.x;
-                  const index = Math.round(x / width);
+                  const index = Math.round(x / SCREEN_WIDTH);
                   if (index !== activeSlide) setActiveSlide(index);
                 }}
                 scrollEventThrottle={16}
@@ -723,7 +794,7 @@ export default function HomeScreen({ navigation }: Props) {
                 {promoSlides.map((slide) => (
                   <Pressable
                     key={slide.id}
-                    style={[styles.promoBox, { width: width - 40 }]}
+                    style={[styles.promoBox, { width: SCREEN_WIDTH - 40 }]}
                     onPress={() => {
                       if (slide.screen) {
                         navigation.navigate(slide.screen as any, slide.params);
@@ -781,10 +852,10 @@ export default function HomeScreen({ navigation }: Props) {
               {dbCategories.slice(0, 10).map((item) => (
                 <Pressable
                   key={item.id}
-                  style={styles.categoryGridItem}
+                  style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
                   onPress={() => navigation.navigate('Shop', { category: item.id })}
                 >
-                  <CategoryItem label={item.name} iconValue={item.icon} imageUrl={item.image_url} />
+                  <CategoryItem label={item.name} iconValue={item.icon} imageUrl={item.image_url} itemWidth={CATEGORY_ITEM_WIDTH} />
                 </Pressable>
               ))}
             </View>
@@ -890,7 +961,7 @@ export default function HomeScreen({ navigation }: Props) {
               <View style={{ marginTop: 20, marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
                   <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Stores</Text>
-                  <Pressable onPress={() => navigation.navigate('Shop', {})}>
+                  <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Featured Stores' })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
@@ -994,11 +1065,11 @@ export default function HomeScreen({ navigation }: Props) {
               {dbCategories.map((item) => (
                 <Pressable
                   key={item.id}
-                  style={styles.categoryGridItem}
+                  style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
                   onPress={() => navigation.navigate('Shop', { category: item.id })}
                 >
                   {/* Change iconName to iconValue here */}
-                  <CategoryItem label={item.name} iconValue={item.icon} />
+                  <CategoryItem label={item.name} iconValue={item.icon} itemWidth={CATEGORY_ITEM_WIDTH} />
                 </Pressable>
               ))}
             </View>
@@ -1127,12 +1198,12 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 5 },
   sectionTitle: { fontSize: 19, fontWeight: 'bold', color: COLORS.textHeadline },
   seeAll: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 10, gap: 10 },
-  categoryGridItem: { width: CATEGORY_ITEM_WIDTH, alignItems: 'center' },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: HORIZONTAL_PADDING, marginBottom: 10, gap: GRID_GAP },
+  categoryGridItem: { alignItems: 'center' },
   categoryItm: { alignItems: 'center', gap: 6 },
-  categoryIconBox: { width: CATEGORY_ITEM_WIDTH - 2, height: CATEGORY_ITEM_WIDTH - 2, borderRadius: (CATEGORY_ITEM_WIDTH - 2) / 2, justifyContent: 'center', alignItems: 'center' },
+  categoryIconBox: { justifyContent: 'center', alignItems: 'center' },
   categoryLabel: { fontSize: 11, color: COLORS.textHeadline, fontWeight: '700', textAlign: 'center', lineHeight: 14, marginTop: 10 },
-  itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
+  itemBoxContainerVertical: { width: (SCREEN_WIDTH - 48) / 2, marginBottom: 12 },
   section: { paddingHorizontal: 20, marginVertical: 5 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
   productRequestButtonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
