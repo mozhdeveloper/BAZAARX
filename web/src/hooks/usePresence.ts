@@ -10,6 +10,7 @@ export function usePresence() {
   const buyerProfile = useBuyerStore((state) => state.profile);
   const sellerProfile = useAuthStore((state) => state.seller);
   const userId = buyerProfile?.id || sellerProfile?.id;
+  const userType: 'buyer' | 'seller' = buyerProfile?.id ? 'buyer' : 'seller';
 
   // Holds the pending "go offline" timer so it can be cancelled if the user returns
   const offlineTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

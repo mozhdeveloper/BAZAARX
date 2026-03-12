@@ -17,6 +17,11 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Project-specific docs to ignore
+general.md
+plan.md
+codegen.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

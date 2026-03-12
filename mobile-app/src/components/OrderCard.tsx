@@ -310,6 +310,16 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           {order.review.comment ? (
             <Text style={styles.reviewComment}>"{order.review.comment}"</Text>
           ) : null}
+          {order.review.seller_reply ? (
+            <View style={styles.sellerReplySection}>
+              <Text style={styles.sellerReplyLabel}>Seller's Reply</Text>
+              <Text style={styles.sellerReplyText}>
+                {typeof order.review.seller_reply === 'string'
+                  ? order.review.seller_reply
+                  : (order.review.seller_reply as any)?.message || ''}
+              </Text>
+            </View>
+          ) : null}
         </View>
       )}
     </View>
@@ -536,5 +546,23 @@ const styles = StyleSheet.create({
   ratingStars: {
     flexDirection: 'row',
     gap: 2,
+  },
+  sellerReplySection: {
+    marginTop: 8,
+    paddingLeft: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: '#D97706',
+  },
+  sellerReplyLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#D97706',
+    marginBottom: 2,
+  },
+  sellerReplyText: {
+    fontSize: 13,
+    color: '#4B5563',
+    fontStyle: 'italic',
+    lineHeight: 18,
   },
 });

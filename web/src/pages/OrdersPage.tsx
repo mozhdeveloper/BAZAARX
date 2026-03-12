@@ -902,20 +902,6 @@ export default function OrdersPage() {
 
                                   setBuyAgainItems(cartItems);
                                   navigate('/checkout', { state: { fromBuyAgain: true } });
-                                  // Navigate to the first product's detail page
-                                  const firstItem = order.items[0];
-                                  const productId = (firstItem as any).productId || firstItem.id;
-
-                                  if (!productId) {
-                                    toast({
-                                      title: "Cannot buy again",
-                                      description: "Product information unavailable.",
-                                      variant: "destructive"
-                                    });
-                                    return;
-                                  }
-
-                                  navigate(`/product/${productId}`);
                                 }}
                                 size="sm"
                                 className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md shadow-orange-500/20"
