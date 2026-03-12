@@ -152,7 +152,7 @@ export default function HomeScreen({ navigation }: Props) {
   const deliveryCoordinates = sessionAddress.coordinates;
   const [showLocationModal, setShowLocationModal] = useState(false);
 
-  const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -174,6 +174,39 @@ export default function HomeScreen({ navigation }: Props) {
     const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 250);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Load recent searches from AsyncStorage on mount
+  useEffect(() => {
+    const loadRecentSearches = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('recentSearches');
+        if (saved) {
+          setRecentSearches(JSON.parse(saved));
+        }
+      } catch (e) {
+        console.error('[HomeScreen] Failed to load recent searches:', e);
+      }
+    };
+    loadRecentSearches();
+  }, []);
+
+  const saveRecentSearch = useCallback(async (term: string) => {
+    if (!term.trim()) return;
+    const cleanTerm = term.trim();
+    
+    setRecentSearches(prev => {
+      // Remove term if it already exists, then add to front
+      const filtered = prev.filter(t => t.toLowerCase() !== cleanTerm.toLowerCase());
+      const updated = [cleanTerm, ...filtered].slice(0, 10);
+      
+      // Persist to AsyncStorage
+      AsyncStorage.setItem('recentSearches', JSON.stringify(updated)).catch(e => {
+        console.error('[HomeScreen] Failed to save recent searches:', e);
+      });
+      
+      return updated;
+    });
+  }, []);
 
   const promoSlides = [
     {
@@ -525,8 +558,11 @@ export default function HomeScreen({ navigation }: Props) {
   // flashCountdown state is declared above with other state (before the consolidated timer)
 
   const handleProductPress = useCallback((product: Product) => {
+    if (searchQuery.trim()) {
+      saveRecentSearch(searchQuery);
+    }
     navigation.navigate('ProductDetail', { product });
-  }, [navigation]);
+  }, [navigation, searchQuery, saveRecentSearch]);
 
   // Memoized scroll handler — avoids re-creating the function on every render
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -597,6 +633,11 @@ export default function HomeScreen({ navigation }: Props) {
               value={searchQuery}
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
+              onSubmitEditing={() => {
+                if (searchQuery.trim()) {
+                  saveRecentSearch(searchQuery);
+                }
+              }}
             />
             <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color={COLORS.primary} /></Pressable>
           </View>
@@ -621,11 +662,21 @@ export default function HomeScreen({ navigation }: Props) {
               <View style={styles.recentSection}>
                 <Text style={styles.discoveryTitle}>Recent Searches</Text>
                 {recentSearches.map((term, i) => (
-                  <Pressable key={i} style={styles.searchRecentItem} onPress={() => setSearchQuery(term)}>
+                  <Pressable 
+                    key={i} 
+                    style={styles.searchRecentItem} 
+                    onPress={() => {
+                      setSearchQuery(term);
+                      saveRecentSearch(term); // Move to top
+                    }}
+                  >
                     <Clock size={16} color="#9CA3AF" />
                     <Text style={styles.searchRecentText}>{term}</Text>
                   </Pressable>
                 ))}
+                {recentSearches.length === 0 && (
+                  <Text style={{ color: '#9CA3AF', fontSize: 14, fontStyle: 'italic', marginTop: 10 }}>No recent searches</Text>
+                )}
               </View>
             ) : (
               <View style={styles.resultsSection}>
@@ -674,7 +725,12 @@ export default function HomeScreen({ navigation }: Props) {
                         <Pressable
                           key={s.id}
                           style={styles.storeSearchResultCard}
-                          onPress={() => navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } })}
+                          onPress={() => {
+                            if (searchQuery.trim()) {
+                              saveRecentSearch(searchQuery);
+                            }
+                            navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } });
+                          }}
                         >
                           <View style={styles.storeSearchIcon}><Text style={{ fontSize: 20 }}>🏬</Text></View>
                           <View style={{ flex: 1 }}>
