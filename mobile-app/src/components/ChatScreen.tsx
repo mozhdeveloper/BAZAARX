@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, Pressable, ScrollView,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Image
+  View, Text, StyleSheet, TextInput, Pressable, FlatList,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Image, ListRenderItemInfo,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Send, Store, User, Ticket } from 'lucide-react-native';
@@ -10,6 +10,21 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../constants/theme';
 import { chatService, Conversation, Message } from '../services/chatService';
 import type { RootStackParamList } from '../../App';
+
+// ─── Typed list items ──────────────────────────────────────────────────────────
+type MessageItem = { type: 'message'; data: Message; id: string };
+type DateSepItem = { type: 'date_sep'; label: string; id: string };
+type ListItem = MessageItem | DateSepItem;
+
+// ─── Date label helper ─────────────────────────────────────────────────────────
+function formatDateLabel(dateKey: string): string {
+  const date = new Date(dateKey);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return date.toLocaleDateString([], { month: 'long', day: 'numeric', year: diffDays > 365 ? 'numeric' : undefined });
+}
 
 export default function ChatScreen({ conversation, currentUserId, userType, onBack }: any) {
   const insets = useSafeAreaInsets();
@@ -23,10 +38,35 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
   const handleBack = isScreen ? () => navigation.goBack() : onBack;
 
   const conversationId = effectiveConversation?.id;
-  const scrollViewRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // ─── Build flat data array for inverted FlatList ──────────────────────────
+  // Messages are kept in chronological order (oldest → newest).
+  // We reverse them so index 0 == newest, which inverted FlatList places at
+  // the bottom — the natural chat anchor point.
+  // Date separators are interleaved so they appear above the first message of
+  // each day (visually "above" = higher index in the inverted array).
+  const listData = useMemo((): ListItem[] => {
+    const sorted = [...messages].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    const flat: ListItem[] = [];
+    let lastDateKey = '';
+    sorted.forEach((msg) => {
+      const dateKey = new Date(msg.created_at).toDateString();
+      if (dateKey !== lastDateKey) {
+        flat.push({ type: 'date_sep', label: formatDateLabel(dateKey), id: `sep-${dateKey}` });
+        lastDateKey = dateKey;
+      }
+      flat.push({ type: 'message', data: msg, id: msg.id });
+    });
+
+    // Reverse: newest message ends up at index 0 → renders at bottom with inverted
+    return flat.reverse();
+  }, [messages]);
 
   const displayName = effectiveUserType === 'buyer'
     ? effectiveConversation?.seller_store_name || 'Store'
@@ -36,6 +76,7 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
     ? effectiveConversation?.seller_avatar
     : effectiveConversation?.buyer_avatar;
 
+  // ─── Load initial messages ────────────────────────────────────────────────
   const loadMessages = useCallback(async () => {
     if (!conversationId) return;
     try {
@@ -51,41 +92,102 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
+  // ─── Real-time subscription ───────────────────────────────────────────────
   useEffect(() => {
     if (!conversationId) return;
     const unsubscribe = chatService.subscribeToMessages(conversationId, (newMsg) => {
       setMessages(prev => {
-        if (prev.some(msg => msg.id === newMsg.id)) return prev;
+        // Deduplicate: skip if we already have this id (avoid echoing optimistic msg)
+        if (prev.some(m => m.id === newMsg.id)) return prev;
         return [...prev, newMsg];
       });
-      if (newMsg.sender_type !== effectiveUserType) chatService.markAsRead(conversationId, effectiveUserId, effectiveUserType);
+      if (newMsg.sender_type !== effectiveUserType) {
+        chatService.markAsRead(conversationId, effectiveUserId, effectiveUserType);
+      }
     });
-    return unsubscribe;
+    return unsubscribe; // teardown on unmount / conversationId change
   }, [conversationId, effectiveUserId, effectiveUserType]);
 
+  // ─── Optimistic send ──────────────────────────────────────────────────────
   const handleSend = async () => {
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !conversationId) return;
     const messageText = newMessage.trim();
+    const tempId = `temp-${Date.now()}`;
+
+    // 1. Append a temporary optimistic message immediately
+    const tempMsg: Message = {
+      id: tempId,
+      conversation_id: conversationId,
+      sender_id: effectiveUserId,
+      sender_type: effectiveUserType,
+      content: messageText,
+      is_read: false,
+      created_at: new Date().toISOString(),
+      message_type: 'user',
+    };
+    setMessages(prev => [...prev, tempMsg]);
     setNewMessage('');
+
     try {
-      const sentMsg = await chatService.sendMessage(conversationId, effectiveUserId, effectiveUserType, messageText);
-      if (sentMsg) setMessages(prev => prev.some(m => m.id === sentMsg.id) ? prev : [...prev, sentMsg]);
+      const sentMsg = await chatService.sendMessage(
+        conversationId, effectiveUserId, effectiveUserType, messageText
+      );
+      if (sentMsg) {
+        setMessages(prev =>
+          // If the realtime echo already added it, just drop the temp; otherwise swap
+          prev.some(m => m.id === sentMsg.id)
+            ? prev.filter(m => m.id !== tempId)
+            : prev.map(m => m.id === tempId ? sentMsg : m)
+        );
+      }
     } catch (error) {
+      // Rollback: remove temp message and restore input
+      setMessages(prev => prev.filter(m => m.id !== tempId));
       setNewMessage(messageText);
     }
   };
 
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+  const formatTime = (dateString: string) =>
+    new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const groupedMessages: { date: string; messages: Message[] }[] = [];
-  messages.forEach(msg => {
-    const dateKey = new Date(msg.created_at).toDateString();
-    const lastGroup = groupedMessages[groupedMessages.length - 1];
-    if (lastGroup && new Date(lastGroup.messages[0].created_at).toDateString() === dateKey) lastGroup.messages.push(msg);
-    else groupedMessages.push({ date: dateKey, messages: [msg] });
-  });
+  // ─── FlatList render functions ────────────────────────────────────────────
+  const renderItem = ({ item }: ListRenderItemInfo<ListItem>) => {
+    if (item.type === 'date_sep') {
+      return (
+        <View style={styles.dateSepWrapper}>
+          <View style={styles.dateSepLine} />
+          <Text style={styles.dateSepText}>{item.label}</Text>
+          <View style={styles.dateSepLine} />
+        </View>
+      );
+    }
+
+    const msg = item.data;
+
+    if (msg.message_type === 'system') {
+      return (
+        <View style={styles.systemMessageWrapper}>
+          <View style={styles.systemMessageDivider} />
+          <Text style={styles.systemMessageText}>{msg.content || msg.message_content}</Text>
+          <View style={styles.systemMessageDivider} />
+        </View>
+      );
+    }
+
+    const isMe = msg.sender_type === effectiveUserType;
+    const isPending = msg.id.startsWith('temp-');
+    return (
+      <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
+        <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
+          {msg.content}
+        </Text>
+        <Text style={[styles.messageTime, isMe ? styles.myMessageTime : styles.theirMessageTime]}>
+          {isPending ? '·' : formatTime(msg.created_at)}
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}>
@@ -125,35 +227,21 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
       {loading ? (
         <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.primary} /></View>
       ) : (
-        <ScrollView ref={scrollViewRef} style={styles.messagesContainer} contentContainerStyle={styles.messagesContent} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
-          {groupedMessages.map((group, groupIdx) => (
-            <View key={groupIdx}>
-              {group.messages.map((msg) => {
-                if (msg.message_type === 'system') {
-                  return (
-                    <View key={msg.id} style={styles.systemMessageWrapper}>
-                      <View style={styles.systemMessageDivider} />
-                      <Text style={styles.systemMessageText}>{msg.content || msg.message_content}</Text>
-                      <View style={styles.systemMessageDivider} />
-                    </View>
-                  );
-                }
-
-                const isMe = msg.sender_type === effectiveUserType;
-                return (
-                  <View key={msg.id} style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
-                    <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
-                      {msg.content}
-                    </Text>
-                    <Text style={[styles.messageTime, isMe ? styles.myMessageTime : styles.theirMessageTime]}>
-                      {formatTime(msg.created_at)}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          ))}
-        </ScrollView>
+        /* inverted={true} anchors the list to the bottom natively.
+           data is pre-reversed (newest = index 0) so the newest message
+           renders at the bottom and new items animate in from there.
+           keyboardDismissMode="interactive" gives a native swipe-to-dismiss. */
+        <FlatList<ListItem>
+          data={listData}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          inverted={true}
+          style={styles.messagesContainer}
+          contentContainerStyle={styles.messagesContent}
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        />
       )}
 
       <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
@@ -200,6 +288,9 @@ const styles = StyleSheet.create({
   messageTime: { fontSize: 11, marginTop: 4 },
   myMessageTime: { color: 'rgba(255, 255, 255, 0.7)', textAlign: 'right' },
   theirMessageTime: { color: '#9CA3AF' },
+  dateSepWrapper: { flexDirection: 'row', alignItems: 'center', marginVertical: 12, paddingHorizontal: 16 },
+  dateSepLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
+  dateSepText: { marginHorizontal: 10, fontSize: 11, fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
   inputContainer: { backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 12 },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
   input: { flex: 1, backgroundColor: '#F2F2F2', borderRadius: 999, paddingHorizontal: 20, paddingVertical: 12, fontSize: 15, color: '#1F2937' },

@@ -17,17 +17,11 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
-import { useChatStore } from '@/stores/chatStore';
+// INTEGRATION POINT: ChatMessage type is now exported from the store
+import { useChatStore, ChatMessage } from '@/stores/chatStore';
 import { useBuyerStore } from '@/stores/buyerStore';
 import { chatService, Message, Conversation } from '@/services/chatService';
-
-interface ChatMessage {
-  id: string;
-  sender: 'buyer' | 'seller' | 'system';
-  message: string;
-  timestamp: Date;
-  read: boolean;
-}
+import { useChatRealtime } from '@/hooks/useChatRealtime';
 
 export function ChatBubble() {
   const {
@@ -36,18 +30,24 @@ export function ChatBubble() {
     chatTarget,
     unreadCount,
     position,
+    // INTEGRATION POINT: messages are now sourced from the Zustand store
+    messages,
     openChat,
     closeChat,
     toggleChat,
     setMiniMode,
     setUnreadCount,
     setPosition,
-    clearChatTarget
+    clearChatTarget,
+    addMessage,
+    setMessages,
+    clearMessages,
+    replaceMessage,
+    removeMessage,
   } = useChatStore();
 
   const { profile } = useBuyerStore();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -55,15 +55,21 @@ export function ChatBubble() {
   const [isDragging, setIsDragging] = useState(false);
   const [isBubbleHovered, setIsBubbleHovered] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const dragControls = useDragControls();
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // INTEGRATION POINT: replaces subscribeToConversation; flex-col-reverse layout
+  // anchors scroll to the newest message without JS scrollIntoView.
+  useChatRealtime(conversation?.id, (msg) => {
+    if (msg.sender === 'seller') {
+      if (!isOpen) {
+        setUnreadCount(unreadCount + 1);
+      } else if (conversation?.id) {
+        chatService.markConversationAsRead(conversation.id, 'buyer');
+      }
+    }
+  });
 
   // Load conversation when chat target changes
   useEffect(() => {
@@ -73,6 +79,7 @@ export function ChatBubble() {
       }
 
       setIsLoading(true);
+      clearMessages(); // INTEGRATION POINT: clear stale messages while fetching
       try {
         // If seller-initiated (has buyerId), use buyerId and sellerId correctly
         const buyerId = chatTarget.buyerId || profile.id;
@@ -136,41 +143,6 @@ export function ChatBubble() {
     }
   }, [isOpen, chatTarget, profile?.id]);
 
-  // Subscribe to real-time updates
-  useEffect(() => {
-    if (!conversation?.id) return;
-
-    const subscription = chatService.subscribeToConversation(
-      conversation.id,
-      (newMessage: Message) => {
-        const formattedMessage: ChatMessage = {
-          id: newMessage.id,
-          sender: newMessage.sender_type as 'buyer' | 'seller',
-          message: newMessage.content,
-          timestamp: new Date(newMessage.created_at),
-          read: newMessage.is_read,
-        };
-
-        setMessages(prev => {
-          if (prev.some(m => m.id === newMessage.id)) return prev;
-          return [...prev, formattedMessage];
-        });
-
-        if (newMessage.sender_type === 'seller') {
-          if (!isOpen) {
-            setUnreadCount(unreadCount + 1);
-          } else {
-            chatService.markConversationAsRead(conversation.id, 'buyer');
-          }
-        }
-      }
-    );
-
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, [conversation?.id, isOpen]);
-
   // Handle send message
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !conversation?.id || !profile?.id || isSending) return;
@@ -191,7 +163,8 @@ export function ChatBubble() {
       timestamp: new Date(),
       read: false,
     };
-    setMessages(prev => [...prev, optimisticMessage]);
+    // INTEGRATION POINT: use store actions for immutable state updates
+    addMessage(optimisticMessage);
 
     try {
       const sentMessage = await chatService.sendMessage(
@@ -203,20 +176,18 @@ export function ChatBubble() {
 
       // Replace temp message with real one
       if (sentMessage) {
-        setMessages(prev =>
-          prev.map(m => m.id === tempId ? {
-            id: sentMessage.id,
-            sender: senderType,
-            message: sentMessage.content,
-            timestamp: new Date(sentMessage.created_at),
-            read: sentMessage.is_read,
-          } : m)
-        );
+        replaceMessage(tempId, {
+          id: sentMessage.id,
+          sender: senderType,
+          message: sentMessage.content,
+          timestamp: new Date(sentMessage.created_at),
+          read: sentMessage.is_read,
+        });
       }
     } catch (error) {
       console.error('Error sending message:', error);
       // Remove optimistic message on error
-      setMessages(prev => prev.filter(m => m.id !== tempId));
+      removeMessage(tempId);
     } finally {
       setIsSending(false);
     }
@@ -393,14 +364,18 @@ export function ChatBubble() {
             </div>
           )}
 
-          {/* Messages area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+          {/* INTEGRATION POINT: flex-col-reverse anchors the scroll position to the
+              bottom automatically – no JS scrollIntoView or ref needed.
+              Messages are spread in reverse so oldest appears at the top visually.
+              min-h-0 overrides the flex child's default min-height:auto so the
+              parent's h-[500px] cap is respected and overflow-y-auto fires. */}
+          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50 flex flex-col-reverse">
             {isLoading ? (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center h-full p-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
               </div>
             ) : messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="flex flex-col items-center justify-center h-full text-center p-4">
                 <div className="w-16 h-16 bg-[var(--brand-primary)]/10 rounded-full flex items-center justify-center mb-3">
                   <MessageCircle className="w-8 h-8 text-[var(--brand-primary)]" />
                 </div>
@@ -408,8 +383,8 @@ export function ChatBubble() {
                 <p className="text-gray-400 text-xs mt-1">Ask about products, shipping, or anything else</p>
               </div>
             ) : (
-              <>
-                {messages.map((msg) => {
+              <div className="flex flex-col gap-3 p-4">
+                {[...messages].reverse().map((msg) => {
                   // "my message" = same sender type as current user
                   const isMine = chatTarget?.buyerId
                     ? msg.sender === 'seller'  // seller-initiated: seller messages on right
@@ -448,8 +423,7 @@ export function ChatBubble() {
                   </div>
                   );
                 })}
-                <div ref={messagesEndRef} />
-              </>
+              </div>
             )}
           </div>
 

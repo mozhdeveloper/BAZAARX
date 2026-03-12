@@ -150,6 +150,25 @@ export default function MessagesPage() {
     };
   }, [useRealData]);
 
+  // Real-time sidebar: keep last_message + timestamp current for all conversations
+  useEffect(() => {
+    if (!profile?.id) return;
+    const unsubscribe = chatService.subscribeToConversations(
+      profile.id,
+      'buyer',
+      (updatedConv) => {
+        setDbConversations(prev => {
+          const exists = prev.some(c => c.id === updatedConv.id);
+          if (exists) {
+            return prev.map(c => c.id === updatedConv.id ? updatedConv : c);
+          }
+          return [updatedConv, ...prev];
+        });
+      }
+    );
+    return unsubscribe;
+  }, [profile?.id]);
+
   const activeConversation = useRealData
     ? dbConversations.find(c => c.id === selectedConversation)
     : conversations.find(c => c.id === selectedConversation);
@@ -163,7 +182,20 @@ export default function MessagesPage() {
       setSending(true);
       try {
         const result = await chatService.sendMessage(selectedConversation, profile.id, 'buyer', messageText.trim());
-        if (result) setNewMessage('');
+        if (result) {
+          setNewMessage('');
+          setDbMessages(prev =>
+            prev.some(msg => msg.id === result.id) ? prev : [...prev, result]
+          );
+          // Optimistic sidebar update — no round-trip needed
+          setDbConversations(prev =>
+            prev.map(c =>
+              c.id === selectedConversation
+                ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString(), last_sender_type: 'buyer' }
+                : c
+            )
+          );
+        }
       } catch (error) { console.error(error); } finally { setSending(false); }
       return;
     }
@@ -272,7 +304,7 @@ export default function MessagesPage() {
                         </span>
                       </div>
                       <p className={`text-sm truncate ${conv.buyer_unread_count > 0 ? 'text-[var(--text-headline)] font-semibold' : 'text-[var(--text-muted)]'}`}>
-                        {conv.last_message || 'Start a conversation'}
+                        {conv.last_sender_type === 'buyer' ? <span className="font-medium">You: </span> : null}{conv.last_message || 'Start a conversation'}
                       </p>
                     </div>
                     {conv.buyer_unread_count > 0 && (
@@ -373,9 +405,14 @@ export default function MessagesPage() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50">
+              {/* Chat messages — flex-col-reverse anchors scroll to bottom natively.
+                  min-h-0 prevents the flex child from overflowing its parent's
+                  constrained height so overflow-y-auto actually fires.
+                  space-y-reverse flips the margin direction to match the
+                  reversed flex axis, keeping gaps visually between messages. */}
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 space-y-reverse bg-gray-50/50 flex flex-col-reverse">
                 {useRealData ? (
-                  dbMessages.map((msg) => {
+                  [...dbMessages].reverse().map((msg) => {
                     if (msg.message_type === 'system') {
                       return (
                         <div key={msg.id} className="flex justify-center items-center my-6 w-full opacity-90 pointer-events-none">
@@ -403,7 +440,7 @@ export default function MessagesPage() {
                     );
                   })
                 ) : (
-                  (activeConversation as Conversation).messages.map((msg) => {
+                  [...((activeConversation as Conversation).messages)].reverse().map((msg) => {
                     const isBuyer = msg.senderId === 'buyer';
                     return (
                       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={msg.id} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}>
