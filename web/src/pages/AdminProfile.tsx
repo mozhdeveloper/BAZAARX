@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
 import AdminSidebar from '../components/AdminSidebar';
@@ -17,20 +17,21 @@ import { Badge } from "@/components/ui/badge";
 
 const AdminProfile: React.FC = () => {
   const { user, isAuthenticated, logout } = useAdminAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/admin/login" replace />;
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <AdminSidebar />
+    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
+      <AdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
 
       <div className="flex-1 overflow-auto">
         <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
-            <p className="text-gray-500 mt-1">Manage your account settings and view permissions</p>
+            <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">My Profile</h1>
+            <p className="text-[var(--text-muted)]">Manage your account settings and view permissions</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

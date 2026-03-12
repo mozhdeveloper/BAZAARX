@@ -97,6 +97,7 @@ export interface Seller {
   store_name: string;
   store_description: string | null;
   avatar_url: string | null;
+  store_banner_url: string | null;
   owner_name: string | null;
   approval_status: ApprovalStatus;
   verified_at: string | null;

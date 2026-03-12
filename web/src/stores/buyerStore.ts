@@ -602,9 +602,9 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (updates.firstName !== undefined) profileUpdates.first_name = updates.firstName;
       if (updates.lastName !== undefined) profileUpdates.last_name = updates.lastName;
       if (updates.phone !== undefined) profileUpdates.phone = updates.phone;
-      if (updates.avatar !== undefined) profileUpdates.avatar_url = updates.avatar;
 
-      // Buyer-owned fields live on buyers table
+      // Buyer-owned fields live on buyers table (including avatar_url!)
+      if (updates.avatar !== undefined) buyerUpdates.avatar_url = updates.avatar;
       if (updates.preferences !== undefined) buyerUpdates.preferences = updates.preferences;
       if (updates.bazcoins !== undefined) buyerUpdates.bazcoins = updates.bazcoins;
 

@@ -161,14 +161,14 @@ const AdminFlashSales: React.FC = () => {
       // Update local state
       setFlashSales(prev => prev.map(s => s.id === editSale.id
         ? {
-            ...s,
-            name: editName,
-            startDate: new Date(editStartDate),
-            endDate: new Date(editEndDate),
-            products: editProducts,
-            totalProducts: editProducts.length,
-            totalRevenue: editProducts.reduce((sum, p) => sum + p.flashPrice * p.sold, 0),
-          }
+          ...s,
+          name: editName,
+          startDate: new Date(editStartDate),
+          endDate: new Date(editEndDate),
+          products: editProducts,
+          totalProducts: editProducts.length,
+          totalRevenue: editProducts.reduce((sum, p) => sum + p.flashPrice * p.sold, 0),
+        }
         : s
       ));
       setEditSale(null);
@@ -386,8 +386,8 @@ const AdminFlashSales: React.FC = () => {
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Flash Sales Management</h1>
-              <p className="text-gray-600">Create and manage time-limited promotional sales</p>
+              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Flash Sales Management</h1>
+              <p className="text-[var(--text-muted)]">Create and manage time-limited promotional sales</p>
             </div>
             <Button
               onClick={() => setShowCreateModal(true)}
@@ -406,17 +406,17 @@ const AdminFlashSales: React.FC = () => {
               { label: 'Active', value: stats.active, icon: Play },
               { label: 'Ended', value: stats.ended, icon: Clock }
             ].map((stat, index) => (
-              <Card key={index} className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-100 transition-colors"></div>
+              <Card key={index} className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
                 <CardContent className="p-6 relative z-10">
                   <div className="flex flex-col">
-                    <div className="mb-4 text-gray-500 group-hover:text-orange-600 transition-all">
+                    <div className="mb-4 text-gray-500 group-hover:text-[var(--brand-accent)] transition-all">
                       <stat.icon className="h-5 w-5" />
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-gray-400">{stat.label}</p>
                       <div className="flex items-end gap-3 mt-1">
-                        <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-orange-600">{stat.value}</p>
+                        <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">{stat.value}</p>
                       </div>
                     </div>
                   </div>
@@ -623,7 +623,7 @@ const AdminFlashSales: React.FC = () => {
                               // Convert dates to datetime-local format
                               const toLocal = (d: Date) => {
                                 const pad = (n: number) => String(n).padStart(2, '0');
-                                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
                               };
                               setEditStartDate(toLocal(new Date(sale.startDate)));
                               setEditEndDate(toLocal(new Date(sale.endDate)));

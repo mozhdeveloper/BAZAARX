@@ -106,7 +106,7 @@ export const useProfileManager = (userId: string) => {
         try {
             // Upload to Storage
             const fileExt = file.name.split('.').pop();
-            const fileName = `avatar_${profile.id}_${Date.now()}.${fileExt}`;
+            const fileName = `${profile.id}/avatar_${Date.now()}.${fileExt}`;
             const filePath = `${fileName}`;
 
             const { error: uploadError } = await supabase.storage
@@ -123,7 +123,7 @@ export const useProfileManager = (userId: string) => {
             const publicUrl = data.publicUrl;
 
             // Update buyer avatar
-            await updateProfile({ avatar_url: publicUrl } as any);
+            await updateProfile({ avatar: publicUrl } as any);
             setProfile({ ...profile, avatar: publicUrl });
 
             return publicUrl;

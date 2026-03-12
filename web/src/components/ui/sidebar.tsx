@@ -174,10 +174,10 @@ export const SidebarLink = ({
 } & Omit<LinkProps, "to">) => {
   const { open, animate } = useSidebar();
   const location = useLocation();
-  const isActive =
-    link.href === "/seller"
-      ? location.pathname === link.href
-      : location.pathname.startsWith(link.href);
+  const isRootPath = ["/seller", "/admin", "/"].includes(link.href);
+  const isActive = isRootPath
+    ? location.pathname === link.href
+    : location.pathname.startsWith(link.href);
 
   const showBadge = typeof badge === "number" && badge > 0;
 
@@ -185,10 +185,11 @@ export const SidebarLink = ({
     <Link
       to={link.href}
       className={cn(
-        "flex items-center justify-start gap-3 group/sidebar py-2 px-3 rounded-lg min-h-[48px] transition-all duration-200",
+        "flex items-center gap-3 group/sidebar py-2 rounded-xl min-h-[48px] transition-all duration-200",
+        open ? "justify-start px-3" : "justify-center px-0",
         isActive
           ? "text-[var(--text-accent)] font-bold"
-          : "text-gray-700 hover:text-[var(--text-accent)]",
+          : "text-gray-700 hover:text-[var(--text-accent)] hover:bg-gray-50/50",
         className
       )}
       {...props}

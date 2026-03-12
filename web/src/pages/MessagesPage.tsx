@@ -115,6 +115,41 @@ export default function MessagesPage() {
     }
   }, [conversations.length, dbConversations.length, selectedConversation, initialSellerId, useRealData]);
 
+  // ---------------------------------------------------------
+  // THE X-RAY PRESENCE LISTENER
+  // ---------------------------------------------------------
+  useEffect(() => {
+    if (!useRealData) return;
+    
+    console.log("🟢 Buyer UI: Now actively listening to Supabase Realtime...");
+
+    const unsubscribe = chatService.subscribeToPresenceUpdates((incomingUserId, isNowOnline) => {
+      console.log(`\n🚨 SUPABASE BROADCAST: User ID [${incomingUserId}] just went ${isNowOnline ? 'ONLINE' : 'OFFLINE'}`);
+
+      setDbConversations(prevConversations => {
+        const matchingConv = prevConversations.find(conv => conv.seller_id === incomingUserId);
+        
+        if (matchingConv) {
+           console.log(`✅ MATCH FOUND! Lighting up dot for Store: ${matchingConv.seller_store_name}`);
+        } else {
+           console.log(`❌ NO MATCH! Supabase sent ID [${incomingUserId}], but Angela has no conversation with this seller_id.`);
+           console.log("🔍 Here are the Seller IDs Angela currently has in her list:", prevConversations.map(c => ({ store: c.seller_store_name, seller_id: c.seller_id })));
+        }
+
+        return prevConversations.map(conv => {
+          if (conv.seller_id === incomingUserId) {
+            return { ...conv, is_online: isNowOnline, isOnline: isNowOnline };
+          }
+          return conv;
+        });
+      });
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [useRealData]);
+
   const activeConversation = useRealData
     ? dbConversations.find(c => c.id === selectedConversation)
     : conversations.find(c => c.id === selectedConversation);

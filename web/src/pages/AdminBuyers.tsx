@@ -297,8 +297,8 @@ const AdminBuyers: React.FC = () => {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Buyer Management</h1>
-              <p className="text-gray-600">
+              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Buyer Management</h1>
+              <p className="text-[var(--text-muted)]">
                 Manage customer accounts and monitor shopping activity
               </p>
             </div>

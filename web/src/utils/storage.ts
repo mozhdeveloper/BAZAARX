@@ -95,7 +95,7 @@ export const uploadAvatar = async (
 
   try {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}.${fileExt}`;
+    const fileName = `${userId}/avatar_${Date.now()}.${fileExt}`;
 
     const { data: _data, error } = await supabase.storage
       .from('profile-avatars')
@@ -113,6 +113,41 @@ export const uploadAvatar = async (
     return publicUrl;
   } catch (error) {
     console.error('Avatar upload failed:', error);
+    return null;
+  }
+};
+
+/**
+ * Upload store banner image
+ */
+export const uploadStoreBanner = async (
+  file: File,
+  sellerId: string
+): Promise<string | null> => {
+  if (!isSupabaseConfigured()) {
+    return `https://via.placeholder.com/1200x400?text=Store+Banner`;
+  }
+
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${sellerId}/banner_${Date.now()}.${fileExt}`;
+
+    const { data: _data, error } = await supabase.storage
+      .from('profile-avatars')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (error) throw error;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('profile-avatars').getPublicUrl(fileName);
+
+    return publicUrl;
+  } catch (error) {
+    console.error('Banner upload failed:', error);
     return null;
   }
 };

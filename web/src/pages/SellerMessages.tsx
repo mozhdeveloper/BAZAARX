@@ -72,6 +72,18 @@ export default function SellerMessages() {
     }
   }, [dbConversations, selectedConversation]);
 
+  // Real-time presence: update buyer's dot without a full page reload
+  useEffect(() => {
+    const unsubscribe = chatService.subscribeToPresenceUpdates((userId, isOnline) => {
+      setDbConversations(prev =>
+        prev.map(conv =>
+          conv.buyer_id === userId ? { ...conv, is_online: isOnline } : conv
+        )
+      );
+    });
+    return unsubscribe;
+  }, []);
+
   useEffect(() => {
     if (!selectedConversation || !useRealData) return;
     const loadMessages = async () => {

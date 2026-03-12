@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { chatService } from '../services/chatService';
 
 // Import whichever stores you use to get the current logged-in user
@@ -12,35 +12,51 @@ export function usePresence() {
   const userId = buyerProfile?.id || sellerProfile?.id;
   const userType: 'buyer' | 'seller' = buyerProfile?.id ? 'buyer' : 'seller';
 
+  // Holds the pending "go offline" timer so it can be cancelled if the user returns
+  const offlineTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!userId) return;
 
-    // 1. Mark online immediately when they log in or load the page
-    chatService.updateUserPresence(userId, 'online', userType);
-
-    // 2. Listen for tab switching (minimizing browser, switching tabs)
-    const handleVisibilityChange = () => {
+    const syncPresence = () => {
       if (document.visibilityState === 'visible') {
-        chatService.updateUserPresence(userId, 'online', userType);
+        // User returned — cancel the pending offline countdown and go online immediately
+        if (offlineTimeoutRef.current) {
+          clearTimeout(offlineTimeoutRef.current);
+          offlineTimeoutRef.current = null;
+        }
+        chatService.updateUserPresence(userId, 'online');
       } else {
-        chatService.updateUserPresence(userId, 'offline', userType);
+        // Tab hidden — wait 15 s before marking offline to avoid flickering
+        offlineTimeoutRef.current = setTimeout(() => {
+          chatService.updateUserPresence(userId, 'offline');
+        }, 15000);
       }
     };
 
-    // 3. Listen for closing the tab entirely
+    // Tab/window is actually closing — skip the grace period and go offline immediately
     const handleBeforeUnload = () => {
-      chatService.updateUserPresence(userId, 'offline', userType);
+      if (offlineTimeoutRef.current) {
+        clearTimeout(offlineTimeoutRef.current);
+      }
+      chatService.updateUserPresence(userId, 'offline');
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Set initial state based on whether the tab is already visible
+    syncPresence();
+
+    document.addEventListener('visibilitychange', syncPresence);
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', syncPresence);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      
-      // Cleanup: mark offline if the component unmounts (e.g. they log out)
-      chatService.updateUserPresence(userId, 'offline', userType);
+      // Clear any pending timeout to prevent memory leaks
+      if (offlineTimeoutRef.current) {
+        clearTimeout(offlineTimeoutRef.current);
+      }
+      // Mark offline on explicit unmount (logout / route change)
+      chatService.updateUserPresence(userId, 'offline');
     };
   }, [userId]);
 }
