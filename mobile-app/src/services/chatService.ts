@@ -40,6 +40,7 @@ export interface Conversation {
   seller_unread_count?: number;
   is_online?: boolean; 
   isOnline?: boolean;
+  last_sender_type?: 'buyer' | 'seller' | null;
   // Joined profile data
   buyer_name?: string;
   buyer_email?: string;
@@ -124,11 +125,12 @@ class ChatService {
     lastMessageAt: string | null;
     buyerUnreadCount: number;
     sellerUnreadCount: number;
+    lastSenderType: 'buyer' | 'seller' | null;
   }> {
     // Get last message
     const { data: lastMsg } = await supabase
       .from('messages')
-      .select('content, message_content, message_type, created_at')
+      .select('content, message_content, message_type, sender_type, created_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -156,6 +158,7 @@ class ChatService {
       lastMessageAt: lastMsg?.created_at || null,
       buyerUnreadCount: buyerUnread || 0,
       sellerUnreadCount: sellerUnread || 0,
+      lastSenderType: (lastMsg?.sender_type as 'buyer' | 'seller' | null) ?? null,
     };
   }
 
@@ -296,6 +299,7 @@ class ChatService {
       last_message_at: stats.lastMessageAt || conv.updated_at,
       buyer_unread_count: stats.buyerUnreadCount,
       seller_unread_count: stats.sellerUnreadCount,
+      last_sender_type: stats.lastSenderType,
       is_online: isOnline,
       isOnline: isOnline,
       buyer: {

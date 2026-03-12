@@ -40,6 +40,8 @@ export interface Conversation {
   seller_unread_count?: number;
   is_online?: boolean;
   isOnline?: boolean;
+  // Local UI flag – not stored in DB, set optimistically after sends
+  last_sender_type?: 'buyer' | 'seller';
   // Joined profile data
   buyer_name?: string;
   buyer_email?: string;
@@ -491,16 +493,12 @@ class ChatService {
     return this.markAsRead(conversationId, '', userType);
   }
 
-  /**
-   * Subscribe to new messages in a conversation
-   */
   subscribeToMessages(
     conversationId: string,
     onMessage: (message: Message) => void
   ): () => void {
     const channelName = `messages:${conversationId}`;
     
-    // Unsubscribe from existing if any
     this.unsubscribe(channelName);
 
     const channel = supabase
@@ -514,14 +512,18 @@ class ChatService {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
+          console.log("🔥 REALTIME PAYLOAD RECEIVED:", payload); // <-- ADD THIS
           const newMsg = payload.new as Message;
           onMessage(newMsg);
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        // <-- ADD THIS ENTIRE BLOCK
+        console.log(`📡 CHANNEL STATUS [${channelName}]:`, status);
+        if (err) console.error("🚨 CHANNEL ERROR:", err);
+      });
 
     this.subscriptions.set(channelName, channel);
-
     return () => this.unsubscribe(channelName);
   }
 

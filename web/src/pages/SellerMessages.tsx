@@ -84,6 +84,25 @@ export default function SellerMessages() {
     return unsubscribe;
   }, []);
 
+  // Real-time sidebar: keep last_message + timestamp current for all conversations
+  useEffect(() => {
+    if (!seller?.id) return;
+    const unsubscribe = chatService.subscribeToConversations(
+      seller.id,
+      'seller',
+      (updatedConv) => {
+        setDbConversations(prev => {
+          const exists = prev.some(c => c.id === updatedConv.id);
+          if (exists) {
+            return prev.map(c => c.id === updatedConv.id ? updatedConv : c);
+          }
+          return [updatedConv, ...prev];
+        });
+      }
+    );
+    return unsubscribe;
+  }, [seller?.id]);
+
   useEffect(() => {
     if (!selectedConversation || !useRealData) return;
     const loadMessages = async () => {
@@ -106,24 +125,30 @@ export default function SellerMessages() {
   }, [selectedConversation, useRealData, seller?.id]);
 
   const normalizedDbConversations = useMemo(() => {
-    return dbConversations.map(conv => ({
-      id: conv.id,
-      buyerName: conv.buyer_name || conv.buyer?.full_name || conv.buyer_email || 'Unknown Customer',
-      buyerImage: conv.buyer_avatar || conv.buyer?.avatar_url,
-      lastMessage: conv.last_message || '',
-      lastMessageTime: conv.last_message_at ? new Date(conv.last_message_at) : new Date(),
-      unreadCount: conv.seller_unread_count || 0,
-      isOnline: conv.is_online,
-      messages: dbMessages.filter(msg => msg.conversation_id === conv.id).map(msg => ({
-        id: msg.id, 
-        senderId: msg.sender_type || '', 
-        text: msg.content, 
-        message_type: msg.message_type,
-        images: msg.image_url ? [msg.image_url] : undefined, 
-        timestamp: new Date(msg.created_at), 
-        isRead: msg.is_read
-      }))
-    }));
+    return dbConversations.map(conv => {
+      const convMessages = dbMessages.filter(msg => msg.conversation_id === conv.id);
+      const lastMsg = convMessages.at(-1);
+      const isLastMessageFromMe = lastMsg?.sender_type === 'seller';
+      return {
+        id: conv.id,
+        buyerName: conv.buyer_name || conv.buyer?.full_name || conv.buyer_email || 'Unknown Customer',
+        buyerImage: conv.buyer_avatar || conv.buyer?.avatar_url,
+        lastMessage: conv.last_message || '',
+        lastMessageTime: conv.last_message_at ? new Date(conv.last_message_at) : new Date(),
+        unreadCount: conv.seller_unread_count || 0,
+        isOnline: conv.is_online,
+        isLastMessageFromMe,
+        messages: convMessages.map(msg => ({
+          id: msg.id, 
+          senderId: msg.sender_type || '', 
+          text: msg.content, 
+          message_type: msg.message_type,
+          images: msg.image_url ? [msg.image_url] : undefined, 
+          timestamp: new Date(msg.created_at), 
+          isRead: msg.is_read
+        }))
+      };
+    });
   }, [dbConversations, dbMessages]);
 
   const activeConversation = useRealData
@@ -139,7 +164,20 @@ export default function SellerMessages() {
       setSending(true);
       try {
         const result = await chatService.sendMessage(selectedConversation, seller.id, 'seller', messageText.trim());
-        if (result) setNewMessage('');
+        if (result) {
+          setNewMessage('');
+          setDbMessages(prev =>
+            prev.some(msg => msg.id === result.id) ? prev : [...prev, result]
+          );
+          // Optimistic sidebar update — no round-trip needed
+          setDbConversations(prev =>
+            prev.map(c =>
+              c.id === selectedConversation
+                ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString() }
+                : c
+            )
+          );
+        }
       } catch (error) { 
         console.error(error); 
       } finally { 
@@ -223,7 +261,7 @@ export default function SellerMessages() {
                             {conv.lastMessageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-bold' : 'text-gray-500 font-medium'}`}>{conv.lastMessage}</p>
+                        <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-bold' : 'text-gray-500 font-medium'}`}>{conv.isLastMessageFromMe ? <span className="font-bold">You: </span> : null}{conv.lastMessage}</p>
                       </div>
                       {conv.unreadCount > 0 && (
                         <Badge className="bg-[var(--brand-primary)] shadow-lg shadow-orange-500/30 rounded-full h-5 min-w-[20px] flex items-center justify-center p-0.5 text-[10px] animate-pulse">
@@ -268,8 +306,8 @@ export default function SellerMessages() {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[var(--brand-wash)] scrollbar-hide">
-                  {activeConversation.messages.map((msg: any) => {
+                <div key={selectedConversation} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 space-y-reverse bg-[var(--brand-wash)] scrollbar-hide flex flex-col-reverse">
+                  {[...activeConversation.messages].reverse().map((msg: any) => {
                     if (msg.message_type === 'system') {
                       return (
                         <div key={msg.id} className="flex justify-center items-center my-6 w-full opacity-90 pointer-events-none">

@@ -230,6 +230,9 @@ export default function MessagesScreen() {
                     style={[styles.lastMessage, (conv.buyer_unread_count || 0) > 0 && styles.unreadMessage]}
                     numberOfLines={1}
                   >
+                    {conv.last_sender_type === 'buyer' && (
+                      <Text style={styles.youPrefix}>You: </Text>
+                    )}
                     {conv.last_message || 'Start a conversation'}
                   </Text>
                   {(conv.buyer_unread_count || 0) > 0 && (
@@ -292,6 +295,7 @@ const styles = StyleSheet.create({
   conversationFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   lastMessage: { fontSize: 14, color: '#6B7280', flex: 1, marginRight: 8 },
   unreadMessage: { fontWeight: '600', color: '#1F2937' },
+  youPrefix: { fontWeight: '700', color: '#6B7280' },
   unreadBadge: { backgroundColor: COLORS.primary, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   unreadCount: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
 });
