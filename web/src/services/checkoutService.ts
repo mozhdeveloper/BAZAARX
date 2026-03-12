@@ -107,15 +107,31 @@ export class CheckoutService {
                 })
             );
 
+            // Batch query base product stock for products without variants
+            const productIds = [...new Set(items.map(item => item.product_id).filter(Boolean))];
+            const { data: productsData } = await supabase
+                .from('products')
+                .select('id, stock')
+                .in('id', productIds);
+
+            const productStockMap = new Map<string, number>();
+            productsData?.forEach(p => productStockMap.set(p.id, p.stock || 0));
+
             // Validate stock and attach resolved variant IDs (reuse fetched data — no re-fetch later)
             const resolvedStockMap = new Map<string, number>(); // variantId -> current stock
             for (const { item, variant } of stockValidationResults) {
                 if (variant) {
                     if (variant.stock < item.quantity) {
-                        throw new Error(`Insufficient stock for ${variant.variant_name || 'product'}.`);
+                        throw new Error(`Insufficient stock for ${item.name}. Only ${variant.stock} available.`);
                     }
                     (item as any).resolved_variant_id = variant.id;
                     resolvedStockMap.set(variant.id, variant.stock);
+                } else {
+                    // Validate base product stock (for products without variants)
+                    const productStock = productStockMap.get(item.product_id) || 0;
+                    if (productStock < item.quantity) {
+                        throw new Error(`Insufficient stock for ${item.name}. Only ${productStock} available.`);
+                    }
                 }
             }
 

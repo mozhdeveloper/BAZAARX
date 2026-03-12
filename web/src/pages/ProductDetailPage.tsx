@@ -1067,10 +1067,19 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
                             <Button
                                 onClick={handleAddToCart}
-                                className="flex-1 h-14 rounded-2xl bg-white hover:bg-[var(--brand-wash)] text-[var(--brand-primary)] border border-[var(--brand-primary)] text-base font-bold transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2"
+                                disabled={(() => {
+                                    const currentVariant = getSelectedVariant();
+                                    const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
+                                    return stockQty === 0;
+                                })()}
+                                className="flex-1 h-14 rounded-2xl bg-white hover:bg-[var(--brand-wash)] text-[var(--brand-primary)] border border-[var(--brand-primary)] text-base font-bold transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <ShoppingCart className="w-5 h-5" />
-                                Add to Cart
+                                {(() => {
+                                    const currentVariant = getSelectedVariant();
+                                    const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
+                                    return stockQty > 0 ? "Add to Cart" : "Out of Stock";
+                                })()}
                             </Button>
 
                             <Button

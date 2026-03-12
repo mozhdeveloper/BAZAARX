@@ -1202,6 +1202,17 @@ export default function ShopPage() {
                                 return;
                               }
 
+                              const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || product.stock || 0;
+
+                              if (totalStock === 0) {
+                                toast({
+                                  title: "Out of Stock",
+                                  description: "This product is currently unavailable.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+
                               addToCart(product as any);
                               setAddedProduct({
                                 name: product.name,
