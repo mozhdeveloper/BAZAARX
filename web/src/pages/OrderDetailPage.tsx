@@ -1320,8 +1320,8 @@ export default function OrderDetailPage() {
 
                             const variantObj = item.selectedVariant || item.variant;
                             try {
-                              await addToCart(productObj, item.quantity || 1, variantObj);
-                              addedIds.push(productObj.id);
+                              const addedCartItemId = await addToCart(productObj, item.quantity || 1, variantObj, { forceNewItem: true });
+                              addedIds.push(addedCartItemId || productObj.id);
                             } catch (e) {
                               console.error('Buy Again addToCart failed:', e);
                             }

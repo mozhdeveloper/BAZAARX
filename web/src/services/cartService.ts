@@ -176,30 +176,34 @@ export class CartService {
     quantity: number,
     variantId?: string,
     personalizedOptions?: Record<string, unknown>,
-    notes?: string
+    notes?: string,
+    forceNewItem: boolean = false
   ): Promise<CartItem> {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase not configured - cannot add to cart');
     }
 
     try {
-      // Check if item already exists with the same variant
-      let query = supabase
-        .from('cart_items')
-        .select('*')
-        .eq('cart_id', cartId)
-        .eq('product_id', productId);
+      let existing: any = null;
+      if (!forceNewItem) {
+        // Check if item already exists with the same variant
+        let query = supabase
+          .from('cart_items')
+          .select('*')
+          .eq('cart_id', cartId)
+          .eq('product_id', productId);
 
-      // If variant specified, filter by variant_id
-      if (variantId) {
-        query = query.eq('variant_id', variantId);
-      } else {
-        query = query.is('variant_id', null);
+        // If variant specified, filter by variant_id
+        if (variantId) {
+          query = query.eq('variant_id', variantId);
+        } else {
+          query = query.is('variant_id', null);
+        }
+
+        const { data: foundExisting, error: findError } = await query.maybeSingle();
+        if (findError) throw findError;
+        existing = foundExisting;
       }
-
-      const { data: existing, error: findError } = await query.maybeSingle();
-
-      if (findError) throw findError;
 
       if (existing) {
         // Update quantity

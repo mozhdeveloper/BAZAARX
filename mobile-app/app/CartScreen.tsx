@@ -44,21 +44,15 @@ export default function CartScreen({ navigation, route }: any) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
-    const idsFromBuyAgain = route?.params?.autoSelectCartItemIds as string[] | undefined;
-    if (!idsFromBuyAgain || idsFromBuyAgain.length === 0 || items.length === 0) return;
+    const requestedIds: string[] | undefined = route?.params?.selectedCartItemIds;
+    if (!requestedIds || requestedIds.length === 0 || items.length === 0) return;
 
-    const existingIds = new Set(items.map((item) => item.cartItemId));
-    const validIds = idsFromBuyAgain.filter((id) => existingIds.has(id));
-
-    if (validIds.length > 0) {
-      setSelectedIds(prev => Array.from(new Set([...prev, ...validIds])));
+    const itemIdSet = new Set(items.map(i => i.cartItemId));
+    const existingRequestedIds = requestedIds.filter(id => itemIdSet.has(id));
+    if (existingRequestedIds.length > 0) {
+      setSelectedIds(existingRequestedIds);
     }
-
-    // Consume param so selection doesn't keep reapplying on later visits
-    if (navigation?.setParams) {
-      navigation.setParams({ autoSelectCartItemIds: undefined });
-    }
-  }, [route?.params?.autoSelectCartItemIds, items, navigation]);
+  }, [route?.params?.selectedCartItemIds, items]);
 
   // Edit Variant State
   const [showVariantModal, setShowVariantModal] = useState(false);

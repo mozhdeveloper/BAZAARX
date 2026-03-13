@@ -489,13 +489,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
   const handleBuyAgain = async (order: Order) => {
     if (order.items.length > 0) {
-      // Add all items to cart and wait for them to complete before navigating
+      // Add all items as new cart lines, then auto-select only newly added rows in cart
       const addedCartItemIds = (await Promise.all(
-        order.items.map(item => addItem(item as any))
-      )).filter((id): id is string => !!id);
+        order.items.map(item => addItem(item as any, { forceNewItem: true }))
+      )).filter(Boolean) as string[];
+
       navigation.navigate('MainTabs', {
         screen: 'Cart',
-        params: { autoSelectCartItemIds: addedCartItemIds },
+        params: { selectedCartItemIds: addedCartItemIds }
       });
     }
   };

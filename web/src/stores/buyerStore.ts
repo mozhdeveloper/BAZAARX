@@ -228,6 +228,7 @@ export interface ProductVariant {
 }
 
 export interface CartItem extends Product {
+  cartItemId?: string;
   quantity: number;
   selectedVariant?: ProductVariant;
   notes?: string;
@@ -393,7 +394,7 @@ interface BuyerStore {
   // Enhanced Cart with Multi-seller grouping
   cartItems: CartItem[];
   groupedCart: GroupedCart;
-  addToCart: (product: Product, quantity?: number, variant?: ProductVariant) => void;
+  addToCart: (product: Product, quantity?: number, variant?: ProductVariant, options?: { forceNewItem?: boolean }) => Promise<string | undefined>;
   removeFromCart: (productId: string, variantId?: string) => void;
   updateCartQuantity: (productId: string, quantity: number, variantId?: string) => void;
   updateItemVariant: (productId: string, oldVariantId: string | undefined, newVariant: ProductVariant, quantity?: number) => Promise<void>;
@@ -524,6 +525,7 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
 
   return {
     id: dbProduct.id,
+    cartItemId: item.id,
     name: dbProduct.name,
     stock: dbProduct.stock || 0,
     price: selectedVariant?.price || dbProduct.price,
@@ -1002,7 +1004,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     setBuyAgainItems: (items) => set({ buyAgainItems: items }),
     clearBuyAgainItems: () => set({ buyAgainItems: null }),
 
-    addToCart: async (product, quantity = 1, variant) => {
+    addToCart: async (product, quantity = 1, variant, options) => {
       // Check if user is logged in
       const user = await getCurrentUser();
 
@@ -1023,11 +1025,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             }
 
             // Add to database - pass variant ID, not the whole object
-            await cartService.addToCart(
+            const addedCartItem = await cartService.addToCart(
               cart.id,
               product.id,
               quantity,
-              variant?.id  // Pass variant ID, not the whole object
+              variant?.id,  // Pass variant ID, not the whole object
+              undefined,
+              undefined,
+              !!options?.forceNewItem
             );
 
             // Refetch cart items from database to sync state
@@ -1038,7 +1043,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             const selectionMap = new Map<string, boolean>();
             currentItems.forEach(item => {
               if (item.selected) {
-                const key = `${item.id}-${item.selectedVariant?.id || 'none'}`;
+                const key = item.cartItemId || `${item.id}-${item.selectedVariant?.id || 'none'}`;
                 selectionMap.set(key, true);
               }
             });
@@ -1048,10 +1053,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
             // Restore selection state OR select if it's the item we just added
             const itemsWithSelection = mappedItems.map(item => {
-              const key = `${item.id}-${item.selectedVariant?.id || 'none'}`;
+              const key = item.cartItemId || `${item.id}-${item.selectedVariant?.id || 'none'}`;
               // Select if it was already selected OR if it's the newly added product/variant
-              const isNewlyAdded = item.id === product.id &&
-                (!variant || item.selectedVariant?.id === variant.id);
+              const isNewlyAdded = (addedCartItem as any)?.id
+                ? item.cartItemId === (addedCartItem as any).id
+                : (item.id === product.id && (!variant || item.selectedVariant?.id === variant.id));
 
               return {
                 ...item,
@@ -1061,7 +1067,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
             set({ cartItems: itemsWithSelection });
             get().groupCartBySeller();
-            return;
+            return (addedCartItem as any)?.id;
           }
         } catch (error) {
           console.error('Error adding to database cart:', error);
@@ -1070,7 +1076,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
       // Fallback to local state if not logged in or database operation failed
       set((state) => {
-        const existingItem = state.cartItems.find(item =>
+        const existingItem = options?.forceNewItem ? null : state.cartItems.find(item =>
           item.id === product.id &&
           item.selectedVariant?.id === variant?.id
         );
@@ -1085,6 +1091,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         } else {
           newCartItems = [{
             ...product,
+            cartItemId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             quantity,
             selectedVariant: variant,
             selected: true, // Default to selected
@@ -1095,6 +1102,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         return { cartItems: newCartItems };
       });
       get().groupCartBySeller();
+      return get().cartItems[0]?.cartItemId;
     },
 
     removeFromCart: async (productId, variantId) => {
@@ -1507,7 +1515,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       set((state) => ({
         cartItems: state.cartItems.map(item => ({
           ...item,
-          selected: productIds.includes(item.id)
+          selected: productIds.includes(item.cartItemId || item.id) || productIds.includes(item.id)
         }))
       }));
       get().groupCartBySeller();
