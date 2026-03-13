@@ -58,7 +58,7 @@ export default function OrderDetailPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isFirstLoad = useRef(true);
-  const { profile, setBuyAgainItems } = useBuyerStore();
+  const { profile, addToCart } = useBuyerStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [dbOrder, setDbOrder] = useState<(Order & DbOrderData) | null>(null);
@@ -1304,58 +1304,31 @@ export default function OrderDetailPage() {
                   {(order.status === 'delivered' || order.status === 'received' || order.status === 'reviewed') && (
                     <div className="pt-4 mt-2">
                       <Button
-                        onClick={() => {
+                        onClick={async () => {
                           if (!order.items || order.items.length === 0) return;
 
-                          const cartItems: CartItem[] = order.items.map((item: any) => ({
-                            id: item.productId || item.id,
-                            name: item.name,
-                            price: item.price,
-                            originalPrice: item.originalPrice,
-                            stock: 99,
-                            image: item.image,
-                            images: item.image ? [item.image] : [],
-                            seller: {
-                              id: item.sellerId || '',
-                              name: item.seller || 'Verified Seller',
-                              avatar: '',
-                              rating: 0,
-                              totalReviews: 0,
-                              followers: 0,
-                              isVerified: false,
-                              description: '',
-                              location: '',
-                              established: '',
-                              products: [],
-                              badges: [],
-                              responseTime: '',
-                              categories: [],
-                            },
-                            sellerId: item.sellerId || '',
-                            rating: item.rating || 0,
-                            totalReviews: 0,
-                            category: item.category || '',
-                            sold: 0,
-                            isFreeShipping: false,
-                            location: '',
-                            description: '',
-                            specifications: {},
-                            variants: [],
-                            quantity: item.quantity,
-                            selectedVariant: (item.selectedVariant || item.variant) ? {
-                              id: item.selectedVariant?.id || item.variant?.id || '',
-                              name: item.selectedVariant?.name || item.variant?.name ||
-                                `${item.variant?.size || ''} ${item.variant?.color || ''}`.trim() || 'Standard',
+                          // Add each item to cart (preserving variant where possible)
+                          const addedIds: string[] = [];
+                          await Promise.all(order.items.map(async (item: any) => {
+                            const productObj = {
+                              id: item.productId || item.id,
+                              name: item.name,
                               price: item.price,
-                              stock: 99,
-                              size: item.selectedVariant?.size || item.variant?.size,
-                              color: item.selectedVariant?.color || item.variant?.color,
-                            } : undefined,
-                            selected: true,
+                              originalPrice: item.originalPrice,
+                              image: item.image,
+                            } as any;
+
+                            const variantObj = item.selectedVariant || item.variant;
+                            try {
+                              await addToCart(productObj, item.quantity || 1, variantObj);
+                              addedIds.push(productObj.id);
+                            } catch (e) {
+                              console.error('Buy Again addToCart failed:', e);
+                            }
                           }));
 
-                          setBuyAgainItems(cartItems);
-                          navigate('/checkout', { state: { fromBuyAgain: true } });
+                          // Navigate to enhanced cart so user can adjust variants/sizes/colors
+                          navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
                         }}
                         className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md shadow-orange-500/20"
                       >

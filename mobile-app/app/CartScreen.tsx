@@ -21,7 +21,7 @@ import type { ActiveDiscount } from '../src/types/discount';
 import { Alert } from 'react-native';
 
 
-export default function CartScreen({ navigation }: any) {
+export default function CartScreen({ navigation, route }: any) {
   const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder, updateItemVariant, removeItems } = useCartStore(); // Add clearQuickOrder
   const insets = useSafeAreaInsets();
 
@@ -42,6 +42,23 @@ export default function CartScreen({ navigation }: any) {
 
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const idsFromBuyAgain = route?.params?.autoSelectCartItemIds as string[] | undefined;
+    if (!idsFromBuyAgain || idsFromBuyAgain.length === 0 || items.length === 0) return;
+
+    const existingIds = new Set(items.map((item) => item.cartItemId));
+    const validIds = idsFromBuyAgain.filter((id) => existingIds.has(id));
+
+    if (validIds.length > 0) {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...validIds])));
+    }
+
+    // Consume param so selection doesn't keep reapplying on later visits
+    if (navigation?.setParams) {
+      navigation.setParams({ autoSelectCartItemIds: undefined });
+    }
+  }, [route?.params?.autoSelectCartItemIds, items, navigation]);
 
   // Edit Variant State
   const [showVariantModal, setShowVariantModal] = useState(false);

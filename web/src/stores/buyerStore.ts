@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cartService } from '@/services/cartService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
+import { productService } from '@/services/productService';
 import { AddressService } from '@/services/addressService';
 import type { ActiveDiscount } from '@/types/discount';
 
@@ -1009,6 +1010,18 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         try {
           const cart = await cartService.getOrCreateCart(user.id);
           if (cart) {
+            // Verify product exists in products table to avoid FK violations
+            try {
+              const prod = await productService.getProductById(product.id);
+              if (!prod) {
+                console.warn('[buyerStore] Product not found in products table, falling back to local cart:', product.id);
+                throw new Error('Product not found');
+              }
+            } catch (err) {
+              // If product not found or productService failed, skip DB insert and fall back to local state
+              throw err;
+            }
+
             // Add to database - pass variant ID, not the whole object
             await cartService.addToCart(
               cart.id,
