@@ -354,3 +354,119 @@ git push origin feat/notification-badge
 
 **Outcome:** Branch `feat/notification-badge` successfully pushed to `origin`. Pull request available at `https://github.com/mozhdeveloper/BAZAARX/pull/new/feat/notification-badge`.
 
+---
+
+## Session Log — March 13, 2026
+
+### Feature + Bug Fix — Buy Again Should Add to Cart First (Web + Mobile)
+
+**Prompt:** "I want that if clicked the items will go to the cart first then the buyer can change the variant, color, sizes etc. that they prefer before proceeding to checkout."
+
+**Scope Implemented:**
+- Buy Again now adds order items to cart first (instead of immediate checkout bypass)
+- Cart becomes the editing step for variants/options before checkout
+
+**Files Changed:**
+1. `web/src/pages/OrderDetailPage.tsx`
+   - Updated Buy Again handler to add items into cart and route to enhanced cart
+2. `web/src/pages/OrdersPage.tsx`
+   - Applied the same cart-first Buy Again behavior
+
+---
+
+### Bug Fix — FK Constraint Error on Buy Again for Missing Products
+
+**Prompt:** Runtime failure while adding reordered items to cart:
+`insert or update on table "cart_items" violates foreign key constraint ... product_id ... is not present in table "products"`
+
+**Root Cause:**
+- Some historical order items referenced products no longer present in `products`
+- Buy Again attempted direct DB insert, causing FK violation
+
+**Files Changed:**
+1. `web/src/stores/buyerStore.ts`
+   - Added product existence checks and safe fallback behavior when product is missing
+2. `mobile-app/src/services/cartService.ts`
+   - Added product existence verification before insert to avoid FK failures
+3. `mobile-app/src/stores/cartStore.ts`
+   - Added graceful local fallback for missing-product reorder items
+
+---
+
+### Bug Fix — Duplicate Error/Warn Logs During Fallback
+
+**Prompt:** "There are redundant logs and warnings."
+
+**Root Cause:**
+- Error handling/logging occurred in multiple layers for the same missing-product event
+
+**Files Changed:**
+1. `mobile-app/src/services/cartService.ts`
+   - Consolidated error flow and rethrow strategy
+2. `mobile-app/src/stores/cartStore.ts`
+   - Simplified fallback logging path to avoid duplicate console noise
+
+---
+
+### Bug Fix — Mobile Buy Again Navigated Before Cart Add Completed
+
+**Prompt:** "In mobile it is not adding to the cart, it is just rerouting there."
+
+**Root Cause:**
+- `addItem()` was effectively fire-and-forget from Buy Again handlers
+- Navigation to Cart happened before async item adds completed
+
+**Files Changed:**
+1. `mobile-app/src/stores/cartStore.ts`
+   - Made `addItem()` async-returning and awaitable
+2. `mobile-app/app/OrdersScreen.tsx`
+   - Updated `handleBuyAgain()` to await all add operations before navigation
+3. `mobile-app/app/HistoryScreen.tsx`
+   - Applied the same await-all behavior
+
+---
+
+### Bug Fix — Reordered Items Appeared Then Disappeared in Mobile Cart
+
+**Prompt:** "It is showing then it is disappearing again"
+
+**Root Cause:**
+- Cart refresh replaced local fallback items with DB-only results on focus
+- Local fallback items were removed by subsequent refreshes/DB sync paths
+
+**Files Changed:**
+1. `mobile-app/src/stores/cartStore.ts`
+   - Added merge strategy to preserve local fallback items during DB refresh
+   - Updated remove/update/remove-multiple logic to handle local-only cart rows safely
+
+---
+
+### Feature — Auto-Select Buy Again Items in Mobile Cart
+
+**Prompt:** "I want that if the item added to cart when I clicked buy again, it will auto select it also."
+
+**Implementation:**
+- Buy Again now tracks returned `cartItemId` values for newly added items
+- Cart screen receives those IDs via navigation params and auto-selects them on arrival
+
+**Files Changed:**
+1. `mobile-app/src/stores/cartStore.ts`
+   - `addItem()` now returns the created/updated cart item ID (or local fallback ID)
+2. `mobile-app/app/OrdersScreen.tsx`
+   - Passes `autoSelectCartItemIds` param to Cart after Buy Again
+3. `mobile-app/app/HistoryScreen.tsx`
+   - Passes `autoSelectCartItemIds` param to Cart after Buy Again
+4. `mobile-app/app/CartScreen.tsx`
+   - Reads `autoSelectCartItemIds`, applies selection, then clears param
+
+---
+
+### Status Snapshot (End of March 13 Session)
+
+- Buy Again cart-first behavior is implemented on web and mobile
+- Missing-product reorder flow no longer crashes on FK insert
+- Mobile Buy Again now awaits item insertion before route transition
+- Local fallback cart items persist and are no longer wiped on refresh
+- Newly added Buy Again items auto-select in mobile cart
+- Pending follow-up: remove remaining checkout bypass logic still tied to buy-again mode in web checkout path
+

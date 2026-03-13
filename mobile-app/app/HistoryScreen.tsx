@@ -140,10 +140,16 @@ export default function HistoryScreen({ navigation }: Props) {
     });
   }, [dbOrders, searchQuery, sortOrder]);
 
-  const handleBuyAgain = (order: Order) => {
+  const handleBuyAgain = async (order: Order) => {
     if (order.items.length > 0) {
-      order.items.forEach(item => addItem(item as any));
-      navigation.navigate('MainTabs', { screen: 'Cart' });
+      // Add all items to cart and wait for them to complete before navigating
+      const addedCartItemIds = (await Promise.all(
+        order.items.map(item => addItem(item as any))
+      )).filter((id): id is string => !!id);
+      navigation.navigate('MainTabs', {
+        screen: 'Cart',
+        params: { autoSelectCartItemIds: addedCartItemIds },
+      });
     }
   };
 

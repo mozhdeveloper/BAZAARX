@@ -487,12 +487,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
     });
   }, [activeTab, dbOrders, ordersByUiStatus, selectedStatus, searchQuery, sortOrder]);
 
-  const handleBuyAgain = (order: Order) => {
+  const handleBuyAgain = async (order: Order) => {
     if (order.items.length > 0) {
-      order.items.forEach(item => {
-        addItem(item as any);
+      // Add all items to cart and wait for them to complete before navigating
+      const addedCartItemIds = (await Promise.all(
+        order.items.map(item => addItem(item as any))
+      )).filter((id): id is string => !!id);
+      navigation.navigate('MainTabs', {
+        screen: 'Cart',
+        params: { autoSelectCartItemIds: addedCartItemIds },
       });
-      navigation.navigate('Checkout', {});
     }
   };
 

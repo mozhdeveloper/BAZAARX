@@ -8,6 +8,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { productService } from './productService';
 import type { Cart, CartItem } from '@/types/database.types';
 
 export class CartService {
@@ -231,6 +232,11 @@ export class CartService {
       if (variantId) {
         query = query.eq('variant_id', variantId);
       } else {
+        // Verify product exists before inserting to avoid FK constraint errors
+        const prod = await productService.getProductById(productId);
+        if (!prod) {
+          throw new Error('Product not found');
+        }
         query = query.is('variant_id', null);
       }
 
@@ -278,7 +284,6 @@ export class CartService {
           .single();
 
         if (error) {
-          console.error('[CartService] Error inserting cart item:', error);
           throw error;
         }
         result = data;
@@ -287,8 +292,14 @@ export class CartService {
       if (!result) throw new Error('Failed to add or update cart item');
       return result;
     } catch (error: any) {
-      console.error('[CartService] addToCart failed:', error?.message || error);
-      throw new Error(error?.message || 'Failed to add item to cart.');
+      const msg = String(error?.message || error || '');
+      if (msg.includes('Product not found') || msg.includes('violates foreign key')) {
+        // Silently re-throw for cart store to handle with fallback
+        throw error;
+      } else {
+        console.error('[CartService] addToCart failed:', msg);
+        throw new Error(msg || 'Failed to add item to cart.');
+      }
     }
   }
 

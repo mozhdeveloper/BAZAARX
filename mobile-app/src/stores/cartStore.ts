@@ -14,7 +14,7 @@ interface CartStore {
   isLoading?: boolean;
   error?: string | null;
   initializeForCurrentUser: () => Promise<void>;
-  addItem: (product: Product) => void;
+  addItem: (product: Product) => Promise<string | undefined>;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   updateItemVariant: (cartItemId: string, variantId?: string, options?: any) => Promise<void>;
@@ -161,6 +161,30 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
     });
 }
 
+function isLocalCartItem(item: CartItem): boolean {
+  return typeof item?.cartItemId === 'string' && item.cartItemId.startsWith('local-');
+}
+
+function mergeDbAndLocalItems(dbItems: CartItem[], currentItems: CartItem[]): CartItem[] {
+  const localItems = currentItems.filter(isLocalCartItem);
+  if (localItems.length === 0) return dbItems;
+
+  const dbKeys = new Set(
+    dbItems.map((item) => {
+      const variantKey = item.selectedVariant?.variantId || 'no-variant';
+      return `${item.id}::${variantKey}`;
+    })
+  );
+
+  const missingLocalItems = localItems.filter((item) => {
+    const variantKey = item.selectedVariant?.variantId || 'no-variant';
+    const key = `${item.id}::${variantKey}`;
+    return !dbKeys.has(key);
+  });
+
+  return [...missingLocalItems, ...dbItems];
+}
+
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
@@ -190,8 +214,9 @@ export const useCartStore = create<CartStore>()(
           const cartId = get().cartId;
           if (cartId) {
             const rawItems = await cartService.getCartItems(cartId);
-            const items = mapDbCartItemsToCartItems(rawItems);
-            set({ items });
+            const dbItems = mapDbCartItemsToCartItems(rawItems);
+            const mergedItems = mergeDbAndLocalItems(dbItems, get().items);
+            set({ items: mergedItems });
           }
         } catch (e: any) {
           set({ error: e?.message || 'Failed to load cart', items: [] });
@@ -202,14 +227,15 @@ export const useCartStore = create<CartStore>()(
 
       addItem: (product) => {
         const userId = useAuthStore.getState().user?.id;
-        if (!userId || userId === 'guest') return;
+        if (!userId || userId === 'guest') return Promise.resolve(undefined);
+        
         const run = async () => {
           let cartId = get().cartId;
           if (!cartId) {
             await get().initializeForCurrentUser();
             cartId = get().cartId;
           }
-          if (!cartId) return;
+          if (!cartId) return undefined;
 
           const unitPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0');
           const quantity = (product as any).quantity || 1;
@@ -230,19 +256,59 @@ export const useCartStore = create<CartStore>()(
           } : null;
 
           try {
-            await cartService.addItem(cartId, product.id, unitPrice, quantity, variantId, personalizedOptions);
+            const added = await cartService.addItem(cartId, product.id, unitPrice, quantity, variantId, personalizedOptions);
+            // Only refresh from DB if the insert succeeded
             await get().initializeForCurrentUser();
+            return String((added as any)?.id || '');
           } catch (e: any) {
-            console.error('[CartStore] Failed to add item:', e?.message || e);
-            set({ error: e?.message || 'Failed to add item to cart' });
+            const msg = String(e?.message || e || '');
+            // For missing product FK errors, treat as non-fatal and silently fall back to local cart entry
+            if (msg.includes('Product not found') || msg.includes('violates foreign key')) {
+              const localCartItemId = `local-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+              const localItem: CartItem = {
+                id: product.id,
+                cartItemId: localCartItemId,
+                name: product.name || 'Product',
+                description: product.description || '',
+                price: typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0'),
+                originalPrice: typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0'),
+                image: product.image || PLACEHOLDER_PRODUCT,
+                images: product.images || [],
+                seller: product.seller || 'Shop',
+                sellerId: (product as any).sellerId || '',
+                category: (product as any).category || '',
+                stock: (product as any).stock || 0,
+                isFreeShipping: !!(product as any).isFreeShipping,
+                quantity: (product as any).quantity || 1,
+                selectedVariant: (product as any).selectedVariant || null,
+                variants: (product as any).variants || [],
+              } as CartItem;
+
+              // Add local item WITHOUT calling initializeForCurrentUser() to prevent overwrite
+              set(state => ({ items: [localItem, ...state.items] }));
+              return localCartItemId;
+            } else {
+              console.error('[CartStore] Failed to add item:', msg || e);
+              set({ error: msg || 'Failed to add item to cart' });
+              return undefined;
+            }
           }
         };
-        run();
+        
+        return run();
       },
 
       removeItem: (itemId) => {
         const run = async () => {
           const cartId = get().cartId;
+          const currentItems = get().items;
+          const localItem = currentItems.find(i => i.cartItemId === itemId && isLocalCartItem(i));
+
+          if (localItem) {
+            set(state => ({ items: state.items.filter(i => i.cartItemId !== itemId) }));
+            return;
+          }
+
           // If no cartId, try to initialize first
           if (!cartId) {
             await get().initializeForCurrentUser();
@@ -269,7 +335,8 @@ export const useCartStore = create<CartStore>()(
 
             // Background refresh to catch any sync adjustments
             const rawItems = await cartService.getCartItems(verifiedCartId);
-            set({ items: mapDbCartItemsToCartItems(rawItems) });
+            const dbItems = mapDbCartItemsToCartItems(rawItems);
+            set({ items: mergeDbAndLocalItems(dbItems, get().items) });
           } catch (e) {
             // Rollback on error
             set({ items: previousItems });
@@ -281,6 +348,25 @@ export const useCartStore = create<CartStore>()(
 
       updateQuantity: (itemId, quantity) => {
         const run = async () => {
+          const currentItems = get().items;
+          const localItem = currentItems.find(i => (i.cartItemId === itemId || i.id === itemId) && isLocalCartItem(i));
+
+          if (localItem) {
+            if (quantity <= 0) {
+              set(state => ({ items: state.items.filter(i => i.cartItemId !== localItem.cartItemId) }));
+              return;
+            }
+
+            set(state => ({
+              items: state.items.map(i =>
+                i.cartItemId === localItem.cartItemId
+                  ? { ...i, quantity }
+                  : i
+              )
+            }));
+            return;
+          }
+
           const cartId = get().cartId;
           if (!cartId) {
             await get().initializeForCurrentUser();
@@ -323,6 +409,24 @@ export const useCartStore = create<CartStore>()(
       updateItemVariant: async (cartItemId, variantId, options) => {
         // Optimistically update local state if needed, or just wait for refresh
         const run = async () => {
+          const localItem = get().items.find(i => i.cartItemId === cartItemId && isLocalCartItem(i));
+          if (localItem) {
+            set(state => ({
+              items: state.items.map(i => {
+                if (i.cartItemId !== cartItemId) return i;
+                return {
+                  ...i,
+                  selectedVariant: {
+                    ...(i.selectedVariant || {}),
+                    ...(options || {}),
+                    ...(variantId ? { variantId } : {}),
+                  },
+                };
+              }),
+            }));
+            return;
+          }
+
           const cartId = get().cartId;
           if (!cartId) return;
           try {
@@ -367,14 +471,24 @@ export const useCartStore = create<CartStore>()(
           items: state.items.filter(i => !removeSet.has(i.cartItemId) && !removeSet.has(i.id))
         }));
 
+        const localOnlyIds = previousItems
+          .filter(i => isLocalCartItem(i) && removeSet.has(i.cartItemId))
+          .map(i => i.cartItemId);
+        const remoteIds = cartItemIds.filter(id => !localOnlyIds.includes(id));
+
+        if (remoteIds.length === 0) {
+          return;
+        }
+
         try {
-          await cartService.removeItems(cartItemIds);
+          await cartService.removeItems(remoteIds);
 
           // Background refresh
           const cartId = get().cartId;
           if (cartId) {
             const rawItems = await cartService.getCartItems(cartId);
-            set({ items: mapDbCartItemsToCartItems(rawItems) });
+            const dbItems = mapDbCartItemsToCartItems(rawItems);
+            set({ items: mergeDbAndLocalItems(dbItems, get().items) });
           }
         } catch (e) {
           // Rollback on error
