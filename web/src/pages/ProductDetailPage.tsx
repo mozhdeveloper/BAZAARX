@@ -1309,8 +1309,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         product={{
                             id: normalizedProduct.id,
                             name: productData.name,
-                            price: productData.price,
-                            originalPrice: productData.originalPrice,
+                            price: getCampaignAdjustedPrice(productData.price),
+                            originalPrice: activeCampaignDiscount ? productData.price : productData.originalPrice,
                             image:
                                 productData.images?.[0] ||
                                 normalizedProduct.image ||

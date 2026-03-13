@@ -14,15 +14,15 @@ interface ProductCardProps {
 const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash = false, variant = 'default' }) => {
   const navigate = useNavigate();
   const hasDiscount =
-    product.originalPrice && product.originalPrice > product.price;
-  const discountPercent = hasDiscount
-    ? (typeof product.discountBadgePercent === 'number'
+    (product.originalPrice && product.originalPrice > product.price) ||
+    (typeof product.discountBadgePercent === 'number' && product.discountBadgePercent > 0);
+
+  const discountPercent =
+    typeof product.discountBadgePercent === 'number'
       ? product.discountBadgePercent
-      : Math.round(
-        ((product.originalPrice! - product.price) / product.originalPrice!) *
-        100,
-      ))
-    : 0;
+      : product.originalPrice && product.originalPrice > product.price
+        ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+        : 0;
 
   const isPremiumOutlet = product.sellerTierLevel === 'premium_outlet' || product.isPremiumOutlet;
 

@@ -644,64 +644,72 @@ export default function SellerStorefrontPage() {
     activeCampaigns
       .filter(campaign => campaign.endsAt > new Date())
       .length > 0 && (
-      <div className="max-w-7xl mx-auto px-4 pt-6 space-y-4">
+      <div className="max-w-7xl mx-auto px-4 pt-6 space-y-6">
         {activeCampaigns
           .filter(campaign => campaign.endsAt > new Date())
           .map(campaign => {
-            const campaignProductImages = displayProducts.filter(
+            const allCampaignProducts = displayProducts.filter(
               p => (p as any).campaignDiscount
-            ).slice(0, 5);
+            );
+
             return (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 key={campaign.id}
-                className="p-4 rounded-2xl shadow-lg border overflow-hidden relative text-white"
-                style={{ backgroundColor: campaign.badgeColor || '#FF6A00' }}
+                className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-sm border border-orange-100 hover:border-orange-200 transition-colors relative overflow-hidden"
               >
-                <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+                {/* Header row: Campaign Name + Timer (Left) & View All (Right) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div className="flex flex-wrap items-center gap-3 md:gap-4">
+                    <h3 className="font-heading font-black text-2xl md:text-3xl text-orange-600 uppercase tracking-tight">
+                      {campaign.name}
+                    </h3>
 
-                {/* Top row: info + timer */}
-                <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm shrink-0">
-                      <Zap className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg md:text-xl leading-tight">{campaign.name}</h3>
-                      <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <Badge variant="secondary" className="bg-white text-orange-600 border-0 font-bold hover:bg-white text-xs">
-                          {campaign.campaignType === 'flash_sale' ? 'Flash Sale' : 'Store Sale'}
-                        </Badge>
-                        {campaign.badgeText && <span className="text-white/90 text-sm font-medium tracking-wide">• {campaign.badgeText}</span>}
-                        <span className="text-white/90 text-sm font-medium tracking-wide">• Up to {campaign.discountValue}{campaign.discountType === 'percentage' ? '%' : '₱'} OFF</span>
+                    {/* Timer styled similar to the reference image */}
+                    <div className="flex items-center">
+                      <Zap className="h-5 w-5 text-orange-600 mr-2" />
+                      <div className="text-white font-mono font-bold text-sm tracking-widest flex items-center gap-1">
+                        <CountdownTimer endDate={campaign.endsAt} />
                       </div>
                     </div>
                   </div>
-                  <div className="bg-black/15 px-4 py-2 rounded-xl backdrop-blur-sm shrink-0 text-right">
-                    <p className="text-[10px] text-white/80 font-bold uppercase tracking-wider mb-0.5">Ends In</p>
-                    <div className="text-xl font-black font-mono tracking-widest">
-                      <CountdownTimer endDate={campaign.endsAt} />
-                    </div>
-                  </div>
+
+                  <button className="text-orange-500 font-bold text-sm hover:text-orange-600 transition-colors flex items-center gap-1 group self-start sm:self-auto">
+                    View All <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
                 </div>
 
-                {/* Product thumbnails */}
-                {campaignProductImages.length > 0 && (
-                  <div className="relative z-10 flex items-center gap-2 flex-wrap">
-                    {campaignProductImages.map(p => (
-                      <div key={p.id} className="w-12 h-12 rounded-lg overflow-hidden border-2 border-white/30 bg-white/10 shadow-md shrink-0">
-                        <img
-                          src={p.image}
-                          alt={p.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                {/* Horizontal scrolling product rail */}
+                {allCampaignProducts.length > 0 ? (
+                  <div className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide snap-x">
+                    {allCampaignProducts.map((product, index) => (
+                      <div key={product.id} className="min-w-[200px] w-[200px] snap-start shrink-0">
+                        <StorefrontProductCard
+                          product={{
+                            ...product,
+                            isFlash: true, // Applies campaign styling inside StorefrontProductCard
+                            campaignStock: 100, // mock stock
+                            campaignSold: Math.floor(product.sold / 2) || 0 // mock sold progress
+                          } as any}
+                          index={index}
+                          seller={seller}
+                          profile={profile}
+                          onAddToCart={(p) => {
+                            handleAddToCart(p);
+                            setAddedProduct({ name: p.name, image: p.image });
+                            setShowCartModal(true);
+                          }}
+                          onBuyNow={onBuyNow}
+                          onVariantSelect={onVariantSelect}
+                          onLoginRequired={onLoginRequired}
                         />
                       </div>
                     ))}
-                    <span className="text-white/80 text-xs font-medium pl-1">
-                      {displayProducts.length} item{displayProducts.length !== 1 ? 's' : ''} on sale
-                    </span>
+                  </div>
+                ) : (
+                  <div className="text-gray-400 text-sm font-medium py-8 text-center italic">
+                    Campaign products are currently being updated.
                   </div>
                 )}
               </motion.div>
