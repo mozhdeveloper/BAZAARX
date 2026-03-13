@@ -24,7 +24,8 @@ import {
   Filter,
   ThumbsUp,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -54,6 +55,43 @@ import type { ProductWithSeller } from '@/types/database.types';
 
 import StorefrontReviewsTab, { type Review } from '../components/shop/StorefrontReviewsTab';
 import { supabase } from '@/lib/supabase';
+import { discountService } from '@/services/discountService';
+import type { DiscountCampaign } from '@/types/discount';
+
+const CountdownTimer = ({ endDate }: { endDate: Date }) => {
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const diff = new Date(endDate).getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setTimeLeft("Ended");
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+      if (days > 0) {
+        setTimeLeft(`${days}d ${hours}h`);
+      } else if (hours > 0) {
+        setTimeLeft(`${hours}h ${minutes}m`);
+      } else {
+        setTimeLeft(`${minutes}m`);
+      }
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 60000);
+
+    return () => clearInterval(interval);
+  }, [endDate]);
+
+  return <span>{timeLeft}</span>;
+};
 
 export default function SellerStorefrontPage() {
   const navigate = useNavigate();
@@ -114,6 +152,21 @@ export default function SellerStorefrontPage() {
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [followersCount, setFollowersCount] = useState(0);
+  const [activeCampaigns, setActiveCampaigns] = useState<DiscountCampaign[]>([]);
+
+  useEffect(() => {
+    const fetchActiveCampaigns = async () => {
+      if (!sellerId) return;
+      try {
+        const campaigns = await discountService.getCampaignsBySeller(sellerId);
+        const active = campaigns.filter(c => c.status === 'active' && c.campaignScope !== 'global');
+        setActiveCampaigns(active as DiscountCampaign[]);
+      } catch (err) {
+        console.error("Failed to load active campaigns for banner", err);
+      }
+    };
+    fetchActiveCampaigns();
+  }, [sellerId]);
 
   const handleToggleLike = (reviewId: string) => {
     setReviews(prev => prev.map(review => {
@@ -587,250 +640,327 @@ export default function SellerStorefrontPage() {
         </div>
       </div>
 
+      {
+    activeCampaigns
+      .filter(campaign => campaign.endsAt > new Date())
+      .length > 0 && (
+      <div className="max-w-7xl mx-auto px-4 pt-6 space-y-6">
+        {activeCampaigns
+          .filter(campaign => campaign.endsAt > new Date())
+          .map(campaign => {
+            const allCampaignProducts = displayProducts.filter(
+              p => (p as any).campaignDiscount
+            );
 
-
-      {/* Store Content */}
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <Tabs defaultValue="products" className="space-y-4" onValueChange={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <div className="sticky top-20 z-30 flex justify-center w-full mb-4 py-2 backdrop-blur-[2px]">
-            <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-white p-1 border-0 shadow-sm">
-              <TabsTrigger
-                value="products"
-                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-              >
-                Products
-              </TabsTrigger>
-              <TabsTrigger
-                value="reviews"
-                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-              >
-                Reviews
-              </TabsTrigger>
-              <TabsTrigger
-                value="about"
-                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-              >
-                About Store
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* Products Tab */}
-          <TabsContent value="products">
-            <div className="space-y-6">
-              {/* Filters and Controls */}
-              <div className="flex items-center justify-between">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <Filter className="h-4 w-4 text-gray-400" />
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
-                        <SelectValue placeholder="Category" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
-                        <SelectItem
-                          value="all"
-                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
-                        >
-                          All Categories
-                        </SelectItem>
-                        {sellerCategories.map((cat) => (
-                          <SelectItem
-                            key={cat}
-                            value={cat}
-                            className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors last:mb-0"
-                          >
-                            {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
-                        <SelectValue placeholder="Sort by" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
-                        <SelectItem
-                          value="popular"
-                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
-                        >
-                          Popular
-                        </SelectItem>
-                        <SelectItem
-                          value="newest"
-                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
-                        >
-                          Newest
-                        </SelectItem>
-                        <SelectItem
-                          value="price-low"
-                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
-                        >
-                          Price: Low to High
-                        </SelectItem>
-                        <SelectItem
-                          value="price-high"
-                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 last:mb-0 text-sm transition-colors"
-                        >
-                          Price: High to Low
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div></div>
-              </div>
-
-              {/* Products Grid */}
+            return (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className={cn(
-                  "grid gap-4",
-                  viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1'
-                )}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                key={campaign.id}
+                className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-sm border border-orange-100 hover:border-orange-200 transition-colors relative overflow-hidden"
               >
-                {filteredProducts.map((product, index) => (
-                  <StorefrontProductCard
-                    key={product.id}
-                    product={product}
-                    index={index}
-                    seller={seller}
-                    profile={profile}
-                    onAddToCart={(p) => {
-                      handleAddToCart(p);
-                      setAddedProduct({ name: p.name, image: p.image });
-                      setShowCartModal(true);
-                    }}
-                    onBuyNow={onBuyNow}
-                    onVariantSelect={onVariantSelect}
-                    onLoginRequired={onLoginRequired}
-                  />
-                ))}
+                {/* Header row: Campaign Name + Timer (Left) & View All (Right) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div className="flex flex-wrap items-center gap-3 md:gap-4">
+                    <h3 className="font-heading font-black text-2xl md:text-3xl text-orange-600 uppercase tracking-tight">
+                      {campaign.name}
+                    </h3>
+
+                    {/* Timer styled similar to the reference image */}
+                    <div className="flex items-center">
+                      <Zap className="h-5 w-5 text-orange-600 mr-2" />
+                      <div className="text-white font-mono font-bold text-sm tracking-widest flex items-center gap-1">
+                        <CountdownTimer endDate={campaign.endsAt} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button className="text-orange-500 font-bold text-sm hover:text-orange-600 transition-colors flex items-center gap-1 group self-start sm:self-auto">
+                    View All <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
+
+                {/* Horizontal scrolling product rail */}
+                {allCampaignProducts.length > 0 ? (
+                  <div className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide snap-x">
+                    {allCampaignProducts.map((product, index) => (
+                      <div key={product.id} className="min-w-[200px] w-[200px] snap-start shrink-0">
+                        <StorefrontProductCard
+                          product={{
+                            ...product,
+                            isFlash: true, // Applies campaign styling inside StorefrontProductCard
+                            campaignStock: 100, // mock stock
+                            campaignSold: Math.floor(product.sold / 2) || 0 // mock sold progress
+                          } as any}
+                          index={index}
+                          seller={seller}
+                          profile={profile}
+                          onAddToCart={(p) => {
+                            handleAddToCart(p);
+                            setAddedProduct({ name: p.name, image: p.image });
+                            setShowCartModal(true);
+                          }}
+                          onBuyNow={onBuyNow}
+                          onVariantSelect={onVariantSelect}
+                          onLoginRequired={onLoginRequired}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-gray-400 text-sm font-medium py-8 text-center italic">
+                    Campaign products are currently being updated.
+                  </div>
+                )}
               </motion.div>
-            </div>
-          </TabsContent>
+            );
+          })}
+      </div>
+    )
+  }
 
-          {/* Reviews Tab */}
-          <TabsContent value="reviews">
-            <StorefrontReviewsTab
-              reviewStats={reviewStats}
-              seller={seller}
-              reviews={reviews}
-              reviewFilter={reviewFilter}
-              setReviewFilter={setReviewFilter}
-              reviewsStartRef={reviewsStartRef}
-              handleToggleLike={handleToggleLike}
-              replyingTo={replyingTo}
-              setReplyingTo={setReplyingTo}
-              replyText={replyText}
-              setReplyText={setReplyText}
-              handlePostReply={handlePostReply}
-            />
-          </TabsContent>
-
-          {/* About Tab */}
-          <TabsContent value="about">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <Card className="border-0 shadow-md overflow-hidden bg-white rounded-2xl">
-                <CardContent className="p-0 divide-y divide-gray-100">
-
-                  {/* Description */}
-                  {seller.description && (
-                    <div className="p-6">
-                      <h3 className="font-semibold text-base text-gray-900 mb-2">About {seller.name}</h3>
-                      <p className="text-gray-600 leading-relaxed text-sm whitespace-pre-line">{seller.description}</p>
-                    </div>
-                  )}
-
-                  {/* Store Information */}
-                  <div className="p-6">
-                    <h3 className="font-semibold text-base text-gray-900 mb-4">Store Information</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-gray-500 w-32 shrink-0">Store Name</span>
-                        <span className="text-sm font-medium text-gray-900">{seller.name}</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-gray-500 w-32 shrink-0">Location</span>
-                        <span className="text-sm font-medium text-gray-900">{seller.location}</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-gray-500 w-32 shrink-0">Established</span>
-                        <span className="text-sm font-medium text-gray-900">{seller.established}</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-gray-500 w-32 shrink-0">Response Time</span>
-                        <span className="text-sm font-medium text-gray-900">{seller.responseTime}</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-gray-500 w-32 shrink-0">Followers</span>
-                        <span className="text-sm font-medium text-gray-900">{followersCount.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Categories */}
-                  <div className="p-6">
-                    <h3 className="font-semibold text-base text-gray-900 mb-3">Categories</h3>
-                    <div className="text-sm text-gray-500">
-                      {(sellerCategories.length > 0 ? sellerCategories : seller.categories).join(' | ')}
-                    </div>
-                  </div>
-
-                </CardContent>
-              </Card>
-            </motion.div>
-          </TabsContent>
-
-        </Tabs>
+  {/* Store Content */ }
+  <div className="max-w-7xl mx-auto px-4 py-4">
+    <Tabs defaultValue="products" className="space-y-4" onValueChange={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+      <div className="sticky top-20 z-30 flex justify-center w-full mb-4 py-2 backdrop-blur-[2px]">
+        <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-white p-1 border-0 shadow-sm">
+          <TabsTrigger
+            value="products"
+            className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+          >
+            Products
+          </TabsTrigger>
+          <TabsTrigger
+            value="reviews"
+            className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+          >
+            Reviews
+          </TabsTrigger>
+          <TabsTrigger
+            value="about"
+            className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+          >
+            About Store
+          </TabsTrigger>
+        </TabsList>
       </div>
 
-      {
-        addedProduct && showCartModal && (
-          <CartModal
-            isOpen={showCartModal}
-            onClose={() => setShowCartModal(false)}
-            productName={addedProduct.name}
-            productImage={addedProduct.image}
-            cartItemCount={cartItems.length}
-          />
-        )
-      }
+      {/* Products Tab */}
+      <TabsContent value="products">
+        <div className="space-y-6">
+          {/* Filters and Controls */}
+          <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-3">
+                <Filter className="h-4 w-4 text-gray-400" />
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
+                    <SelectItem
+                      value="all"
+                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
+                    >
+                      All Categories
+                    </SelectItem>
+                    {sellerCategories.map((cat) => (
+                      <SelectItem
+                        key={cat}
+                        value={cat}
+                        className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors last:mb-0"
+                      >
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-3">
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
+                    <SelectItem
+                      value="popular"
+                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
+                    >
+                      Popular
+                    </SelectItem>
+                    <SelectItem
+                      value="newest"
+                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
+                    >
+                      Newest
+                    </SelectItem>
+                    <SelectItem
+                      value="price-low"
+                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
+                    >
+                      Price: Low to High
+                    </SelectItem>
+                    <SelectItem
+                      value="price-high"
+                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 last:mb-0 text-sm transition-colors"
+                    >
+                      Price: High to Low
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div></div>
+          </div>
 
-      <ShopBuyNowModal
-        isOpen={showBuyNowModal}
-        onClose={() => {
-          setShowBuyNowModal(false);
-          setBuyNowProduct(null);
-        }}
-        product={buyNowProduct}
+          {/* Products Grid */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className={cn(
+              "grid gap-4",
+              viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1'
+            )}
+          >
+            {filteredProducts.map((product, index) => (
+              <StorefrontProductCard
+                key={product.id}
+                product={product}
+                index={index}
+                seller={seller}
+                profile={profile}
+                onAddToCart={(p) => {
+                  handleAddToCart(p);
+                  setAddedProduct({ name: p.name, image: p.image });
+                  setShowCartModal(true);
+                }}
+                onBuyNow={onBuyNow}
+                onVariantSelect={onVariantSelect}
+                onLoginRequired={onLoginRequired}
+              />
+            ))}
+          </motion.div>
+        </div>
+      </TabsContent>
+
+      {/* Reviews Tab */}
+      <TabsContent value="reviews">
+        <StorefrontReviewsTab
+          reviewStats={reviewStats}
+          seller={seller}
+          reviews={reviews}
+          reviewFilter={reviewFilter}
+          setReviewFilter={setReviewFilter}
+          reviewsStartRef={reviewsStartRef}
+          handleToggleLike={handleToggleLike}
+          replyingTo={replyingTo}
+          setReplyingTo={setReplyingTo}
+          replyText={replyText}
+          setReplyText={setReplyText}
+          handlePostReply={handlePostReply}
+        />
+      </TabsContent>
+
+      {/* About Tab */}
+      <TabsContent value="about">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Card className="border-0 shadow-md overflow-hidden bg-white rounded-2xl">
+            <CardContent className="p-0 divide-y divide-gray-100">
+
+              {/* Description */}
+              {seller.description && (
+                <div className="p-6">
+                  <h3 className="font-semibold text-base text-gray-900 mb-2">About {seller.name}</h3>
+                  <p className="text-gray-600 leading-relaxed text-sm whitespace-pre-line">{seller.description}</p>
+                </div>
+              )}
+
+              {/* Store Information */}
+              <div className="p-6">
+                <h3 className="font-semibold text-base text-gray-900 mb-4">Store Information</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-500 w-32 shrink-0">Store Name</span>
+                    <span className="text-sm font-medium text-gray-900">{seller.name}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-500 w-32 shrink-0">Location</span>
+                    <span className="text-sm font-medium text-gray-900">{seller.location}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-500 w-32 shrink-0">Established</span>
+                    <span className="text-sm font-medium text-gray-900">{seller.established}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-500 w-32 shrink-0">Response Time</span>
+                    <span className="text-sm font-medium text-gray-900">{seller.responseTime}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-500 w-32 shrink-0">Followers</span>
+                    <span className="text-sm font-medium text-gray-900">{followersCount.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Categories */}
+              <div className="p-6">
+                <h3 className="font-semibold text-base text-gray-900 mb-3">Categories</h3>
+                <div className="text-sm text-gray-500">
+                  {(sellerCategories.length > 0 ? sellerCategories : seller.categories).join(' | ')}
+                </div>
+              </div>
+
+            </CardContent>
+          </Card>
+        </motion.div>
+      </TabsContent>
+
+    </Tabs>
+  </div>
+
+  {
+    addedProduct && showCartModal && (
+      <CartModal
+        isOpen={showCartModal}
+        onClose={() => setShowCartModal(false)}
+        productName={addedProduct.name}
+        productImage={addedProduct.image}
+        cartItemCount={cartItems.length}
       />
+    )
+  }
 
-      {
-        variantProduct && showVariantModal && (
-          <ShopVariantModal
-            isOpen={showVariantModal}
-            onClose={() => {
-              setShowVariantModal(false);
-              setVariantProduct(null);
-              setIsBuyNowAction(false);
-            }}
-            product={variantProduct}
-            isBuyNow={isBuyNowAction}
-            onAddToCartSuccess={(name, image) => {
-              setAddedProduct({ name, image });
-              setShowCartModal(true);
-            }}
-          />
-        )
-      }
-      <BazaarFooter />
-    </div >
+  <ShopBuyNowModal
+    isOpen={showBuyNowModal}
+    onClose={() => {
+      setShowBuyNowModal(false);
+      setBuyNowProduct(null);
+    }}
+    product={buyNowProduct}
+  />
+
+  {
+    variantProduct && showVariantModal && (
+      <ShopVariantModal
+        isOpen={showVariantModal}
+        onClose={() => {
+          setShowVariantModal(false);
+          setVariantProduct(null);
+          setIsBuyNowAction(false);
+        }}
+        product={variantProduct}
+        isBuyNow={isBuyNowAction}
+        onAddToCartSuccess={(name, image) => {
+          setAddedProduct({ name, image });
+          setShowCartModal(true);
+        }}
+      />
+    )
+  }
+  <BazaarFooter />
+    </div>
   );
 }

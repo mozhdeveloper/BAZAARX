@@ -125,9 +125,9 @@ export default function ShopPage() {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
 
-  // Fetch real flash sale products
+  // Fetch real flash sale products (global admin events from global_flash_sale_slots)
   useEffect(() => {
-    discountService.getFlashSaleProducts()
+    discountService.getGlobalFlashSaleProducts()
       .then((data) => {
         if (data && data.length > 0) {
           setFlashSaleProducts(data);
@@ -505,7 +505,7 @@ export default function ShopPage() {
             {/* Flash Sale Section — one block per active campaign */}
             {flashSaleProducts.length > 0 && (() => {
               // Group products by campaign
-              const campaignMap = new Map<string, { id: string; name: string; endsAt: string; color: string; seller?: string; products: any[] }>();
+              const campaignMap = new Map<string, { id: string; name: string; endsAt: string; color: string; products: any[] }>();
               for (const p of flashSaleProducts) {
                 const key = p.campaignId || 'default';
                 if (!campaignMap.has(key)) {
@@ -514,7 +514,6 @@ export default function ShopPage() {
                     name: p.campaignName || 'Flash Sale',
                     endsAt: p.campaignEndsAt || '',
                     color: p.campaignBadgeColor || 'var(--brand-primary)',
-                    seller: p.seller,
                     products: []
                   });
                 }
@@ -540,14 +539,6 @@ export default function ShopPage() {
                             >
                               {campaign.name}
                             </h2>
-                            {campaign.seller && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-300 text-xl leading-none">|</span>
-                                <span className="text-gray-500 text-sm">
-                                  {campaign.seller}
-                                </span>
-                              </div>
-                            )}
                           </div>
                         </div>
 

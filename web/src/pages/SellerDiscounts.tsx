@@ -47,12 +47,15 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { discountService } from "@/services/discountService";
 import { AddProductsToCampaignDialog } from "@/components/AddProductsToCampaignDialog";
+import { JoinGlobalSlotDialog } from "@/components/JoinGlobalSlotDialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   DiscountCampaign,
   CampaignType,
   DiscountType,
   AppliesTo,
   ProductDiscount,
+  GlobalFlashSaleSlot,
 } from "@/types/discount";
 import {
   campaignTypeLabels as typeLabels,
@@ -133,6 +136,11 @@ export default function SellerDiscounts() {
   const [isViewProductsDialogOpen, setIsViewProductsDialogOpen] = useState(false);
   const [viewingCampaign, setViewingCampaign] = useState<DiscountCampaign | null>(null);
   const [campaignProducts, setCampaignProducts] = useState<Record<string, ProductDiscount[]>>({});
+  
+  const [globalSlots, setGlobalSlots] = useState<GlobalFlashSaleSlot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<GlobalFlashSaleSlot | null>(null);
 
   const { seller, logout } = useAuthStore();
   const navigate = useNavigate();
@@ -155,6 +163,7 @@ export default function SellerDiscounts() {
     claimLimit: "",
     perCustomerLimit: "1",
     appliesTo: "all_products" as AppliesTo,
+    campaignScope: "store" as "store" | "global",
   });
 
   // Fetch campaigns
@@ -192,9 +201,22 @@ export default function SellerDiscounts() {
     }
   };
 
+  const fetchGlobalSlots = async () => {
+    try {
+      setLoadingSlots(true);
+      const slots = await discountService.getGlobalFlashSaleSlots();
+      setGlobalSlots(slots);
+    } catch (error) {
+      console.error("Failed to load global slots:", error);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
   useEffect(() => {
     if (seller?.id) {
       fetchCampaigns();
+      fetchGlobalSlots();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller?.id]);
@@ -276,6 +298,7 @@ export default function SellerDiscounts() {
           : undefined,
         perCustomerLimit: parseInt(formData.perCustomerLimit),
         appliesTo: formData.appliesTo,
+        campaignScope: formData.campaignScope,
       });
 
       toast({
@@ -432,6 +455,7 @@ export default function SellerDiscounts() {
       claimLimit: campaign.claimLimit?.toString() || "",
       perCustomerLimit: campaign.perCustomerLimit.toString(),
       appliesTo: campaign.appliesTo,
+      campaignScope: campaign.campaignScope || "store",
     });
     setIsEditDialogOpen(true);
   };
@@ -452,6 +476,7 @@ export default function SellerDiscounts() {
       claimLimit: "",
       perCustomerLimit: "1",
       appliesTo: "all_products",
+      campaignScope: "store",
     });
   };
 
@@ -495,6 +520,14 @@ export default function SellerDiscounts() {
                   Create Campaign
                 </Button>
               </div>
+
+              <Tabs defaultValue="my-campaigns">
+                <TabsList className="mb-6 w-full max-w-md grid grid-cols-2">
+                  <TabsTrigger value="my-campaigns">My Store Campaigns</TabsTrigger>
+                  <TabsTrigger value="global-slots">Global Flash Sales</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="my-campaigns">
 
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -776,8 +809,57 @@ export default function SellerDiscounts() {
                   ))}
                 </div>
               )}
+                </TabsContent>
+
+                <TabsContent value="global-slots">
+                  <div className="grid gap-6">
+                    {loadingSlots ? (
+                      <p className="text-gray-500 text-sm text-center py-10">Loading events...</p>
+                    ) : globalSlots.length === 0 ? (
+                      <div className="text-center py-20 bg-white rounded-3xl border-0 shadow-sm">
+                        <Package className="h-10 w-10 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-black text-[var(--text-headline)] mb-2">No active global events</h3>
+                      </div>
+                    ) : (
+                      globalSlots.map((slot) => (
+                        <div key={slot.id} className="bg-white rounded-2xl p-6 shadow-sm border flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <Zap className="h-5 w-5 text-orange-500" />
+                              <h3 className="text-xl font-bold">{slot.name}</h3>
+                              <Badge className={slot.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
+                                {slot.status.toUpperCase()}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">{slot.description}</p>
+                            <div className="flex gap-4 text-xs text-gray-500">
+                              <span className="flex items-center"><Calendar className="h-4 w-4 mr-1" /> {new Date(slot.start_time).toLocaleDateString()} - {new Date(slot.end_time).toLocaleDateString()}</span>
+                              <span className="flex items-center"><Percent className="h-4 w-4 mr-1" /> Min {slot.min_discount_percentage}% OFF required</span>
+                            </div>
+                          </div>
+                          {(slot.status === 'upcoming' || slot.status === 'active') && (
+                            <Button
+                              onClick={() => { setSelectedSlot(slot); setIsJoinDialogOpen(true); }}
+                              className="bg-orange-600 hover:bg-orange-700 text-white shadow-lg"
+                            >
+                              Join Event
+                            </Button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
+
+          <JoinGlobalSlotDialog
+            open={isJoinDialogOpen}
+            onOpenChange={setIsJoinDialogOpen}
+            slot={selectedSlot}
+            sellerId={seller?.id || ''}
+          />
 
           {/* Create Campaign Dialog */}
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

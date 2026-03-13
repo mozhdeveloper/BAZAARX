@@ -44,6 +44,7 @@ import { supabase } from "@/lib/supabase";
 import { categoryService } from "@/services/categoryService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import type { BusinessType } from "@/types/database.types";
+import { discountService } from "@/services/discountService";
 
 // Logo components defined outside of render
 

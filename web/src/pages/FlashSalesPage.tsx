@@ -47,7 +47,7 @@ export default function FlashSalesPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        discountService.getFlashSaleProducts().then(data => {
+        discountService.getGlobalFlashSaleProducts().then(data => {
             setProducts(data || []);
             setLoading(false);
         }).catch(console.error);
@@ -135,7 +135,6 @@ export default function FlashSalesPage() {
                                                 <h2 className="text-2xl font-black uppercase tracking-tight leading-none" style={{ color: group.color }}>
                                                     {group.campaignName}
                                                 </h2>
-                                                {group.seller && <span className="text-gray-500 text-sm">By {group.seller}</span>}
                                             </div>
                                         </div>
                                         {/* Individual Group Timer Component */}
