@@ -1337,6 +1337,20 @@ export default function OrderDetailPage() {
                       </Button>
                     </div>
                   )}
+
+                  {/* Request Return / Refund - shown for delivered/received orders (not already returned) */}
+                  {(order.status === 'delivered' || order.status === 'received') && (
+                    <div className="pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
+                        className="w-full border-orange-200 text-[var(--brand-primary)] hover:bg-orange-50"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Request Return / Refund
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

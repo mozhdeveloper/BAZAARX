@@ -58,6 +58,8 @@ const BuyerSupport = lazyNamed(() => import("./pages/BuyerSupport"), "BuyerSuppo
 const MyTickets = lazy(() => import("./pages/MyTickets"));
 const BuyerOnboardingPage = lazy(() => import("./pages/BuyerOnboardingPage"));
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
+const BuyerReturnRequestPage = lazy(() => import("./pages/BuyerReturnRequestPage"));
+const BuyerReturnsListPage = lazy(() => import("./pages/BuyerReturnsListPage"));
 
 // Seller auth pages (named exports)
 const SellerLogin = lazyNamed(() => import("./pages/SellerAuth"), "SellerLogin");
@@ -78,6 +80,7 @@ const SellerReviews = lazyNamed(() => import("./pages/SellerReviews"), "SellerRe
 const SellerAnalytics = lazyNamed(() => import("./pages/SellerAnalytics"), "SellerAnalytics");
 const SellerSettings = lazyNamed(() => import("./pages/SellerSettings"), "SellerSettings");
 const SellerAccountBlocked = lazyNamed(() => import("./pages/SellerAccountBlocked"), "SellerAccountBlocked");
+const AdminReturns = lazy(() => import("./pages/AdminReturns"));
 
 // Seller protected pages (default exports)
 const SellerNotifications = lazy(() => import("./pages/SellerNotifications"));
@@ -290,6 +293,22 @@ function App() {
                 //<ProtectedBuyerRoute>
                 <MyTickets />
                 //</ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/returns"
+              element={
+                // <ProtectedBuyerRoute>
+                <BuyerReturnsListPage />
+                // </ProtectedBuyerRoute>
+              }
+            />
+            <Route
+              path="/order/:orderId/return"
+              element={
+                // <ProtectedBuyerRoute>
+                <BuyerReturnRequestPage />
+                // </ProtectedBuyerRoute>
               }
             />
             <Route path="/track-delivery" element={<TrackingForm />} />
@@ -544,6 +563,7 @@ function App() {
             <Route path="admin/announcements" element={<AdminAnnouncementsPage />} />
             <Route path="/admin/product-approvals" element={<QADashboard />} />
             <Route path="/admin/qa-dashboard" element={<AdminQADashboard />} />
+            <Route path="/admin/returns" element={<AdminReturns />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

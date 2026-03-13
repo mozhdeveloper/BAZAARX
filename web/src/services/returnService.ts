@@ -847,6 +847,29 @@ class ReturnService {
   }
 
   // ============================================================================
+  // BUYER: Check if return exists for an order
+  // ============================================================================
+
+  async getReturnForOrder(orderDbId: string): Promise<ReturnRequest | null> {
+    if (!isSupabaseConfigured()) return null;
+    if (!this.isUuid(orderDbId)) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from("refund_return_periods")
+        .select("*")
+        .eq("order_id", orderDbId)
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return this.transform(data);
+    } catch {
+      return null;
+    }
+  }
+
+  // ============================================================================
   // UTILITY: Check return window
   // ============================================================================
 
