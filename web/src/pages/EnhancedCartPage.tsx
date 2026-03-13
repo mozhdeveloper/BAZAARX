@@ -157,7 +157,7 @@ export default function EnhancedCartPage() {
 
       // Check if all requested items are now present in the cart
       const allItemsPresent = state.selectedItems.every(id =>
-        cartItems.some(item => item.id === id)
+        cartItems.some(item => item.cartItemId === id || item.id === id)
       );
 
       if (allItemsPresent) {

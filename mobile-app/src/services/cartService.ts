@@ -214,39 +214,44 @@ export class CartService {
     quantity: number,
     variantId?: string,
     personalizedOptions?: Record<string, unknown>,
-    notes?: string
+    notes?: string,
+    forceNewItem: boolean = false
   ): Promise<CartItem> {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase not configured - cannot add to cart');
     }
 
     try {
-      // Check if item already exists with the same variant
-      let query = supabase
-        .from('cart_items')
-        .select('*')
-        .eq('cart_id', cartId)
-        .eq('product_id', productId);
+      // Verify product exists before inserting to avoid FK constraint errors
+      const prod = await productService.getProductById(productId);
+      if (!prod) {
+        throw new Error('Product not found');
+      }
 
-      // If variant specified, filter by variant_id
-      if (variantId) {
-        query = query.eq('variant_id', variantId);
-      } else {
-        // Verify product exists before inserting to avoid FK constraint errors
-        const prod = await productService.getProductById(productId);
-        if (!prod) {
-          throw new Error('Product not found');
+      let existing: any = null;
+      if (!forceNewItem) {
+        // Check if item already exists with the same variant
+        let query = supabase
+          .from('cart_items')
+          .select('*')
+          .eq('cart_id', cartId)
+          .eq('product_id', productId);
+
+        // If variant specified, filter by variant_id
+        if (variantId) {
+          query = query.eq('variant_id', variantId);
+        } else {
+          query = query.is('variant_id', null);
         }
-        query = query.is('variant_id', null);
-      }
 
-      // Use limit(1) instead of maybeSingle() to avoid errors on duplicates
-      const { data: existingRows, error: findError } = await query.limit(1);
-      if (findError) {
-        console.error('[CartService] Error finding existing cart item:', findError);
-        throw findError;
+        // Use limit(1) instead of maybeSingle() to avoid errors on duplicates
+        const { data: existingRows, error: findError } = await query.limit(1);
+        if (findError) {
+          console.error('[CartService] Error finding existing cart item:', findError);
+          throw findError;
+        }
+        existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
       }
-      const existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
       let result;
       if (existing) {
@@ -456,8 +461,8 @@ export class CartService {
   }
 
   // Convenience wrapper methods for cart store compatibility
-  async addItem(cartId: string, productId: string, unitPrice: number, quantity: number, variantId?: string | null, personalizedOptions?: Record<string, unknown> | null): Promise<CartItem> {
-    return this.addToCart(cartId, productId, quantity, variantId || undefined, personalizedOptions || undefined);
+  async addItem(cartId: string, productId: string, unitPrice: number, quantity: number, variantId?: string | null, personalizedOptions?: Record<string, unknown> | null, forceNewItem: boolean = false): Promise<CartItem> {
+    return this.addToCart(cartId, productId, quantity, variantId || undefined, personalizedOptions || undefined, undefined, forceNewItem);
   }
 
   async removeItem(cartId: string, productId: string, variantId?: string | null): Promise<void> {

@@ -41,7 +41,7 @@ import { chatService } from './src/services/chatService';
 export type TabParamList = {
   Home: undefined;
   Shop: { category?: string; searchQuery?: string; customResults?: Product[] };
-  Cart: undefined;
+  Cart: { selectedCartItemIds?: string[] } | undefined;
   Messages: undefined;
   Profile: undefined;
 };

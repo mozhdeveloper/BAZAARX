@@ -14,7 +14,7 @@ interface CartStore {
   isLoading?: boolean;
   error?: string | null;
   initializeForCurrentUser: () => Promise<void>;
-  addItem: (product: Product) => Promise<string | undefined>;
+  addItem: (product: Product, options?: { forceNewItem?: boolean }) => Promise<string | undefined>;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   updateItemVariant: (cartItemId: string, variantId?: string, options?: any) => Promise<void>;
@@ -225,7 +225,7 @@ export const useCartStore = create<CartStore>()(
         }
       },
 
-      addItem: (product) => {
+      addItem: (product, options) => {
         const userId = useAuthStore.getState().user?.id;
         if (!userId || userId === 'guest') return Promise.resolve(undefined);
         
@@ -235,7 +235,7 @@ export const useCartStore = create<CartStore>()(
             await get().initializeForCurrentUser();
             cartId = get().cartId;
           }
-          if (!cartId) return undefined;
+          if (!cartId) return;
 
           const unitPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0');
           const quantity = (product as any).quantity || 1;
@@ -256,18 +256,25 @@ export const useCartStore = create<CartStore>()(
           } : null;
 
           try {
-            const added = await cartService.addItem(cartId, product.id, unitPrice, quantity, variantId, personalizedOptions);
+            const added = await cartService.addItem(
+              cartId,
+              product.id,
+              unitPrice,
+              quantity,
+              variantId,
+              personalizedOptions,
+              !!options?.forceNewItem
+            );
             // Only refresh from DB if the insert succeeded
             await get().initializeForCurrentUser();
-            return String((added as any)?.id || '');
+            return (added as any)?.id as string | undefined;
           } catch (e: any) {
             const msg = String(e?.message || e || '');
             // For missing product FK errors, treat as non-fatal and silently fall back to local cart entry
             if (msg.includes('Product not found') || msg.includes('violates foreign key')) {
-              const localCartItemId = `local-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
               const localItem: CartItem = {
                 id: product.id,
-                cartItemId: localCartItemId,
+                cartItemId: `local-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
                 name: product.name || 'Product',
                 description: product.description || '',
                 price: typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0'),
@@ -286,7 +293,7 @@ export const useCartStore = create<CartStore>()(
 
               // Add local item WITHOUT calling initializeForCurrentUser() to prevent overwrite
               set(state => ({ items: [localItem, ...state.items] }));
-              return localCartItemId;
+              return localItem.cartItemId;
             } else {
               console.error('[CartStore] Failed to add item:', msg || e);
               set({ error: msg || 'Failed to add item to cart' });
