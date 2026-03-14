@@ -41,10 +41,10 @@ const AdminSettings: React.FC = () => {
       <AdminSidebar open={open} setOpen={setOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-8 py-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto px-8 py-8">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-6 mb-8">
               <div>
                 <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Settings</h1>
                 <p className="text-[var(--text-muted)]">Manage platform configuration and preferences</p>
@@ -52,7 +52,7 @@ const AdminSettings: React.FC = () => {
               <Button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
+                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white flex items-center gap-2"
               >
                 {isSaving ? (
                   <>
@@ -67,19 +67,28 @@ const AdminSettings: React.FC = () => {
                 )}
               </Button>
             </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto px-8 py-8">
             <Tabs defaultValue="general" className="w-full">
-              <TabsList className="grid w-full grid-cols-5 mb-6">
-                <TabsTrigger value="general">General</TabsTrigger>
-                <TabsTrigger value="notifications">Notifications</TabsTrigger>
-                <TabsTrigger value="security">Security</TabsTrigger>
-                <TabsTrigger value="appearance">Appearance</TabsTrigger>
-                <TabsTrigger value="email">Email</TabsTrigger>
+              <TabsList className="w-full bg-white border-0 shadow-none rounded-none h-auto p-0 mb-6 gap-0 justify-center">
+                {[
+                  { value: 'general', label: 'General' },
+                  { value: 'notifications', label: 'Notifications' },
+                  { value: 'security', label: 'Security' },
+                  { value: 'appearance', label: 'Appearance' },
+                  { value: 'email', label: 'Email' },
+                ].map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="relative bg-transparent border-0 rounded-none px-5 py-2 text-xs text-[var(--text-muted)] shadow-none
+                      data-[state=active]:bg-transparent data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-none
+                      data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0
+                      data-[state=active]:after:w-full data-[state=active]:after:h-[2px] data-[state=active]:after:bg-[var(--brand-primary)]
+                      data-[state=active]:after:rounded-t-full
+                      hover:text-[var(--brand-primary)] transition-colors"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
 
               {/* General Settings */}

@@ -181,7 +181,7 @@ const AdminFlashSales: React.FC = () => {
         if (slot.id === slotId) {
           return {
             ...slot,
-            submissions: slot.submissions.map(sub => 
+            submissions: slot.submissions.map(sub =>
               sub.id === subId ? { ...sub, status } : sub
             )
           };
@@ -228,14 +228,14 @@ const AdminFlashSales: React.FC = () => {
               <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Flash Sales Management</h1>
               <p className="text-[var(--text-muted)]">Manage global events and review seller submissions</p>
             </div>
-            <Button onClick={() => setShowCreateModal(true)} className="bg-[#FF6A00] hover:bg-[#E55D00]">
+            <Button onClick={() => setShowCreateModal(true)} className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]">
               <Plus className="h-5 w-5 mr-2" />
               Create Event
             </Button>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-4 gap-6 mb-8">
             {[
               { label: 'Total Events', value: stats.total, icon: Zap },
               { label: 'Upcoming', value: stats.scheduled, icon: Calendar },
@@ -243,17 +243,17 @@ const AdminFlashSales: React.FC = () => {
               { label: 'Ended', value: stats.ended, icon: Clock }
             ].map((stat, index) => (
               <Card key={index} className="border-none shadow-md hover:shadow-lg transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[var(--brand-primary)]/5 to-[var(--brand-primary)]/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
                 <CardContent className="p-6 relative z-10">
                   <div className="flex flex-col">
                     <div className="mb-4 text-gray-500 group-hover:text-[var(--brand-accent)] transition-all">
                       <stat.icon className="h-5 w-5" />
                     </div>
-                    <div className="space-y-1">
+                    <div className="flex items-center justify-between mt-auto">
                       <p className="text-sm font-medium text-gray-400">{stat.label}</p>
-                      <div className="flex items-end gap-3 mt-1">
-                        <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">{stat.value}</p>
-                      </div>
+                      <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">
+                        {stat.value}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -261,29 +261,50 @@ const AdminFlashSales: React.FC = () => {
             ))}
           </div>
 
-          {/* Filters and Search */}
-          <Card className="mb-6">
-            <CardContent className="pt-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Search events..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button variant={filterStatus === 'all' ? 'default' : 'outline'} onClick={() => setFilterStatus('all')} className={filterStatus === 'all' ? 'bg-[#FF6A00] hover:bg-[#E55D00]' : ''}>All</Button>
-                  <Button variant={filterStatus === 'upcoming' ? 'default' : 'outline'} onClick={() => setFilterStatus('upcoming')} className={filterStatus === 'upcoming' ? 'bg-blue-600 hover:bg-blue-700' : ''}>Upcoming</Button>
-                  <Button variant={filterStatus === 'active' ? 'default' : 'outline'} onClick={() => setFilterStatus('active')} className={filterStatus === 'active' ? 'bg-green-600 hover:bg-green-700' : ''}>Active</Button>
-                  <Button variant={filterStatus === 'ended' ? 'default' : 'outline'} onClick={() => setFilterStatus('ended')} className={filterStatus === 'ended' ? 'bg-gray-600 hover:bg-gray-700' : ''}>Ended</Button>
-                </div>
+          {/* Filters and Search Bar */}
+          <div className="flex items-center justify-between gap-6 mb-4">
+            <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-full p-0.5 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-0.5">
+                {[
+                  { id: 'all', label: 'All', count: stats.total },
+                  { id: 'upcoming', label: 'Upcoming', count: stats.scheduled },
+                  { id: 'active', label: 'Active', count: stats.active },
+                  { id: 'ended', label: 'Ended', count: stats.ended },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setFilterStatus(tab.id as any)}
+                    className={`relative px-4 h-7 text-xs font-medium transition-all duration-300 rounded-full flex items-center gap-1.5 whitespace-nowrap z-10 ${filterStatus === tab.id
+                      ? 'text-white'
+                      : 'text-gray-500 hover:text-[var(--brand-primary)]'
+                      }`}
+                  >
+                    {tab.label}
+                    <span className={`text-[10px] font-normal transition-colors ${filterStatus === tab.id ? 'text-white/80' : 'text-[var(--text-muted)]/60'}`}>
+                      ({tab.count})
+                    </span>
+                    {filterStatus === tab.id && (
+                      <motion.div
+                        layoutId="activeTabPill"
+                        className="absolute inset-0 bg-[var(--brand-primary)] rounded-full -z-10"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </button>
+                ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+            <div className="relative w-[320px] group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[var(--brand-primary)]" />
+              <Input
+                placeholder="Search events..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-9 bg-white border-gray-200 rounded-xl shadow-sm focus:border-[var(--brand-primary)] focus:ring-0 placeholder:text-gray-400 text-sm"
+              />
+            </div>
+          </div>
 
           {/* Slots List */}
           <div className="grid gap-6">
@@ -292,37 +313,48 @@ const AdminFlashSales: React.FC = () => {
               const pendingCount = slot.submissions.filter(s => s.status === 'pending').length;
 
               return (
-                <Card key={slot.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="pt-6 pb-4">
+                <Card key={slot.id} className="border-0 shadow-lg transition-shadow">
+                  <CardContent className="pt-4 pb-4">
                     <div className="flex flex-col lg:flex-row gap-6">
                       <div className="flex-1">
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
-                              <Zap className="h-6 w-6 text-orange-500" />
                               <h3 className="text-xl font-semibold text-gray-900">{slot.name}</h3>
-                              <Badge className={getStatusColor(slot.status)}>{slot.status.toUpperCase()}</Badge>
+                              <Badge className={`${getStatusColor(slot.status)} pointer-events-none`}>{slot.status.toUpperCase()}</Badge>
                             </div>
                             <p className="text-sm text-gray-600">{slot.description}</p>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                              <div><p className="text-sm text-gray-600">Pending Submissions</p><p className="text-lg font-semibold text-orange-600">{pendingCount}</p></div>
-                              <div><p className="text-sm text-gray-600">Approved Products</p><p className="text-lg font-semibold text-green-600">{approvedCount}</p></div>
-                              <div><p className="text-sm text-gray-600">Start Date</p><p className="text-sm font-medium text-gray-900">{new Date(slot.start_time).toLocaleDateString()}</p></div>
-                              <div><p className="text-sm text-gray-600">End Date</p><p className="text-sm font-medium text-gray-900">{new Date(slot.end_time).toLocaleDateString()}</p></div>
+                            <div className="flex items-center justify-between flex-wrap gap-y-2 text-sm mt-3">
+                              <div className="flex items-center gap-x-4">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-gray-500">Pending:</span>
+                                  <span className="font-semibold text-[var(--brand-primary)]">{pendingCount}</span>
+                                </div>
+                                <span className="text-gray-500 hidden md:inline">•</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-gray-500">Approved:</span>
+                                  <span className="font-semibold text-green-600">{approvedCount}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 font-medium text-[var(--text-muted)] ml-auto">
+                                <Calendar className="w-4 h-4 text-[var(--text-muted)]" />
+                                <span>
+                                  {new Date(slot.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {new Date(slot.end_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
 
                         {/* Review Submissions Toggle */}
-                        <div className="mt-4 pt-4 border-t">
-                          <button 
+                        <div className="mt-4 pt-2 border-t border-gray-100">
+                          <button
                             onClick={() => toggleSlotExpansion(slot.id)}
-                            className="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-orange-600 transition-colors"
+                            className="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-[var(--brand-primary)] transition-colors"
                           >
                             {expandedSlots.has(slot.id) ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             Review Submissions ({slot.submissions.length})
                           </button>
-
                           <AnimatePresence>
                             {expandedSlots.has(slot.id) && (
                               <motion.div
@@ -355,7 +387,7 @@ const AdminFlashSales: React.FC = () => {
                                               <span className="text-gray-500 ml-2">Stock: {sub.submitted_stock}</span>
                                             </div>
                                           </div>
-                                          
+
                                           <div className="flex items-center gap-2">
                                             {isPending && (
                                               <>
@@ -367,8 +399,8 @@ const AdminFlashSales: React.FC = () => {
                                                 </Button>
                                               </>
                                             )}
-                                            {isApproved && <Badge className="bg-green-100 text-green-700 hover:bg-green-200">Approved</Badge>}
-                                            {isRejected && <Badge className="bg-red-100 text-red-700 hover:bg-red-200">Rejected</Badge>}
+                                            {isApproved && <Badge className="bg-green-100 text-green-700 pointer-events-none">Approved</Badge>}
+                                            {isRejected && <Badge className="bg-red-100 text-red-700 pointer-events-none">Rejected</Badge>}
                                           </div>
                                         </div>
                                       );
@@ -381,23 +413,13 @@ const AdminFlashSales: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Right Section - Actions */}
-                      <div className="lg:w-48 flex flex-col gap-2 border-l pl-4 border-gray-100">
-                        {slot.status === 'upcoming' && (
-                          <Button onClick={() => handleToggleStatus(slot.id)} className="w-full bg-green-600 hover:bg-green-700">
-                            <Play className="h-4 w-4 mr-2" /> Start Now
-                          </Button>
-                        )}
-                        {slot.status === 'active' && (
-                          <Button onClick={() => handleToggleStatus(slot.id)} variant="outline" className="w-full">
-                            <Pause className="h-4 w-4 mr-2" /> Pause
-                          </Button>
-                        )}
+                      <div className="flex items-start gap-1">
                         {slot.status !== 'ended' && (
                           <>
                             <Button
-                              variant="outline"
-                              className="w-full"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-gray-500 hover:text-[var(--brand-primary)] hover:bg-base"
                               onClick={() => {
                                 setEditSlot(slot);
                                 setEditName(slot.name);
@@ -406,13 +428,42 @@ const AdminFlashSales: React.FC = () => {
                                 setEditEndDate(toLocal(slot.end_time));
                                 setEditMinDiscount(slot.min_discount_percentage);
                               }}
+                              title="Edit Event"
                             >
-                              <Edit className="h-4 w-4 mr-2" /> Edit
+                              <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" onClick={() => handleDeleteSlot(slot.id)} className="w-full text-red-600 hover:bg-red-50">
-                              <Trash2 className="h-4 w-4 mr-2" /> Delete
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteSlot(slot.id)}
+                              className="h-8 w-8 text-gray-500 hover:text-red-700 hover:bg-base"
+                              title="Delete Event"
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </>
+                        )}
+                        {slot.status === 'upcoming' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleStatus(slot.id)}
+                            className="rounded-lg border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-green-700 hover:border-green-700 flex items-center gap-2 h-8 px-4 ml-1"
+                          >
+                            <Play className="h-3.5 w-3.5" />
+                            <span className="text-xs">Start Now</span>
+                          </Button>
+                        )}
+                        {slot.status === 'active' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleStatus(slot.id)}
+                            className="rounded-lg border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-red-700 hover:border-red-700 flex items-center gap-2 h-8 px-4 ml-1"
+                          >
+                            <Pause className="h-3.5 w-3.5" />
+                            <span className="text-xs">Pause</span>
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -455,10 +506,10 @@ const AdminFlashSales: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
-                <Button onClick={handleCreateSlot} disabled={isCreating} className="flex-1 bg-orange-600 hover:bg-orange-700">
+                <Button onClick={() => setShowCreateModal(false)} variant="outline" className="text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-600">Cancel</Button>
+                <Button onClick={handleCreateSlot} disabled={isCreating} className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)]">
                   {isCreating ? 'Creating...' : 'Create Event Container'}
                 </Button>
-                <Button onClick={() => setShowCreateModal(false)} variant="outline">Cancel</Button>
               </div>
             </div>
           </motion.div>
@@ -496,10 +547,10 @@ const AdminFlashSales: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
-                <Button onClick={handleEditSave} disabled={isSavingEdit} className="flex-1 bg-orange-600 hover:bg-orange-700">
+                <Button onClick={() => setEditSlot(null)} variant="outline" className="text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-600">Cancel</Button>
+                <Button onClick={handleEditSave} disabled={isSavingEdit} className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)]">
                   {isSavingEdit ? 'Saving...' : 'Save Changes'}
                 </Button>
-                <Button onClick={() => setEditSlot(null)} variant="outline">Cancel</Button>
               </div>
             </div>
           </motion.div>

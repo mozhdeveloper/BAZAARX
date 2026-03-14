@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
 import AdminSidebar from '../components/AdminSidebar';
@@ -174,18 +175,15 @@ const AdminTrustedBrands: React.FC = () => {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-8 py-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="">
+          <div className="max-w-7xl mx-auto px-8 py-8">
+            <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <ShieldCheck className="h-7 w-7 text-amber-500" />
-                  <h1 className="text-3xl font-bold text-[var(--text-headline)]">Trusted Brands</h1>
-                </div>
+                <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Trusted Brands</h1>
                 <p className="text-[var(--text-muted)]">Manage trusted sellers whose products bypass QA verification</p>
               </div>
               <div className="flex items-center gap-3">
-                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-sm px-3 py-1">
+                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-sm px-3 py-1 pointer-events-none">
                   {trustedCount} Trusted Brand{trustedCount !== 1 ? 's' : ''}
                 </Badge>
               </div>
@@ -194,11 +192,11 @@ const AdminTrustedBrands: React.FC = () => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto px-8 pb-8 space-y-6">
 
             {/* Info Banner */}
-            <Card className="border-amber-200 bg-amber-50">
+            <Card className="border-none shadow-none bg-amber-50">
               <CardContent className="py-4">
                 <div className="flex items-start gap-3">
                   <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
@@ -215,45 +213,51 @@ const AdminTrustedBrands: React.FC = () => {
             </Card>
 
             {/* Search + Filter */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <div className="flex items-center justify-between gap-6 mb-4">
+              <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-full p-0.5 overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-0.5">
+                  {[
+                    { id: 'all', label: 'All', count: sellers.length },
+                    { id: 'trusted', label: 'Trusted', count: trustedCount },
+                    { id: 'standard', label: 'Standard', count: sellers.length - trustedCount },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setFilter(tab.id as any)}
+                      className={`relative px-4 h-7 text-xs font-medium transition-all duration-300 rounded-full flex items-center gap-1.5 whitespace-nowrap z-10 ${filter === tab.id
+                        ? 'text-white'
+                        : 'text-gray-500 hover:text-[var(--brand-primary)]'
+                        }`}
+                    >
+                      {tab.label}
+                      <span className={`text-[10px] font-normal transition-colors ${filter === tab.id ? 'text-white/80' : 'text-[var(--text-muted)]/60'}`}>
+                        ({tab.count})
+                      </span>
+                      {filter === tab.id && (
+                        <motion.div
+                          layoutId="activeTabPill"
+                          className="absolute inset-0 bg-[var(--brand-primary)] rounded-full -z-10"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="relative w-[320px] group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[var(--brand-primary)]" />
                 <Input
                   placeholder="Search sellers by store name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-9 bg-white border-gray-200 rounded-xl shadow-sm focus:border-[var(--brand-primary)] focus:ring-0 placeholder:text-gray-400 text-sm"
                 />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant={filter === 'all' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setFilter('all')}
-                >
-                  All ({sellers.length})
-                </Button>
-                <Button
-                  variant={filter === 'trusted' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setFilter('trusted')}
-                  className={filter === 'trusted' ? 'bg-amber-500 hover:bg-amber-600' : ''}
-                >
-                  <ShieldCheck className="h-4 w-4 mr-1" />
-                  Trusted ({trustedCount})
-                </Button>
-                <Button
-                  variant={filter === 'standard' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setFilter('standard')}
-                >
-                  Standard ({sellers.length - trustedCount})
-                </Button>
               </div>
             </div>
 
             {/* Sellers Table */}
-            <Card>
+            <Card className="border-none shadow-md">
               <CardContent className="p-0">
                 {loading ? (
                   <div className="flex items-center justify-center py-20">

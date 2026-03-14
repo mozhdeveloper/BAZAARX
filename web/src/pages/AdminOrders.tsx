@@ -61,7 +61,7 @@ const AdminOrders: React.FC = () => {
   const [refundAmount, setRefundAmount] = useState(0);
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, pending: 0, shipped: 0, delivered: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, shipped: 0, delivered: 0, cancelled: 0 });
 
   // Map DB status to simpler display status
   const mapStatus = (paymentStatus: string, shipmentStatus: string) => {
@@ -150,8 +150,10 @@ const AdminOrders: React.FC = () => {
       setStats({
         total: mappedOrders.length,
         pending: mappedOrders.filter((o: any) => o.status === 'pending').length,
+        confirmed: mappedOrders.filter((o: any) => o.status === 'confirmed').length,
         shipped: mappedOrders.filter((o: any) => o.status === 'shipped').length,
         delivered: mappedOrders.filter((o: any) => o.status === 'delivered').length,
+        cancelled: mappedOrders.filter((o: any) => o.status === 'cancelled').length,
       });
     } catch (err) {
       console.error('Error loading admin orders:', err);
@@ -391,486 +393,494 @@ const AdminOrders: React.FC = () => {
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar open={open} setOpen={setOpen} />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-8 py-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Order Management</h1>
-                <p className="text-[var(--text-muted)]">Monitor and manage all platform orders</p>
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-7xl mx-auto px-8 py-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Order Management</h1>
+              <p className="text-[var(--text-muted)]">Monitor and manage all platform orders</p>
+            </div>
+            <Button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              Export Orders
+            </Button>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {[
+              { label: 'Total Orders', value: isLoading ? '...' : stats.total.toLocaleString(), icon: ShoppingBag, color: 'blue' },
+              { label: 'Pending', value: isLoading ? '...' : stats.pending.toLocaleString(), icon: Package, color: 'orange' },
+              { label: 'Shipped', value: isLoading ? '...' : stats.shipped.toLocaleString(), icon: Truck, color: 'purple' },
+              { label: 'Delivered', value: isLoading ? '...' : stats.delivered.toLocaleString(), icon: CheckCircle, color: 'green' }
+            ].map((stat, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[var(--brand-accent-light)]/50 to-[var(--brand-primary)]/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
+                  <CardContent className="p-6 relative z-10">
+                    <div className="flex flex-col">
+                      <div className="mb-4 text-gray-500 group-hover:text-[var(--brand-accent)] transition-all">
+                        <stat.icon className="h-5 w-5" />
+                      </div>
+                      <div className="flex items-center justify-between mt-auto">
+                        <p className="text-sm font-medium text-gray-400">{stat.label}</p>
+                        <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">
+                          {stat.value}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Filters and Search Bar */}
+          <div className="flex items-center justify-between gap-6 mb-4">
+            <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-full p-0.5 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-0.5">
+                {[
+                  { id: 'all', label: 'All', count: stats.total },
+                  { id: 'pending', label: 'Pending', count: stats.pending },
+                  { id: 'confirmed', label: 'Confirmed', count: stats.confirmed },
+                  { id: 'shipped', label: 'Shipped', count: stats.shipped },
+                  { id: 'delivered', label: 'Delivered', count: stats.delivered },
+                  { id: 'cancelled', label: 'Cancelled', count: stats.cancelled },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setStatusFilter(tab.id as any)}
+                    className={`relative px-4 h-7 text-xs font-medium transition-all duration-300 rounded-full flex items-center gap-1.5 whitespace-nowrap z-10 ${statusFilter === tab.id
+                      ? 'text-white'
+                      : 'text-gray-500 hover:text-[var(--brand-primary)]'
+                      }`}
+                  >
+                    {tab.label}
+                    <span className={`text-[10px] font-normal transition-colors ${statusFilter === tab.id ? 'text-white/80' : 'text-[var(--text-muted)]/60'}`}>
+                      ({tab.count})
+                    </span>
+                    {statusFilter === tab.id && (
+                      <motion.div
+                        layoutId="activeTabPill"
+                        className="absolute inset-0 bg-[var(--brand-primary)] rounded-full -z-10"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </button>
+                ))}
               </div>
-              <Button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white flex items-center gap-2">
-                <Download className="w-4 h-4" />
-                Export Orders
-              </Button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative w-[320px] group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[var(--brand-primary)]" />
+                <Input
+                  placeholder="Search by order # or buyer..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-9 bg-white border-gray-200 rounded-xl shadow-sm focus:border-[var(--brand-primary)] focus:ring-0 placeholder:text-gray-400 text-sm"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Main Content */}
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              {[
-                { label: 'Total Orders', value: isLoading ? '...' : stats.total.toLocaleString(), icon: ShoppingBag, color: 'blue' },
-                { label: 'Pending', value: isLoading ? '...' : stats.pending.toLocaleString(), icon: Package, color: 'orange' },
-                { label: 'Shipped', value: isLoading ? '...' : stats.shipped.toLocaleString(), icon: Truck, color: 'purple' },
-                { label: 'Delivered', value: isLoading ? '...' : stats.delivered.toLocaleString(), icon: CheckCircle, color: 'green' }
-              ].map((stat, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[var(--brand-accent-light)]/50 to-[var(--brand-primary)]/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
-                    <CardContent className="p-6 relative z-10">
-                      <div className="flex flex-col">
-                        <div className="mb-4 text-gray-500 group-hover:text-[var(--brand-accent)] transition-all">
-                          <stat.icon className={`h-5 w-5`} />
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-gray-400">{stat.label}</p>
-                          <div className="flex items-end gap-3 mt-1">
-                            <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">{stat.value}</p>
+          {/* Orders Table */}
+          <Card className="border-none shadow-md rounded-xl overflow-hidden">
+            <CardHeader>
+              <CardTitle>Recent Orders</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Order Number</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Buyer</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Seller</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Items</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Total</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.map((order, index) => (
+                      <motion.tr
+                        key={order.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(order.status)}
+                            <span className="font-medium text-gray-900">{order.orderNumber}</span>
                           </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Filters */}
-            <Card className="mb-6">
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      type="text"
-                      placeholder="Search by order number or buyer..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                  <Button variant="outline" className="flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    More Filters
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Orders Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Orders</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Order Number</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Buyer</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Seller</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Items</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Total</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredOrders.map((order, index) => (
-                        <motion.tr
-                          key={order.id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                        >
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(order.status)}
-                              <span className="font-medium text-gray-900">{order.orderNumber}</span>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 text-gray-700">{order.buyer.name}</td>
-                          <td className="py-4 px-4 text-gray-700">{order.seller.name}</td>
-                          <td className="py-4 px-4 text-gray-700">{order.items.length}</td>
-                          <td className="py-4 px-4 font-semibold text-gray-900">₱{order.total.toLocaleString()}</td>
-                          <td className="py-4 px-4">{getStatusBadge(order.status)}</td>
-                          <td className="py-4 px-4 text-gray-600">
-                            {new Date(order.date).toLocaleDateString()}
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="flex gap-2">
+                        </td>
+                        <td className="py-4 px-4 text-gray-700">{order.buyer.name}</td>
+                        <td className="py-4 px-4 text-gray-700">{order.seller.name}</td>
+                        <td className="py-4 px-4 text-gray-700">{order.items.length}</td>
+                        <td className="py-4 px-4 font-semibold text-gray-900">₱{order.total.toLocaleString()}</td>
+                        <td className="py-4 px-4">{getStatusBadge(order.status)}</td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {new Date(order.date).toLocaleDateString()}
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewDetails(order)}
+                              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            {order.canCancel && (
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleViewDetails(order)}
-                                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setShowCancelDialog(true);
+                                }}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
                               >
-                                <Eye className="w-4 h-4" />
+                                <Ban className="w-4 h-4" />
                               </Button>
-                              {order.canCancel && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedOrder(order);
-                                    setShowCancelDialog(true);
-                                  }}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <Ban className="w-4 h-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Order Details Dialog */}
-        <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Order Details</DialogTitle>
-              <DialogDescription>
-                Complete order information and admin controls
-              </DialogDescription>
-            </DialogHeader>
-
-            {selectedOrder && (
-              <div className="space-y-6">
-                {/* Order Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Order Number</Label>
-                    <p className="mt-1 font-semibold">{selectedOrder.orderNumber}</p>
-                  </div>
-                  <div>
-                    <Label>Order Date</Label>
-                    <p className="mt-1">{new Date(selectedOrder.date).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <Label>Status</Label>
-                    <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
-                  </div>
-                  <div>
-                    <Label>Payment Status</Label>
-                    <Badge className={selectedOrder.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
-                      {selectedOrder.paymentStatus}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Buyer Info */}
-                <div>
-                  <h4 className="font-semibold mb-2">Buyer Information</h4>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    <p><span className="font-medium">Name:</span> {selectedOrder.buyer.name}</p>
-                    <p><span className="font-medium">Email:</span> {selectedOrder.buyer.email}</p>
-                    <p><span className="font-medium">Phone:</span> {selectedOrder.buyer.phone}</p>
-                    <p><span className="font-medium">Shipping:</span> {selectedOrder.shippingAddress}</p>
-                  </div>
-                </div>
-
-                {/* Seller Info */}
-                <div>
-                  <h4 className="font-semibold mb-2">Seller Information</h4>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    <p><span className="font-medium">Name:</span> {selectedOrder.seller.name}</p>
-                    <p><span className="font-medium">Email:</span> {selectedOrder.seller.email}</p>
-                  </div>
-                </div>
-
-                {/* Items */}
-                <div>
-                  <h4 className="font-semibold mb-2">Order Items</h4>
-                  <div className="space-y-2">
-                    {selectedOrder.items.map((item: any, idx: number) => (
-                      <div key={idx} className="flex justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium">{item.name}</p>
-                          <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                        </div>
-                        <p className="font-semibold">₱{item.price.toLocaleString()}</p>
-                      </div>
+                            )}
+                          </div>
+                        </td>
+                      </motion.tr>
                     ))}
-                  </div>
-                </div>
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
-                {/* Order Summary */}
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>₱{selectedOrder.subtotal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Shipping Fee:</span>
-                    <span>₱{selectedOrder.shippingFee.toLocaleString()}</span>
-                  </div>
-                  {selectedOrder.discount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount:</span>
-                      <span>-₱{selectedOrder.discount.toLocaleString()}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-lg border-t pt-2">
-                    <span>Total:</span>
-                    <span>₱{selectedOrder.total.toLocaleString()}</span>
-                  </div>
-                </div>
+      {/* Order Details Dialog */}
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Order Details</DialogTitle>
+            <DialogDescription>
+              Complete order information and admin controls
+            </DialogDescription>
+          </DialogHeader>
 
-                {/* Payment Info */}
+          {selectedOrder && (
+            <div className="space-y-6">
+              {/* Order Info */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-semibold mb-2">Payment Information</h4>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    <p><span className="font-medium">Method:</span> {selectedOrder.paymentMethod}</p>
-                    <p><span className="font-medium">Status:</span> {selectedOrder.paymentStatus}</p>
-                    {selectedOrder.trackingNumber && (
-                      <p><span className="font-medium">Tracking:</span> {selectedOrder.trackingNumber}</p>
-                    )}
-                  </div>
+                  <Label>Order Number</Label>
+                  <p className="mt-1 font-semibold">{selectedOrder.orderNumber}</p>
                 </div>
+                <div>
+                  <Label>Order Date</Label>
+                  <p className="mt-1">{new Date(selectedOrder.date).toLocaleString()}</p>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
+                </div>
+                <div>
+                  <Label>Payment Status</Label>
+                  <Badge className={selectedOrder.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
+                    {selectedOrder.paymentStatus}
+                  </Badge>
+                </div>
+              </div>
 
-                {/* Admin Override Controls */}
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <h4 className="font-semibold mb-3 flex items-center gap-2 text-orange-900">
-                    <AlertTriangle className="w-5 h-5" />
-                    Admin Override Controls
-                  </h4>
-                  <div className="grid grid-cols-2 gap-3">
+              {/* Buyer Info */}
+              <div>
+                <h4 className="font-semibold mb-2">Buyer Information</h4>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <p><span className="font-medium">Name:</span> {selectedOrder.buyer.name}</p>
+                  <p><span className="font-medium">Email:</span> {selectedOrder.buyer.email}</p>
+                  <p><span className="font-medium">Phone:</span> {selectedOrder.buyer.phone}</p>
+                  <p><span className="font-medium">Shipping:</span> {selectedOrder.shippingAddress}</p>
+                </div>
+              </div>
+
+              {/* Seller Info */}
+              <div>
+                <h4 className="font-semibold mb-2">Seller Information</h4>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <p><span className="font-medium">Name:</span> {selectedOrder.seller.name}</p>
+                  <p><span className="font-medium">Email:</span> {selectedOrder.seller.email}</p>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div>
+                <h4 className="font-semibold mb-2">Order Items</h4>
+                <div className="space-y-2">
+                  {selectedOrder.items.map((item: any, idx: number) => (
+                    <div key={idx} className="flex justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                      </div>
+                      <p className="font-semibold">₱{item.price.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Order Summary */}
+              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>₱{selectedOrder.subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Shipping Fee:</span>
+                  <span>₱{selectedOrder.shippingFee.toLocaleString()}</span>
+                </div>
+                {selectedOrder.discount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Discount:</span>
+                    <span>-₱{selectedOrder.discount.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-lg border-t pt-2">
+                  <span>Total:</span>
+                  <span>₱{selectedOrder.total.toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* Payment Info */}
+              <div>
+                <h4 className="font-semibold mb-2">Payment Information</h4>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <p><span className="font-medium">Method:</span> {selectedOrder.paymentMethod}</p>
+                  <p><span className="font-medium">Status:</span> {selectedOrder.paymentStatus}</p>
+                  {selectedOrder.trackingNumber && (
+                    <p><span className="font-medium">Tracking:</span> {selectedOrder.trackingNumber}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Admin Override Controls */}
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <h4 className="font-semibold mb-3 flex items-center gap-2 text-orange-900">
+                  <AlertTriangle className="w-5 h-5" />
+                  Admin Override Controls
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowDetailsDialog(false);
+                      setShowStatusDialog(true);
+                    }}
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    <Edit3 className="w-4 h-4 mr-2" />
+                    Change Status
+                  </Button>
+                  {selectedOrder.canRefund && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setRefundAmount(selectedOrder.total);
+                        setShowDetailsDialog(false);
+                        setShowRefundDialog(true);
+                      }}
+                      className="border-green-300 text-green-700 hover:bg-green-50"
+                    >
+                      <DollarSign className="w-4 h-4 mr-2" />
+                      Process Refund
+                    </Button>
+                  )}
+                  {selectedOrder.canCancel && (
                     <Button
                       variant="outline"
                       onClick={() => {
                         setShowDetailsDialog(false);
-                        setShowStatusDialog(true);
+                        setShowCancelDialog(true);
                       }}
-                      className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                      className="border-red-300 text-red-700 hover:bg-red-50"
                     >
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      Change Status
+                      <Ban className="w-4 h-4 mr-2" />
+                      Cancel Order
                     </Button>
-                    {selectedOrder.canRefund && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setRefundAmount(selectedOrder.total);
-                          setShowDetailsDialog(false);
-                          setShowRefundDialog(true);
-                        }}
-                        className="border-green-300 text-green-700 hover:bg-green-50"
-                      >
-                        <DollarSign className="w-4 h-4 mr-2" />
-                        Process Refund
-                      </Button>
-                    )}
-                    {selectedOrder.canCancel && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setShowDetailsDialog(false);
-                          setShowCancelDialog(true);
-                        }}
-                        className="border-red-300 text-red-700 hover:bg-red-50"
-                      >
-                        <Ban className="w-4 h-4 mr-2" />
-                        Cancel Order
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      className="border-purple-300 text-purple-700 hover:bg-purple-50"
-                    >
-                      <RotateCcw className="w-4 h-4 mr-2" />
-                      Force Retry
-                    </Button>
-                  </div>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Force Retry
+                  </Button>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => {
-                setShowDetailsDialog(false);
-                setSelectedOrder(null);
-              }}>
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowDetailsDialog(false);
+              setSelectedOrder(null);
+            }}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* Cancel Order Dialog */}
-        <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Cancel Order?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will cancel order {selectedOrder?.orderNumber}. Please provide a reason.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="my-4">
+      {/* Cancel Order Dialog */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will cancel order {selectedOrder?.orderNumber}. Please provide a reason.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="my-4">
+            <Textarea
+              placeholder="Reason for cancellation..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowCancelDialog(false);
+              setReason('');
+              setSelectedOrder(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelOrder}
+              disabled={!reason}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Confirm Cancellation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Refund Dialog */}
+      <Dialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Process Refund</DialogTitle>
+            <DialogDescription>
+              Issue a refund for order {selectedOrder?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Refund Amount</Label>
+              <Input
+                type="number"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(parseFloat(e.target.value) || 0)}
+                min="0"
+                max={selectedOrder?.total}
+                className="mt-2"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Max: ₱{selectedOrder?.total.toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <Label>Refund Reason</Label>
               <Textarea
-                placeholder="Reason for cancellation..."
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
+                placeholder="Reason for refund..."
                 rows={3}
+                className="mt-2"
               />
             </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => {
-                setShowCancelDialog(false);
-                setReason('');
-                setSelectedOrder(null);
-              }}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleCancelOrder}
-                disabled={!reason}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                Confirm Cancellation
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowRefundDialog(false);
+              setRefundAmount(0);
+              setReason('');
+              setSelectedOrder(null);
+            }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRefundOrder}
+              disabled={refundAmount <= 0 || !reason}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Process Refund
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* Refund Dialog */}
-        <Dialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Process Refund</DialogTitle>
-              <DialogDescription>
-                Issue a refund for order {selectedOrder?.orderNumber}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Refund Amount</Label>
-                <Input
-                  type="number"
-                  value={refundAmount}
-                  onChange={(e) => setRefundAmount(parseFloat(e.target.value) || 0)}
-                  min="0"
-                  max={selectedOrder?.total}
-                  className="mt-2"
-                />
-                <p className="text-sm text-gray-600 mt-1">
-                  Max: ₱{selectedOrder?.total.toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <Label>Refund Reason</Label>
-                <Textarea
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="Reason for refund..."
-                  rows={3}
-                  className="mt-2"
-                />
+      {/* Change Status Dialog */}
+      <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Order Status</DialogTitle>
+            <DialogDescription>
+              Update the status for order {selectedOrder?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Current Status</Label>
+              <div className="mt-2">
+                {selectedOrder && getStatusBadge(selectedOrder.status)}
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => {
-                setShowRefundDialog(false);
-                setRefundAmount(0);
-                setReason('');
-                setSelectedOrder(null);
-              }}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleRefundOrder}
-                disabled={refundAmount <= 0 || !reason}
-                className="bg-green-600 hover:bg-green-700 text-white"
+            <div>
+              <Label>New Status</Label>
+              <select
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
               >
-                Process Refund
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Change Status Dialog */}
-        <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Change Order Status</DialogTitle>
-              <DialogDescription>
-                Update the status for order {selectedOrder?.orderNumber}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Current Status</Label>
-                <div className="mt-2">
-                  {selectedOrder && getStatusBadge(selectedOrder.status)}
-                </div>
-              </div>
-              <div>
-                <Label>New Status</Label>
-                <select
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value)}
-                  className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">Select new status...</option>
-                  <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="shipped">Shipped</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
+                <option value="">Select new status...</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => {
-                setShowStatusDialog(false);
-                setNewStatus('');
-                setSelectedOrder(null);
-              }}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleChangeStatus}
-                disabled={!newStatus}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Update Status
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowStatusDialog(false);
+              setNewStatus('');
+              setSelectedOrder(null);
+            }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleChangeStatus}
+              disabled={!newStatus}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Update Status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

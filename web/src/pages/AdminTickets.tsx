@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Ticket,
     ChevronRight,
+    ChevronLeft,
     Clock,
     CheckCircle2,
     AlertCircle,
@@ -32,6 +33,9 @@ export default function AdminTickets() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
     const [replyText, setReplyText] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 10;
+    const filterRowRef = useRef<HTMLDivElement>(null);
 
     // Get tickets from store
     const { tickets, loading, error, updateTicketStatus, fetchAllTickets, addTicketReply } = useSupportStore();
@@ -66,6 +70,17 @@ export default function AdminTickets() {
             ticket.buyerName.toLowerCase().includes(searchQuery.toLowerCase());
         return matchesTab && matchesSearch;
     });
+
+    // Reset to page 1 when filter/search changes
+    useEffect(() => { setCurrentPage(1); }, [activeTab, searchQuery]);
+
+    // Scroll to filter row on page change
+    useEffect(() => {
+        filterRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [currentPage]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredTickets.length / PAGE_SIZE));
+    const paginatedTickets = filteredTickets.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
     const stats = {
         total: tickets.length,
@@ -128,92 +143,148 @@ export default function AdminTickets() {
                         <StatCard label="Resolved" value={stats.resolved} icon={<CheckCircle2 className="w-6 h-6" />} color="orange" />
                     </div>
 
-                    {/* Search */}
-                    <Card className="mb-6 shadow-sm">
-                        <CardContent className="p-4">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <Input
-                                    placeholder="Search by ID, name, or subject..."
-                                    className="pl-10 h-10 border-gray-200 focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)]/10"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
+                    {/* Filter row: pill tabs + search */}
+                    <div ref={filterRowRef} className="flex items-center justify-between gap-6 mb-6 scroll-mt-6">
+                        <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-full p-0.5">
+                            <div className="flex items-center gap-0.5">
+                                {[
+                                    { id: 'all', label: 'All', count: tickets.length },
+                                    { id: 'open', label: 'Open', count: stats.open },
+                                    { id: 'inreview', label: 'In Review', count: stats.pending },
+                                    { id: 'resolved', label: 'Resolved', count: stats.resolved },
+                                    { id: 'closed', label: 'Closed', count: tickets.filter(t => t.status === 'Closed').length },
+                                ].map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`relative px-4 h-7 text-xs font-medium transition-all duration-300 rounded-full flex items-center gap-1.5 whitespace-nowrap z-10 ${activeTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-[var(--brand-primary)]'
+                                            }`}
+                                    >
+                                        {tab.label}
+                                        <span className={`text-[10px] font-normal ${activeTab === tab.id ? 'text-white/80' : 'text-[var(--text-muted)]/60'}`}>
+                                            ({tab.count})
+                                        </span>
+                                        {activeTab === tab.id && (
+                                            <motion.div
+                                                layoutId="ticketTabPill"
+                                                className="absolute inset-0 bg-[var(--brand-primary)] rounded-full -z-10"
+                                                transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                                            />
+                                        )}
+                                    </button>
+                                ))}
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+
+                        <div className="relative w-[320px] group">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[var(--brand-primary)]" />
+                            <Input
+                                placeholder="Search by ID, name, or subject..."
+                                className="pl-10 h-9 bg-white border-gray-200 rounded-xl shadow-sm focus:border-[var(--brand-primary)] focus:ring-0 placeholder:text-gray-400 text-sm"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                    </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Ticket List */}
                         <div className="lg:col-span-2 space-y-4">
-                            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                                <TabsList className="grid w-full grid-cols-5 lg:w-auto mb-6">
-                                    <TabsTrigger value="all">All</TabsTrigger>
-                                    <TabsTrigger value="open">Open</TabsTrigger>
-                                    <TabsTrigger value="inreview">In Review</TabsTrigger>
-                                    <TabsTrigger value="resolved">Resolved</TabsTrigger>
-                                    <TabsTrigger value="closed">Closed</TabsTrigger>
-                                </TabsList>
+                            <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden">
+                                <CardContent className="p-0">
+                                    <div className="divide-y divide-gray-50 text-[var(--font-sans)]">
+                                        <AnimatePresence mode="popLayout">
+                                            {paginatedTickets.length > 0 ? (
+                                                paginatedTickets.map((ticket) => (
+                                                    <motion.div
+                                                        key={ticket.id}
+                                                        layout
+                                                        initial={{ opacity: 0 }}
+                                                        animate={{ opacity: 1 }}
+                                                        exit={{ opacity: 0 }}
+                                                        className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer group flex items-center gap-4 ${selectedTicket?.id === ticket.id ? 'bg-[var(--brand-primary)]/5' : ''}`}
+                                                        onClick={() => setSelectedTicket(ticket)}
+                                                    >
+                                                        <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:text-[var(--brand-primary)] transition-all shadow-sm">
+                                                            <User size={20} />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="text-[10px] font-bold text-[var(--brand-primary)] uppercase">{ticket.id}</span>
+                                                                <Badge variant="outline" className={`text-[9px] uppercase tracking-tighter py-0 rounded-md border ${getStatusStyle(ticket.status)}`}>
+                                                                    {ticket.status}
+                                                                </Badge>
+                                                            </div>
+                                                            <h3 className="text-sm font-semibold text-gray-900 truncate">{ticket.subject}</h3>
+                                                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                                <span>{ticket.buyerName}</span>
+                                                                <span>•</span>
+                                                                <span>{ticket.category}</span>
+                                                                {ticket.sellerStoreName && (
+                                                                    <>
+                                                                        <span>•</span>
+                                                                        <Store size={12} className="text-[var(--brand-primary)]" />
+                                                                        <span className="text-[var(--brand-primary)] font-medium">{ticket.sellerStoreName}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right flex flex-col items-end">
+                                                            <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
+                                                                {new Date(ticket.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                            </span>
+                                                            <ChevronRight size={16} className="text-gray-300 group-hover:text-[var(--brand-primary)] transition-colors" />
+                                                        </div>
+                                                    </motion.div>
+                                                ))
+                                            ) : (
+                                                <div className="p-12 text-center">
+                                                    <Ticket className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                                                    <h3 className="text-lg font-medium text-gray-900 mb-1">No tickets found</h3>
+                                                    <p className="text-sm text-gray-500">Try adjusting your search or filters.</p>
+                                                </div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
 
-                                <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden">
-                                    <CardContent className="p-0">
-                                        <div className="divide-y divide-gray-50 text-[var(--font-sans)]">
-                                            <AnimatePresence mode="popLayout">
-                                                {filteredTickets.length > 0 ? (
-                                                    filteredTickets.map((ticket) => (
-                                                        <motion.div
-                                                            key={ticket.id}
-                                                            layout
-                                                            initial={{ opacity: 0 }}
-                                                            animate={{ opacity: 1 }}
-                                                            exit={{ opacity: 0 }}
-                                                            className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer group flex items-center gap-4 ${selectedTicket?.id === ticket.id ? 'bg-[var(--brand-primary)]/5' : ''}`}
-                                                            onClick={() => setSelectedTicket(ticket)}
-                                                        >
-                                                            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:text-[var(--brand-primary)] transition-all shadow-sm">
-                                                                <User size={20} />
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="text-[10px] font-bold text-[var(--brand-primary)] uppercase">{ticket.id}</span>
-                                                                    <Badge variant="outline" className={`text-[9px] uppercase tracking-tighter py-0 rounded-md border ${getStatusStyle(ticket.status)}`}>
-                                                                        {ticket.status}
-                                                                    </Badge>
-                                                                </div>
-                                                                <h3 className="text-sm font-semibold text-gray-900 truncate">{ticket.subject}</h3>
-                                                                <div className="flex items-center gap-1 text-xs text-gray-500">
-                                                                    <span>{ticket.buyerName}</span>
-                                                                    <span>•</span>
-                                                                    <span>{ticket.category}</span>
-                                                                    {ticket.sellerStoreName && (
-                                                                        <>
-                                                                            <span>•</span>
-                                                                            <Store size={12} className="text-[var(--brand-primary)]" />
-                                                                            <span className="text-[var(--brand-primary)] font-medium">{ticket.sellerStoreName}</span>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-right flex flex-col items-end">
-                                                                <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
-                                                                    {new Date(ticket.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                                                </span>
-                                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-[var(--brand-primary)] transition-colors" />
-                                                            </div>
-                                                        </motion.div>
-                                                    ))
-                                                ) : (
-                                                    <div className="p-12 text-center">
-                                                        <Ticket className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                                                        <h3 className="text-lg font-medium text-gray-900 mb-1">No tickets found</h3>
-                                                        <p className="text-sm text-gray-500">Try adjusting your search or filters.</p>
-                                                    </div>
-                                                )}
-                                            </AnimatePresence>
+                                    {/* Pagination footer */}
+                                    {filteredTickets.length > PAGE_SIZE && (
+                                        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-50">
+                                            <span className="text-xs text-gray-400">
+                                                {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredTickets.length)} of {filteredTickets.length}
+                                            </span>
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                    disabled={currentPage === 1}
+                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    <ChevronLeft size={14} />
+                                                </button>
+                                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                                    <button
+                                                        key={page}
+                                                        onClick={() => setCurrentPage(page)}
+                                                        className={`w-7 h-7 text-xs rounded-lg transition-colors ${page === currentPage
+                                                            ? 'bg-[var(--brand-primary)] text-white font-semibold'
+                                                            : 'text-gray-500 hover:bg-gray-100'
+                                                            }`}
+                                                    >
+                                                        {page}
+                                                    </button>
+                                                ))}
+                                                <button
+                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                    disabled={currentPage === totalPages}
+                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    <ChevronRight size={14} />
+                                                </button>
+                                            </div>
                                         </div>
-                                    </CardContent>
-                                </Card>
-                            </Tabs>
+                                    )}
+                                </CardContent>
+                            </Card>
                         </div>
 
                         {/* Ticket Detail area */}
@@ -236,12 +307,12 @@ export default function AdminTickets() {
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => setSelectedTicket(null)}
-                                                    className="h-8 w-8 text-gray-400"
+                                                    className="h-8 w-8 text-gray-400 hover:text-gray-600 hover:bg-transparent"
                                                 >
                                                     <ArrowLeft size={18} />
                                                 </Button>
                                             </CardHeader>
-                                            <CardContent className="flex-1 p-6 space-y-6">
+                                            <CardContent className="flex-1 p-6 space-y-4">
                                                 <div className="space-y-4">
                                                     <div>
                                                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Buyer Details</label>
@@ -279,7 +350,7 @@ export default function AdminTickets() {
                                                     <div className="relative">
                                                         <textarea
                                                             placeholder={selectedTicket.status === 'Resolved' ? 'Ticket is resolved' : 'Write a response...'}
-                                                            className="w-full pl-4 pr-12 py-3 bg-white border border-[var(--brand-primary)]/20 rounded-lg text-sm shadow-sm focus:ring-2 focus:border-[var(--brand-primary)] transition-all outline-none resize-none h-24 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
+                                                            className="w-full pl-4 pr-12 py-3 bg-white border border-[var(--brand-primary)]/20 rounded-lg text-sm shadow-sm focus:ring-0 focus:border-[var(--brand-primary)] transition-all outline-none resize-none h-24 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
                                                             value={replyText}
                                                             onChange={(e) => setReplyText(e.target.value)}
                                                             disabled={selectedTicket.status === 'Resolved'}
@@ -334,35 +405,23 @@ export default function AdminTickets() {
                         </div>
                     </div>
                 </div>
-            </main>
-        </div>
+            </main >
+        </div >
     );
 }
 
-const StatCard = ({ label, value, icon, color }: { label: string, value: number, icon: React.ReactNode, color: string }) => {
-    const cardStyles: any = {
-        blue: { bg: 'bg-[var(--brand-accent)]/10', text: 'text-[var(--brand-accent)]' },
-        orange: { bg: 'bg-[var(--brand-primary)]/10', text: 'text-[var(--brand-primary)]' },
-        purple: { bg: 'bg-purple-50', text: 'text-purple-700' },
-        green: { bg: 'bg-[var(--brand-primary)]/10', text: 'text-[var(--brand-primary)]' }
-    };
-
+const StatCard = ({ label, value, icon }: { label: string, value: number, icon: React.ReactNode, color: string }) => {
     return (
-        <Card className="relative overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300">
-            <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-gray-600 mb-1">
-                            {label}
-                        </p>
-                        <p className="text-2xl font-bold text-gray-900">
-                            {value}
-                        </p>
+        <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:opacity-80 transition-opacity" />
+            <CardContent className="p-6 relative z-10">
+                <div className="flex flex-col gap-4">
+                    <div className="text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors">
+                        {icon}
                     </div>
-                    <div className={`w-12 h-12 ${cardStyles[color].bg} rounded-xl flex items-center justify-center`}>
-                        <div className={`${cardStyles[color].text}`}>
-                            {icon}
-                        </div>
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-400">{label}</p>
+                        <p className="text-xl font-bold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors">{value}</p>
                     </div>
                 </div>
             </CardContent>

@@ -270,7 +270,7 @@ const QADashboard = () => {
           </div>
 
           {/* Content Section & Tabs */}
-          <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center mb-8">
+          <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center mb-4">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as QATab)} className="w-full lg:w-auto">
               <TabsList className="bg-white/80 border border-gray-100 p-1 h-9 rounded-full shadow-sm">
                 {[

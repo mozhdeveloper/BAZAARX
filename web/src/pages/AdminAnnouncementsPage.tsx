@@ -271,25 +271,24 @@ const AdminAnnouncementsPage: React.FC = () => {
       <AdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Megaphone className="w-6 h-6 text-orange-500" />
-            <div>
-              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Announcements</h1>
-              <p className="text-[var(--text-muted)]">Send platform-wide notifications to buyers and sellers</p>
+        <div className="flex-1 overflow-y-auto p-8 space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-6 mb-2">
+            <div className="flex items-center gap-3">
+              <Megaphone className="w-6 h-6 text-[var(--brand-primary)]" />
+              <div>
+                <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-1">Announcements</h1>
+                <p className="text-[var(--text-muted)]">Send platform-wide notifications to buyers and sellers</p>
+              </div>
             </div>
+            <button
+              onClick={() => { setShowForm(v => !v); setError(null); }}
+              className="flex items-center gap-2 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              New Announcement
+            </button>
           </div>
-          <button
-            onClick={() => { setShowForm(v => !v); setError(null); }}
-            className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            New Announcement
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
           {/* Alerts */}
           {error && (

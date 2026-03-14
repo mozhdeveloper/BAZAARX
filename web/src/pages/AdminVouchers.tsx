@@ -42,7 +42,15 @@ import {
   TrendingUp,
   Copy,
   Loader2,
+  Filter,
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const AdminVouchers: React.FC = () => {
   const [currentTime] = React.useState(() => Date.now());
@@ -257,10 +265,9 @@ const AdminVouchers: React.FC = () => {
       <AdminSidebar open={open} setOpen={setOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-8 py-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto px-8 py-8">
+            <div className="flex items-center justify-between gap-6 mb-8">
               <div>
                 <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Voucher Management</h1>
                 <p className="text-[var(--text-muted)]">Create and manage discount vouchers</p>
@@ -270,18 +277,13 @@ const AdminVouchers: React.FC = () => {
                   resetForm();
                   setShowAddDialog(true);
                 }}
-                className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
+                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 Create Voucher
               </Button>
             </div>
-          </div>
-        </div>
 
-        {/* Main Content */}
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               {[
@@ -299,15 +301,13 @@ const AdminVouchers: React.FC = () => {
                   <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
                     <CardContent className="p-6 relative z-10">
-                      <div className="flex flex-col">
-                        <div className="mb-4 text-gray-500 group-hover:text-[var(--brand-accent)] transition-all">
-                          <stat.icon className={`h-5 w-5`} />
+                      <div className="flex flex-col gap-4">
+                        <div className="text-gray-500 group-hover:text-[var(--brand-primary)] transition-all">
+                          <stat.icon className="h-5 w-5" />
                         </div>
-                        <div className="space-y-1">
+                        <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-gray-400">{stat.label}</p>
-                          <div className="flex items-end gap-3 mt-1">
-                            <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">{stat.value}</p>
-                          </div>
+                          <p className="text-xl font-bold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors">{stat.value}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -317,42 +317,64 @@ const AdminVouchers: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <Card className="mb-6">
-              <CardContent className="p-6">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <Input
-                        placeholder="Search vouchers by code or title..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                  <select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value as 'all' | 'percentage' | 'fixed' | 'free_shipping')}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="percentage">Percentage</option>
-                    <option value="fixed">Fixed Amount</option>
-                    <option value="free_shipping">Free Shipping</option>
-                  </select>
+            <div className="flex items-center justify-between gap-6 mb-4">
+              {/* Left: Status pill tabs */}
+              <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-full p-0.5 overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-0.5">
+                  {[
+                    { id: 'all', label: 'All', count: vouchers.length },
+                    { id: 'active', label: 'Active', count: vouchers.filter(v => v.isActive).length },
+                    { id: 'inactive', label: 'Inactive', count: vouchers.filter(v => !v.isActive).length },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setStatusFilter(tab.id as any)}
+                      className={`relative px-4 h-7 text-xs font-medium transition-all duration-300 rounded-full flex items-center gap-1.5 whitespace-nowrap z-10 ${statusFilter === tab.id
+                        ? 'text-white'
+                        : 'text-gray-500 hover:text-[var(--brand-primary)]'
+                        }`}
+                    >
+                      {tab.label}
+                      <span className={`text-[10px] font-normal transition-colors ${statusFilter === tab.id ? 'text-white/80' : 'text-[var(--text-muted)]/60'}`}>
+                        ({tab.count})
+                      </span>
+                      {statusFilter === tab.id && (
+                        <motion.div
+                          layoutId="activeTabPill"
+                          className="absolute inset-0 bg-[var(--brand-primary)] rounded-full -z-10"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        />
+                      )}
+                    </button>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              {/* Right: Type filter + Search */}
+              <div className="flex items-center gap-3">
+                <Select value={typeFilter} onValueChange={(v: any) => setTypeFilter(v)}>
+                  <SelectTrigger className="h-9 w-[140px] bg-white rounded-xl border-gray-200 focus:ring-0 text-gray-600">
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent className="border-none shadow-xl">
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="percentage">Percentage</SelectItem>
+                    <SelectItem value="fixed">Fixed Amount</SelectItem>
+                    <SelectItem value="free_shipping">Free Shipping</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="relative w-[320px] group">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[var(--brand-primary)]" />
+                  <Input
+                    placeholder="Search vouchers by code or title..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 h-9 bg-white border-gray-200 rounded-xl shadow-sm focus:border-[var(--brand-primary)] focus:ring-0 placeholder:text-gray-400 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Vouchers Grid */}
             {isLoading ? (
@@ -524,10 +546,10 @@ const AdminVouchers: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
+        </div >
 
         {/* Add/Edit Voucher Dialog */}
-        <Dialog open={showAddDialog || showEditDialog} onOpenChange={(open) => {
+        < Dialog open={showAddDialog || showEditDialog} onOpenChange={(open) => {
           if (!open) {
             setShowAddDialog(false);
             setShowEditDialog(false);
@@ -803,10 +825,10 @@ const AdminVouchers: React.FC = () => {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+        </Dialog >
 
         {/* Delete Confirmation Dialog */}
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        < AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog} >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Voucher?</AlertDialogTitle>
@@ -830,9 +852,9 @@ const AdminVouchers: React.FC = () => {
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </div>
+        </AlertDialog >
+      </div >
+    </div >
   );
 };
 

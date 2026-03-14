@@ -140,131 +140,92 @@ const AdminBuyers: React.FC = () => {
 
   const BuyerCard = ({ buyer, showActions = false }: { buyer: any; showActions?: boolean }) => (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
+      exit={{ opacity: 0, y: -10 }}
       layout
+      className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors"
     >
-      <Card className="hover:shadow-lg transition-shadow duration-300">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center">
-              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                {buyer.avatar ? (
-                  <img src={buyer.avatar} alt={`${buyer.firstName} ${buyer.lastName}`} className="w-12 h-12 rounded-xl object-cover" />
-                ) : (
-                  <span className="text-white font-semibold text-lg">
-                    {buyer.firstName.charAt(0)}{buyer.lastName.charAt(0)}
-                  </span>
-                )}
-              </div>
-              <div className="ml-4">
-                <h3 className="font-semibold text-lg text-gray-900">
-                  {buyer.firstName} {buyer.lastName}
-                </h3>
-                <p className="text-gray-600">{buyer.email}</p>
-              </div>
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center">
+            <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+              {buyer.avatar ? (
+                <img src={buyer.avatar} alt={`${buyer.firstName} ${buyer.lastName}`} className="w-14 h-14 rounded-xl object-cover" />
+              ) : (
+                <span className="text-white font-semibold text-xl">
+                  {buyer.firstName.charAt(0)}{buyer.lastName.charAt(0)}
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              {getStatusIcon(buyer.status)}
-              {getStatusBadge(buyer.status)}
+            <div className="ml-4">
+              <h3 className="font-semibold text-xl text-gray-900 leading-tight">
+                {buyer.firstName} {buyer.lastName}
+              </h3>
+              <p className="text-gray-500 text-sm mt-0.5">{buyer.email}</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            {getStatusIcon(buyer.status)}
+            {getStatusBadge(buyer.status)}
+          </div>
+        </div>
 
-          <div className="space-y-2 mb-4">
+        <div className="flex flex-col md:flex-row md:items-center md:gap-x-20 gap-y-4 mb-4">
+          {/* Contact Info */}
+          <div className="space-y-1.5 min-w-[180px]">
             {buyer.phone && (
               <div className="flex items-center text-sm text-gray-600">
-                <Phone className="w-4 h-4 mr-2" />
+                <Phone className="w-4 h-4 mr-2.5 text-gray-400" />
                 {buyer.phone}
               </div>
             )}
             <div className="flex items-center text-sm text-gray-600">
-              <Calendar className="w-4 h-4 mr-2" />
+              <Calendar className="w-4 h-4 mr-2.5 text-gray-400" />
               Joined {buyer.joinDate.toLocaleDateString()}
             </div>
             {buyer.lastActivity && (
               <div className="flex items-center text-sm text-gray-600">
-                <Activity className="w-4 h-4 mr-2" />
+                <Activity className="w-4 h-4 mr-2.5 text-gray-400" />
                 Last active {buyer.lastActivity.toLocaleDateString()}
               </div>
             )}
           </div>
 
-          {/* Verification Status */}
-          <div className="flex gap-2 mb-4">
-            <Badge variant={buyer.isEmailVerified ? 'default' : 'secondary'} className="text-xs">
-              {buyer.isEmailVerified ? '✓ Email Verified' : '✗ Email Unverified'}
-            </Badge>
-            <Badge variant={buyer.isPhoneVerified ? 'default' : 'secondary'} className="text-xs">
-              {buyer.isPhoneVerified ? '✓ Phone Verified' : '✗ Phone Unverified'}
-            </Badge>
+          {/* Metrics Groups */}
+          <div className="flex-1 max-w-[240px] md:pl-20">
+            <table className="w-full text-xs">
+              <tbody className="divide-y divide-gray-50">
+                <tr className="group/row">
+                  <td className="py-1.5 text-gray-600">Total Orders</td>
+                  <td className="py-1.5 text-right font-bold text-gray-900">{buyer.metrics.totalOrders}</td>
+                </tr>
+                <tr className="group/row">
+                  <td className="py-1.5 text-gray-600">Total Spent</td>
+                  <td className="py-1.5 text-right font-bold text-gray-900">₱{buyer.metrics.totalSpent.toLocaleString()}</td>
+                </tr>
+                <tr className="group/row">
+                  <td className="py-1.5 text-gray-600">Avg Order</td>
+                  <td className="py-1.5 text-right font-bold text-gray-900">₱{buyer.metrics.averageOrderValue.toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
-          {/* Shopping Metrics */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
-            <h4 className="font-medium text-gray-900 mb-2">Shopping Activity</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Total Orders</p>
-                <p className="font-semibold text-gray-900">{buyer.metrics.totalOrders}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Total Spent</p>
-                <p className="font-semibold text-gray-900">₱{buyer.metrics.totalSpent.toLocaleString()}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Avg Order</p>
-                <p className="font-semibold text-gray-900">₱{buyer.metrics.averageOrderValue.toLocaleString()}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Loyalty Points</p>
-                <p className="font-semibold text-gray-900">{buyer.metrics.loyaltyPoints}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
+          {/* Actions */}
+          <div className="flex items-center ml-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleViewDetails(buyer)}
-              className="flex-1"
+              className="h-8 px-4 rounded-lg text-xs border-gray-200 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-transparent transition-all flex items-center gap-2"
             >
-              <Eye className="w-4 h-4 mr-1" />
+              <Eye className="w-3.5 h-3.5" />
               View Details
             </Button>
-
-            {showActions && buyer.status === 'active' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  selectBuyer(buyer);
-                  setShowSuspendDialog(true);
-                }}
-                className="text-orange-600 border-orange-300 hover:bg-orange-50"
-              >
-                <Ban className="w-4 h-4 mr-1" />
-                Suspend
-              </Button>
-            )}
-
-            {showActions && buyer.status === 'suspended' && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  selectBuyer(buyer);
-                  setShowActivateDialog(true);
-                }}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Activate
-              </Button>
-            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </motion.div>
   );
 
@@ -312,108 +273,130 @@ const AdminBuyers: React.FC = () => {
             </div>
           </div>
 
-          {/* Search */}
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search buyers by name or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+          {/* Filters and Search Bar */}
+          <div className="flex items-center justify-between gap-6 mb-4">
+            <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-full p-0.5 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-0.5">
+                {[
+                  { id: 'all', label: 'All', count: allFilteredBuyers.length },
+                  { id: 'active', label: 'Active', count: activeBuyers.length },
+                  { id: 'suspended', label: 'Suspended', count: suspendedBuyers.length },
+                  { id: 'banned', label: 'Banned', count: bannedBuyers.length },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`relative px-4 h-7 text-xs font-medium transition-all duration-300 rounded-full flex items-center gap-1.5 whitespace-nowrap z-10 ${activeTab === tab.id
+                      ? 'text-white'
+                      : 'text-gray-500 hover:text-[var(--brand-primary)]'
+                      }`}
+                  >
+                    {tab.label}
+                    <span className={`text-[10px] font-normal transition-colors ${activeTab === tab.id ? 'text-white/80' : 'text-[var(--text-muted)]/60'}`}>
+                      ({tab.count})
+                    </span>
+                    {activeTab === tab.id && (
+                      <motion.div
+                        layoutId="activeTabPill"
+                        className="absolute inset-0 bg-[var(--brand-primary)] rounded-full -z-10"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </button>
+                ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+            <div className="relative w-[320px] group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[var(--brand-primary)]" />
+              <Input
+                placeholder="Search buyers..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-9 bg-white border-gray-200 rounded-xl shadow-sm focus:border-[var(--brand-primary)] focus:ring-0 placeholder:text-gray-400 text-sm"
+              />
+            </div>
+          </div>
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4 lg:w-auto">
-              <TabsTrigger value="all" className="flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                All ({allFilteredBuyers.length})
-              </TabsTrigger>
-              <TabsTrigger value="active" className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                Active ({activeBuyers.length})
-              </TabsTrigger>
-              <TabsTrigger value="suspended" className="flex items-center gap-2">
-                <Ban className="w-4 h-4" />
-                Suspended ({suspendedBuyers.length})
-              </TabsTrigger>
-              <TabsTrigger value="banned" className="flex items-center gap-2">
-                <UserX className="w-4 h-4" />
-                Banned ({bannedBuyers.length})
-              </TabsTrigger>
-            </TabsList>
 
             <TabsContent value="all">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence>
-                  {allFilteredBuyers.map((buyer) => (
-                    <BuyerCard key={buyer.id} buyer={buyer} showActions={true} />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {allFilteredBuyers.length === 0 && (
-                <div className="text-center py-12">
-                  <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No buyers found</h3>
-                  <p className="text-gray-600">Try adjusting your search criteria.</p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {allFilteredBuyers.map((buyer) => (
+                      <BuyerCard key={buyer.id} buyer={buyer} showActions={true} />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {allFilteredBuyers.length === 0 && (
+                  <div className="text-center py-20 bg-white">
+                    <Users className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No buyers found</h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">
+                      Try adjusting your search criteria.
+                    </p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
 
             <TabsContent value="active">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence>
-                  {activeBuyers.map((buyer) => (
-                    <BuyerCard key={buyer.id} buyer={buyer} showActions={true} />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {activeBuyers.length === 0 && (
-                <div className="text-center py-12">
-                  <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No active buyers</h3>
-                  <p className="text-gray-600">No active buyers found.</p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {activeBuyers.map((buyer) => (
+                      <BuyerCard key={buyer.id} buyer={buyer} showActions={true} />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {activeBuyers.length === 0 && (
+                  <div className="text-center py-20 bg-white">
+                    <CheckCircle className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No active buyers</h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">No active buyers found.</p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
 
             <TabsContent value="suspended">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence>
-                  {suspendedBuyers.map((buyer) => (
-                    <BuyerCard key={buyer.id} buyer={buyer} showActions={true} />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {suspendedBuyers.length === 0 && (
-                <div className="text-center py-12">
-                  <Ban className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No suspended buyers</h3>
-                  <p className="text-gray-600">No buyers are currently suspended.</p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {suspendedBuyers.map((buyer) => (
+                      <BuyerCard key={buyer.id} buyer={buyer} showActions={true} />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {suspendedBuyers.length === 0 && (
+                  <div className="text-center py-20 bg-white">
+                    <Ban className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No suspended buyers</h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">No buyers are currently suspended.</p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
 
             <TabsContent value="banned">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence>
-                  {bannedBuyers.map((buyer) => (
-                    <BuyerCard key={buyer.id} buyer={buyer} />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {bannedBuyers.length === 0 && (
-                <div className="text-center py-12">
-                  <UserX className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No banned buyers</h3>
-                  <p className="text-gray-600">No buyers are currently banned.</p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {bannedBuyers.map((buyer) => (
+                      <BuyerCard key={buyer.id} buyer={buyer} />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {bannedBuyers.length === 0 && (
+                  <div className="text-center py-20 bg-white">
+                    <UserX className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No banned buyers</h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">No buyers are currently banned.</p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
@@ -421,13 +404,13 @@ const AdminBuyers: React.FC = () => {
 
       {/* Buyer Details Dialog */}
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Buyer Details</DialogTitle>
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none shadow-2xl">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="text-xl font-bold text-gray-900">Buyer Details</DialogTitle>
           </DialogHeader>
 
           {selectedBuyer && (
-            <div className="space-y-6">
+            <div className="px-6 py-2 space-y-5 max-h-[70vh] overflow-y-auto scrollbar-hide">
               {/* Basic Info */}
               <div className="grid gap-4">
                 <div className="flex items-center">
@@ -441,62 +424,53 @@ const AdminBuyers: React.FC = () => {
                     )}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-xl text-gray-900">
+                    <h3 className="font-semibold text-lg text-gray-900 leading-tight">
                       {selectedBuyer.firstName} {selectedBuyer.lastName}
                     </h3>
-                    <p className="text-gray-600">{selectedBuyer.email}</p>
-                    {getStatusBadge(selectedBuyer.status)}
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-gray-500 text-[13px]">{selectedBuyer.email}</p>
+                      {getStatusBadge(selectedBuyer.status)}
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                    <p className="text-sm text-gray-900">{selectedBuyer.phone || 'Not provided'}</p>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Phone</label>
+                    <p className="text-xs text-gray-900">{selectedBuyer.phone || 'Not provided'}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                    <p className="text-sm text-gray-900 capitalize">{selectedBuyer.gender || 'Not specified'}</p>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Gender</label>
+                    <p className="text-xs text-gray-900 capitalize">{selectedBuyer.gender || 'Not specified'}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                    <p className="text-sm text-gray-900">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Date of Birth</label>
+                    <p className="text-xs text-gray-900">
                       {selectedBuyer.dateOfBirth ? selectedBuyer.dateOfBirth.toLocaleDateString() : 'Not provided'}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Join Date</label>
-                    <p className="text-sm text-gray-900">{selectedBuyer.joinDate.toLocaleDateString()}</p>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Join Date</label>
+                    <p className="text-xs text-gray-900">{selectedBuyer.joinDate.toLocaleDateString()}</p>
                   </div>
                 </div>
 
-                {/* Verification Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Verification Status</label>
-                  <div className="flex gap-2">
-                    <Badge variant={selectedBuyer.isEmailVerified ? 'default' : 'secondary'}>
-                      {selectedBuyer.isEmailVerified ? '✓ Email Verified' : '✗ Email Unverified'}
-                    </Badge>
-                    <Badge variant={selectedBuyer.isPhoneVerified ? 'default' : 'secondary'}>
-                      {selectedBuyer.isPhoneVerified ? '✓ Phone Verified' : '✗ Phone Unverified'}
-                    </Badge>
-                  </div>
-                </div>
+
               </div>
 
               {/* Addresses */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">Addresses</h4>
+                <h4 className="text-sm font-medium text-gray-900 mb-3">Addresses</h4>
                 <div className="space-y-3">
                   {selectedBuyer.addresses.map((address: any) => (
-                    <div key={address.id} className="p-3 bg-gray-50 rounded-lg">
+                    <div key={address.id} className="p-3 bg-gray-50/50 rounded-lg border border-gray-100/50">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-gray-900">{address.label}</span>
+                        <span className="text-xs font-medium text-gray-900">{address.label}</span>
                         {address.isDefault && (
-                          <Badge variant="secondary" className="text-xs">Default</Badge>
+                          <Badge className="text-[10px] bg-transparent shadow-none text-[var(--brand-primary)] hover:bg-transparent border-none font-bold uppercase tracking-wider">Default</Badge>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-xs text-gray-600">
                         {address.street}, {address.city}, {address.province} {address.zipCode}
                       </p>
                     </div>
@@ -506,64 +480,78 @@ const AdminBuyers: React.FC = () => {
 
               {/* Shopping Metrics */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">Shopping Activity</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-blue-600">Total Orders</p>
-                        <p className="text-2xl font-bold text-blue-900">{selectedBuyer.metrics.totalOrders}</p>
-                      </div>
-                      <ShoppingBag className="w-8 h-8 text-blue-500" />
-                    </div>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-green-600">Total Spent</p>
-                        <p className="text-2xl font-bold text-green-900">₱{selectedBuyer.metrics.totalSpent.toLocaleString()}</p>
-                      </div>
-                      <DollarSign className="w-8 h-8 text-green-500" />
-                    </div>
-                  </div>
-                  <div className="bg-purple-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-purple-600">Average Order</p>
-                        <p className="text-2xl font-bold text-purple-900">₱{selectedBuyer.metrics.averageOrderValue.toLocaleString()}</p>
-                      </div>
-                      <Star className="w-8 h-8 text-purple-500" />
-                    </div>
-                  </div>
-                  <div className="bg-yellow-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm text-yellow-600 mb-1">Bazcoins</div>
-                        <p className="text-2xl font-bold text-yellow-900">{selectedBuyer.metrics.bazcoins}</p>
-                      </div>
-                      <Award className="w-8 h-8 text-yellow-500" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <p className="text-sm text-red-600">Cancelled Orders</p>
-                    <p className="text-lg font-bold text-red-900">{selectedBuyer.metrics.cancelledOrders}</p>
-                  </div>
-                  <div className="text-center p-3 bg-orange-50 rounded-lg">
-                    <p className="text-sm text-orange-600">Returned Orders</p>
-                    <p className="text-lg font-bold text-orange-900">{selectedBuyer.metrics.returnedOrders}</p>
-                  </div>
+                <h4 className="text-sm font-medium text-gray-900 mb-2">
+                  Shopping Activity
+                </h4>
+                <div className="bg-gray-50/50 rounded-xl overflow-hidden border border-gray-100/50">
+                  <table className="w-full text-[13px]">
+                    <tbody className="divide-y divide-gray-100">
+                      <tr>
+                        <td className="text-xs px-4 py-2 text-gray-600">Total Orders</td>
+                        <td className="text-xs px-4 py-2 text-right font-bold text-gray-900">
+                          {selectedBuyer.metrics.totalOrders}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="text-xs px-4 py-2 text-gray-600">Total Spent</td>
+                        <td className="text-xs px-4 py-2 text-right font-bold text-gray-900">
+                          ₱{selectedBuyer.metrics.totalSpent.toLocaleString()}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="text-xs px-4 py-2 text-gray-600">Average Order</td>
+                        <td className="text-xs px-4 py-2 text-right font-bold text-gray-900">
+                          ₱{selectedBuyer.metrics.averageOrderValue.toLocaleString()}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="text-xs px-4 py-2 text-gray-600">Bazcoins</td>
+                        <td className="text-xs px-4 py-2 text-right font-bold text-[var(--brand-accent)]">
+                          {selectedBuyer.metrics.bazcoins}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="text-xs px-4 py-2 text-gray-600">Cancelled Orders</td>
+                        <td className="text-xs px-4 py-2 text-right font-bold text-red-600">
+                          {selectedBuyer.metrics.cancelledOrders}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="text-xs px-4 py-2 text-gray-600">Returned Orders</td>
+                        <td className="text-xs px-4 py-2 text-right font-bold text-red-600">
+                          {selectedBuyer.metrics.returnedOrders}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
-              Close
-            </Button>
+          <DialogFooter className="flex flex-row items-center justify-end gap-2 p-4 border-t border-gray-100 bg-gray-50/50">
+            {selectedBuyer?.status === 'active' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSuspendDialog(true)}
+                className="text-gray-500 border-gray-200 hover:text-orange-600 hover:border-orange-600 hover:bg-orange-50 transition-all flex items-center gap-2"
+              >
+                <Ban className="w-4 h-4" />
+                Suspend Account
+              </Button>
+            )}
+
+            {selectedBuyer?.status === 'suspended' && (
+              <Button
+                size="sm"
+                onClick={() => setShowActivateDialog(true)}
+                className="bg-green-600 hover:bg-green-700 text-white transition-all flex items-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Activate Account
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

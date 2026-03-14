@@ -16,6 +16,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -54,9 +60,10 @@ import {
   UserCheck,
   Ban,
   Loader2,
-  User,
+  ChevronRight,
   Building,
   RefreshCw,
+  MoreVertical,
 } from "lucide-react";
 
 const AdminSellers: React.FC = () => {
@@ -285,74 +292,74 @@ const AdminSellers: React.FC = () => {
     switch (status) {
       case "approved":
         return (
-          <Badge className="bg-green-100 text-green-700 border-green-200">
+          <Badge className="bg-green-100 text-green-700 border-green-200 pointer-events-none">
             Approved
           </Badge>
         );
       case "rejected":
         return (
-          <Badge className="bg-red-100 text-red-700 border-red-200">
+          <Badge className="bg-red-100 text-red-700 border-red-200 pointer-events-none">
             Rejected
           </Badge>
         );
       case "suspended":
         return (
-          <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+          <Badge className="bg-[var(--brand-accent-light)] text-[var(--brand-primary)] border-[var(--brand-primary)]/20 shadow-none pointer-events-none">
             Suspended
           </Badge>
         );
       case "pending":
         return (
-          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
+          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 pointer-events-none">
             Pending
           </Badge>
         );
       case "needs_resubmission":
         return (
-          <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+          <Badge className="bg-amber-100 text-amber-800 border-amber-200 pointer-events-none">
             Needs Resubmission
           </Badge>
         );
       case "blacklisted":
         return (
-          <Badge className="bg-red-200 text-red-900 border-red-300 font-bold">
+          <Badge className="bg-red-200 text-red-900 border-red-300 font-bold pointer-events-none">
             Blacklisted
           </Badge>
         );
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary" className="pointer-events-none">{status}</Badge>;
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "approved":
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
+        return;
       case "rejected":
-        return <XCircle className="w-4 h-4 text-red-600" />;
+        return;
       case "blacklisted":
-        return <Ban className="w-4 h-4 text-red-600" />;
+        return;
       case "suspended":
-        return <Ban className="w-4 h-4 text-orange-600" />;
+        return;
       case "pending":
-        return <Clock className="w-4 h-4 text-yellow-600" />;
+        return;
       case "needs_resubmission":
-        return <AlertTriangle className="w-4 h-4 text-amber-700" />;
+        return;
       default:
-        return <AlertTriangle className="w-4 h-4 text-gray-600" />;
+        return;
     }
   };
 
   const getTierBadge = (tierLevel?: 'standard' | 'premium_outlet') => {
     if (tierLevel === 'premium_outlet') {
       return (
-        <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+        <Badge className="bg-purple-100 text-purple-700 border-purple-200 pointer-events-none">
           Premium Outlet
         </Badge>
       );
     }
     return (
-      <Badge variant="outline" className="text-gray-500">
+      <Badge variant="outline" className="border-gray-200 text-gray-500 pointer-events-none">
         Standard
       </Badge>
     );
@@ -365,7 +372,7 @@ const AdminSellers: React.FC = () => {
 
     if (isPermanentlyBlacklisted) {
       return (
-        <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+        <Badge className="bg-red-100 text-red-700 border-red-200 text-xs pointer-events-none">
           Permanently Blacklisted
         </Badge>
       );
@@ -373,7 +380,7 @@ const AdminSellers: React.FC = () => {
 
     if (seller.tempBlacklistUntil && seller.tempBlacklistUntil > now) {
       return (
-        <Badge className="bg-red-50 text-red-700 border-red-200 text-xs">
+        <Badge className="bg-red-50 text-red-700 border-red-200 text-xs pointer-events-none">
           Temp Blacklisted ({seller.tempBlacklistCount || 0}/3)
         </Badge>
       );
@@ -381,23 +388,17 @@ const AdminSellers: React.FC = () => {
 
     if (seller.coolDownUntil && seller.coolDownUntil > now) {
       return (
-        <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
+        <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs pointer-events-none">
           Cooling Down ({seller.cooldownCount || 0}/3)
         </Badge>
       );
     }
 
-    if (seller.status === "blacklisted") {
-      return (
-        <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
-          Blacklisted
-        </Badge>
-      );
-    }
+
 
     if (seller.reapplicationAttempts && seller.reapplicationAttempts > 0) {
       return (
-        <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">
+        <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs pointer-events-none">
           Attempts: {seller.reapplicationAttempts}/3
         </Badge>
       );
@@ -419,14 +420,14 @@ const AdminSellers: React.FC = () => {
 
     if (hasPendingResubmissionItems) {
       return (
-        <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+        <Badge className="bg-amber-100 text-amber-800 border-amber-200 pointer-events-none">
           Waiting for Seller
         </Badge>
       );
     }
 
     return (
-      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 pointer-events-none">
         Ready for Review
       </Badge>
     );
@@ -451,7 +452,7 @@ const AdminSellers: React.FC = () => {
 
     return (
       <div
-        className={`${sizeClass} bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0`}
+        className={`${sizeClass} bg-[var(--brand-primary)] rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm`}
       >
         {canRenderImage ? (
           <img
@@ -478,275 +479,127 @@ const AdminSellers: React.FC = () => {
       showResubmissionState?: boolean;
     }) => (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
+        exit={{ opacity: 0, y: -10 }}
         layout
+        className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors"
       >
-        <Card className="hover:shadow-lg transition-shadow duration-300">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center">
-                <SellerAvatar
-                  logo={seller.logo}
-                  name={seller.businessName}
-                  sizeClass="w-12 h-12"
-                  iconClass="w-6 h-6 text-white"
-                />
-                <div className="ml-4">
-                  <h3 className="font-semibold text-lg text-gray-900">
-                    {seller.businessName}
-                  </h3>
-                  <p className="text-gray-600">{seller.ownerName}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {showResubmissionState && seller.status === "needs_resubmission" ? (
-                  getResubmissionReviewBadge(seller)
-                ) : (
-                  <>
-                    {getStatusIcon(seller.status)}
-                    {getStatusBadge(seller.status)}
-                  </>
-                )}
-                {getRestrictionBadge(seller)}
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center">
+              <SellerAvatar
+                logo={seller.logo}
+                name={seller.businessName}
+                sizeClass="w-12 h-12"
+                iconClass="w-6 h-6 text-white"
+              />
+              <div className="ml-4">
+                <h3 className="font-semibold text-lg text-gray-900">
+                  {seller.businessName}
+                </h3>
+                <p className="text-gray-600">{seller.ownerName}</p>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              {showResubmissionState && seller.status === "needs_resubmission" ? (
+                getResubmissionReviewBadge(seller)
+              ) : (
+                <>
+                  {getStatusIcon(seller.status)}
+                  {getStatusBadge(seller.status)}
+                </>
+              )}
+              {getRestrictionBadge(seller)}
+            </div>
+          </div>
 
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center text-sm text-gray-600">
-                <Mail className="w-4 h-4 mr-2" />
-                {seller.email}
+          <div className="flex flex-col md:flex-row md:gap-x-16 gap-y-2 mb-3">
+            <div className="space-y-2 min-w-[240px]">
+              <div className="flex items-center text-sm text-gray-500">
+                <Mail className="w-4 h-4 mr-2 text-gray-400" />
+                <span className="truncate">{seller.email}</span>
               </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <Phone className="w-4 h-4 mr-2" />
+              <div className="flex items-center text-sm text-gray-500">
+                <Phone className="w-4 h-4 mr-2 text-gray-400" />
                 {seller.phone}
               </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <MapPin className="w-4 h-4 mr-2" />
-                {seller.address}
-              </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <Calendar className="w-4 h-4 mr-2" />
-                Joined {new Date(seller.joinDate).toLocaleDateString()}
-              </div>
             </div>
-
-            {seller.status === "approved" && (
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h4 className="font-medium text-gray-900 mb-2">
-                  Performance Metrics
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">Products</p>
-                    <p className="font-semibold text-gray-900">
-                      {seller.metrics.totalProducts}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">Orders</p>
-                    <p className="font-semibold text-gray-900">
-                      {seller.metrics.totalOrders}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">Revenue</p>
-                    <p className="font-semibold text-gray-900">
-                      ₱{seller.metrics.totalRevenue.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">Rating</p>
-                    <div className="flex items-center justify-center">
-                      <Star className="w-4 h-4 text-yellow-500 mr-1" />
-                      <p className="font-semibold text-gray-900">
-                        {seller.metrics.rating}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center text-sm text-gray-500">
+                <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                <span className="line-clamp-1">{seller.address}</span>
               </div>
-            )}
-
-            {seller.status === "approved" && (
-              <div className="bg-purple-50 rounded-lg p-4 mb-4 border border-purple-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-purple-900">
-                      Premium Outlet
-                    </span>
-                    {getTierBadge(seller.tierLevel)}
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={seller.tierLevel === 'premium_outlet'}
-                      onChange={(e) => handleTogglePremiumOutlet(seller.id, e.target.checked)}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                    <span className="ml-2 text-sm text-gray-600">
-                      {seller.tierLevel === 'premium_outlet' ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </label>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center text-sm text-gray-500">
+                  <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                  Joined {new Date(seller.joinDate).toLocaleDateString()}
                 </div>
-                <p className="text-xs text-purple-700 mt-1">
-                  {seller.tierLevel === 'premium_outlet'
-                    ? 'Products bypass assessment and are auto-verified'
-                    : 'Products go through standard assessment workflow'}
-                </p>
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewDetails(seller)}
-                className="flex-1"
-              >
-                <Eye className="w-4 h-4 mr-1" />
-                View Details
-              </Button>
-
-              {showActions && seller.status === "pending" && (
-                <>
-                  {hasCompleteRequirements(seller) ? (
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        selectSeller(seller);
-                        setShowApproveDialog(true);
-                      }}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Approve
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      disabled
-                      className="bg-gray-300 cursor-not-allowed"
-                      title="Seller has incomplete requirements"
-                    >
-                      <AlertTriangle className="w-4 h-4 mr-1" />
-                      Incomplete
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!hasCompleteRequirements(seller)}
-                    title={!hasCompleteRequirements(seller) ? "Cannot reject - incomplete documents" : ""}
-                    onClick={() => {
-                      selectSeller(seller);
-                      initializePartialReject(seller);
-                      setShowPartialRejectDialog(true);
-                    }}
-                    className="text-amber-700 border-amber-300 hover:bg-amber-50"
-                  >
-                    <AlertTriangle className="w-4 h-4 mr-1" />
-                    Partial Reject
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!hasCompleteRequirements(seller)}
-                    title={!hasCompleteRequirements(seller) ? "Cannot reject - incomplete documents" : ""}
-                    onClick={() => {
-                      selectSeller(seller);
-                      setShowRejectDialog(true);
-                    }}
-                    className="text-red-600 border-red-300 hover:bg-red-50"
-                  >
-                    <XCircle className="w-4 h-4 mr-1" />
-                    Reject
-                  </Button>
-                </>
-              )}
-
-              {showActions && seller.status === "needs_resubmission" && (
-                <>
-                  {hasCompleteRequirements(seller) && !hasPendingResubmissionItems(seller) ? (
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        selectSeller(seller);
-                        setShowApproveDialog(true);
-                      }}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Approve
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      disabled
-                      className="bg-gray-300 cursor-not-allowed"
-                      title={
-                        hasPendingResubmissionItems(seller)
-                          ? "Seller still needs to resubmit flagged documents"
-                          : "Seller has incomplete requirements"
-                      }
-                    >
-                      <AlertTriangle className="w-4 h-4 mr-1" />
-                      Waiting
-                    </Button>
-                  )}
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!hasCompleteRequirements(seller)}
-                    title={!hasCompleteRequirements(seller) ? "Cannot reject - incomplete documents" : ""}
-                    onClick={() => {
-                      selectSeller(seller);
-                      initializePartialReject(seller);
-                      setShowPartialRejectDialog(true);
-                    }}
-                    className="text-amber-700 border-amber-300 hover:bg-amber-50"
-                  >
-                    <AlertTriangle className="w-4 h-4 mr-1" />
-                    Partial Reject
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!hasCompleteRequirements(seller)}
-                    title={!hasCompleteRequirements(seller) ? "Cannot reject - incomplete documents" : ""}
-                    onClick={() => {
-                      selectSeller(seller);
-                      setShowRejectDialog(true);
-                    }}
-                    className="text-red-600 border-red-300 hover:bg-red-50"
-                  >
-                    <XCircle className="w-4 h-4 mr-1" />
-                    Reject
-                  </Button>
-                </>
-              )}
-
-              {showActions && seller.status === "approved" && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    selectSeller(seller);
-                    setShowSuspendDialog(true);
-                  }}
-                  className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                  onClick={() => handleViewDetails(seller)}
+                  className="h-8 px-3 rounded-lg text-xs border-gray-200 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-transparent transition-all"
                 >
-                  <Ban className="w-4 h-4 mr-1" />
-                  Suspend
+                  <Eye className="w-3.5 h-3.5 mr-1.5" />
+                  View Details
                 </Button>
-              )}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+
+          {seller.status === "approved" && (
+            <div className="bg-white border-t border-gray-200 overflow-hidden grid grid-cols-4 pt-2 mb-2">
+              <div className="flex items-center justify-center py-1.5">
+                <span className="text-sm text-gray-500">Products:</span>
+                <span className="ml-2 font-bold text-gray-900">{seller.metrics.totalProducts}</span>
+              </div>
+              <div className="flex items-center justify-center py-1.5">
+                <span className="text-sm text-gray-500">Orders:</span>
+                <span className="ml-2 font-bold text-gray-900">{seller.metrics.totalOrders}</span>
+              </div>
+              <div className="flex items-center justify-center py-1.5">
+                <span className="text-sm text-gray-500">Revenue:</span>
+                <span className="ml-2 font-bold text-gray-900">₱{seller.metrics.totalRevenue.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-center py-1.5">
+                <span className="text-sm text-gray-500">Rating:</span>
+                <div className="flex items-center ml-2 gap-1.5">
+                  <span className="font-bold text-gray-900">{seller.metrics.rating}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {seller.status === "approved" && (
+            <div className="bg-purple-50 rounded-lg p-4 border-0 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div>
+                  <div className="flex items-center gap-3 mb-0.5">
+                    <span className="text-sm font-semibold text-purple-900">
+                      Premium Outlet Status
+                    </span>
+                  </div>
+                  <span className="text-xs text-purple-700 block">
+                    Enabling this skips standard product assessment
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                {getTierBadge(seller.tierLevel)}
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={seller.tierLevel === 'premium_outlet'}
+                    onChange={(e) => handleTogglePremiumOutlet(seller.id, e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
       </motion.div>
     ),
   );
@@ -757,8 +610,8 @@ const AdminSellers: React.FC = () => {
         <AdminSidebar open={open} setOpen={setOpen} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading sellers...</p>
+            <div className="w-10 h-10 border-4 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-500 font-medium">Loading sellers...</p>
           </div>
         </div>
       </div>
@@ -781,219 +634,210 @@ const AdminSellers: React.FC = () => {
                 Review and manage seller applications and accounts
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => loadSellers()}
-                disabled={isLoading}
-                className="flex items-center gap-2"
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
-                />
-                Refresh
-              </Button>
-              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
-                {pendingSellers.length + needsResubmissionCount} In Review
-              </Badge>
-              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-                <UserCheck className="w-5 h-5 text-white" />
+          </div>
+
+          {/* Filters and Search Bar */}
+          <div className="flex items-center justify-between gap-6 mb-8">
+            <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-full p-0.5 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-0.5">
+                {[
+                  { id: 'pending', label: 'Pending', count: filteredPendingSellers.length },
+                  { id: 'needs_resubmission', label: 'Resubmission', count: resubmissionSellers.length },
+                  { id: 'approved', label: 'Approved', count: approvedSellers.length },
+                  { id: 'rejected', label: 'Rejected', count: rejectedSellers.length },
+                  { id: 'blacklisted', label: 'Blacklisted', count: blacklistedSellers.length },
+                  { id: 'suspended', label: 'Suspended', count: suspendedSellers.length },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`relative px-4 h-7 text-xs font-medium transition-all duration-300 rounded-full flex items-center gap-1.5 whitespace-nowrap z-10 ${activeTab === tab.id
+                      ? 'text-white'
+                      : 'text-gray-500 hover:text-[var(--brand-primary)]'
+                      }`}
+                  >
+                    {tab.label}
+                    <span className={`text-[10px] font-normal transition-colors ${activeTab === tab.id ? 'text-white/80' : 'text-[var(--text-muted)]/60'}`}>
+                      ({tab.count})
+                    </span>
+                    {activeTab === tab.id && (
+                      <motion.div
+                        layoutId="activeTabPill"
+                        className="absolute inset-0 bg-[var(--brand-primary)] rounded-full -z-10"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </button>
+                ))}
               </div>
+            </div>
+
+            <div className="relative w-[320px] group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[var(--brand-primary)]" />
+              <Input
+                placeholder="Search sellers..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-9 bg-white border-gray-200 rounded-xl shadow-sm focus:border-[var(--brand-primary)] focus:ring-0 placeholder:text-gray-400 text-sm"
+              />
             </div>
           </div>
 
-          {/* Search */}
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search sellers by name, email, or business..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Tabs */}
           <Tabs
             value={activeTab}
             onValueChange={setActiveTab}
             className="space-y-6"
           >
-            <TabsList className="grid w-full grid-cols-6 lg:w-auto">
-              <TabsTrigger value="pending" className="flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Pending ({filteredPendingSellers.length})
-              </TabsTrigger>
-              <TabsTrigger
-                value="needs_resubmission"
-                className="flex items-center gap-2"
-              >
-                <AlertTriangle className="w-4 h-4" />
-                Resubmission ({resubmissionSellers.length})
-              </TabsTrigger>
-              <TabsTrigger value="approved" className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                Approved ({approvedSellers.length})
-              </TabsTrigger>
-              <TabsTrigger value="rejected" className="flex items-center gap-2">
-                <XCircle className="w-4 h-4" />
-                Rejected ({rejectedSellers.length})
-              </TabsTrigger>
-              <TabsTrigger value="blacklisted" className="flex items-center gap-2">
-                <Ban className="w-4 h-4" />
-                Blacklisted ({blacklistedSellers.length})
-              </TabsTrigger>
-              <TabsTrigger
-                value="suspended"
-                className="flex items-center gap-2"
-              >
-                <Ban className="w-4 h-4" />
-                Suspended ({suspendedSellers.length})
-              </TabsTrigger>
-            </TabsList>
 
             <TabsContent value="pending">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence mode="popLayout">
-                  {filteredPendingSellers.map((seller) => (
-                    <SellerCard
-                      key={seller.id}
-                      seller={seller}
-                      showActions={true}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {filteredPendingSellers.length === 0 && (
-                <div className="text-center py-12">
-                  <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    No pending applications
-                  </h3>
-                  <p className="text-gray-600">
-                    All seller applications have been reviewed.
-                  </p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {filteredPendingSellers.map((seller) => (
+                      <SellerCard
+                        key={seller.id}
+                        seller={seller}
+                        showActions={true}
+                      />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {filteredPendingSellers.length === 0 && (
+                  <div className="text-center py-16 bg-white">
+                    <Clock className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No pending applications
+                    </h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">
+                      All seller applications have been reviewed. New applications will appear here.
+                    </p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
 
             <TabsContent value="approved">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence mode="popLayout">
-                  {approvedSellers.map((seller) => (
-                    <SellerCard
-                      key={seller.id}
-                      seller={seller}
-                      showActions={true}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {approvedSellers.length === 0 && (
-                <div className="text-center py-12">
-                  <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    No approved sellers
-                  </h3>
-                  <p className="text-gray-600">
-                    No sellers have been approved yet.
-                  </p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {approvedSellers.map((seller) => (
+                      <SellerCard
+                        key={seller.id}
+                        seller={seller}
+                        showActions={true}
+                      />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {approvedSellers.length === 0 && (
+                  <div className="text-center py-16 bg-white">
+                    <CheckCircle className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No approved sellers
+                    </h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">
+                      No sellers have been approved yet. Approved sellers will be listed here.
+                    </p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
 
             <TabsContent value="needs_resubmission">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence mode="popLayout">
-                  {resubmissionSellers.map((seller) => (
-                    <SellerCard
-                      key={seller.id}
-                      seller={seller}
-                      showActions={true}
-                      showResubmissionState={true}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {resubmissionSellers.length === 0 && (
-                <div className="text-center py-12">
-                  <AlertTriangle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    No resubmissions pending
-                  </h3>
-                  <p className="text-gray-600">
-                    Sellers needing document updates will appear here.
-                  </p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {resubmissionSellers.map((seller) => (
+                      <SellerCard
+                        key={seller.id}
+                        seller={seller}
+                        showActions={true}
+                        showResubmissionState={true}
+                      />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {resubmissionSellers.length === 0 && (
+                  <div className="text-center py-16 bg-white">
+                    <AlertTriangle className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No resubmissions pending
+                    </h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">
+                      Sellers needing document updates will appear here after a partial rejection.
+                    </p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
 
             <TabsContent value="rejected">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence mode="popLayout">
-                  {rejectedSellers.map((seller) => (
-                    <SellerCard key={seller.id} seller={seller} />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {rejectedSellers.length === 0 && (
-                <div className="text-center py-12">
-                  <XCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    No rejected sellers
-                  </h3>
-                  <p className="text-gray-600">
-                    No seller applications have been rejected.
-                  </p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {rejectedSellers.map((seller) => (
+                      <SellerCard key={seller.id} seller={seller} />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {rejectedSellers.length === 0 && (
+                  <div className="text-center py-16 bg-white">
+                    <XCircle className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No rejected sellers
+                    </h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">
+                      History of rejected applications will be shown here.
+                    </p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
 
             <TabsContent value="blacklisted">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence mode="popLayout">
-                  {blacklistedSellers.map((seller) => (
-                    <SellerCard key={seller.id} seller={seller} />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {blacklistedSellers.length === 0 && (
-                <div className="text-center py-12">
-                  <Ban className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    No blacklisted sellers
-                  </h3>
-                  <p className="text-gray-600">
-                    No sellers are currently blacklisted.
-                  </p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {blacklistedSellers.map((seller) => (
+                      <SellerCard key={seller.id} seller={seller} />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {blacklistedSellers.length === 0 && (
+                  <div className="text-center py-16 bg-white">
+                    <Ban className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No blacklisted sellers
+                    </h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">
+                      Permanently banned sellers will be listed here.
+                    </p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
 
             <TabsContent value="suspended">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence mode="popLayout">
-                  {suspendedSellers.map((seller) => (
-                    <SellerCard key={seller.id} seller={seller} />
-                  ))}
-                </AnimatePresence>
-              </div>
-              {suspendedSellers.length === 0 && (
-                <div className="text-center py-12">
-                  <Ban className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    No suspended sellers
-                  </h3>
-                  <p className="text-gray-600">
-                    No sellers are currently suspended.
-                  </p>
+              <Card className="border-none shadow-md rounded-xl overflow-hidden">
+                <div className="bg-white">
+                  <AnimatePresence mode="popLayout">
+                    {suspendedSellers.map((seller) => (
+                      <SellerCard key={seller.id} seller={seller} />
+                    ))}
+                  </AnimatePresence>
                 </div>
-              )}
+                {suspendedSellers.length === 0 && (
+                  <div className="text-center py-16 bg-white">
+                    <Ban className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No suspended sellers
+                    </h3>
+                    <p className="text-gray-500 max-w-xs mx-auto text-sm">
+                      Accounts under temporary suspension will be shown here.
+                    </p>
+                  </div>
+                )}
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
@@ -1001,70 +845,65 @@ const AdminSellers: React.FC = () => {
 
       {/* Seller Details Dialog */}
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Seller Details</DialogTitle>
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="text-lg">Seller Details</DialogTitle>
           </DialogHeader>
 
           {selectedSeller && (
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+            <div className="px-6 pb-6 space-y-4 max-h-[60vh] overflow-y-auto scrollbar-hide">
               {/* Header with Status */}
-              <div className="flex items-start justify-between border-b pb-4">
+              <div className="flex items-start justify-between border-b border-gray-100 pb-4">
                 <div className="flex items-center">
                   <div className="mr-4">
                     <SellerAvatar
                       logo={selectedSeller.logo}
                       name={selectedSeller.businessName}
-                      sizeClass="w-16 h-16"
-                      iconClass="w-8 h-8 text-white"
+                      sizeClass="w-12 h-12"
+                      iconClass="w-6 h-6 text-white"
                     />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-xl text-gray-900">
+                    <h3 className="font-semibold text-lg text-gray-900 leading-tight">
                       {selectedSeller.businessName}
                     </h3>
-                    <p className="text-gray-600 text-sm">
-                      {selectedSeller.storeName}
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Joined {new Date(selectedSeller.joinDate).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   {getStatusBadge(selectedSeller.status)}
-                  <p className="text-xs text-gray-500 mt-1">
-                    Joined{" "}
-                    {new Date(selectedSeller.joinDate).toLocaleDateString()}
-                  </p>
                 </div>
               </div>
 
               {/* Owner Information */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                  <User className="w-5 h-5 text-orange-500" />
+                <h4 className="font-semibold text-gray-900 mb-2 text-sm">
                   Owner Information
                 </h4>
-                <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-lg">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs text-gray-600 mb-0.5">
                       Owner Name
                     </label>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-xs font-medium text-gray-900">
                       {selectedSeller.ownerName}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs text-gray-600 mb-0.5">
                       Email
                     </label>
-                    <p className="text-sm text-gray-900">
+                    <p className="text-xs text-gray-900">
                       {selectedSeller.email}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs text-gray-600 mb-0.5">
                       Phone Number
                     </label>
-                    <p className="text-sm text-gray-900">
+                    <p className="text-xs text-gray-900">
                       {selectedSeller.phone}
                     </p>
                   </div>
@@ -1073,30 +912,29 @@ const AdminSellers: React.FC = () => {
 
               {/* Business Information */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                  <Building className="w-5 h-5 text-orange-500" />
+                <h4 className="font-semibold text-gray-900 mb-2 text-sm">
                   Business Information
                 </h4>
-                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                      <label className="block text-xs text-gray-600 mb-0.5">
                         Business Type
                       </label>
-                      <p className="text-sm text-gray-900 capitalize">
+                      <p className="text-xs text-gray-900 capitalize">
                         {selectedSeller.businessType.replace("_", " ")}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                      <label className="block text-xs text-gray-600 mb-0.5">
                         Registration Number
                       </label>
-                      <p className="text-sm font-mono text-gray-900">
+                      <p className="text-xs font-mono text-gray-900">
                         {selectedSeller.businessRegistrationNumber}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                      <label className="block text-xs text-gray-600 mb-0.5">
                         Tax ID (TIN)
                       </label>
                       <p className="text-sm font-mono text-gray-900">
@@ -1105,15 +943,15 @@ const AdminSellers: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs text-gray-600 mb-0.5">
                       Store Description
                     </label>
-                    <p className="text-sm text-gray-900">
-                      {selectedSeller.storeDescription}
+                    <p className="text-xs text-gray-900 leading-relaxed">
+                      {selectedSeller.storeDescription || "No description provided."}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs text-gray-600 mb-0.5">
                       Store Categories
                     </label>
                     <div className="flex flex-wrap gap-2 mt-1">
@@ -1121,7 +959,7 @@ const AdminSellers: React.FC = () => {
                         <Badge
                           key={index}
                           variant="secondary"
-                          className="bg-orange-100 text-orange-700 border-orange-200"
+                          className="bg-[var(--brand-accent-light)] text-[var(--brand-primary)] border-[var(--brand-primary)]/20 shadow-none hover:bg-[var(--brand-accent-light)]"
                         >
                           {category}
                         </Badge>
@@ -1133,40 +971,39 @@ const AdminSellers: React.FC = () => {
 
               {/* Address Information */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-orange-500" />
+                <h4 className="font-semibold text-gray-900 mb-2 text-sm">
                   Business Address
                 </h4>
-                <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg grid grid-cols-2 gap-3">
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs text-gray-600 mb-0.5">
                       Street Address
                     </label>
-                    <p className="text-sm text-gray-900">
+                    <p className="text-xs text-gray-900">
                       {selectedSeller.businessAddress}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs text-gray-600 mb-0.5">
                       City
                     </label>
-                    <p className="text-sm text-gray-900">
+                    <p className="text-xs text-gray-900">
                       {selectedSeller.city}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs text-gray-500 mb-0.5">
                       Province
                     </label>
-                    <p className="text-sm text-gray-900">
+                    <p className="text-xs text-gray-900">
                       {selectedSeller.province}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs text-gray-600 mb-0.5">
                       Postal Code
                     </label>
-                    <p className="text-sm font-mono text-gray-900">
+                    <p className="text-xs font-mono text-gray-900">
                       {selectedSeller.postalCode}
                     </p>
                   </div>
@@ -1176,32 +1013,31 @@ const AdminSellers: React.FC = () => {
               {/* Banking Information */}
               {SHOW_BANKING_INFO && (
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-orange-500" />
+                  <h4 className="font-semibold text-gray-900 mb-2 text-sm">
                     Banking Information
                   </h4>
-                  <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 p-3 rounded-lg grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                      <label className="block text-xs text-gray-600 mb-0.5">
                         Bank Name
                       </label>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-xs text-gray-900">
                         {selectedSeller.bankName}
                       </p>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                      <label className="block text-xs text-gray-600 mb-0.5">
                         Account Name
                       </label>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-xs text-gray-900">
                         {selectedSeller.accountName}
                       </p>
                     </div>
                     <div className="col-span-2">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                      <label className="block text-xs text-gray-600 mb-0.5">
                         Account Number
                       </label>
-                      <p className="text-sm font-mono text-gray-900">
+                      <p className="text-xs font-mono text-gray-900">
                         {selectedSeller.accountNumber}
                       </p>
                     </div>
@@ -1260,10 +1096,10 @@ const AdminSellers: React.FC = () => {
 
               {/* Documents */}
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">
+                <h4 className="font-semibold text-gray-900 mb-2 text-sm">
                   Submitted Documents
                 </h4>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {selectedSeller.documents.map((doc) => (
                     <div key={doc.id} className="space-y-1">
                       <div
@@ -1275,49 +1111,64 @@ const AdminSellers: React.FC = () => {
                         <div className="flex items-center">
                           <FileText className="w-5 h-5 text-gray-400 mr-3" />
                           <div>
-                            <p className="font-medium text-gray-900">
+                            <p className="text-xs font-medium text-gray-900">
                               {doc.fileName}
                             </p>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-xs text-gray-600">
                               {doc.type.replace("_", " ").toUpperCase()}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           {doc.isRejected ? (
-                            <Badge className="bg-red-100 text-red-700 border-red-200">
+                            <Badge className="bg-red-100 text-red-700 border-red-200 pointer-events-none">
                               Needs Update
                             </Badge>
                           ) : doc.wasResubmitted ? (
-                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 pointer-events-none">
                               Resubmitted
                             </Badge>
+                          ) : doc.isVerified ? (
+                            <Badge className="bg-green-50 text-green-700 border-green-200 rounded-full hover:bg-green-50 pointer-events-none">
+                              Verified
+                            </Badge>
                           ) : (
-                            <Badge
-                              variant={doc.isVerified ? "default" : "secondary"}
-                            >
-                              {doc.isVerified ? "Verified" : "Pending"}
+                            <Badge className="bg-amber-50 text-amber-700 border-amber-200 rounded-full hover:bg-amber-50 pointer-events-none">
+                              Pending
                             </Badge>
                           )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handlePreviewDocument(doc.url)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              handleDownloadDocument(
-                                doc.url,
-                                `${doc.fileName || doc.type}.pdf`,
-                              )
-                            }
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-gray-400 hover:text-gray-700 hover:bg-base"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-32 border-none shadow-lg">
+                              <DropdownMenuItem
+                                onClick={() => handlePreviewDocument(doc.url)}
+                                className="cursor-pointer focus:bg-gray-100 focus:text-gray-900"
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                <span>View</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  handleDownloadDocument(
+                                    doc.url,
+                                    `${doc.fileName || doc.type}.pdf`,
+                                  )
+                                }
+                                className="cursor-pointer focus:bg-gray-100 focus:text-gray-900"
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                <span>Download</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                       {doc.rejectionReason && (
@@ -1333,72 +1184,98 @@ const AdminSellers: React.FC = () => {
               {/* Performance Metrics (for approved sellers) */}
               {selectedSeller.status === "approved" && (
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-3">
+                  <h4 className="font-semibold text-gray-900 mb-2 text-sm">
                     Performance Metrics
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-blue-600">
-                            Total Products
-                          </p>
-                          <p className="text-2xl font-bold text-blue-900">
+                  <div className="border-0 bg-gray-50 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <tbody className="divide-y divide-gray-50">
+                        <tr className="hover:bg-gray-50/50 transition-colors">
+                          <td className="py-2.5 px-3 text-gray-700">Total Products</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-gray-900">
                             {selectedSeller.metrics.totalProducts}
-                          </p>
-                        </div>
-                        <Package className="w-8 h-8 text-blue-500" />
-                      </div>
-                    </div>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-green-600">Total Orders</p>
-                          <p className="text-2xl font-bold text-green-900">
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 transition-colors">
+                          <td className="py-2.5 px-3 text-gray-700">Total Orders</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-gray-900">
                             {selectedSeller.metrics.totalOrders}
-                          </p>
-                        </div>
-                        <ShoppingBag className="w-8 h-8 text-green-500" />
-                      </div>
-                    </div>
-                    <div className="bg-purple-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-purple-600">
-                            Total Revenue
-                          </p>
-                          <p className="text-2xl font-bold text-purple-900">
-                            ₱
-                            {selectedSeller.metrics.totalRevenue.toLocaleString()}
-                          </p>
-                        </div>
-                        <TrendingUp className="w-8 h-8 text-purple-500" />
-                      </div>
-                    </div>
-                    <div className="bg-yellow-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-yellow-600">Rating</p>
-                          <p className="text-2xl font-bold text-yellow-900">
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 transition-colors">
+                          <td className="py-2.5 px-3 text-gray-700">Total Revenue</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-gray-900">
+                            ₱{selectedSeller.metrics.totalRevenue.toLocaleString()}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-gray-50/50 transition-colors">
+                          <td className="py-2.5 px-3 text-gray-700">Rating</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-gray-900">
                             {selectedSeller.metrics.rating}/5
-                          </p>
-                        </div>
-                        <Star className="w-8 h-8 text-yellow-500" />
-                      </div>
-                    </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowDetailsDialog(false)}
-            >
-              Close
-            </Button>
+          <DialogFooter className="flex flex-row items-center justify-end gap-2 p-4 border-t border-gray-100 bg-gray-50/50">
+            {selectedSeller && (
+              <div className="flex items-center justify-end gap-2 w-full">
+                {(selectedSeller.status === "pending" || selectedSeller.status === "needs_resubmission") && (
+                  <>
+                    {hasCompleteRequirements(selectedSeller) && !hasPendingResubmissionItems(selectedSeller) ? (
+                      <Button
+                        onClick={() => setShowApproveDialog(true)}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        Approve Seller
+                      </Button>
+                    ) : (
+                      <Button
+                        disabled
+                        className="bg-gray-100 text-gray-500 border-gray-200 flex-1 cursor-not-allowed"
+                      >
+                        {hasPendingResubmissionItems(selectedSeller) ? "Waiting for Resubmission" : "Incomplete Docs"}
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        initializePartialReject(selectedSeller);
+                        setShowPartialRejectDialog(true);
+                      }}
+                      className="text-gray-500 border-gray-200 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/5 transition-all"
+                    >
+                      Partial Reject
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowRejectDialog(true)}
+                      className="text-gray-500 border-gray-200 hover:text-red-600 hover:border-red-600 hover:bg-base ml-auto transition-all"
+                    >
+                      Reject
+                    </Button>
+                  </>
+                )}
+
+                {selectedSeller.status === "approved" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowSuspendDialog(true)}
+                    className="ml-auto text-gray-500 border-gray-200 hover:text-orange-600 hover:border-orange-600 hover:bg-orange-50 transition-all"
+                  >
+                    Suspend Account
+                  </Button>
+                )}
+
+              </div>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1452,6 +1329,7 @@ const AdminSellers: React.FC = () => {
           <DialogFooter>
             <Button
               variant="outline"
+              className="border-gray-200 text-gray-500 hover:text-gray-600 hover:bg-gray-50"
               onClick={() => {
                 setShowRejectDialog(false);
                 setRejectReason("");
@@ -1506,7 +1384,7 @@ const AdminSellers: React.FC = () => {
               return (
                 <div
                   key={document.id}
-                  className="border rounded-lg p-4 bg-gray-50/70 space-y-3"
+                  className="border border-gray-200 rounded-lg p-4 space-y-3"
                 >
                   <div className="flex items-start gap-3">
                     <Checkbox
@@ -1523,11 +1401,11 @@ const AdminSellers: React.FC = () => {
                     </div>
                     <Button
                       variant="outline"
+                      className="group font-normal hover:bg-gray-50 text-gray-600 hover:text-gray-700 border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                       size="sm"
                       onClick={() => handlePreviewDocument(document.url)}
                     >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Preview
+                      Preview <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
                     </Button>
                   </div>
 
@@ -1563,6 +1441,7 @@ const AdminSellers: React.FC = () => {
           <DialogFooter>
             <Button
               variant="outline"
+              className="hover:bg-gray-50 text-gray-600 hover:text-gray-700 border-gray-200"
               onClick={() => {
                 setShowPartialRejectDialog(false);
                 setPartialRejectionSelections({});
@@ -1574,7 +1453,7 @@ const AdminSellers: React.FC = () => {
             <Button
               onClick={handlePartialReject}
               disabled={selectedPartialRejections.length === 0 || isLoading}
-              className="bg-amber-600 hover:bg-amber-700 text-white"
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
             >
               {isLoading ? (
                 <>
@@ -1609,6 +1488,7 @@ const AdminSellers: React.FC = () => {
           <DialogFooter>
             <Button
               variant="outline"
+              className="border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-600"
               onClick={() => {
                 setShowSuspendDialog(false);
                 setSuspendReason("");
@@ -1619,7 +1499,7 @@ const AdminSellers: React.FC = () => {
             <Button
               onClick={handleSuspend}
               disabled={!suspendReason.trim() || isLoading}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-sm"
             >
               {isLoading ? (
                 <>

@@ -472,7 +472,7 @@ const AdminCategories: React.FC = () => {
           </div>
 
           {/* Search & Actions */}
-          <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between mb-8">
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between mb-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1">
               <div className="relative w-full max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -577,7 +577,7 @@ const AdminCategories: React.FC = () => {
                                   <MoreVertical className="w-4 h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-44 border-[var(--brand-accent)]/20 shadow-xl bg-white p-1.5 focus:outline-none">
+                              <DropdownMenuContent align="end" className="w-44 border-none shadow-lg bg-white p-1.5 focus:outline-none">
                                 <DropdownMenuItem
                                   onClick={() => openEditDialog(category)}
                                   className="cursor-pointer focus:bg-gray-50 focus:text-gray-900 rounded-md py-2 px-3 transition-colors outline-none"

@@ -327,22 +327,16 @@ const AdminReviewModeration: React.FC = () => {
       <AdminSidebar open={open} setOpen={setOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-8 py-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto px-8 py-8">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-6 mb-8">
               <div>
                 <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Review Moderation</h1>
                 <p className="text-[var(--text-muted)]">Manage and moderate customer reviews</p>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
-            {/* Stats Cards */}
+            {/* Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {[
                 { label: 'Total Reviews', value: totalReviews, icon: MessageCircle, color: 'blue' },
@@ -358,15 +352,13 @@ const AdminReviewModeration: React.FC = () => {
                   <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
                     <CardContent className="p-6 relative z-10">
-                      <div className="flex flex-col">
-                        <div className="mb-4 text-gray-500 group-hover:text-[var(--brand-accent)] transition-all">
-                          <stat.icon className={`h-5 w-5`} />
+                      <div className="flex flex-col gap-4">
+                        <div className="text-gray-500 group-hover:text-[var(--brand-primary)] transition-all">
+                          <stat.icon className="h-5 w-5" />
                         </div>
-                        <div className="space-y-1">
+                        <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-gray-400">{stat.label}</p>
-                          <div className="flex items-end gap-3 mt-1">
-                            <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">{stat.value}</p>
-                          </div>
+                          <p className="text-xl font-bold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors">{stat.value}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -375,103 +367,98 @@ const AdminReviewModeration: React.FC = () => {
               ))}
             </div>
 
-            {/* Search */}
-            <Card className="mb-6">
-              <CardContent className="p-6">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <Input
-                    placeholder="Search reviews by product, buyer, or content..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+            {/* Filter row: pill tabs + search */}
+            <div className="flex items-center justify-between gap-6 mb-6">
+              <div className="bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm rounded-full p-0.5">
+                <div className="flex items-center gap-0.5">
+                  {[
+                    { id: 'all', label: 'All', count: allFilteredReviews.length },
+                    { id: 'approved', label: 'Live', count: approvedReviews.length },
+                    { id: 'flagged', label: 'Flagged', count: filteredFlagged.length },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`relative px-4 h-7 text-xs font-medium transition-all duration-300 rounded-full flex items-center gap-1.5 whitespace-nowrap z-10 ${activeTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-[var(--brand-primary)]'
+                        }`}
+                    >
+                      {tab.label}
+                      <span className={`text-[10px] font-normal ${activeTab === tab.id ? 'text-white/80' : 'text-[var(--text-muted)]/60'}`}>
+                        ({tab.count})
+                      </span>
+                      {activeTab === tab.id && (
+                        <motion.div
+                          layoutId="reviewTabPill"
+                          className="absolute inset-0 bg-[var(--brand-primary)] rounded-full -z-10"
+                          transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                        />
+                      )}
+                    </button>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="mb-6">
-                <TabsTrigger value="all">
-                  All ({allFilteredReviews.length})
-                </TabsTrigger>
-                <TabsTrigger value="approved">
-                  Live ({approvedReviews.length})
-                </TabsTrigger>
-                <TabsTrigger value="flagged">
-                  Flagged/Hidden ({filteredFlagged.length})
-                </TabsTrigger>
-              </TabsList>
+              <div className="relative w-[320px] group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[var(--brand-primary)]" />
+                <Input
+                  placeholder="Search reviews by product, buyer, or content..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-9 bg-white border-gray-200 rounded-xl shadow-sm focus:border-[var(--brand-primary)] focus:ring-0 placeholder:text-gray-400 text-sm"
+                />
+              </div>
+            </div>
 
-              {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
-                </div>
-              ) : (
-                <>
-                  <TabsContent value="all">
-                    <div className="space-y-4">
-                      {allFilteredReviews.length === 0 ? (
-                        <Card>
-                          <CardContent className="p-12 text-center">
-                            <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No reviews found</h3>
-                            <p className="text-gray-600">Try adjusting your search or filters</p>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <AnimatePresence>
-                          {allFilteredReviews.map((review) => (
-                            <ReviewCard key={review.id} review={review} />
-                          ))}
-                        </AnimatePresence>
-                      )}
-                    </div>
-                  </TabsContent>
+            {/* Tabs Content */}
 
-                  <TabsContent value="approved">
-                    <div className="space-y-4">
-                      {approvedReviews.length === 0 ? (
-                        <Card>
-                          <CardContent className="p-12 text-center">
-                            <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No live reviews</h3>
-                            <p className="text-gray-600">Reviews will appear here once submitted</p>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <AnimatePresence>
-                          {approvedReviews.map((review) => (
-                            <ReviewCard key={review.id} review={review} />
-                          ))}
-                        </AnimatePresence>
-                      )}
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="flagged">
-                    <div className="space-y-4">
-                      {filteredFlagged.length === 0 ? (
-                        <Card>
-                          <CardContent className="p-12 text-center">
-                            <Flag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No flagged reviews</h3>
-                            <p className="text-gray-600">No reviews have been hidden</p>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <AnimatePresence>
-                          {filteredFlagged.map((review) => (
-                            <ReviewCard key={review.id} review={review} />
-                          ))}
-                        </AnimatePresence>
-                      )}
-                    </div>
-                  </TabsContent>
-                </>
-              )}
-            </Tabs>
+            {/* Tab content panels */}
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+              </div>
+            ) : (
+              <>
+                {activeTab === 'all' && (
+                  <div className="space-y-4">
+                    {allFilteredReviews.length === 0 ? (
+                      <Card><CardContent className="p-12 text-center">
+                        <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No reviews found</h3>
+                        <p className="text-gray-600">Try adjusting your search or filters</p>
+                      </CardContent></Card>
+                    ) : (
+                      <AnimatePresence>{allFilteredReviews.map((review) => <ReviewCard key={review.id} review={review} />)}</AnimatePresence>
+                    )}
+                  </div>
+                )}
+                {activeTab === 'approved' && (
+                  <div className="space-y-4">
+                    {approvedReviews.length === 0 ? (
+                      <Card><CardContent className="p-12 text-center">
+                        <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No live reviews</h3>
+                        <p className="text-gray-600">Reviews will appear here once submitted</p>
+                      </CardContent></Card>
+                    ) : (
+                      <AnimatePresence>{approvedReviews.map((review) => <ReviewCard key={review.id} review={review} />)}</AnimatePresence>
+                    )}
+                  </div>
+                )}
+                {activeTab === 'flagged' && (
+                  <div className="space-y-4">
+                    {filteredFlagged.length === 0 ? (
+                      <Card><CardContent className="p-12 text-center">
+                        <Flag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No flagged reviews</h3>
+                        <p className="text-gray-600">No reviews have been hidden</p>
+                      </CardContent></Card>
+                    ) : (
+                      <AnimatePresence>{filteredFlagged.map((review) => <ReviewCard key={review.id} review={review} />)}</AnimatePresence>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Review Details Dialog */}
             <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
