@@ -311,7 +311,7 @@ export function OrderDetailsModal({
             {isOpen && (
                 <div
                     key="order-details-modal"
-                    className="fixed inset-0 bg-black/30 flex items-center justify-center z-[200] p-4 backdrop-blur-sm"
+                    className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4"
                     onClick={onClose}
                 >
                     <motion.div

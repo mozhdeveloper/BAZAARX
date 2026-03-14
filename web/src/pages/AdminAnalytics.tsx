@@ -25,8 +25,16 @@ import {
   ShoppingBag,
   Users,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Filter
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const AdminAnalytics: React.FC = () => {
   const { isAuthenticated } = useAdminAuth();
@@ -109,27 +117,29 @@ const AdminAnalytics: React.FC = () => {
       <AdminSidebar open={open} setOpen={setOpen} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-8 py-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto px-8 py-8">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-6 mb-8">
               <div>
                 <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Analytics Dashboard</h1>
                 <p className="text-[var(--text-muted)]">Comprehensive platform insights and metrics</p>
               </div>
-              <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--brand-primary)]">
-                <option>Last 30 days</option>
-                <option>Last 90 days</option>
-                <option>Last year</option>
-                <option>All time</option>
-              </select>
+              <div className="flex items-center gap-3">
+                <Filter className="text-gray-400 w-4 h-4" />
+                <Select defaultValue="30">
+                  <SelectTrigger className="h-9 w-[150px] bg-white rounded-xl border-gray-200 focus:ring-0 text-gray-600">
+                    <SelectValue placeholder="Period" />
+                  </SelectTrigger>
+                  <SelectContent className="border-none shadow-xl">
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                    <SelectItem value="90">Last 90 days</SelectItem>
+                    <SelectItem value="365">Last year</SelectItem>
+                    <SelectItem value="all">All time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {statsCards.map((stat, index) => (
                 <motion.div
@@ -141,25 +151,16 @@ const AdminAnalytics: React.FC = () => {
                   <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[var(--brand-accent-light)]/50 to-[var(--brand-primary)]/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
                     <CardContent className="p-6 relative z-10">
-                      <div className="flex flex-col">
-                        <div className="mb-4">
-                          <stat.icon className={`h-5 w-5 text-gray-500 group-hover:text-[var(--brand-accent)] transition-colors`} />
+                      <div className="flex flex-col gap-4">
+                        <div className="text-gray-500 group-hover:text-[var(--brand-primary)] transition-all">
+                          <stat.icon className="h-5 w-5" />
                         </div>
-
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-gray-400">
-                            {stat.title}
-                          </p>
-                          <div className="flex items-end gap-3 mt-1">
-                            <p className="text-2xl font-black text-gray-900 tracking-tight transition-all group-hover:text-[var(--brand-accent)]">
-                              {stat.value}
-                            </p>
-                            <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 ${stat.isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                              {stat.isPositive ? (
-                                <ArrowUpRight className="h-3 w-3" />
-                              ) : (
-                                <ArrowDownRight className="h-3 w-3" />
-                              )}
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-gray-400">{stat.title}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xl font-bold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors">{stat.value}</p>
+                            <div className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${stat.isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                              {stat.isPositive ? <ArrowUpRight className="h-2.5 w-2.5" /> : <ArrowDownRight className="h-2.5 w-2.5" />}
                               {stat.change}
                             </div>
                           </div>

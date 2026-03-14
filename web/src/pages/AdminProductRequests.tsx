@@ -5,7 +5,6 @@ import { useAdminAuth } from '../stores/adminStore';
 import AdminSidebar from '../components/AdminSidebar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { productRequestService, ProductRequest } from '@/services/productRequestService';
@@ -14,9 +13,14 @@ import { SourcingAdminView } from '@/components/admin/SourcingAdminView';
 import { useCommentStore } from '@/stores/commentStore';
 import { supabase } from '@/lib/supabase';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Search,
   TrendingUp,
-  MessageSquare,
   CheckCircle,
   XCircle,
   Clock,
@@ -25,15 +29,19 @@ import {
   Users,
   FlaskConical,
   ShieldCheck,
-  Rocket,
   Package,
   DollarSign,
   BarChart3,
   Filter,
   Plus,
   ChevronRight,
+  ChevronLeft,
+  X,
   Upload,
-  AlertTriangle,
+  MoreVertical,
+  MessageSquare,
+  Activity,
+  TrendingDown,
 } from 'lucide-react';
 
 type ProductRequestItem = ProductRequest;
@@ -43,11 +51,11 @@ type AdminTab = 'pipeline' | 'testing' | 'suppliers' | 'analytics';
 /* ── Pipeline column config ──────────────────────────────────── */
 
 const PIPELINE_COLUMNS = [
-  { key: 'pending', label: 'GATHERING\nINTEREST', borderColor: 'border-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
-  { key: 'in_progress', label: 'SOURCING', borderColor: 'border-amber-600', textColor: 'text-amber-800', bgColor: 'bg-amber-50/60' },
-  { key: 'testing', label: 'LAB TESTING', borderColor: 'border-orange-500', textColor: 'text-orange-700', bgColor: 'bg-orange-50' },
-  { key: 'approved', label: 'VERIFIED', borderColor: 'border-green-500', textColor: 'text-green-700', bgColor: 'bg-green-50' },
-  { key: 'live', label: 'LIVE', borderColor: 'border-gray-400', textColor: 'text-gray-600', bgColor: 'bg-gray-50' },
+  { key: 'pending', label: 'Gathering\nInterest', borderColor: 'border-amber-500', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
+  { key: 'in_progress', label: 'Sourcing', borderColor: 'border-amber-600', textColor: 'text-amber-800', bgColor: 'bg-amber-50/60' },
+  { key: 'testing', label: 'Lab Testing', borderColor: 'border-orange-500', textColor: 'text-orange-700', bgColor: 'bg-orange-50' },
+  { key: 'approved', label: 'Verified', borderColor: 'border-green-500', textColor: 'text-green-700', bgColor: 'bg-green-50' },
+  { key: 'live', label: 'Live', borderColor: 'border-gray-400', textColor: 'text-gray-600', bgColor: 'bg-gray-50' },
 ] as const;
 
 /* ── Mock data for tabs that have no DB tables yet ─────────── */
@@ -71,6 +79,7 @@ const AdminProductRequests: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>('pipeline');
   const [searchQuery, setSearchQuery] = useState('');
+  const [activePipelineStep, setActivePipelineStep] = useState<string>(PIPELINE_COLUMNS[0].key);
   const [selectedRequest, setSelectedRequest] = useState<ProductRequestItem | null>(null);
   const [detailTab, setDetailTab] = useState<'review' | 'contributions'>('review');
   const [adminNotes, setAdminNotes] = useState('');
@@ -79,6 +88,9 @@ const AdminProductRequests: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [adminUserId, setAdminUserId] = useState<string | null>(null);
   const [requests, setRequests] = useState<ProductRequestItem[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [supplierPage, setSupplierPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   const { comments, fetchCommentsAdmin, upvoteComment } = useCommentStore();
   const sourcingComments = comments.filter((c) => c.isAdminOnly);
@@ -115,6 +127,10 @@ const AdminProductRequests: React.FC = () => {
       setDetailTab('review');
     }
   }, [selectedRequest?.id]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activePipelineStep]);
 
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
@@ -169,31 +185,31 @@ const AdminProductRequests: React.FC = () => {
   /* ── Tab config ────────────────────────────────────────────── */
 
   const TABS: { key: AdminTab; label: string; icon: React.ElementType }[] = [
-    { key: 'pipeline', label: 'PIPELINE', icon: FlaskConical },
-    { key: 'testing', label: 'TESTING QUEUE', icon: ShieldCheck },
-    { key: 'suppliers', label: 'SUPPLIERS', icon: DollarSign },
-    { key: 'analytics', label: 'ANALYTICS', icon: BarChart3 },
+    { key: 'pipeline', label: 'Pipeline', icon: FlaskConical },
+    { key: 'testing', label: 'Testing Queue', icon: ShieldCheck },
+    { key: 'suppliers', label: 'Suppliers', icon: DollarSign },
+    { key: 'analytics', label: 'Analytics', icon: BarChart3 },
   ];
 
   return (
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar open={open} setOpen={setOpen} />
 
-      <div className="flex-1 overflow-auto">
-        {/* ═══════ MISSION CONTROL BANNER ═══════ */}
-        <div className="bg-[#1a1a1a] text-white px-8 py-8 border-b-4 border-[var(--brand-primary)]">
-          <div className="max-w-7xl mx-auto flex items-end justify-between">
+      <div className="flex-1 overflow-auto scrollbar-hide">
+        {/* ═══════ MISSION CONTROL HEADER ═══════ */}
+        <div className="max-w-7xl mx-auto px-8 py-8">
+          <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-white mb-2">BAZAARX LAB</h1>
-              <p className="text-white/60">Admin Mission Control</p>
+              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">BazaarX Lab</h1>
+              <p className="text-[var(--text-muted)]">Admin Mission Control</p>
             </div>
             <div className="flex gap-8">
               <div className="text-right">
-                <p className="text-[10px] uppercase tracking-widest text-white/50">Active Tests</p>
-                <p className="text-3xl font-extrabold text-green-400">{stats.approved}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Active Tests</p>
+                <p className="text-3xl font-extrabold text-green-600">{stats.approved}</p>
               </div>
-              <div className="border-l border-white/20 pl-8 text-right">
-                <p className="text-[10px] uppercase tracking-widest text-white/50">Pending Sourcing</p>
+              <div className="border-l border-gray-200 pl-8 text-right">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Pending Sourcing</p>
                 <p className="text-3xl font-extrabold text-[var(--brand-primary)]">{stats.inProgress}</p>
               </div>
             </div>
@@ -201,21 +217,39 @@ const AdminProductRequests: React.FC = () => {
         </div>
 
         {/* ═══════ TAB BAR ═══════ */}
-        <div className="bg-white border-b border-gray-200 px-8 sticky top-0 z-20">
-          <div className="max-w-7xl mx-auto flex gap-1">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${activeTab === key
-                    ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
-                    : 'border-transparent text-gray-400 hover:text-gray-600'
-                  }`}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
+        <div className="sticky top-0 z-20">
+          <div className="max-w-7xl mx-auto px-8">
+            <div className="bg-white border-b border-gray-100 h-8 flex justify-center gap-10">
+              {TABS.map(({ key, label }) => {
+                const count = key === 'pipeline' ? requests.length :
+                  key === 'testing' ? requests.filter(r => r.status === 'in_progress' || r.status === 'approved').length :
+                    key === 'suppliers' ? MOCK_SUPPLIERS.length : null;
+
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveTab(key)}
+                    className={`relative py-2 text-sm transition-all duration-300 flex items-center gap-1 ${activeTab === key
+                      ? 'text-[var(--brand-primary)]'
+                      : 'text-[var(--text-muted)] hover:text-[var(--brand-primary)]'
+                      }`}
+                  >
+                    {label}
+                    {count !== null && (
+                      <span className={`text-[11px] ${activeTab === key ? 'text-[var(--brand-primary)]/70' : 'text-[var(--text-muted)]/60'}`}>
+                        ({count})
+                      </span>
+                    )}
+                    {activeTab === key && (
+                      <motion.div
+                        layoutId="activeTabUnderline"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--brand-primary)]"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -224,79 +258,147 @@ const AdminProductRequests: React.FC = () => {
 
           {/* ──────── PIPELINE TAB ──────── */}
           {activeTab === 'pipeline' && (
-            <div>
-              {/* Kanban board */}
-              <div className="grid grid-cols-5 gap-4 min-h-[60vh]">
-                {PIPELINE_COLUMNS.map(({ key, label, borderColor, textColor, bgColor }) => {
+            <div className="grid grid-cols-4 gap-4 md:gap-8 items-start">
+              {/* Left Column: Controls */}
+              <div className="col-span-1 sticky top-14 space-y-4 md:space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold text-[var(--text-headline)]">Pipeline Progress</h2>
+                  <p className="text-sm text-[var(--text-muted)] mb-4">Select a stage to view requests</p>
+
+                  <div>
+                    {PIPELINE_COLUMNS.map((col) => {
+                      const isActive = activePipelineStep === col.key;
+                      const count = pipelineBuckets[col.key]?.length || 0;
+                      return (
+                        <button
+                          key={col.key}
+                          onClick={() => setActivePipelineStep(col.key)}
+                          className={`w-full flex items-center justify-between py-2 transition-all duration-200 group ${isActive
+                            ? 'text-[var(--brand-primary)] font-bold'
+                            : 'text-[var(--text-muted)] hover:text-[var(--brand-primary)]'
+                            }`}
+                        >
+                          <span className="text-sm text-left">
+                            {col.label.replace('\n', ' ')}
+                          </span>
+                          <span className={`${isActive ? 'opacity-100' : 'opacity-40'} text-[11px]`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Cards */}
+              <div className="col-span-3 min-h-[60vh]">
+                {PIPELINE_COLUMNS.filter(col => col.key === activePipelineStep).map(({ key, label, borderColor, textColor, bgColor }) => {
                   const items = pipelineBuckets[key] ?? [];
                   return (
-                    <div key={key} className="flex flex-col">
-                      {/* Column header */}
-                      <div className={`rounded-xl border-2 ${borderColor} ${bgColor} px-4 py-3 mb-4 flex items-center justify-between`}>
-                        <span className={`text-xs font-extrabold uppercase tracking-wider whitespace-pre-line leading-tight ${textColor}`}>
-                          {label}
-                        </span>
-                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${borderColor} border ${textColor} bg-white`}>
+                    <div key={key} className="space-y-6">
+                      {/* Stage Header */}
+                      <div className={`rounded-xl ${bgColor} px-4 py-2 flex items-center justify-between shadow-md`}>
+                        <div>
+                          <span className={`text-md font-bold ${textColor}`}>
+                            {label.replace('\n', ' ')}
+                          </span>
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5">Showing {items.length} items</p>
+                        </div>
+                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${borderColor} border ${textColor} bg-white shrink-0`}>
                           {items.length}
                         </span>
                       </div>
 
-                      {/* Cards */}
-                      <div className="space-y-3 flex-1">
-                        {items.map((req) => (
-                          <motion.div
-                            key={req.id}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
-                            onClick={() => setSelectedRequest(req)}
-                          >
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                              <h4 className="text-sm font-bold text-[var(--text-headline)] line-clamp-2 leading-tight">
-                                {req.productName.length > 20 ? req.productName.slice(0, 20) + '…' : req.productName}
-                              </h4>
-                              <span className="flex items-center gap-0.5 text-xs font-bold text-[var(--brand-primary)] shrink-0 whitespace-nowrap">
-                                <ThumbsUp className="h-3 w-3" />
-                                {req.votes + req.estimatedDemand}
-                              </span>
+                      {/* Cards Grid */}
+                      {items.length === 0 ? (
+                        <div className="py-20 text-center border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                          <Package className="mx-auto h-10 w-10 text-gray-300 mb-3" />
+                          <p className="text-gray-500 font-medium">No requests in this stage</p>
+                        </div>
+                      ) : (
+                        <div className="bg-white rounded-xl shadow-md overflow-hidden divide-y divide-gray-100">
+                          {items
+                            .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                            .map((req) => (
+                              <motion.div
+                                key={req.id}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="p-5 hover:bg-gray-50/80 transition-all cursor-pointer group"
+                                onClick={() => setSelectedRequest(req)}
+                              >
+                                <div className="flex items-center justify-between gap-6">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-4 mb-1">
+                                      <h4 className="text-base font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors truncate">
+                                        {req.productName}
+                                      </h4>
+                                      <div className="flex items-center gap-3 text-[var(--text-muted)] text-[11px] font-medium shrink-0">
+                                        <span className="flex items-center gap-1"><ThumbsUp className="h-3 w-3" /> {req.votes + req.estimatedDemand}</span>
+                                        <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {req.votes}</span>
+                                        <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" /> {req.estimatedDemand}</span>
+                                      </div>
+                                    </div>
+                                    <p className="text-sm text-gray-500 line-clamp-1">
+                                      {req.description}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    {key === 'in_progress' && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 text-[10px] font-bold uppercase tracking-wider flex border-gray-200 hover:bg-gray-50 hover:text-[var(--text-headline)]"
+                                        onClick={(e) => { e.stopPropagation(); setSelectedRequest(req); }}
+                                      >
+                                        Log Quote
+                                      </Button>
+                                    )}
+                                    {key === 'testing' && (
+                                      <Button
+                                        size="sm"
+                                        className="h-8 text-[10px] font-bold uppercase tracking-wider bg-orange-600 hover:bg-orange-700 text-white border-none"
+                                        onClick={(e) => { e.stopPropagation(); setSelectedRequest(req); }}
+                                      >
+                                        Record Results
+                                      </Button>
+                                    )}
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors hover:bg-transparent">
+                                      <ChevronRight className="h-5 w-5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))}
+
+                          {/* Pagination Footer */}
+                          {items.length > 0 && (
+                            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between bg-white text-[var(--text-muted)] text-xs font-medium">
+                              <div>
+                                {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, items.length)}-{Math.min(currentPage * ITEMS_PER_PAGE, items.length)} of {items.length}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                  disabled={currentPage === 1}
+                                  className="p-1.5 hover:bg-gray-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                >
+                                  <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(items.length / ITEMS_PER_PAGE), p + 1))}
+                                  disabled={currentPage >= Math.ceil(items.length / ITEMS_PER_PAGE)}
+                                  className="p-1.5 hover:bg-gray-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                >
+                                  <ChevronRight className="h-4 w-4" />
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 text-[11px] text-gray-500">
-                              <span>{req.votes} votes</span>
-                              <span>•</span>
-                              <span>{req.estimatedDemand} pledges</span>
-                            </div>
-                            {/* Contextual action */}
-                            {key === 'in_progress' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="mt-3 w-full text-xs h-7 border-gray-300"
-                                onClick={(e) => { e.stopPropagation(); setSelectedRequest(req); }}
-                              >
-                                Log Supplier Quote
-                              </Button>
-                            )}
-                            {key === 'testing' && (
-                              <Button
-                                size="sm"
-                                className="mt-3 w-full text-xs h-7 bg-orange-600 hover:bg-orange-700 text-white"
-                                onClick={(e) => { e.stopPropagation(); setSelectedRequest(req); }}
-                              >
-                                Record Test Results
-                              </Button>
-                            )}
-                            {key === 'approved' && (
-                              <Button
-                                size="sm"
-                                className="mt-3 w-full text-xs h-7 bg-green-700 hover:bg-green-800 text-white"
-                                onClick={(e) => { e.stopPropagation(); }}
-                              >
-                                Push to Live
-                              </Button>
-                            )}
-                          </motion.div>
-                        ))}
-                      </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -308,19 +410,19 @@ const AdminProductRequests: React.FC = () => {
           {activeTab === 'testing' && (
             <div>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-extrabold text-[var(--text-headline)] tracking-tight">ACTIVE TESTING QUEUE</h2>
+                <h2 className="text-2xl font-extrabold text-[var(--text-headline)] tracking-tight">Active testing queue</h2>
                 <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <div className="relative group w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors" />
                     <input
                       type="text"
                       placeholder="Search tests…"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 pr-4 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 w-60"
+                      className="pl-10 pr-4 py-1.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] w-full shadow-sm transition-all h-9"
                     />
                   </div>
-                  <Button variant="outline" className="gap-1.5 text-sm">
+                  <Button variant="outline" className="gap-1.5 text-[var(--text-muted)] rounded-xl text-sm border-gray-200 hover:bg-gray-50 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] shadow-sm h-9">
                     <Filter className="h-4 w-4" /> Filter
                   </Button>
                 </div>
@@ -335,65 +437,74 @@ const AdminProductRequests: React.FC = () => {
                     .filter(r => r.status === 'in_progress' || r.status === 'approved')
                     .filter(r => !searchQuery || r.productName.toLowerCase().includes(searchQuery.toLowerCase()))
                     .map((req) => (
-                      <Card key={req.id} className="border-2 border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/40 transition-colors">
+                      <Card key={req.id} className="border-none shadow-none bg-white">
                         <CardContent className="p-6">
                           <div className="flex items-start justify-between gap-4 mb-3">
                             <h3 className="text-lg font-bold text-[var(--text-headline)]">{req.productName}</h3>
-                            <Badge className="bg-amber-100 text-amber-700 border border-amber-300 rounded-full text-xs font-bold">
-                              IN TESTING
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-amber-100 text-amber-700 border border-amber-300 rounded-full text-xs font-bold">
+                                In testing
+                              </Badge>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48 border-none shadow-xl">
+                                  <DropdownMenuItem
+                                    onClick={() => handleUpdateStatus(req.id, 'approved')}
+                                    disabled={updatingId === req.id}
+                                    className="cursor-pointer focus:bg-gray-100 focus:text-[var(--text-headline)]"
+                                  >
+                                    <span>Mark as Verified</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleUpdateStatus(req.id, 'rejected')}
+                                    disabled={updatingId === req.id}
+                                    className="cursor-pointer focus:bg-gray-100 focus:text-[var(--text-headline)]"
+                                  >
+                                    <span>Fail Product</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem className="cursor-pointer focus:bg-gray-100 focus:text-[var(--text-headline)]">
+                                    <span>Upload Test Video</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                           <p className="text-sm text-gray-600 mb-4">{req.description}</p>
 
                           {/* Meta line */}
-                          <div className="flex flex-wrap items-center gap-5 text-xs text-gray-500 mb-4">
-                            <span className="flex items-center gap-1"><Package className="h-3.5 w-3.5 text-amber-600" /> Samples Received: 3</span>
+                          <div className="flex flex-wrap items-center gap-5 text-xs text-[var(--text-muted)] mb-4">
+                            <span className="flex items-center gap-1">Samples Received: 3</span>
                             <span>•</span>
-                            <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5 text-blue-600" /> Tests Completed: 2/5</span>
+                            <span className="flex items-center gap-1">Tests Completed: 2/5</span>
                             <span>•</span>
-                            <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-gray-400" /> Started: 2 days ago</span>
+                            <span className="flex items-center gap-1">Started: 2 days ago</span>
                           </div>
 
                           {/* Test progress cards */}
-                          <div className="grid grid-cols-3 gap-3 mb-5">
+                          <div className="grid grid-cols-3 mb-5 divide-x divide-gray-200">
                             {[
                               { name: 'DURABILITY', result: 'Passed 500-bend test', done: true },
                               { name: 'SPEC CHECK', result: 'Matches claimed specs', done: true },
                               { name: 'HEAT TEST', result: 'In progress…', done: false },
-                            ].map(({ name, result, done }) => (
-                              <div key={name} className="rounded-xl border border-gray-200 p-4">
+                            ].map(({ name, result, done }, index) => (
+                              <div key={name} className={`${index === 0 ? 'pr-6' : index === 2 ? 'pl-6' : 'px-6'}`}>
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs font-bold uppercase tracking-wider text-gray-700">{name}</span>
+                                  <span className="text-[11px] tracking-wider text-gray-600">{name}</span>
                                   {done ? (
                                     <CheckCircle className="h-4 w-4 text-green-600" />
                                   ) : (
                                     <Clock className="h-4 w-4 text-amber-500" />
                                   )}
                                 </div>
-                                <p className={`text-xs ${done ? 'text-green-700' : 'text-gray-500'}`}>{result}</p>
+                                <p className={`text-xs font-medium ${done ? 'text-green-700' : 'text-gray-500'}`}>{result}</p>
                               </div>
                             ))}
                           </div>
 
-                          {/* Actions */}
-                          <div className="flex gap-3">
-                            <Button
-                              className="bg-green-700 hover:bg-green-800 text-white gap-1.5"
-                              onClick={() => handleUpdateStatus(req.id, 'approved')}
-                              disabled={updatingId === req.id}
-                            >
-                              <CheckCircle className="h-4 w-4" /> Mark as Verified
-                            </Button>
-                            <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 gap-1.5"
-                              onClick={() => handleUpdateStatus(req.id, 'rejected')}
-                              disabled={updatingId === req.id}
-                            >
-                              <XCircle className="h-4 w-4" /> Fail Product
-                            </Button>
-                            <Button variant="outline" className="gap-1.5">
-                              <Upload className="h-4 w-4" /> Upload Test Video
-                            </Button>
-                          </div>
                         </CardContent>
                       </Card>
                     ))}
@@ -406,49 +517,74 @@ const AdminProductRequests: React.FC = () => {
           {activeTab === 'suppliers' && (
             <div>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-extrabold text-[var(--text-headline)] tracking-tight">SUPPLIER DIRECTORY</h2>
+                <h2 className="text-2xl font-extrabold text-[var(--text-headline)] tracking-tight">Supplier directory</h2>
                 <Button className="bg-[#1a1a1a] hover:bg-[#333] text-white gap-1.5 rounded-lg">
-                  <Plus className="h-4 w-4" /> ADD NEW SUPPLIER
+                  <Plus className="h-4 w-4" /> Add new supplier
                 </Button>
               </div>
 
-              <div className="space-y-4">
-                {MOCK_SUPPLIERS.map((s) => (
-                  <Card key={s.id} className="border border-gray-200 hover:border-gray-300 transition-colors">
-                    <CardContent className="p-6">
+              <div className="bg-white rounded-xl shadow-md overflow-hidden divide-y divide-gray-100">
+                {MOCK_SUPPLIERS
+                  .slice((supplierPage - 1) * ITEMS_PER_PAGE, supplierPage * ITEMS_PER_PAGE)
+                  .map((s) => (
+                    <div key={s.id} className="p-5 hover:bg-gray-50/50 transition-colors">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-4">
-                            <h3 className="text-lg font-bold text-[var(--text-headline)]">{s.name}</h3>
-                            <Badge className={`rounded-full text-xs font-bold uppercase ${s.status === 'verified'
-                                ? 'bg-green-50 text-green-700 border border-green-300'
-                                : 'bg-amber-50 text-amber-700 border border-amber-300'
+                          <div className="flex items-center gap-3 mb-3">
+                            <h3 className="text-[15px] font-bold text-[var(--text-headline)]">{s.name}</h3>
+                            <Badge className={`rounded-full text-[9px] px-2 py-0 h-4 font-bold uppercase tracking-wider ${s.status === 'verified'
+                              ? 'bg-green-50 text-green-700 border border-green-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
                               }`}>
                               {s.status}
                             </Badge>
                           </div>
-                          <div className="grid grid-cols-3 gap-8">
+                          <div className="grid grid-cols-3 gap-6">
                             <div>
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--brand-primary)]">Products Sourced</p>
-                              <p className="text-2xl font-extrabold text-[var(--text-headline)] mt-1">{s.products}</p>
+                              <p className="text-xs text-[var(--text-muted)]">Products sourced</p>
+                              <p className="text-md font-extrabold text-[var(--text-headline)] mt-0.5">{s.products}</p>
                             </div>
                             <div>
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--brand-primary)]">Avg Price</p>
-                              <p className="text-2xl font-extrabold text-green-700 mt-1">${s.avgPrice}</p>
+                              <p className="text-xs text-[var(--text-muted)]">Avg price</p>
+                              <p className="text-md font-extrabold text-green-700 mt-0.5">${s.avgPrice}</p>
                             </div>
                             <div>
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--brand-primary)]">Reliability Score</p>
-                              <p className="text-2xl font-extrabold text-[var(--text-headline)] mt-1">{s.reliability}%</p>
+                              <p className="text-xs text-[var(--text-muted)]">Reliability score</p>
+                              <p className="text-md font-extrabold text-[var(--text-headline)] mt-0.5">{s.reliability}%</p>
                             </div>
                           </div>
                         </div>
-                        <Button variant="outline" className="flex items-center gap-1 text-sm shrink-0 self-center">
-                          VIEW DETAILS <ChevronRight className="h-4 w-4" />
+                        <Button variant="outline" size="sm" className="h-8 text-xs flex items-center gap-1 shrink-0 self-center hover:bg-gray-50 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
+                          View details <ChevronRight className="h-3 w-3" />
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    </div>
+                  ))}
+
+                {/* Pagination Footer */}
+                {MOCK_SUPPLIERS.length > 0 && (
+                  <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white text-[var(--text-muted)] text-xs font-medium">
+                    <div>
+                      {Math.min((supplierPage - 1) * ITEMS_PER_PAGE + 1, MOCK_SUPPLIERS.length)}-{Math.min(supplierPage * ITEMS_PER_PAGE, MOCK_SUPPLIERS.length)} of {MOCK_SUPPLIERS.length}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSupplierPage(p => Math.max(1, p - 1))}
+                        disabled={supplierPage === 1}
+                        className="p-1.5 hover:bg-gray-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setSupplierPage(p => Math.min(Math.ceil(MOCK_SUPPLIERS.length / ITEMS_PER_PAGE), p + 1))}
+                        disabled={supplierPage >= Math.ceil(MOCK_SUPPLIERS.length / ITEMS_PER_PAGE)}
+                        className="p-1.5 hover:bg-gray-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -456,37 +592,54 @@ const AdminProductRequests: React.FC = () => {
           {/* ──────── ANALYTICS TAB ──────── */}
           {activeTab === 'analytics' && (
             <div>
-              <h2 className="text-2xl font-extrabold text-[var(--text-headline)] tracking-tight mb-6">PLATFORM ANALYTICS</h2>
+              <h2 className="text-2xl font-extrabold text-[var(--text-headline)] tracking-tight mb-6">Platform analytics</h2>
 
               {/* KPI cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 {[
-                  { label: 'TOTAL REQUESTS', value: stats.total.toString(), change: '+12%', positive: true },
-                  { label: 'PASS RATE', value: '82%', change: '+5%', positive: true },
-                  { label: 'AVG TEST TIME', value: '4.2d', change: '-8%', positive: false },
-                  { label: 'COMMUNITY GROWTH', value: '1.2k', change: '+23%', positive: true },
-                ].map(({ label, value, change, positive }) => (
-                  <Card key={label} className="border border-gray-200">
-                    <CardContent className="p-5">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">{label}</p>
-                      <div className="flex items-end gap-3">
-                        <span className="text-3xl font-extrabold text-[var(--text-headline)]">{value}</span>
-                        <span className={`text-sm font-bold ${positive ? 'text-green-600' : 'text-red-500'}`}>{change}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  { label: 'Total Requests', value: stats.total.toString(), change: '+12%', positive: true },
+                  { label: 'Pass Rate', value: '82%', change: '+5%', positive: true },
+                  { label: 'Avg Test Time', value: '4.2d', change: '-8%', positive: false },
+                  { label: 'Growth', value: '1.2k', change: '+23%', positive: true },
+                ].map(({ label, value, change, positive }, index) => (
+                  <motion.div
+                    key={label}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                  >
+                    <Card className="border-none shadow-md hover:shadow-[0_20px_40px_rgba(229,140,26,0.1)] transition-all duration-300 rounded-xl bg-white overflow-hidden group relative">
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-[var(--brand-accent-light)]/50 to-[var(--brand-primary)]/10 rounded-full blur-xl -mr-6 -mt-6 group-hover:bg-[var(--brand-accent-light)] transition-colors"></div>
+                      <CardContent className="p-5 relative z-10">
+                        <div className="flex items-center justify-between h-full pt-1">
+                          <p className="text-sm font-medium text-gray-400 tracking-wider">
+                            {label}
+                          </p>
+                          <div className="flex items-end gap-3">
+                            <p className="text-2xl font-black text-[var(--text-headline)] tracking-tight group-hover:text-[var(--brand-accent)] transition-colors">
+                              {value}
+                            </p>
+                            <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 ${positive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                              {positive ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                              {change}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 ))}
               </div>
 
               {/* Failure reasons */}
-              <Card className="border-2 border-red-200">
+              <Card className="border-none shadow-md">
                 <CardContent className="p-6">
-                  <h3 className="text-lg font-extrabold text-[var(--text-headline)] mb-5 uppercase tracking-wide">Common Failure Reasons</h3>
+                  <h3 className="text-lg font-extrabold text-[var(--text-headline)] mb-5 tracking-wide">Common failure reasons</h3>
                   <div className="space-y-3">
                     {MOCK_FAILURE_REASONS.map(({ reason, count }) => (
                       <div
                         key={reason}
-                        className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-100 bg-gray-50/50"
+                        className="flex items-center justify-between py-3 px-4 rounded-lg bg-gray-50/50"
                       >
                         <span className="text-sm text-gray-700 font-medium">{reason}</span>
                         <Badge variant="outline" className="text-xs font-bold">{count} products</Badge>
@@ -510,22 +663,29 @@ const AdminProductRequests: React.FC = () => {
 
       {/* ═══════ REVIEW MODAL ═══════ */}
       {selectedRequest && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           >
-            <div className="p-6">
+            <div className="p-6 relative">
+              <button
+                onClick={() => { setSelectedRequest(null); setAdminNotes(''); }}
+                className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
               <h2 className="text-2xl font-extrabold text-[var(--text-headline)] mb-4">Review Product Request</h2>
 
               {/* Tabs */}
               <div className="flex border-b border-gray-200 mb-5">
                 <button
                   onClick={() => setDetailTab('review')}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${detailTab === 'review'
-                      ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
-                      : 'border-transparent text-gray-400 hover:text-gray-600'
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 transition-colors ${detailTab === 'review'
+                    ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
+                    : 'border-transparent text-gray-400 hover:text-[var(--brand-primary)]'
                     }`}
                 >
                   <Eye size={14} />
@@ -533,9 +693,9 @@ const AdminProductRequests: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setDetailTab('contributions')}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${detailTab === 'contributions'
-                      ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
-                      : 'border-transparent text-gray-400 hover:text-gray-600'
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 transition-colors ${detailTab === 'contributions'
+                    ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
+                    : 'border-transparent text-gray-400 hover:text-[var(--brand-primary)]'
                     }`}
                 >
                   <Users size={14} />
@@ -558,21 +718,21 @@ const AdminProductRequests: React.FC = () => {
 
                   <div className="grid grid-cols-3 gap-4">
                     <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Category</p>
-                      <p className="text-sm font-bold text-[var(--text-headline)] mt-1">{selectedRequest.category}</p>
+                      <p className="text-sm text-[var(--text-headline)]">Category</p>
+                      <p className="text-sm text-[var(--text-muted)] mt-1">{selectedRequest.category}</p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Votes</p>
-                      <p className="text-sm font-bold text-[var(--text-headline)] mt-1">{selectedRequest.votes}</p>
+                      <p className="text-sm text-[var(--text-headline)]">Votes</p>
+                      <p className="text-sm text-[var(--text-muted)] mt-1">{selectedRequest.votes}</p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Est. Demand</p>
-                      <p className="text-sm font-bold text-[var(--text-headline)] mt-1">{selectedRequest.estimatedDemand} units</p>
+                      <p className="text-sm text-[var(--text-headline)]">Est. Demand</p>
+                      <p className="text-sm text-[var(--text-muted)] mt-1">{selectedRequest.estimatedDemand} units</p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                    <label className="block text-sm text-[var(--text-headline)] mb-2">
                       Admin Notes
                     </label>
                     <Textarea
@@ -631,13 +791,6 @@ const AdminProductRequests: React.FC = () => {
                   className="flex-1 min-w-[100px] bg-red-600 hover:bg-red-700 text-white gap-1.5"
                 >
                   <XCircle className="h-4 w-4" /> Reject
-                </Button>
-                <Button
-                  onClick={() => { setSelectedRequest(null); setAdminNotes(''); }}
-                  variant="outline"
-                  disabled={updatingId === selectedRequest.id}
-                >
-                  Cancel
                 </Button>
               </div>
             </div>
