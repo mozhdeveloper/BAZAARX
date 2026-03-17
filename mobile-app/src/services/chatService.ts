@@ -586,68 +586,62 @@ class ChatService {
     onUpdate: (conversation: Conversation) => void
   ): () => void {
     const channelName = `conversations:${userType}:${userId}`;
-    
-    // For buyers, filter by buyer_id
-    // For sellers, we need to listen to messages table instead
-    if (userType === 'buyer') {
-      this.unsubscribe(channelName);
 
-      const channel = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes' as any,
-          {
-            event: '*',
-            schema: 'public',
-            table: 'conversations',
-            filter: `buyer_id=eq.${userId}`,
-          },
-          async (payload) => {
-            if (payload.new) {
-              const enriched = await this.enrichConversation(payload.new as any);
-              onUpdate(enriched);
-            }
-          }
-        )
-        .subscribe();
+    this.unsubscribe(channelName);
 
-      this.subscriptions.set(channelName, channel);
-      return () => this.unsubscribe(channelName);
-    } else {
-      // For sellers, subscribe to messages where they are sender
-      this.unsubscribe(channelName);
+    const handleConversationChange = async (conv: any) => {
+      if (!conv) return;
 
-      const channel = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes' as any,
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
-          },
-          async (payload) => {
-            const msg = payload.new as Message;
-            // Get the conversation and check if relevant to this seller
-            const { data: conv } = await supabase
-              .from('conversations')
-              .select('*')
-              .eq('id', msg.conversation_id)
-              .single();
-            
-            if (conv) {
-              const enriched = await this.enrichConversation(conv, userId);
-              if (enriched.seller_id === userId || msg.sender_id === userId) {
-                onUpdate(enriched);
-              }
-            }
-          }
-        )
-        .subscribe();
+      if (userType === 'buyer') {
+        if (conv.buyer_id !== userId) return;
+        const enriched = await this.enrichConversation(conv);
+        onUpdate(enriched);
+        return;
+      }
 
-      this.subscriptions.set(channelName, channel);
-      return () => this.unsubscribe(channelName);
-    }
+      const enriched = await this.enrichConversation(conv, userId);
+      if (enriched.seller_id === userId) {
+        onUpdate(enriched);
+      }
+    };
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes' as any,
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations',
+        },
+        async (payload) => {
+          await handleConversationChange((payload.new || payload.old) as any);
+        }
+      )
+      .on(
+        'postgres_changes' as any,
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        async (payload) => {
+          const msg = payload.new as Message;
+          if (!msg?.conversation_id) return;
+
+          const { data: conv } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('id', msg.conversation_id)
+            .maybeSingle();
+
+          await handleConversationChange(conv);
+        }
+      )
+      .subscribe();
+
+    this.subscriptions.set(channelName, channel);
+    return () => this.unsubscribe(channelName);
   }
 
   /**

@@ -197,6 +197,9 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const unsubRealtimeRef = useRef<(() => void) | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -272,37 +275,77 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   // --- LOCATION & NOTIFICATION LOGIC ---
   useEffect(() => {
+    mountedRef.current = true;
+
     const loadNotifications = async () => {
       if (!user?.id || isGuest) return;
       try {
         const data = await notificationService.getNotifications(user.id, 'buyer', 20);
-        setUnreadCount(data.filter(n => !n.is_read).length);
+        if (mountedRef.current) {
+          setUnreadCount(data.filter(n => !n.is_read).length);
+        }
       } catch (error) {
         console.error('[ShopScreen] Error loading notifications:', error);
       }
     };
+
+    // Load on focus
     const unsubFocus = navigation.addListener('focus', loadNotifications);
     loadNotifications();
 
-    // Real-time subscription for live badge updates
-    let unsubRealtime: (() => void) | undefined;
-    if (user?.id && !isGuest) {
-      unsubRealtime = notificationService.subscribeToNotifications(
+    // Set up persistent real-time subscription if not already set up
+    if (user?.id && !isGuest && !unsubRealtimeRef.current) {
+      console.log('[ShopScreen] Setting up real-time subscription for buyer:', user.id);
+      unsubRealtimeRef.current = notificationService.subscribeToNotifications(
         user.id,
         'buyer',
-        () => {
-          // Increment count immediately, then refresh from DB
-          setUnreadCount((prev) => prev + 1);
-          loadNotifications();
+        (newNotification) => {
+          console.log('[ShopScreen] New notification received:', newNotification);
+          // Immediately increment badge and reload
+          if (mountedRef.current) {
+            setUnreadCount((prev) => prev + 1);
+            loadNotifications();
+          }
         }
       );
     }
 
+    // Clean up old polling interval if it exists
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    // Aggressive polling every 2 seconds as fallback safety net
+    if (user?.id && !isGuest) {
+      pollIntervalRef.current = setInterval(() => {
+        if (mountedRef.current && user?.id) {
+          loadNotifications();
+        }
+      }, 2000);
+    }
+
     return () => {
       unsubFocus();
-      unsubRealtime?.();
     };
   }, [navigation, user?.id, isGuest]);
+
+  // Cleanup subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (unsubRealtimeRef.current) {
+        console.log('[ShopScreen] Cleaning up real-time subscription');
+        unsubRealtimeRef.current();
+        unsubRealtimeRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        console.log('[ShopScreen] Cleaning up polling interval');
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const loadSavedLocation = async () => {

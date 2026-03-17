@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  RefreshControl,
   ActivityIndicator,
   TextInput,
   FlatList,
@@ -97,8 +96,10 @@ export default function SellerNotificationsScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const unsubRealRef = React.useRef<(() => void) | null>(null);
+  const mountedRef = React.useRef(true);
 
   const [filterType, setFilterType] = useState('All Types');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -109,53 +110,75 @@ export default function SellerNotificationsScreen() {
     if (!seller?.id) return;
     try {
       const data = await notificationService.getNotifications(seller.id, 'seller', 100);
-      setNotifications(data);
+      if (mountedRef.current) {
+        setNotifications(data);
+      }
     } catch (error) {
       console.error('[Notifications] Error fetching:', error);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [seller?.id]);
 
+  const upsertNotificationInState = useCallback((newNotification: Notification) => {
+    console.log('[SellerNotifications] Upserting notification in state:', newNotification);
+    if (!mountedRef.current) return;
+
+    setLoading(false);
+    setNotifications(prev => {
+      const existingIndex = prev.findIndex((n) => n.id === newNotification.id);
+
+      if (existingIndex >= 0) {
+        return prev.map((item) => item.id === newNotification.id ? { ...item, ...newNotification } : item);
+      }
+
+      return [newNotification, ...prev];
+    });
+  }, []);
+
   useEffect(() => {
+    mountedRef.current = true;
     fetchNotifications();
 
-    // Real-time subscription for live seller notification updates
-    let unsubRealtime: (() => void) | undefined;
-    if (seller?.id) {
-      unsubRealtime = notificationService.subscribeToNotifications(
+    // Real-time subscription for live seller notification updates - instantly add to UI
+    if (seller?.id && !unsubRealRef.current) {
+      unsubRealRef.current = notificationService.subscribeToNotifications(
         seller.id,
         'seller',
-        (newNotif) => {
-          // Prepend the new notification to the list
-          setNotifications((prev) => [{
-            id: newNotif.id,
-            user_id: seller.id!,
-            user_type: 'seller' as const,
-            type: newNotif.type,
-            title: newNotif.title,
-            message: newNotif.message,
-            action_url: newNotif.action_url,
-            action_data: newNotif.action_data,
-            is_read: false,
-            read_at: undefined,
-            priority: newNotif.priority,
-            created_at: newNotif.created_at,
-          }, ...prev]);
+        (newNotification) => {
+          console.log('[SellerNotifications] New notification via real-time:', newNotification);
+          upsertNotificationInState(newNotification);
         }
       );
     }
 
-    return () => {
-      unsubRealtime?.();
-    };
-  }, [fetchNotifications, seller?.id]);
+    // Cleanup old polling interval if it exists
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchNotifications();
-  };
+    // Faster fallback polling every 1 second as safety net for missed real-time events
+    pollIntervalRef.current = setInterval(() => {
+      if (seller?.id) {
+        void fetchNotifications();
+      }
+    }, 1000);
+
+    return () => {
+      mountedRef.current = false;
+      if (unsubRealRef.current) {
+        unsubRealRef.current();
+        unsubRealRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [fetchNotifications, seller?.id, upsertNotificationInState]);
 
   const handleMarkAllAsRead = async () => {
     if (!seller?.id) return;
@@ -291,8 +314,7 @@ export default function SellerNotificationsScreen() {
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D97706']} />}
-        ListEmptyComponent={loading ? <ActivityIndicator size="large" color="#D97706" style={{ marginTop: 40 }} /> : null}
+        ListEmptyComponent={loading ? <ActivityIndicator size="large" color="#D97706" style={{ marginTop: 40 }} /> : <Text style={styles.emptyText}>No notifications yet.</Text>}
       />
 
       {/* Sticky Footer Summary */}
@@ -347,6 +369,7 @@ const styles = StyleSheet.create({
   timeText: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
   summaryContainer: { padding: 12, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB', alignItems: 'center' },
   summaryText: { fontSize: 12, color: '#9CA3AF' },
+  emptyText: { marginTop: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14, fontWeight: '500' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContainer: { backgroundColor: '#FFF', width: '80%', borderRadius: 20, padding: 20 },
   modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 15, color: '#1F2937' },

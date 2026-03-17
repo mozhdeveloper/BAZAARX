@@ -407,7 +407,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 cancelledBy: user?.id,
               });
 
-              updateOrderStatus(order.id, 'cancelled');
+              // Note: Don't call updateOrderStatus here - the database is already updated.
+              // The order list will be refreshed by navigation.
+
               Alert.alert('Order Cancelled', 'Your order has been cancelled.', [
                 { text: 'OK', onPress: () => navigation.goBack() }
               ]);

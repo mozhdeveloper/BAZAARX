@@ -11,7 +11,6 @@ import {
   XCircle,
   Check,
   Search,
-  RefreshCw,
   Info,
   Tag,
   AlertTriangle,
@@ -141,7 +140,31 @@ export function SellerNotifications() {
   };
 
   useEffect(() => {
+    if (!seller?.id) return;
+    
     fetchNotifications();
+
+    // Subscribe to real-time notification updates
+    const unsubscribe = notificationService.subscribeToNotifications(
+      seller.id,
+      "seller",
+      (newNotification) => {
+        console.log("[SellerNotifications] New notification via real-time:", newNotification);
+        setNotifications((prev) => {
+          const existingIndex = prev.findIndex((n) => n.id === newNotification.id);
+          if (existingIndex >= 0) {
+            // Update existing notification
+            return prev.map((n) => (n.id === newNotification.id ? { ...n, ...newNotification } : n));
+          }
+          // Add new notification
+          return [newNotification, ...prev];
+        });
+      }
+    );
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [seller?.id]);
 
   // Filter notifications
@@ -328,24 +351,14 @@ export function SellerNotifications() {
                     <SelectItem value="read" className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg">Read</SelectItem>
                   </SelectContent>
                 </Select>
-                <div className="flex items-center gap-2">
-                  <Button
-                    className="h-9 px-4 rounded-xl border-0 bg-white text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white transition-all gap-2 font-bold shadow-md group whitespace-nowrap"
-                    onClick={fetchNotifications}
-                    disabled={loading}
-                  >
-                    <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                    Refresh
-                  </Button>
-                  <Button
-                    className="h-9 px-4 rounded-xl border-0 bg-white text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white transition-all gap-2 font-bold shadow-md group whitespace-nowrap"
-                    onClick={handleMarkAllAsRead}
-                    disabled={unreadCount === 0}
-                  >
-                    <Check className="w-4 h-4" />
-                    Mark All Read
-                  </Button>
-                </div>
+                <Button
+                  className="h-9 px-4 rounded-xl border-0 bg-white text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white transition-all gap-2 font-bold shadow-md group whitespace-nowrap"
+                  onClick={handleMarkAllAsRead}
+                  disabled={unreadCount === 0}
+                >
+                  <Check className="w-4 h-4" />
+                  Mark All Read
+                </Button>
               </div>
             </div>
 
@@ -362,7 +375,7 @@ export function SellerNotifications() {
               <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 {loading ? (
                   <div className="p-8 text-center">
-                    <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-4" />
+                    <div className="w-8 h-8 border-2 border-gray-300 border-t-orange-500 rounded-full animate-spin mx-auto mb-4"></div>
                     <p className="text-gray-500">Loading notifications...</p>
                   </div>
                 ) : filteredNotifications.length === 0 ? (

@@ -613,20 +613,15 @@ export default function OrdersScreen({ navigation, route }: Props) {
     const order = cancellingOrder;
     setIsCancellingOrder(true);
     try {
-      // Optimistic update
-      setDbOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? { ...o, status: 'cancelled', buyerUiStatus: 'cancelled' } : o
-        )
-      );
-
       await orderMutationService.cancelOrder({
         orderId: (order as any).orderId || order.id,
         reason,
         cancelledBy: user?.id,
       });
 
-      updateOrderStatus(order.id, 'cancelled');
+      // Note: Don't call updateOrderStatus here - the database is already updated.
+      // loadOrders() will refresh from the database, and the real-time subscription will update badges.
+
       setShowCancelModal(false);
       setCancellingOrder(null);
       setActiveTab('cancelled');
@@ -634,8 +629,6 @@ export default function OrdersScreen({ navigation, route }: Props) {
       await loadOrders();
     } catch (e: any) {
       console.error('Error cancelling order:', e);
-      // Rollback optimistic update
-      await loadOrders();
       Alert.alert('Error', e?.message || 'Failed to cancel order. Please try again.');
     } finally {
       setIsCancellingOrder(false);

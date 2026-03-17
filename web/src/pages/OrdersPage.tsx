@@ -207,7 +207,9 @@ export default function OrdersPage() {
         throw new Error("Failed to cancel order");
       }
 
-      updateOrderStatus(orderToCancel.id, "cancelled");
+      // Note: Don't call updateOrderStatus here - the database is already updated via RPC
+      // and the real-time subscription will fetch the updated data.
+      // Calling updateOrderStatus would create a duplicate client-side notification.
 
       toast({
         title: "Order Cancelled",
@@ -228,7 +230,7 @@ export default function OrdersPage() {
       setCancelReason("");
       setOtherReason("");
     }
-  }, [orderToCancel, cancelReason, otherReason, profile?.id, updateOrderStatus, loadBuyerOrders, toast]);
+  }, [orderToCancel, cancelReason, otherReason, profile?.id, loadBuyerOrders, toast]);
 
   const handleConfirmReceived = useCallback(async () => {
     if (!orderToConfirmReceived?.dbId || !profile?.id) {
