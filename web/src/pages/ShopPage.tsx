@@ -321,6 +321,7 @@ export default function ShopPage() {
   useEffect(() => {
     const queryParam = searchParams.get("q") || "";
     const categoryParam = searchParams.get("category");
+    const filterParam = searchParams.get("filter");
 
     setSearchQuery(queryParam);
 
@@ -332,7 +333,7 @@ export default function ShopPage() {
 
     // Scroll logic - handles both initial mount and updates
     setTimeout(() => {
-      const isClean = !categoryParam && !queryParam &&
+      const isClean = !categoryParam && !queryParam && !filterParam &&
         priceRange[0] === 0 && priceRange[1] === 100000 &&
         minRating === 0 && selectedSort === "newest";
 
@@ -374,8 +375,23 @@ export default function ShopPage() {
 
   // flashSaleProducts comes from the real discount campaigns (state above)
 
+  const featuredProductIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const bp of boostedProducts) {
+      if (bp.product?.id) ids.add(bp.product.id);
+    }
+    for (const fp of featuredProducts) {
+      const p = (fp as any).product;
+      if (p?.id) ids.add(p.id);
+    }
+    return ids;
+  }, [boostedProducts, featuredProducts]);
+
   const filteredProducts = useMemo<ShopProduct[]>(() => {
+    const filterParam = searchParams.get("filter");
     const filtered = pricedProducts.filter((product) => {
+      if (filterParam === "featured" && !featuredProductIds.has(product.id)) return false;
+
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -416,7 +432,7 @@ export default function ShopPage() {
     }
 
     return filtered;
-  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating]);
+  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, searchParams, featuredProductIds]);
 
 
 
@@ -593,7 +609,10 @@ export default function ShopPage() {
                     Sponsored
                   </span>
                 </div>
-                <button className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1">
+                <button
+                  onClick={() => navigate('/shop?filter=featured')}
+                  className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1"
+                >
                   See All <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -974,6 +993,27 @@ export default function ShopPage() {
 
               {/* Products Area */}
               <div className="flex-1 min-w-0">
+                {/* Featured filter banner */}
+                {searchParams.get("filter") === "featured" && (
+                  <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-1.5 rounded-lg shadow-sm">
+                        <Star className="h-3.5 w-3.5 text-white fill-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-amber-900">Featured &amp; Sponsored Products</p>
+                        <p className="text-xs text-amber-700">Showing all featured and boosted listings</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => navigate('/shop')}
+                      className="text-xs text-amber-700 hover:text-amber-900 font-semibold underline underline-offset-2 transition-colors whitespace-nowrap"
+                    >
+                      Clear filter
+                    </button>
+                  </div>
+                )}
+
                 {/* Toolbar - Now inside Product Area */}
                 <motion.div
                   id="shop-results-header"
