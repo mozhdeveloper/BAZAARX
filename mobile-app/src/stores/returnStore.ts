@@ -131,12 +131,12 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
     const newRequest: ReturnRequest = {
       ...request,
       id: `ret_${Date.now()}`,
-      status: 'pending_review' as any,
+      status: 'pending' as any,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       history: [
         {
-          status: 'pending_review' as any,
+          status: 'pending' as any,
           timestamp: new Date().toISOString(),
           by: 'buyer',
           note: 'Request initiated',

@@ -1552,6 +1552,83 @@ export class OrderService {
   }
 
   /**
+   * Confirm an order has been received by the buyer.
+   * Mirrors the web's confirmOrderReceived — updates shipment_status → 'received',
+   * inserts order_status_history, and updates the shipment record.
+   */
+  async confirmOrderReceived(orderId: string, buyerId: string, receiptPhotoUrls?: string[]): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      const order = this.mockOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = 'completed';
+        order.completed_at = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      const { data: order, error: fetchError } = await supabase
+        .from('orders')
+        .select('id, buyer_id, order_number, shipment_status')
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError || !order) throw new Error('Order not found');
+      if (order.buyer_id !== buyerId) throw new Error('Access denied: You can only confirm receipt of your own orders');
+
+      // Idempotent — already received
+      if (order.shipment_status === 'received') return true;
+
+      if (order.shipment_status !== 'delivered') {
+        throw new Error(`Cannot confirm receipt. Order must be in "delivered" status. Current: ${order.shipment_status}`);
+      }
+
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ shipment_status: 'received', updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      // Update shipment record — non-blocking
+      void Promise.resolve(
+        supabase
+          .from('order_shipments')
+          .select('id')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+      ).then(({ data }) => {
+        if (data && data.length > 0) {
+          void supabase
+            .from('order_shipments')
+            .update({ status: 'received', delivered_at: new Date().toISOString() })
+            .eq('id', data[0].id);
+        }
+      });
+
+      // Status history
+      await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        status: 'received',
+        note: 'Buyer confirmed receipt of order',
+        changed_by: buyerId,
+        changed_by_role: 'buyer',
+        metadata: {
+          confirmed_received_at: new Date().toISOString(),
+          ...(receiptPhotoUrls && receiptPhotoUrls.length > 0 ? { receipt_photo_urls: receiptPhotoUrls } : {}),
+        },
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[OrderService] Error confirming order received:', error);
+      throw new Error('Failed to confirm order receipt');
+    }
+  }
+
+  /**
    * Cancel an order
    */
   async cancelOrder(orderId: string, reason?: string, cancelledBy?: string): Promise<boolean> {

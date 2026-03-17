@@ -13,6 +13,7 @@ import {
   Headset,
   Package,
   Lightbulb,
+  RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
@@ -360,6 +361,17 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         >
                           <Star className="h-3.5 w-3.5" />
                           My Reviews
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            navigate("/returns");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          My Returns
                         </button>
 
                         <button

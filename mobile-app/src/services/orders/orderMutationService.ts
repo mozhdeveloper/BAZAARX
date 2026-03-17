@@ -54,6 +54,10 @@ class OrderMutationService {
     return orderService.cancelOrder(orderId, reason, cancelledBy);
   }
 
+  async confirmOrderReceived(orderId: string, buyerId: string, receiptPhotoUrls?: string[]): Promise<boolean> {
+    return orderService.confirmOrderReceived(orderId, buyerId, receiptPhotoUrls);
+  }
+
   async createPOSOrder(input: CreatePOSOrderInput): Promise<POSOrderCreateResult | null> {
     return orderService.createPOSOrder(
       input.sellerId,

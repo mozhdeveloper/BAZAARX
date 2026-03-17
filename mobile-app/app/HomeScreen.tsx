@@ -192,7 +192,10 @@ export default function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     const loadRecentSearches = async () => {
       try {
-        const saved = await AsyncStorage.getItem('recentSearches');
+        const [saved, savedPrefs] = await Promise.all([
+          AsyncStorage.getItem('recentSearches'),
+          AsyncStorage.getItem('userPreferences'),
+        ]);
         if (saved) {
           setRecentSearches(JSON.parse(saved));
         }
@@ -462,7 +465,9 @@ export default function HomeScreen({ navigation }: Props) {
 
   // ... (Location logic — now via addressStore) ...
   useEffect(() => {
-    loadSessionAddress(user?.id ?? null);
+    let isMounted = true;
+    if (isMounted) loadSessionAddress(user?.id ?? null);
+    return () => { isMounted = false; };
   }, [user]);
 
   const handleSelectLocation = async (address: string, coords?: any, details?: any) => {

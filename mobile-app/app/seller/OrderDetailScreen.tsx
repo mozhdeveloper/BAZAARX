@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -20,8 +20,12 @@ import { useAuthStore } from '../../src/stores/authStore';
 import { chatService } from '../../src/services/chatService';
 import { orderService } from '../../src/services/orderService';
 import { safeImageUri } from '../../src/utils/imageUtils';
-import TrackingModal from '../../src/components/seller/TrackingModal';
+import { deliveryService } from '../../src/services/deliveryService';
 import { returnService, MobileReturnRequest } from '../../src/services/returnService';
+import { usePaymentStore } from '../../src/stores/paymentStore';
+import { useDeliveryStore } from '../../src/stores/deliveryStore';
+import type { PaymentTransaction } from '../../src/types/payment.types';
+import type { DeliveryTrackingResult } from '../../src/types/delivery.types';
 
 type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -34,10 +38,9 @@ export default function SellerOrderDetailScreen() {
     const { orders = [], updateOrderStatus, markOrderAsShipped, markOrderAsDelivered, seller, fetchOrders } = useSellerStore();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-
-    const [trackingModalVisible, setTrackingModalVisible] = useState(false);
-    const [trackingNumber, setTrackingNumber] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
+    const isUpdatingRef = useRef(false);
+    const localStatusRef = useRef<string | null>(null);
 
     // Return request state
     const [returnRequest, setReturnRequest] = useState<MobileReturnRequest | null>(null);
@@ -52,6 +55,13 @@ export default function SellerOrderDetailScreen() {
     const [isSavingCustomer, setIsSavingCustomer] = useState(false);
     const [isSavingDelivery, setIsSavingDelivery] = useState(false);
 
+    // Payment & Delivery state
+    const [paymentTx, setPaymentTx] = useState<PaymentTransaction | null>(null);
+    const [deliveryInfo, setDeliveryInfo] = useState<DeliveryTrackingResult | null>(null);
+    const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
+    const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
+    const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
+
     useEffect(() => {
         const loadOrder = async () => {
             let foundOrder = orders.find(o => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
@@ -60,6 +70,21 @@ export default function SellerOrderDetailScreen() {
                 foundOrder = orders.find(o => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
             }
             if (foundOrder) {
+                // If we have a local status override (from a recent mutation), don't let
+                // stale store data regress the status. Only accept store data if the
+                // store's status is at least as advanced as the local override.
+                const statusRank: Record<string, number> = { pending: 0, confirmed: 1, shipped: 2, delivered: 3, cancelled: 3 };
+                const localRank = localStatusRef.current ? (statusRank[localStatusRef.current] ?? -1) : -1;
+                const storeRank = statusRank[foundOrder.status] ?? -1;
+                if (localRank > storeRank) {
+                    // Store data is behind our local state — skip overwriting order
+                    return;
+                }
+                // Store caught up or advanced — clear the override
+                if (localRank >= 0 && storeRank >= localRank) {
+                    localStatusRef.current = null;
+                }
+
                 // Pre-fill editable POS fields
                 const name = foundOrder.buyerName || '';
                 const email = foundOrder.buyerEmail || '';
@@ -95,24 +120,118 @@ export default function SellerOrderDetailScreen() {
         loadOrder();
     }, [orderId, orders]);
 
+    // Fetch payment transaction and delivery tracking
+    useEffect(() => {
+        if (!order) return;
+        const dbId = order.id || order.orderId;
+        if (dbId) {
+            getTransactionByOrderId(dbId)
+                .then((tx) => setPaymentTx(tx))
+                .catch(() => {});
+            fetchTrackingByOrderId(dbId).catch(() => {});
+        }
+    }, [order?.id, order?.orderId]);
+
+    useEffect(() => {
+        if (deliveryStoreTracking) {
+            setDeliveryInfo(deliveryStoreTracking);
+        }
+    }, [deliveryStoreTracking]);
+
     const handleStatusUpdate = async (newStatus: OrderStatus) => {
-        // If marking as shipped, intercept and show the modal
+        if (isUpdatingRef.current) return;
+
         if (newStatus === 'shipped') {
-            setTrackingNumber('');
-            setTrackingModalVisible(true);
+            Alert.alert(
+                'Ship Order',
+                'Book a shipment and auto-generate a tracking number for this order?',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Ship Now',
+                        onPress: async () => {
+                            if (isUpdatingRef.current) return;
+                            isUpdatingRef.current = true;
+                            setIsUpdating(true);
+                            try {
+                                const pickup = {
+                                    name: seller?.store_name || seller?.owner_name || 'Seller',
+                                    phone: seller?.phone || '09000000000',
+                                    addressLine1: seller?.business_profile?.address_line_1 || 'Store Address',
+                                    city: seller?.business_profile?.city || 'Manila',
+                                    province: seller?.business_profile?.province || 'Metro Manila',
+                                    postalCode: seller?.business_profile?.postal_code || '1000',
+                                };
+                                const delivery = {
+                                    name: order.shippingAddress?.fullName || order.buyerName || 'Buyer',
+                                    phone: order.shippingAddress?.phone || '09000000000',
+                                    addressLine1: order.shippingAddress?.street || 'Delivery Address',
+                                    city: order.shippingAddress?.city || 'Manila',
+                                    province: order.shippingAddress?.province || 'Metro Manila',
+                                    postalCode: order.shippingAddress?.postalCode || '1000',
+                                };
+                                const totalItems = order.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
+                                const itemNames = order.items.map((i: any) => i.productName || i.name).join(', ');
+                                const result = await deliveryService.bookDelivery({
+                                    orderId: order.id,
+                                    sellerId: order.seller_id || seller?.id || '',
+                                    buyerId: order.buyer_id || '',
+                                    courierCode: 'jnt',
+                                    serviceType: 'standard',
+                                    pickup,
+                                    delivery,
+                                    packageDetails: {
+                                        weight: Math.max(0.5, totalItems * 0.5),
+                                        description: itemNames.slice(0, 200),
+                                        itemCount: totalItems,
+                                    },
+                                    declaredValue: order.total,
+                                });
+                                await markOrderAsShipped(orderId, result.trackingNumber);
+                                // Lock local status so stale fetchOrders can't regress it
+                                localStatusRef.current = 'shipped';
+                                setOrder((prev: any) => prev ? { ...prev, status: 'shipped', trackingNumber: result.trackingNumber, shipmentStatusRaw: 'shipped' } : prev);
+                                Alert.alert(
+                                    'Shipped!',
+                                    `Order marked as shipped.\nTracking Number: ${result.trackingNumber}\nCourier: J&T Express`,
+                                );
+                            } catch (err: any) {
+                                Alert.alert('Error', err?.message || 'Failed to book shipment. Please try again.');
+                            } finally {
+                                isUpdatingRef.current = false;
+                                setIsUpdating(false);
+                            }
+                        },
+                    },
+                ],
+            );
             return;
         }
 
+        isUpdatingRef.current = true;
+        setIsUpdating(true);
         try {
             if (newStatus === 'delivered') {
                 await markOrderAsDelivered(orderId);
             } else {
                 await updateOrderStatus(orderId, newStatus);
             }
-            if (seller?.id) await fetchOrders(seller.id);
+            // Lock local status so stale fetchOrders can't regress it
+            localStatusRef.current = newStatus;
+            setOrder((prev: any) => prev ? { ...prev, status: newStatus, shipmentStatusRaw: newStatus } : prev);
             Alert.alert("Success", `Order updated to ${newStatus.replace('-', ' ')}`);
-        } catch (error) {
-            Alert.alert('Error', 'Failed to update status');
+        } catch (error: any) {
+            const msg = error?.message || '';
+            // If already in the target status, just sync UI
+            if (msg.includes('Current status: delivered') || msg.includes('Current status: cancelled')) {
+                localStatusRef.current = newStatus;
+                setOrder((prev: any) => prev ? { ...prev, status: newStatus, shipmentStatusRaw: newStatus } : prev);
+            } else {
+                Alert.alert('Error', 'Failed to update status');
+            }
+        } finally {
+            isUpdatingRef.current = false;
+            setIsUpdating(false);
         }
     };
 
@@ -231,27 +350,7 @@ export default function SellerOrderDetailScreen() {
         ]);
     };
 
-    const handleTrackingSubmit = async () => {
-        if (!trackingNumber.trim()) {
-            Alert.alert('Error', 'Please enter a tracking number');
-            return;
-        }
 
-        setIsUpdating(true);
-        try {
-            // Fix: Removed the third argument (seller?.id) to match the expected 2 arguments
-            await markOrderAsShipped(orderId, trackingNumber);
-
-            setTrackingModalVisible(false);
-            if (seller?.id) await fetchOrders(seller.id);
-            Alert.alert("Success", "Order marked as shipped with tracking number.");
-        } catch (error) {
-            console.error('[OrderDetail] Failed to mark as shipped:', error);
-            Alert.alert('Error', 'Failed to update tracking number');
-        } finally {
-            setIsUpdating(false);
-        }
-    };
 
     // POS: save customer name + email to DB
     const handleSaveCustomer = async () => {
@@ -365,6 +464,101 @@ export default function SellerOrderDetailScreen() {
                         </View>
                     </View>
                 </View>
+
+                {/* Payment Details Card */}
+                <View style={styles.detailCard}>
+                    <View style={[styles.detailCardHeader, { backgroundColor: '#F0FDF4' }]}>
+                        <Text style={styles.detailCardTitle}>Payment Details</Text>
+                    </View>
+                    <View style={styles.detailCardContent}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <Text style={{ fontSize: 13, color: '#6B7280' }}>Method</Text>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>
+                                {order.paymentMethod || 'Cash on Delivery'}
+                            </Text>
+                        </View>
+                        {paymentTx ? (
+                            <>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Status</Text>
+                                    <View style={{
+                                        paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
+                                        backgroundColor: paymentTx.status === 'paid' ? '#D1FAE5' : paymentTx.status === 'failed' ? '#FEE2E2' : '#FEF3C7',
+                                    }}>
+                                        <Text style={{
+                                            fontSize: 11, fontWeight: '700',
+                                            color: paymentTx.status === 'paid' ? '#065F46' : paymentTx.status === 'failed' ? '#991B1B' : '#92400E',
+                                        }}>
+                                            {paymentTx.status.charAt(0).toUpperCase() + paymentTx.status.slice(1)}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Amount</Text>
+                                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>₱{paymentTx.amount.toLocaleString()}</Text>
+                                </View>
+                                {paymentTx.paidAt && (
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                        <Text style={{ fontSize: 13, color: '#6B7280' }}>Paid On</Text>
+                                        <Text style={{ fontSize: 13, color: '#1F2937' }}>
+                                            {new Date(paymentTx.paidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </Text>
+                                    </View>
+                                )}
+                            </>
+                        ) : (
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={{ fontSize: 13, color: '#6B7280' }}>Status</Text>
+                                <Text style={{ fontSize: 13, fontWeight: '600', color: order.paymentStatusRaw === 'paid' ? '#065F46' : '#92400E' }}>
+                                    {order.paymentStatusRaw === 'paid' ? 'Paid' : 'Pending'}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {/* Delivery Tracking Card */}
+                {deliveryInfo?.booking && (
+                    <View style={styles.detailCard}>
+                        <View style={[styles.detailCardHeader, { backgroundColor: '#EFF6FF' }]}>
+                            <Text style={styles.detailCardTitle}>Delivery Tracking</Text>
+                        </View>
+                        <View style={styles.detailCardContent}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <Text style={{ fontSize: 13, color: '#6B7280' }}>Courier</Text>
+                                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>{deliveryInfo.booking.courierName}</Text>
+                            </View>
+                            {deliveryInfo.booking.trackingNumber && (
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Tracking #</Text>
+                                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#D97706' }}>{deliveryInfo.booking.trackingNumber}</Text>
+                                </View>
+                            )}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <Text style={{ fontSize: 13, color: '#6B7280' }}>Status</Text>
+                                <View style={{
+                                    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
+                                    backgroundColor: deliveryInfo.booking.status === 'delivered' ? '#D1FAE5' : '#DBEAFE',
+                                }}>
+                                    <Text style={{
+                                        fontSize: 11, fontWeight: '700',
+                                        color: deliveryInfo.booking.status === 'delivered' ? '#065F46' : '#1E40AF',
+                                    }}>
+                                        {deliveryInfo.booking.status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                                    </Text>
+                                </View>
+                            </View>
+                            {deliveryInfo.booking.estimatedDelivery && (
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Est. Delivery</Text>
+                                    <Text style={{ fontSize: 13, color: '#1F2937' }}>
+                                        {new Date(deliveryInfo.booking.estimatedDelivery).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                )}
 
                 {/* Customer Information */}
                 <View style={styles.detailCard}>
@@ -741,35 +935,44 @@ export default function SellerOrderDetailScreen() {
                 <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={styles.footerActionRow}>
                         {order.status === 'pending' && (
-                            <Pressable style={[styles.primaryButton, { backgroundColor: '#D97706' }]} onPress={() => handleStatusUpdate('confirmed')}>
-                                <Text style={styles.buttonText}>Confirm Order</Text>
+                            <Pressable
+                                style={[styles.primaryButton, { backgroundColor: '#D97706' }, isUpdating && { opacity: 0.5 }]}
+                                onPress={() => handleStatusUpdate('confirmed')}
+                                disabled={isUpdating}
+                            >
+                                <Text style={styles.buttonText}>{isUpdating ? 'Updating...' : 'Confirm Order'}</Text>
                             </Pressable>
                         )}
                         {order.status === 'confirmed' && (
-                            <Pressable style={[styles.primaryButton, { backgroundColor: '#D97706' }]} onPress={() => handleStatusUpdate('shipped')}>
-                                <Text style={styles.buttonText}>Ship Order</Text>
+                            <Pressable
+                                style={[styles.primaryButton, { backgroundColor: '#D97706' }, isUpdating && { opacity: 0.5 }]}
+                                onPress={() => handleStatusUpdate('shipped')}
+                                disabled={isUpdating}
+                            >
+                                <Text style={styles.buttonText}>{isUpdating ? 'Booking...' : 'Ship Order'}</Text>
                             </Pressable>
                         )}
                         {order.status === 'shipped' && (
-                            <Pressable style={[styles.primaryButton, { backgroundColor: '#10B981' }]} onPress={() => handleStatusUpdate('delivered')}>
-                                <Text style={styles.buttonText}>Mark as Delivered</Text>
+                            <Pressable
+                                style={[styles.primaryButton, { backgroundColor: '#10B981' }, isUpdating && { opacity: 0.5 }]}
+                                onPress={() => handleStatusUpdate('delivered')}
+                                disabled={isUpdating}
+                            >
+                                <Text style={styles.buttonText}>{isUpdating ? 'Updating...' : 'Mark as Delivered'}</Text>
                             </Pressable>
                         )}
-                        <Pressable style={styles.cancelButton} onPress={() => handleStatusUpdate('cancelled')}>
+                        <Pressable
+                            style={[styles.cancelButton, isUpdating && { opacity: 0.5 }]}
+                            onPress={() => handleStatusUpdate('cancelled')}
+                            disabled={isUpdating}
+                        >
                             <Text style={styles.cancelButtonText}>Cancel</Text>
                         </Pressable>
                     </View>
                 </View>
             )}
 
-            <TrackingModal
-                visible={trackingModalVisible}
-                onClose={() => setTrackingModalVisible(false)}
-                trackingNumber={trackingNumber}
-                setTrackingNumber={setTrackingNumber}
-                onSubmit={handleTrackingSubmit}
-                isUpdating={isUpdating}
-            />
+
         </View>
         </KeyboardAvoidingView>
     );

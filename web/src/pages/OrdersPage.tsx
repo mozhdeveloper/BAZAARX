@@ -16,6 +16,8 @@ import {
   Store,
   ChevronRight,
   PackageCheck,
+  Camera,
+  ImagePlus,
 } from "lucide-react";
 import { useCartStore } from "../stores/cartStore";
 import { Button } from "../components/ui/button";
@@ -32,6 +34,7 @@ import { orderMutationService } from "../services/orders/orderMutationService";
 import { returnService } from "../services/returnService";
 import { OrderStatusBadge } from "../components/orders/OrderStatusBadge";
 import type { BuyerOrderSnapshot } from "../types/orders";
+import { uploadReceiptPhotos, validateImageFile } from "../utils/storage";
 import {
   BuyerReturnSubmissionPayload,
   isBuyerOrderWithinReturnWindow,
@@ -83,6 +86,8 @@ export default function OrdersPage() {
   const [confirmReceivedModalOpen, setConfirmReceivedModalOpen] = useState(false);
   const [orderToConfirmReceived, setOrderToConfirmReceived] = useState<any>(null);
   const [isConfirmingReceived, setIsConfirmingReceived] = useState(false);
+  const [receiptPhotos, setReceiptPhotos] = useState<File[]>([]);
+  const [receiptPhotoPreviews, setReceiptPhotoPreviews] = useState<string[]>([]);
 
   const CANCEL_REASONS = [
     "Changed my mind",
@@ -235,11 +240,28 @@ export default function OrdersPage() {
       return;
     }
 
+    if (receiptPhotos.length === 0) {
+      toast({
+        title: "Photo Required",
+        description: "Please take or upload a photo of the received package.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsConfirmingReceived(true);
     try {
+      // Upload receipt photos
+      const photoUrls = await uploadReceiptPhotos(
+        receiptPhotos,
+        orderToConfirmReceived.dbId,
+        profile.id,
+      );
+
       const success = await orderMutationService.confirmOrderReceived({
         orderId: orderToConfirmReceived.dbId,
         buyerId: profile.id,
+        receiptPhotoUrls: photoUrls,
       });
 
       if (!success) {
@@ -266,6 +288,8 @@ export default function OrdersPage() {
 
       setConfirmReceivedModalOpen(false);
       setOrderToConfirmReceived(null);
+      setReceiptPhotos([]);
+      setReceiptPhotoPreviews([]);
       void loadBuyerOrders();
     } catch (error: any) {
       console.error("Error confirming receipt:", error);
@@ -277,7 +301,7 @@ export default function OrdersPage() {
     } finally {
       setIsConfirmingReceived(false);
     }
-  }, [orderToConfirmReceived, profile?.id, orders, hydrateBuyerOrders, loadBuyerOrders, toast]);
+  }, [orderToConfirmReceived, profile?.id, orders, receiptPhotos, hydrateBuyerOrders, loadBuyerOrders, toast]);
 
   // Show success message for newly created orders
   const newOrderId = (
@@ -769,8 +793,8 @@ export default function OrdersPage() {
                     {/* Order Footer */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 border-t border-gray-100/50">
                       <div>
-                        {/* Return/Refund - only for delivered orders within the 7-day return window, and only if no return request has been submitted yet */}
-                        {isWithinReturnWindow(order) && !(order as any).returnRequest && (
+                        {/* Return/Refund - only for RECEIVED orders within the 7-day return window (PH standard: buyer must confirm receipt first) */}
+                        {order.status === "received" && isWithinReturnWindow(order) && !(order as any).returnRequest && (
                           <Button
                             onClick={() => {
                               setOrderToReturn(order);
@@ -802,11 +826,39 @@ export default function OrdersPage() {
                               Cancel Order
                             </Button>
                           </>
-                        ) : order.status === "pending" ||
-                          order.status === "confirmed" ||
-                          order.status ===
-                          "shipped" ? /* In Progress - Track Order */
-                          null : order.status === "delivered" ? (
+                        ) : order.status === "pending" ? (
+                          /* Pending paid - View Details */
+                          <Button
+                            onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
+                            variant="outline"
+                            size="sm"
+                            className="border-gray-300 text-gray-600 hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)]"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View Details
+                          </Button>
+                        ) : order.status === "confirmed" ? (
+                          /* Processing - View Details */
+                          <Button
+                            onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
+                            variant="outline"
+                            size="sm"
+                            className="border-gray-300 text-gray-600 hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)]"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View Details
+                          </Button>
+                        ) : order.status === "shipped" ? (
+                          /* Shipped - Track Package */
+                          <Button
+                            onClick={() => setTrackingOrder(order.id)}
+                            size="sm"
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                          >
+                            <Package className="w-4 h-4 mr-1" />
+                            Track Package
+                          </Button>
+                        ) : order.status === "delivered" ? (
                             /* Delivered - Confirm Received only */
                             <>
                               {order.status === "delivered" && (
@@ -1586,7 +1638,7 @@ export default function OrdersPage() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white rounded-xl p-6 max-w-md w-full"
+              className="bg-white rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center">
@@ -1596,10 +1648,107 @@ export default function OrdersPage() {
                 <h3 className="text-xl font-bold text-gray-900 mb-2">
                   Confirm Order Received
                 </h3>
-                <p className="text-gray-600 mb-6">
+                <p className="text-gray-600 mb-4">
                   Have you received your order <span className="font-semibold">{orderToConfirmReceived.orderNumber || orderToConfirmReceived.id}</span>?
                   This will confirm that the package was delivered to you.
                 </p>
+
+                {/* Photo Upload Section */}
+                <div className="text-left mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <Camera className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+                    Photo Proof <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Take a photo or upload an image of the received package as proof of delivery.
+                  </p>
+
+                  {/* Photo Previews */}
+                  {receiptPhotoPreviews.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {receiptPhotoPreviews.map((preview, index) => (
+                        <div key={index} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 group">
+                          <img src={preview} alt={`Receipt ${index + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newPhotos = [...receiptPhotos];
+                              const newPreviews = [...receiptPhotoPreviews];
+                              URL.revokeObjectURL(newPreviews[index]);
+                              newPhotos.splice(index, 1);
+                              newPreviews.splice(index, 1);
+                              setReceiptPhotos(newPhotos);
+                              setReceiptPhotoPreviews(newPreviews);
+                            }}
+                            className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Upload Buttons */}
+                  <div className="flex gap-2">
+                    <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors">
+                      <Camera className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">Take Photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const validation = validateImageFile(file);
+                            if (!validation.valid) {
+                              toast({ title: "Invalid File", description: validation.error, variant: "destructive" });
+                              return;
+                            }
+                            setReceiptPhotos(prev => [...prev, file]);
+                            setReceiptPhotoPreviews(prev => [...prev, URL.createObjectURL(file)]);
+                          }
+                          e.target.value = "";
+                        }}
+                        disabled={isConfirmingReceived}
+                      />
+                    </label>
+                    <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors">
+                      <ImagePlus className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">Upload</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          const validFiles: File[] = [];
+                          const previews: string[] = [];
+                          for (const file of files) {
+                            const validation = validateImageFile(file);
+                            if (validation.valid) {
+                              validFiles.push(file);
+                              previews.push(URL.createObjectURL(file));
+                            }
+                          }
+                          if (validFiles.length > 0) {
+                            setReceiptPhotos(prev => [...prev, ...validFiles]);
+                            setReceiptPhotoPreviews(prev => [...prev, ...previews]);
+                          }
+                          e.target.value = "";
+                        }}
+                        disabled={isConfirmingReceived}
+                      />
+                    </label>
+                  </div>
+                  {receiptPhotos.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1.5">At least one photo is required</p>
+                  )}
+                </div>
+
                 <p className="text-sm text-amber-600 mb-6">
                   Only confirm if you have actually received the items.
                 </p>
@@ -1608,6 +1757,8 @@ export default function OrdersPage() {
                     onClick={() => {
                       setConfirmReceivedModalOpen(false);
                       setOrderToConfirmReceived(null);
+                      setReceiptPhotos([]);
+                      setReceiptPhotoPreviews([]);
                     }}
                     variant="outline"
                     className="flex-1 border-gray-200 text-gray-600 hover:bg-gray-100 rounded-xl h-11"
@@ -1617,7 +1768,7 @@ export default function OrdersPage() {
                   </Button>
                   <Button
                     onClick={handleConfirmReceived}
-                    disabled={isConfirmingReceived}
+                    disabled={isConfirmingReceived || receiptPhotos.length === 0}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 shadow-lg h-11 rounded-xl font-bold"
                   >
                     {isConfirmingReceived ? (

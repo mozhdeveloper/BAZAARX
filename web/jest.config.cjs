@@ -25,7 +25,24 @@ module.exports = {
         '^.+\\.tsx?$': ['ts-jest', {
             diagnostics: {
                 ignoreCodes: [1343, 2339] // Ignore import.meta.env related errors
-            }
+            },
+            astTransformers: {
+                before: [
+                    {
+                        path: 'ts-jest-mock-import-meta',
+                        options: {
+                            metaObjectReplacement: {
+                                env: {
+                                    VITE_PAYMONGO_PUBLIC_KEY: 'pk_test_sandbox_key',
+                                    VITE_PAYMONGO_SECRET_KEY: 'sk_test_sandbox_key',
+                                    VITE_PAYMONGO_BASE_URL: 'https://api.paymongo.com/v1',
+                                    VITE_PAYMONGO_SANDBOX: 'true',
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
         }],
     },
     // Clear mocks automatically between tests

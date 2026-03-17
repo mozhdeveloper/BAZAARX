@@ -19,6 +19,7 @@ import {
   Share2,
 } from "lucide-react";
 import { useCartStore } from "../stores/cartStore";
+import { useDeliveryStore } from "../stores/deliveryStore";
 import { BazaarFooter } from "../components/layout/BazaarFooter";
 import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/progress";
@@ -42,6 +43,9 @@ function DeliveryTrackingPage() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [animatedProgress, setAnimatedProgress] = useState(0);
+
+  // Delivery service integration
+  const { activeTracking, trackingLoading, trackByOrderId, clearTracking } = useDeliveryStore();
 
   // Fetch the order from Supabase
   useEffect(() => {
@@ -184,6 +188,15 @@ function DeliveryTrackingPage() {
     setAnimatedProgress(progress);
   }, [currentStep]);
 
+  // Fetch courier-level tracking from delivery service when order is loaded
+  useEffect(() => {
+    if (!dbOrder?.id) return;
+    trackByOrderId(dbOrder.id).catch(() => {
+      // No delivery booking found — fine, we'll show default steps
+    });
+    return () => { clearTracking(); };
+  }, [dbOrder?.id, trackByOrderId, clearTracking]);
+
   const order = dbOrder;
 
   if (isLoading) {
@@ -221,8 +234,8 @@ function DeliveryTrackingPage() {
     );
   }
 
-  // Dummy tracking data
-  const deliverySteps = [
+  // Dummy tracking data — used when no delivery booking exists
+  const defaultDeliverySteps = [
     {
       id: 1,
       title: "Order Confirmed",
@@ -287,6 +300,31 @@ function DeliveryTrackingPage() {
       },
     },
   ];
+
+  // If we have real courier tracking events, build steps from them
+  const deliverySteps = (activeTracking && activeTracking.events.length > 0)
+    ? activeTracking.events.slice().reverse().map((event, idx) => ({
+        id: idx + 1,
+        title: event.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        description: event.description || event.status,
+        time: new Date(event.eventAt).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }),
+        status: idx < activeTracking.events.length - 1 ? 'completed' as const : 'current' as const,
+        location: {
+          name: event.location || activeTracking.booking.courierName,
+          lat: 14.5995,
+          lng: 120.9842,
+        },
+      }))
+    : defaultDeliverySteps;
+
+  // Courier info banner
+  const courierInfo = activeTracking ? {
+    name: activeTracking.booking.courierName,
+    trackingNumber: activeTracking.booking.trackingNumber,
+    trackingUrl: activeTracking.courierTrackingUrl,
+    estimatedDelivery: activeTracking.estimatedDelivery,
+    waybillUrl: activeTracking.booking.waybillUrl,
+  } : null;
 
   const getEstimatedDeliveryTime = () => {
     const now = new Date();
@@ -381,6 +419,64 @@ function DeliveryTrackingPage() {
             </Button>
           )}
         </motion.div>
+
+        {/* Courier Info Banner — shown when a delivery booking exists */}
+        {courierInfo && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 bg-white rounded-xl shadow-sm border border-gray-200 p-4"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 rounded-lg">
+                  <Truck className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{courierInfo.name}</p>
+                  {courierInfo.trackingNumber && (
+                    <p className="text-sm text-gray-500 font-mono">{courierInfo.trackingNumber}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {courierInfo.estimatedDelivery && (
+                  <div className="text-sm text-gray-600">
+                    <span className="text-gray-400">ETA: </span>
+                    <span className="font-medium">
+                      {new Date(courierInfo.estimatedDelivery).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                )}
+                {courierInfo.trackingUrl && (
+                  <a
+                    href={courierInfo.trackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800"
+                  >
+                    <Navigation className="w-3 h-3" />
+                    Track on courier site
+                  </a>
+                )}
+                {courierInfo.waybillUrl && (
+                  <a
+                    href={courierInfo.waybillUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-800"
+                  >
+                    <Printer className="w-3 h-3" />
+                    Waybill
+                  </a>
+                )}
+              </div>
+            </div>
+            {trackingLoading && (
+              <div className="mt-2 text-xs text-gray-400">Refreshing tracking data...</div>
+            )}
+          </motion.div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Modern Interactive Map */}

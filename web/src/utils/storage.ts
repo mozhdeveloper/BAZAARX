@@ -209,6 +209,56 @@ export const uploadReviewImages = async (
 };
 
 /**
+ * Upload receipt confirmation photos (proof of delivery)
+ */
+export const uploadReceiptPhotos = async (
+  files: File[],
+  orderId: string,
+  buyerId: string,
+): Promise<string[]> => {
+  if (!isSupabaseConfigured()) {
+    return files.map((f) => `https://via.placeholder.com/300?text=${f.name}`);
+  }
+
+  try {
+    const timestamp = Date.now();
+
+    const uploadPromises = files.map(async (file, index) => {
+      const validation = validateImageFile(file);
+      if (!validation.valid) {
+        console.warn(`Skipping invalid receipt photo: ${validation.error}`);
+        return null;
+      }
+
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const uniqueSuffix = Math.random().toString(36).slice(2, 8);
+      const fileName = `${buyerId}/${orderId}/receipt-${timestamp}-${index}-${uniqueSuffix}.${fileExt}`;
+
+      const { error } = await supabase.storage
+        .from('review-images')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('review-images').getPublicUrl(fileName);
+
+      return publicUrl;
+    });
+
+    const uploaded = await Promise.all(uploadPromises);
+    return uploaded.filter((url): url is string => typeof url === 'string' && url.length > 0);
+  } catch (error) {
+    console.error('Receipt photo upload failed:', error);
+    return [];
+  }
+};
+
+/**
  * Validate document file for seller verification
  */
 export const validateDocumentFile = (file: File): { valid: boolean; error?: string } => {

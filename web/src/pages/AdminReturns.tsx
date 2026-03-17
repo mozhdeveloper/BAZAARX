@@ -239,28 +239,46 @@ const AdminReturns: React.FC = () => {
     setIsProcessing(true);
     try {
       const now = new Date().toISOString();
+      const isReplacement = selectedReturn.return_type === "replacement";
+
       await supabase
         .from("refund_return_periods")
         .update({
           status: "approved",
-          refund_date: now,
+          ...(isReplacement ? {} : { refund_date: now }),
           resolved_at: now,
           resolved_by: "admin",
-          seller_note: adminNote || "Approved by admin",
+          seller_note: adminNote || (isReplacement ? "Replacement approved by admin" : "Approved by admin"),
         })
         .eq("id", selectedReturn.id);
 
-      await supabase
-        .from("orders")
-        .update({ payment_status: "refunded", updated_at: now })
-        .eq("id", selectedReturn.order_id);
+      if (isReplacement) {
+        // For replacement: mark order as processing, keep payment as-is
+        await supabase
+          .from("orders")
+          .update({ shipment_status: "processing", updated_at: now })
+          .eq("id", selectedReturn.order_id);
 
-      await supabase.from("order_status_history").insert({
-        order_id: selectedReturn.order_id,
-        status: "refund_approved",
-        note: `Admin override: ${adminNote || "Refund approved"}`,
-        changed_by_role: "admin",
-      });
+        await supabase.from("order_status_history").insert({
+          order_id: selectedReturn.order_id,
+          status: "replacement_approved",
+          note: `Admin override: ${adminNote || "Replacement approved — seller will ship a new item"}`,
+          changed_by_role: "admin",
+        });
+      } else {
+        // For refund: process refund
+        await supabase
+          .from("orders")
+          .update({ payment_status: "refunded", updated_at: now })
+          .eq("id", selectedReturn.order_id);
+
+        await supabase.from("order_status_history").insert({
+          order_id: selectedReturn.order_id,
+          status: "refund_approved",
+          note: `Admin override: ${adminNote || "Refund approved"}`,
+          changed_by_role: "admin",
+        });
+      }
 
       setReturns((prev) =>
         prev.map((r) => (r.id === selectedReturn.id ? { ...r, status: "approved" as ReturnStatus } : r))
@@ -509,6 +527,7 @@ const AdminReturns: React.FC = () => {
                           <TableHead className="w-[120px]">Order #</TableHead>
                           <TableHead>Buyer</TableHead>
                           <TableHead>Seller</TableHead>
+                          <TableHead>Type</TableHead>
                           <TableHead>Reason</TableHead>
                           <TableHead>Amount</TableHead>
                           <TableHead>Status</TableHead>
@@ -538,11 +557,26 @@ const AdminReturns: React.FC = () => {
                               <TableCell className="text-sm text-gray-600">
                                 {ret.seller_name}
                               </TableCell>
+                              <TableCell>
+                                <Badge className={cn(
+                                  "border-none text-[10px]",
+                                  ret.return_type === "replacement"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-orange-100 text-orange-800"
+                                )}>
+                                  {ret.return_type === "replacement" ? "Replacement" : "Refund"}
+                                </Badge>
+                              </TableCell>
                               <TableCell className="text-sm text-gray-600">
                                 {ret.return_reason?.replace(/_/g, " ") || "—"}
                               </TableCell>
                               <TableCell>
-                                {isBazcoin ? (
+                                {ret.return_type === "replacement" ? (
+                                  <span className="text-sm font-medium text-blue-600 flex items-center gap-1">
+                                    <Package className="w-3.5 h-3.5" />
+                                    Replacement
+                                  </span>
+                                ) : isBazcoin ? (
                                   <span className="text-sm font-semibold text-green-600 flex items-center gap-1">
                                     <Coins className="w-3.5 h-3.5" />
                                     BazCoin
@@ -664,24 +698,35 @@ const AdminReturns: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500">Reason</p>
-                  <p className="text-sm font-medium">
-                    {selectedReturn.return_reason?.replace(/_/g, " ") || "—"}
-                  </p>
+                  <p className="text-xs text-gray-500">Type</p>
+                  <Badge className={cn(
+                    "mt-1 border-none",
+                    selectedReturn.return_type === "replacement"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-orange-100 text-orange-800"
+                  )}>
+                    {selectedReturn.return_type === "replacement" ? "Return & Replace" : "Return & Refund"}
+                  </Badge>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500">Type</p>
-                  <p className="text-sm font-medium">
-                    {selectedReturn.return_type?.replace(/_/g, " ") || "—"}
+                  <p className="text-xs text-gray-500">
+                    {selectedReturn.return_type === "replacement" ? "Resolution" : "Refund Amount"}
                   </p>
+                  {selectedReturn.return_type === "replacement" ? (
+                    <p className="text-sm font-medium text-blue-700 mt-1">Replacement Item</p>
+                  ) : (
+                    <p className="text-sm font-bold text-[var(--brand-primary)] mt-1">
+                      ₱{(selectedReturn.refund_amount || 0).toLocaleString()}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500">Refund Amount</p>
-                  <p className="text-sm font-bold text-[var(--brand-primary)]">
-                    ₱{(selectedReturn.refund_amount || 0).toLocaleString()}
+                  <p className="text-xs text-gray-500">Reason</p>
+                  <p className="text-sm font-medium">
+                    {selectedReturn.return_reason?.replace(/_/g, " ") || "—"}
                   </p>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-lg">
@@ -829,7 +874,9 @@ const AdminReturns: React.FC = () => {
           <DialogHeader>
             <DialogTitle>
               {actionType === "approve"
-                ? "Approve Return & Refund"
+                ? selectedReturn?.return_type === "replacement"
+                  ? "Approve Replacement"
+                  : "Approve Return & Refund"
                 : actionType === "reject"
                   ? "Reject Return Request"
                   : "Award BazCoin Compensation"}
@@ -905,7 +952,9 @@ const AdminReturns: React.FC = () => {
               {isProcessing
                 ? "Processing..."
                 : actionType === "approve"
-                  ? "Approve & Refund"
+                  ? selectedReturn?.return_type === "replacement"
+                    ? "Approve Replacement"
+                    : "Approve & Refund"
                   : actionType === "reject"
                     ? "Reject"
                     : "Award BazCoins"}

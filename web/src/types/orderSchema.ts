@@ -263,7 +263,7 @@ export interface Order {
   isReturnable: boolean;
   returnWindow: number; // days
   returnReason?: string;
-  returnStatus?: 'requested' | 'approved' | 'denied' | 'completed';
+  returnStatus?: 'pending' | 'seller_review' | 'counter_offered' | 'approved' | 'rejected' | 'escalated' | 'return_in_transit' | 'return_received' | 'refunded';
   refundAmount?: number;
   refundDate?: Date;
 }

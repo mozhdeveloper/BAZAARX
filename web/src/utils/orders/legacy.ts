@@ -53,3 +53,15 @@ export const parseLegacyPricingSummaryFromNotes = (
     return null;
   }
 };
+
+/**
+ * Parses the payment method from the order notes field.
+ * Notes format: `...|Payment: maya|...`
+ */
+export const parseLegacyPaymentMethodFromNotes = (
+  notes?: string | null,
+): string | null => {
+  if (!notes) return null;
+  const match = notes.match(/\|Payment:\s*([^|]+)/);
+  return match?.[1]?.trim() || null;
+};

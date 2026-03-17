@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  Image,
   Alert,
   Modal,
   TextInput,
@@ -15,6 +14,7 @@ import {
   Dimensions,
   RefreshControl
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Package, Clock, Filter, X, ShoppingCart, Check } from 'lucide-react-native';
@@ -503,16 +503,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
   const handleOrderReceived = (order: Order) => {
     Alert.alert(
-      'Order Received',
-      'Confirm you have received your order?',
+      'Confirm Received',
+      'Have you received your order? By confirming, you acknowledge that the item has been delivered to you.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Not Yet', style: 'cancel' },
         {
-          text: 'Confirm',
+          text: 'Yes, Received',
           onPress: async () => {
             try {
-              // Use shipment_status column (orders table doesn't have 'status' column)
-              // Use orderId (real UUID) not id (which may be order_number)
               const realOrderId = (order as any).orderId || order.id;
               const { error } = await supabase
                 .from('orders')
@@ -521,13 +519,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
               if (error) throw error;
 
-              updateOrderStatus(realOrderId, 'delivered');
-
+              // Optimistically update to received
               setDbOrders(prev => prev.map(o =>
-                ((o as any).orderId || o.id) === realOrderId ? { ...o, status: 'delivered' } : o
+                ((o as any).orderId || o.id) === realOrderId
+                  ? { ...o, buyerUiStatus: 'received' as any }
+                  : o
               ));
 
-              Alert.alert('Success', 'Order marked as received!');
+              Alert.alert('Success', 'Order marked as received! You can now leave a review or request a return within 7 days.');
+              // Reload to get fresh data
+              await loadOrders();
             } catch (e) {
               console.error('Error updating order:', e);
               Alert.alert('Error', 'Failed to update order status');
@@ -653,7 +654,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         }
       }}
       onCancel={() => handleCancelOrder(order)}
-      onReceive={() => handleOrderReceived(order)}
+      onReceive={order.buyerUiStatus === 'delivered' ? () => handleOrderReceived(order) : undefined}
       onReview={order.buyerUiStatus === 'received' ? () => handleReview(order) : undefined}
       onReturn={order.buyerUiStatus === 'received' ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
       onBuyAgain={handleBuyAgain}
@@ -677,27 +678,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
   );
 
   const renderActionButtons = (order: Order) => {
-    if (activeTab === 'shipped' && order.status === 'shipped') {
-      return (
-        <Pressable style={styles.primaryButton} onPress={() => handleOrderReceived(order)}>
-          <Text style={styles.primaryButtonText}>Order Received</Text>
-        </Pressable>
-      );
-    }
-    if (activeTab === 'reviewed' && order.status === 'delivered') {
-      return (
-        <View style={styles.buttonRow}>
-          <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
-            <Text style={styles.outlineButtonText}>Details</Text>
-          </Pressable>
-          <Pressable style={[styles.buyAgainButton, { flex: 1.5 }]} onPress={() => handleBuyAgain(order)}>
-            <ShoppingCart size={16} color={BRAND_COLOR} strokeWidth={2.5} />
-            <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
-          </Pressable>
-        </View>
-      );
-    }
-    switch (order.status) {
+    const uiStatus = order.buyerUiStatus || order.status;
+
+    switch (uiStatus) {
       case 'pending':
         return (
           <View style={styles.buttonRow}>
@@ -712,12 +695,47 @@ export default function OrdersScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
         );
-      case 'processing':
+      case 'confirmed':
+        return (
+          <Pressable style={styles.primaryButton} onPress={() => navigation.navigate('OrderDetail', { order })}>
+            <Text style={styles.primaryButtonText}>View Details</Text>
+          </Pressable>
+        );
       case 'shipped':
         return (
           <Pressable style={styles.primaryButton} onPress={() => navigation.navigate('DeliveryTracking', { order })}>
-            <Text style={styles.primaryButtonText}>Track Order</Text>
+            <Text style={styles.primaryButtonText}>Track Package</Text>
           </Pressable>
+        );
+      case 'delivered':
+        return (
+          <Pressable style={[styles.primaryButton, { backgroundColor: '#16A34A' }]} onPress={() => handleOrderReceived(order)}>
+            <Text style={styles.primaryButtonText}>Confirm Received</Text>
+          </Pressable>
+        );
+      case 'reviewed':
+        return (
+          <View style={styles.buttonRow}>
+            <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
+              <Text style={styles.outlineButtonText}>Details</Text>
+            </Pressable>
+            <Pressable style={[styles.buyAgainButton, { flex: 1.5 }]} onPress={() => handleBuyAgain(order)}>
+              <ShoppingCart size={16} color={BRAND_COLOR} strokeWidth={2.5} />
+              <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
+            </Pressable>
+          </View>
+        );
+      case 'cancelled':
+        return (
+          <View style={styles.buttonRow}>
+            <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
+              <Text style={styles.outlineButtonText}>View Details</Text>
+            </Pressable>
+            <Pressable style={[styles.buyAgainButton, { flex: 1.5 }]} onPress={() => handleBuyAgain(order)}>
+              <ShoppingCart size={16} color={BRAND_COLOR} strokeWidth={2.5} />
+              <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
+            </Pressable>
+          </View>
         );
       default:
         return (

@@ -14,6 +14,7 @@ import {
     MessageCircle,
     Pencil,
     Check,
+    Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,9 @@ import { useOrderStore, useAuthStore, useProductStore, SellerOrder } from "@/sto
 import { useChatStore } from "@/stores/chatStore";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { orderMutationService } from "@/services/orders/orderMutationService";
+import { orderReadService } from "@/services/orders/orderReadService";
+import { DeliveryService } from "@/services/deliveryService";
+import { chatService } from "@/services/chatService";
 
 interface OrderDetailsModalProps {
     isOpen: boolean;
@@ -58,13 +62,13 @@ export function OrderDetailsModal({
     const [trackingModal, setTrackingModal] = useState<{
         isOpen: boolean;
         orderId: string | null;
-        trackingNumber: string;
         isLoading: boolean;
+        generatedTracking: string | null;
     }>({
         isOpen: false,
         orderId: null,
-        trackingNumber: "",
         isLoading: false,
+        generatedTracking: null,
     });
 
     const [showStatusOverride, setShowStatusOverride] = useState(false);
@@ -100,6 +104,10 @@ export function OrderDetailsModal({
     const [isEditingNotes, setIsEditingNotes] = useState(false);
     const [isSavingPOS, setIsSavingPOS] = useState(false);
 
+    // Receipt photo state
+    const [receiptPhotos, setReceiptPhotos] = useState<string[]>([]);
+    const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+
     // Sync POS fields whenever the order changes (e.g. modal reopened with a different order)
     useEffect(() => {
         if (order) {
@@ -112,9 +120,43 @@ export function OrderDetailsModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [order?.id]);
 
+    // Load receipt photos when order is received/reviewed
+    useEffect(() => {
+        if (!order?.id) return;
+        const s = order.status;
+        if (s !== "delivered" && s !== "reviewed") {
+            // also check shipmentStatusRaw for "received"
+            if (order.shipmentStatusRaw !== "received") {
+                setReceiptPhotos([]);
+                return;
+            }
+        }
+        orderReadService.getReceiptPhotos(order.id).then(setReceiptPhotos).catch(console.error);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [order?.id, order?.status]);
+
     if (!isOpen || !order) return null;
 
     const isPOS = order.type === "OFFLINE";
+
+    /** Send a system chat message for order status changes (fire-and-forget). */
+    const sendOrderChatUpdate = async (
+        eventType: 'placed' | 'confirmed' | 'shipped' | 'delivered',
+        content: string,
+    ) => {
+        try {
+            const sellerId = order.seller_id || useAuthStore.getState().seller?.id;
+            const buyerId = order.buyer_id;
+            if (!sellerId || !buyerId) return;
+
+            const conv = await chatService.getOrCreateConversation(buyerId, sellerId);
+            if (!conv) return;
+
+            await chatService.triggerOrderSystemMessage(order.id, conv.id, eventType, content);
+        } catch (e) {
+            console.error('[OrderDetailsModal] Failed to send chat update:', e);
+        }
+    };
 
     const handleSavePOSCustomer = async () => {
         if (!posCustomerName.trim()) return;
@@ -157,6 +199,9 @@ export function OrderDetailsModal({
             await updateOrderStatus(order.id, status);
 
             if (status === "confirmed") {
+                // Send automated chat message
+                sendOrderChatUpdate('confirmed', 'Good news! We are now preparing your order.');
+
                 import("@/stores/cartStore")
                     .then(({ useCartStore }) => {
                         const cartStore = useCartStore.getState();
@@ -176,18 +221,58 @@ export function OrderDetailsModal({
     };
 
     const handleMarkAsShipped = async () => {
-        if (!trackingModal.trackingNumber.trim()) {
-            setAlertModal({ isOpen: true, title: "Required", message: "Please enter a tracking number.", isError: true });
-            return;
-        }
-
         setTrackingModal((prev) => ({ ...prev, isLoading: true }));
 
         try {
-            await markOrderAsShipped(
-                order.id,
-                trackingModal.trackingNumber,
-            );
+            const deliveryService = DeliveryService.getInstance();
+            const seller = useAuthStore.getState().seller;
+
+            // Build pickup address from seller profile
+            const pickup = {
+                name: seller?.storeName || seller?.ownerName || 'Seller',
+                phone: seller?.phone || '09000000000',
+                addressLine1: seller?.businessAddress || 'Store Address',
+                city: seller?.city || 'Manila',
+                province: seller?.province || 'Metro Manila',
+                postalCode: seller?.postalCode || '1000',
+            };
+
+            // Build delivery address from order shipping address
+            const delivery = {
+                name: order.shippingAddress?.fullName || order.buyerName || 'Buyer',
+                phone: order.shippingAddress?.phone || '09000000000',
+                addressLine1: order.shippingAddress?.street || 'Delivery Address',
+                city: order.shippingAddress?.city || 'Manila',
+                province: order.shippingAddress?.province || 'Metro Manila',
+                postalCode: order.shippingAddress?.postalCode || '1000',
+            };
+
+            // Build package details from order items
+            const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+            const itemNames = order.items.map(i => i.productName).join(', ');
+
+            const result = await deliveryService.bookDelivery({
+                orderId: order.id,
+                sellerId: order.seller_id || seller?.id || '',
+                buyerId: order.buyer_id || '',
+                courierCode: 'jnt',
+                serviceType: 'standard',
+                pickup,
+                delivery,
+                packageDetails: {
+                    weight: Math.max(0.5, totalItems * 0.5),
+                    description: itemNames.slice(0, 200),
+                    itemCount: totalItems,
+                },
+                declaredValue: order.total,
+            });
+
+            const trackingNumber = result.trackingNumber;
+
+            await markOrderAsShipped(order.id, trackingNumber);
+
+            // Send automated chat message
+            sendOrderChatUpdate('shipped', `Your order has been shipped! Tracking Number: ${trackingNumber}`);
 
             import("@/stores/cartStore")
                 .then(({ useCartStore }) => {
@@ -196,7 +281,7 @@ export function OrderDetailsModal({
                     cartStore.addNotification(
                         order.id,
                         "shipped",
-                        `Your order is on the way! Tracking: ${trackingModal.trackingNumber}`,
+                        `Your order is on the way! Tracking: ${trackingNumber}`,
                     );
                 })
                 .catch(console.error);
@@ -204,13 +289,19 @@ export function OrderDetailsModal({
             setTrackingModal((prev) => ({
                 ...prev,
                 isOpen: false,
-                trackingNumber: "",
+                generatedTracking: null,
             }));
 
-            setAlertModal({ isOpen: true, title: "Success", message: "Order marked as shipped!", isError: false });
+            setAlertModal({
+                isOpen: true,
+                title: "Shipped!",
+                message: `Order shipped successfully.\nTracking Number: ${trackingNumber}\nCourier: J&T Express (${deliveryService.isSandbox ? 'Sandbox' : 'Live'})`,
+                isError: false,
+            });
         } catch (error) {
-            console.error("Error marking order as shipped:", error);
-            setAlertModal({ isOpen: true, title: "Error", message: "An error occurred marking the order as shipped.", isError: true });
+            console.error("Error booking delivery:", error);
+            setAlertModal({ isOpen: true, title: "Error", message: `Failed to book delivery: ${error instanceof Error ? error.message : 'Unknown error'}`, isError: true });
+            setTrackingModal((prev) => ({ ...prev, isOpen: false }));
         } finally {
             setTrackingModal((prev) => ({ ...prev, isLoading: false }));
         }
@@ -224,6 +315,7 @@ export function OrderDetailsModal({
             action: async () => {
                 try {
                     await markOrderAsDelivered(order.id);
+                    sendOrderChatUpdate('delivered', 'Your order has been delivered! Please confirm receipt when you have your package.');
                     setAlertModal({ isOpen: true, title: "Success", message: "Order marked as delivered successfully!", isError: false });
                 } catch (error) {
                     console.error("Error marking delivered:", error);
@@ -454,11 +546,14 @@ export function OrderDetailsModal({
                                                         <span className="text-gray-500">Payment Method</span>
                                                         <span className="font-medium text-gray-900">
                                                             {order.paymentMethod === 'cash' && 'Cash'}
-                                                            {order.paymentMethod === 'card' && 'Card'}
+                                                            {order.paymentMethod === 'card' && 'PayMongo'}
                                                             {order.paymentMethod === 'ewallet' && 'E-Wallet'}
                                                             {order.paymentMethod === 'bank_transfer' && 'Bank Transfer'}
-                                                            {order.paymentMethod === 'cod' && 'COD'}
+                                                            {order.paymentMethod === 'cod' && 'Cash on Delivery'}
                                                             {order.paymentMethod === 'online' && 'Online Payment'}
+                                                            {order.paymentMethod === 'gcash' && 'GCash'}
+                                                            {order.paymentMethod === 'maya' && 'Maya'}
+                                                            {order.paymentMethod === 'grab_pay' && 'GrabPay'}
                                                         </span>
                                                     </div>
                                                 )}
@@ -701,6 +796,34 @@ export function OrderDetailsModal({
                                                 )}
                                             </div>
                                         )}
+                                    </div>
+                                )}
+
+                                {/* Receipt / Delivery Proof Photos */}
+                                {receiptPhotos.length > 0 && (
+                                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Camera className="w-4 h-4 text-green-600" />
+                                            <span className="font-semibold text-gray-900 text-sm">
+                                                Delivery Proof Photos
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {receiptPhotos.map((url, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => setSelectedPhoto(url)}
+                                                    className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-orange-400 transition-colors"
+                                                >
+                                                    <img
+                                                        src={url}
+                                                        alt={`Receipt ${idx + 1}`}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
@@ -976,7 +1099,7 @@ export function OrderDetailsModal({
                 </div>
             )}
 
-            {/* Nested Tracking Modal */}
+            {/* Nested Ship Confirmation Modal */}
             {trackingModal.isOpen && (
                 <div
                     key="tracking-modal"
@@ -987,56 +1110,49 @@ export function OrderDetailsModal({
                         animate={{ opacity: 1, scale: 1 }}
                         className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm"
                     >
-                        <h3 className="font-bold text-gray-900 mb-4 text-lg">
-                            Shipment Details
+                        <h3 className="font-bold text-gray-900 mb-2 text-lg">
+                            Ship Order
                         </h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                                    Tracking Number
-                                </label>
-                                <Input
-                                    value={trackingModal.trackingNumber}
-                                    onChange={(e) =>
-                                        setTrackingModal((prev) => ({
-                                            ...prev,
-                                            trackingNumber: e.target.value,
-                                        }))
-                                    }
-                                    placeholder="Enter tracking ID"
-                                    className="text-sm"
-                                />
+                        <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                            A tracking number will be automatically generated via <span className="font-semibold">J&T Express</span>.
+                            {DeliveryService.getInstance().isSandbox && (
+                                <span className="block mt-1 text-xs text-amber-600 font-medium">(Sandbox mode — fake tracking number will be generated)</span>
+                            )}
+                        </p>
+                        <div className="bg-gray-50 rounded-lg p-3 mb-4 border border-gray-100">
+                            <div className="text-xs text-gray-500 mb-1">Ship to</div>
+                            <div className="text-sm font-medium text-gray-900">{order.shippingAddress?.fullName || order.buyerName}</div>
+                            <div className="text-xs text-gray-600 mt-0.5">
+                                {order.shippingAddress?.city}, {order.shippingAddress?.province}
                             </div>
-                            <div className="flex gap-3 pt-2">
-                                <Button
-                                    variant="outline"
-                                    size="lg"
-                                    className="flex-1"
-                                    onClick={() =>
-                                        setTrackingModal((prev) => ({
-                                            ...prev,
-                                            isOpen: false,
-                                        }))
-                                    }
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    size="lg"
-                                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold"
-                                    onClick={handleMarkAsShipped}
-                                    disabled={
-                                        trackingModal.isLoading ||
-                                        !trackingModal.trackingNumber
-                                    }
-                                >
-                                    {trackingModal.isLoading ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        "Confirm"
-                                    )}
-                                </Button>
-                            </div>
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <Button
+                                variant="outline"
+                                size="lg"
+                                className="flex-1"
+                                onClick={() =>
+                                    setTrackingModal((prev) => ({
+                                        ...prev,
+                                        isOpen: false,
+                                    }))
+                                }
+                                disabled={trackingModal.isLoading}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                size="lg"
+                                className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold"
+                                onClick={handleMarkAsShipped}
+                                disabled={trackingModal.isLoading}
+                            >
+                                {trackingModal.isLoading ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    "Confirm & Ship"
+                                )}
+                            </Button>
                         </div>
                     </motion.div>
                 </div>
@@ -1087,6 +1203,27 @@ export function OrderDetailsModal({
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Photo lightbox */}
+            {selectedPhoto && (
+                <div
+                    className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4"
+                    onClick={() => setSelectedPhoto(null)}
+                >
+                    <button
+                        className="absolute top-4 right-4 text-white"
+                        onClick={() => setSelectedPhoto(null)}
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                    <img
+                        src={selectedPhoto}
+                        alt="Receipt photo"
+                        className="max-w-full max-h-[90vh] rounded-lg object-contain"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+            )}
         </AnimatePresence>
     );
 

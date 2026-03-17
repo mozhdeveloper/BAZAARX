@@ -51,13 +51,13 @@ interface CheckoutFormData {
   province: string;
   postalCode: string;
   phone: string;
-  paymentMethod: "card" | "gcash" | "paymaya" | "cod";
+  paymentMethod: "card" | "gcash" | "maya" | "cod";
   cardNumber?: string;
   cardName?: string;
   expiryDate?: string;
   cvv?: string;
   gcashNumber?: string;
-  paymayaNumber?: string;
+  mayaNumber?: string;
 }
 
 const paymentMethods = [
@@ -70,24 +70,24 @@ const paymentMethods = [
   },
   {
     id: "card" as const,
-    name: "Credit/Debit Card",
+    name: "PayMongo",
     icon: CreditCard,
-    description: "Visa, MasterCard, American Express",
-    comingSoon: true,
+    description: "Credit/Debit Card — Visa, MasterCard",
+    comingSoon: false,
   },
   {
     id: "gcash" as const,
     name: "GCash",
     icon: Smartphone,
     description: "Pay with your GCash wallet",
-    comingSoon: true,
+    comingSoon: false,
   },
   {
-    id: "paymaya" as const,
-    name: "PayMaya",
+    id: "maya" as const,
+    name: "Maya",
     icon: Smartphone,
-    description: "Pay with your PayMaya account",
-    comingSoon: true,
+    description: "Pay with your Maya account",
+    comingSoon: false,
   },
 ];
 
@@ -182,13 +182,13 @@ export default function CheckoutPage() {
     expiryDate: "",
     cvv: "",
     gcashNumber: "",
-    paymayaNumber: "",
+    mayaNumber: "",
   });
 
   // Force non-COD payment for registry orders if COD is selected
   useEffect(() => {
     if (isRegistryOrder && formData.paymentMethod === 'cod') {
-      setFormData(prev => ({ ...prev, paymentMethod: 'card' }));
+      setFormData(prev => ({ ...prev, paymentMethod: 'card' as const }));
       toast({
         title: "Payment Method Changed",
         description: "Cash on Delivery is not available for registry gifts.",
@@ -729,13 +729,32 @@ export default function CheckoutPage() {
       // Navigate to the order detail page for the new order
       const firstOrderNumber = result.orderIds && result.orderIds.length > 0 ? result.orderIds[0] : null;
 
-      // Show success toast
-      toast({
-        title: result.orderIds && result.orderIds.length > 1
-          ? "Orders Placed Successfully! 🎉"
-          : "Order Placed Successfully! 🎉",
-        description: `You earned ${earnedBazcoins} Bazcoins across your purchases!`,
-      });
+      // Handle e-wallet redirect (GCash, Maya, GrabPay)
+      const redirectUrl = result.payment?.checkoutUrl || result.payment?.redirectUrl;
+      if (redirectUrl) {
+        toast({
+          title: "Redirecting to payment...",
+          description: "You'll be redirected to complete your payment.",
+        });
+        window.location.href = redirectUrl;
+        return;
+      }
+
+      // Handle bank transfer — show reference number
+      if (result.payment?.referenceNumber) {
+        toast({
+          title: "Order Placed! Complete your bank transfer",
+          description: `Use reference number: ${result.payment.referenceNumber}`,
+        });
+      } else {
+        // Show success toast
+        toast({
+          title: result.orderIds && result.orderIds.length > 1
+            ? "Orders Placed Successfully! 🎉"
+            : "Order Placed Successfully! 🎉",
+          description: `You earned ${earnedBazcoins} Bazcoins across your purchases!`,
+        });
+      }
 
       if (firstOrderNumber) {
         // If there are multiple orders, navigating to the first one is standard, 
@@ -1135,7 +1154,7 @@ export default function CheckoutPage() {
                 </h3>
 
                 <div className="space-y-3 mb-6">
-                  {checkoutItems.map((item) => {
+                  {checkoutItems.map((item, idx) => {
                     const variant = item.selectedVariant as any;
                     const originalUnitPrice = getOriginalUnitPrice(item);
                     const activeDiscount = activeCampaignDiscounts[item.id] || null;
@@ -1173,7 +1192,7 @@ export default function CheckoutPage() {
                     const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
 
                     return (
-                      <div key={`${item.id}-${variant?.id || 'no-variant'}`} className="flex items-start gap-3 text-sm">
+                      <div key={`${item.id}-${variant?.id || 'no-variant'}-${idx}`} className="flex items-start gap-3 text-sm">
                         {/* Product Image */}
                         <div className="w-12 h-12 rounded-lg border border-gray-100 bg-white overflow-hidden flex-shrink-0 mt-0.5">
                           <img

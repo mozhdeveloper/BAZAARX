@@ -8,6 +8,7 @@ import type {
 } from "@/types/orders";
 import {
   buildPersonName,
+  parseLegacyPaymentMethodFromNotes,
   parseLegacyPricingSummaryFromNotes,
   parseLegacyShippingAddressFromNotes,
 } from "@/utils/orders/legacy";
@@ -158,6 +159,7 @@ const mapSellerOrderReviews = (order: any): SellerOrderReviewSnapshot[] => {
 export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const notesAddress = parseLegacyShippingAddressFromNotes(order.notes);
   const notesPricing = parseLegacyPricingSummaryFromNotes(order.notes);
+  const notesPaymentMethod = parseLegacyPaymentMethodFromNotes(order.notes);
   const recipient = order.recipient || {};
   const shippingAddressJoin = order.shipping_address || order.address || {};
   const createdAt = new Date(order.created_at);
@@ -293,7 +295,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
         "",
     },
     paymentMethod: {
-      type: "cod",
+      type: (notesPaymentMethod || order.payment_method?.type || "cod") as any,
       details: "",
     },
     trackingNumber: order.tracking_number || undefined,
@@ -401,9 +403,9 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
     type: order.order_type === "OFFLINE" ? "OFFLINE" : "ONLINE",
     posNote: order.pos_note || undefined,
     notes: order.notes || undefined,
-    // Payment method - derive from order_payments or default based on order type
-    paymentMethod: order.payment_method?.type ||
-      (order.order_type === "OFFLINE" ? "cash" : "online") as "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online",
+    // Payment method - derive from notes, order_payments, or default based on order type
+    paymentMethod: (parseLegacyPaymentMethodFromNotes(order.notes) || order.payment_method?.type ||
+      (order.order_type === "OFFLINE" ? "cash" : "online")) as "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online",
   };
 };
 

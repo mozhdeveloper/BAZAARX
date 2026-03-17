@@ -129,6 +129,21 @@ export function computeResolutionPath(
   return "seller_review";
 }
 
+export function getEstimatedResolutionDate(path: ResolutionPath): Date {
+  const now = new Date();
+  switch (path) {
+    case 'instant':
+      now.setHours(now.getHours() + 2);
+      return now;
+    case 'seller_review':
+      now.setHours(now.getHours() + SELLER_DEADLINE_HOURS);
+      return now;
+    case 'return_required':
+      now.setDate(now.getDate() + 7);
+      return now;
+  }
+}
+
 export function getStatusLabel(status: ReturnStatus): string {
   const map: Record<ReturnStatus, string> = {
     pending: "Pending",
@@ -324,21 +339,22 @@ class ReturnService {
 
       const amount = params.refundAmount || 0;
       const hasEvidence = (params.evidenceUrls?.length ?? 0) > 0;
+      const isReplacement = params.returnType === "replacement";
       const resolutionPath = computeResolutionPath(params.reason, amount, hasEvidence);
 
       const sellerDeadline = new Date();
       sellerDeadline.setHours(sellerDeadline.getHours() + SELLER_DEADLINE_HOURS);
 
-      const isInstant = resolutionPath === "instant";
+      const isInstant = resolutionPath === "instant" && !isReplacement;
 
       const insertPayload: Record<string, any> = {
         order_id: orderDbId,
         is_returnable: true,
         return_window_days: RETURN_WINDOW_DAYS,
         return_reason: params.reason + (params.description ? ` - ${params.description}` : ""),
-        refund_amount: params.refundAmount || null,
+        refund_amount: isReplacement ? null : (params.refundAmount || null),
         status: isInstant ? "approved" : "seller_review",
-        return_type: params.returnType || "refund_only",
+        return_type: params.returnType || "return_refund",
         resolution_path: resolutionPath,
         description: params.description || null,
         items_json: params.items ? JSON.stringify(params.items) : null,
@@ -548,35 +564,63 @@ class ReturnService {
   // SELLER: Approve Return
   // ============================================================================
 
-  async approveReturn(returnId: string, orderId: string): Promise<void> {
+  async approveReturn(returnId: string): Promise<void> {
     if (!isSupabaseConfigured()) throw new Error("Supabase not configured");
     try {
+      // Check the return type to handle replacement vs refund
+      const { data: returnData } = await supabase
+        .from("refund_return_periods")
+        .select("id, order_id, return_type")
+        .eq("id", returnId)
+        .single();
+
+      const orderId = returnData?.order_id;
+      const isReplacement = returnData?.return_type === "replacement";
       const now = new Date().toISOString();
+
       const { error: refundError } = await supabase
         .from("refund_return_periods")
         .update({
           status: "approved",
-          refund_date: now,
+          ...(isReplacement ? {} : { refund_date: now }),
           resolved_at: now,
           resolved_by: "seller",
         })
         .eq("id", returnId);
       if (refundError) throw refundError;
 
-      await supabase
-        .from("orders")
-        .update({ payment_status: "refunded", updated_at: now })
-        .eq("id", orderId);
+      if (orderId) {
+        if (isReplacement) {
+          // For replacement: mark order as processing replacement (keep payment status as-is)
+          await supabase
+            .from("orders")
+            .update({ shipment_status: "processing", updated_at: now })
+            .eq("id", orderId);
 
-      await supabase.from("order_status_history").insert({
-        order_id: orderId,
-        status: "refund_approved",
-        note: "Return approved and refund processed",
-        changed_by_role: "seller",
-      });
+          await supabase.from("order_status_history").insert({
+            order_id: orderId,
+            status: "replacement_approved",
+            note: "Replacement approved — seller will ship a new item",
+            changed_by_role: "seller",
+          });
+        } else {
+          // For refund: process refund as before
+          await supabase
+            .from("orders")
+            .update({ payment_status: "refunded", updated_at: now })
+            .eq("id", orderId);
 
-      // Notify Buyer
-      await this.notifyBuyerOfReturnUpdate(orderId, "approved");
+          await supabase.from("order_status_history").insert({
+            order_id: orderId,
+            status: "refund_approved",
+            note: "Return approved and refund processed",
+            changed_by_role: "seller",
+          });
+        }
+
+        // Notify Buyer
+        await this.notifyBuyerOfReturnUpdate(orderId, "approved");
+      }
     } catch (error: any) {
       console.error("Failed to approve return:", error);
       throw new Error(error.message || "Failed to approve return");
@@ -587,9 +631,17 @@ class ReturnService {
   // SELLER: Reject Return
   // ============================================================================
 
-  async rejectReturn(returnId: string, orderId: string, reason?: string): Promise<void> {
+  async rejectReturn(returnId: string, reason?: string): Promise<void> {
     if (!isSupabaseConfigured()) throw new Error("Supabase not configured");
     try {
+      const { data: returnData } = await supabase
+        .from("refund_return_periods")
+        .select("id, order_id")
+        .eq("id", returnId)
+        .single();
+
+      const orderId = returnData?.order_id;
+
       const { error: refundError } = await supabase
         .from("refund_return_periods")
         .update({
@@ -602,20 +654,22 @@ class ReturnService {
         .eq("id", returnId);
       if (refundError) throw refundError;
 
-      await supabase
-        .from("orders")
-        .update({ shipment_status: "received", updated_at: new Date().toISOString() })
-        .eq("id", orderId);
+      if (orderId) {
+        await supabase
+          .from("orders")
+          .update({ shipment_status: "received", updated_at: new Date().toISOString() })
+          .eq("id", orderId);
 
-      await supabase.from("order_status_history").insert({
-        order_id: orderId,
-        status: "return_rejected",
-        note: reason || "Return request rejected by seller",
-        changed_by_role: "seller",
-      });
+        await supabase.from("order_status_history").insert({
+          order_id: orderId,
+          status: "return_rejected",
+          note: reason || "Return request rejected by seller",
+          changed_by_role: "seller",
+        });
 
-      // Notify Buyer
-      await this.notifyBuyerOfReturnUpdate(orderId, "rejected", reason);
+        // Notify Buyer
+        await this.notifyBuyerOfReturnUpdate(orderId, "rejected", reason);
+      }
     } catch (error: any) {
       console.error("Failed to reject return:", error);
       throw new Error(error.message || "Failed to reject return");
@@ -731,6 +785,13 @@ class ReturnService {
 
   async requestItemBack(returnId: string): Promise<void> {
     if (!isSupabaseConfigured()) throw new Error("Supabase not configured");
+
+    const { data: ret } = await supabase
+      .from("refund_return_periods")
+      .select("id, order_id")
+      .eq("id", returnId)
+      .single();
+
     const mockTrackingNumber = `RTN-${Date.now().toString(36).toUpperCase()}`;
     const mockLabelUrl = `https://bazaar.ph/return-labels/${returnId}.pdf`;
 
@@ -743,6 +804,15 @@ class ReturnService {
         return_label_url: mockLabelUrl,
       })
       .eq("id", returnId);
+
+    if (ret?.order_id) {
+      await supabase.from("order_status_history").insert({
+        order_id: ret.order_id,
+        status: "return_label_generated",
+        note: `Return label generated. Tracking: ${mockTrackingNumber}`,
+        changed_by_role: "seller",
+      });
+    }
   }
 
   // ============================================================================
@@ -771,36 +841,54 @@ class ReturnService {
     const now = new Date().toISOString();
     const { data: ret } = await supabase
       .from("refund_return_periods")
-      .select("order_id")
+      .select("order_id, return_type")
       .eq("id", returnId)
       .single();
+
+    const isReplacement = ret?.return_type === "replacement";
 
     await supabase
       .from("refund_return_periods")
       .update({
         status: "refunded",
         return_received_at: now,
-        refund_date: now,
+        ...(isReplacement ? {} : { refund_date: now }),
         resolved_at: now,
         resolved_by: "seller",
       })
       .eq("id", returnId);
 
     if (ret?.order_id) {
-      await supabase
-        .from("orders")
-        .update({ payment_status: "refunded", updated_at: now })
-        .eq("id", ret.order_id);
+      if (isReplacement) {
+        // Replacement: mark order for re-shipping, keep payment untouched
+        await supabase
+          .from("orders")
+          .update({ shipment_status: "processing", updated_at: now })
+          .eq("id", ret.order_id);
 
-      await supabase.from("order_status_history").insert({
-        order_id: ret.order_id,
-        status: "refund_approved",
-        note: "Return received, refund processed",
-        changed_by_role: "seller",
-      });
+        await supabase.from("order_status_history").insert({
+          order_id: ret.order_id,
+          status: "replacement_approved",
+          note: "Return received — replacement item will be shipped",
+          changed_by_role: "seller",
+        });
+      } else {
+        // Refund: process money-back
+        await supabase
+          .from("orders")
+          .update({ payment_status: "refunded", updated_at: now })
+          .eq("id", ret.order_id);
+
+        await supabase.from("order_status_history").insert({
+          order_id: ret.order_id,
+          status: "refund_approved",
+          note: "Return received, refund processed",
+          changed_by_role: "seller",
+        });
+      }
 
       // Notify Buyer
-      await this.notifyBuyerOfReturnUpdate(ret.order_id, "refunded");
+      await this.notifyBuyerOfReturnUpdate(ret.order_id, isReplacement ? "approved" : "refunded");
     }
   }
 

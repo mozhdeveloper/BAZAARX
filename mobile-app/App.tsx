@@ -1,13 +1,13 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useRef } from 'react';
-import { NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
+import { NavigationContainer, NavigatorScreenParams, LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, Store, ShoppingCart, MessageCircle, User } from 'lucide-react-native';
-import { AppState, AppStateStatus, LogBox } from 'react-native';
+import { AppState, AppStateStatus, Linking, LogBox } from 'react-native';
 import type { CartItem } from './src/types';
 
 // ---------------------------------------------------------------------------
@@ -37,6 +37,7 @@ import type { Product, Order } from './src/types';
 import { supabase } from './src/lib/supabase';
 import { useAuthStore } from './src/stores/authStore';
 import { chatService } from './src/services/chatService';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 export type TabParamList = {
   Home: undefined;
@@ -106,6 +107,11 @@ export type RootStackParamList = {
   Messages: undefined;
   Categories: undefined;
   AddProduct: undefined;
+  PaymentCallback: {
+    type: 'success' | 'failed' | 'callback' | 'sandbox-ewallet';
+    txn?: string;
+    src?: string;
+  };
   Chat: {
     conversation: any; // Using any to avoid circular dependency or import issues, but ideally Conversation type
     currentUserId: string;
@@ -115,6 +121,23 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
+
+// Deep link configuration for payment callbacks
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ['bazaarx://'],
+  config: {
+    screens: {
+      PaymentCallback: {
+        path: 'payment/:type',
+        parse: {
+          type: (type: string) => type as 'success' | 'failed' | 'callback' | 'sandbox-ewallet',
+          txn: (txn: string) => txn,
+          src: (src: string) => src,
+        },
+      },
+    },
+  },
+};
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
@@ -131,6 +154,7 @@ function MainTabs() {
   }, [user?.id]);
 
   return (
+    <ErrorBoundary>
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
@@ -212,6 +236,7 @@ function MainTabs() {
         }}
       />
     </Tab.Navigator>
+    </ErrorBoundary>
   );
 }
 
@@ -263,7 +288,8 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <NavigationContainer>
+        <ErrorBoundary>
+        <NavigationContainer linking={linking}>
           <StatusBar style="dark" />
           <Stack.Navigator
             initialRouteName="Splash"
@@ -337,6 +363,7 @@ export default function App() {
             <Stack.Screen name="ProductDetail" getComponent={() => require('./app/ProductDetailScreen').default} />
             <Stack.Screen name="Checkout" getComponent={() => require('./app/CheckoutScreen').default} />
             <Stack.Screen name="PaymentGateway" getComponent={() => require('./app/PaymentGatewayScreen').default} options={{ headerShown: false }} />
+            <Stack.Screen name="PaymentCallback" getComponent={() => require('./app/PaymentCallbackScreen').default} options={{ headerShown: false }} />
             <Stack.Screen name="OrderConfirmation" getComponent={() => require('./app/OrderConfirmation').default} />
             <Stack.Screen name="Orders" getComponent={() => require('./app/OrdersScreen').default} options={{ headerShown: false }} />
             <Stack.Screen name="OrderDetail" getComponent={() => require('./app/OrderDetailScreen').default} />
@@ -379,6 +406,7 @@ export default function App() {
             <Stack.Screen name="AdminStack" getComponent={() => require('./app/admin/AdminStack').default} options={{ headerShown: false }} />
           </Stack.Navigator>
         </NavigationContainer>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

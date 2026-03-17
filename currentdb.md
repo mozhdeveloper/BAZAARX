@@ -189,6 +189,64 @@ CREATE TABLE public.conversations (
   CONSTRAINT conversations_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES auth.users(id),
   CONSTRAINT conversations_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
 );
+CREATE TABLE public.courier_rate_cache (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  courier_code character varying NOT NULL,
+  origin_city character varying NOT NULL,
+  destination_city character varying NOT NULL,
+  weight_kg numeric NOT NULL,
+  service_type character varying NOT NULL DEFAULT 'standard'::character varying,
+  rate numeric NOT NULL,
+  estimated_days integer,
+  cached_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone DEFAULT (now() + '24:00:00'::interval),
+  CONSTRAINT courier_rate_cache_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.delivery_bookings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  seller_id uuid NOT NULL,
+  buyer_id uuid NOT NULL,
+  courier_code character varying NOT NULL CHECK (courier_code::text = ANY (ARRAY['jnt'::character varying, 'lbc'::character varying, 'flash'::character varying, 'ninjavan'::character varying, 'grabexpress'::character varying, 'lalamove'::character varying]::text[])),
+  courier_name character varying NOT NULL,
+  service_type character varying NOT NULL DEFAULT 'standard'::character varying,
+  booking_reference character varying,
+  tracking_number character varying,
+  waybill_url text,
+  pickup_address jsonb NOT NULL,
+  delivery_address jsonb NOT NULL,
+  package_weight numeric,
+  package_dimensions jsonb,
+  package_description text,
+  declared_value numeric,
+  shipping_fee numeric NOT NULL,
+  insurance_fee numeric DEFAULT 0,
+  cod_amount numeric DEFAULT 0,
+  is_cod boolean DEFAULT false,
+  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'booked'::character varying, 'pickup_scheduled'::character varying, 'picked_up'::character varying, 'in_transit'::character varying, 'out_for_delivery'::character varying, 'delivered'::character varying, 'failed'::character varying, 'returned_to_sender'::character varying, 'cancelled'::character varying]::text[])),
+  booked_at timestamp with time zone,
+  picked_up_at timestamp with time zone,
+  delivered_at timestamp with time zone,
+  estimated_delivery timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT delivery_bookings_pkey PRIMARY KEY (id),
+  CONSTRAINT delivery_bookings_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT delivery_bookings_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id),
+  CONSTRAINT delivery_bookings_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.delivery_tracking_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  delivery_booking_id uuid NOT NULL,
+  status character varying NOT NULL,
+  description text,
+  location character varying,
+  courier_status_code character varying,
+  event_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT delivery_tracking_events_pkey PRIMARY KEY (id),
+  CONSTRAINT delivery_tracking_events_delivery_booking_id_fkey FOREIGN KEY (delivery_booking_id) REFERENCES public.delivery_bookings(id)
+);
 CREATE TABLE public.discount_campaigns (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   seller_id uuid,
@@ -210,7 +268,7 @@ CREATE TABLE public.discount_campaigns (
   applies_to text NOT NULL DEFAULT 'specific_products'::text CHECK (applies_to = ANY (ARRAY['all_products'::text, 'specific_products'::text, 'specific_categories'::text])),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  campaign_scope text NOT NULL DEFAULT 'store'::text,
+  campaign_scope text DEFAULT 'store'::text CHECK (campaign_scope = ANY (ARRAY['store'::text, 'global'::text])),
   CONSTRAINT discount_campaigns_pkey PRIMARY KEY (id),
   CONSTRAINT discount_campaigns_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
@@ -229,24 +287,30 @@ CREATE TABLE public.featured_products (
   CONSTRAINT featured_products_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
 CREATE TABLE public.flash_sale_submissions (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
   slot_id uuid NOT NULL,
   seller_id uuid NOT NULL,
   product_id uuid NOT NULL,
   submitted_price numeric NOT NULL,
-  submitted_stock integer NOT NULL,
-  status USER-DEFINED NOT NULL DEFAULT 'pending'::submission_status,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  submitted_stock integer NOT NULL DEFAULT 0,
+  status text DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT flash_sale_submissions_pkey PRIMARY KEY (id),
   CONSTRAINT flash_sale_submissions_slot_id_fkey FOREIGN KEY (slot_id) REFERENCES public.global_flash_sale_slots(id),
   CONSTRAINT flash_sale_submissions_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id),
   CONSTRAINT flash_sale_submissions_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
 CREATE TABLE public.global_flash_sale_slots (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
-  start_date timestamp with time zone NOT NULL,
-  end_date timestamp with time zone NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  description text,
+  start_time timestamp with time zone NOT NULL,
+  end_time timestamp with time zone NOT NULL,
+  min_discount_percentage numeric NOT NULL DEFAULT 0,
+  status text DEFAULT 'upcoming'::text CHECK (status = ANY (ARRAY['upcoming'::text, 'active'::text, 'ended'::text, 'cancelled'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT global_flash_sale_slots_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.low_stock_alerts (
@@ -269,6 +333,9 @@ CREATE TABLE public.messages (
   image_url text,
   is_read boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  message_type USER-DEFINED DEFAULT 'user'::message_type_enum,
+  message_content text,
+  order_event_type USER-DEFINED,
   CONSTRAINT messages_pkey PRIMARY KEY (id),
   CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id),
   CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id)
@@ -295,6 +362,16 @@ CREATE TABLE public.order_discounts (
   CONSTRAINT order_discounts_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
   CONSTRAINT order_discounts_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
   CONSTRAINT order_discounts_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.discount_campaigns(id)
+);
+CREATE TABLE public.order_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  conversation_id uuid,
+  event_type USER-DEFINED NOT NULL,
+  message_generated boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT order_events_pkey PRIMARY KEY (id),
+  CONSTRAINT order_events_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id)
 );
 CREATE TABLE public.order_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -437,6 +514,33 @@ CREATE TABLE public.payment_methods (
   CONSTRAINT payment_methods_pkey PRIMARY KEY (id),
   CONSTRAINT payment_methods_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.payment_transactions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  buyer_id uuid NOT NULL,
+  seller_id uuid NOT NULL,
+  gateway character varying NOT NULL DEFAULT 'paymongo'::character varying,
+  gateway_payment_intent_id character varying,
+  gateway_payment_method_id character varying,
+  gateway_source_id character varying,
+  gateway_checkout_url text,
+  amount numeric NOT NULL,
+  currency character varying NOT NULL DEFAULT 'PHP'::character varying,
+  payment_type character varying NOT NULL CHECK (payment_type::text = ANY (ARRAY['card'::character varying, 'gcash'::character varying, 'maya'::character varying, 'grab_pay'::character varying, 'bank_transfer'::character varying, 'cod'::character varying]::text[])),
+  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'awaiting_payment'::character varying, 'processing'::character varying, 'paid'::character varying, 'failed'::character varying, 'cancelled'::character varying, 'refunded'::character varying, 'partially_refunded'::character varying]::text[])),
+  description text,
+  statement_descriptor character varying,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  failure_reason text,
+  paid_at timestamp with time zone,
+  refunded_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT payment_transactions_pkey PRIMARY KEY (id),
+  CONSTRAINT payment_transactions_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT payment_transactions_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id),
+  CONSTRAINT payment_transactions_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.pos_settings (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   seller_id uuid NOT NULL UNIQUE,
@@ -546,6 +650,8 @@ CREATE TABLE public.product_discounts (
   priority integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  override_discount_type text,
+  override_discount_value numeric,
   CONSTRAINT product_discounts_pkey PRIMARY KEY (id),
   CONSTRAINT product_discounts_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.discount_campaigns(id),
   CONSTRAINT product_discounts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
@@ -887,6 +993,43 @@ CREATE TABLE public.seller_payout_accounts (
   CONSTRAINT seller_payout_accounts_pkey PRIMARY KEY (seller_id),
   CONSTRAINT seller_payout_accounts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
+CREATE TABLE public.seller_payout_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  seller_id uuid NOT NULL UNIQUE,
+  payout_method character varying NOT NULL DEFAULT 'bank_transfer'::character varying CHECK (payout_method::text = ANY (ARRAY['bank_transfer'::character varying, 'gcash'::character varying, 'maya'::character varying]::text[])),
+  bank_name character varying,
+  bank_account_name character varying,
+  bank_account_number character varying,
+  ewallet_provider character varying CHECK (ewallet_provider::text = ANY (ARRAY['gcash'::character varying, 'maya'::character varying]::text[])),
+  ewallet_number character varying,
+  auto_payout boolean DEFAULT true,
+  min_payout_amount numeric DEFAULT 100.00,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT seller_payout_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT seller_payout_settings_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.seller_payouts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  seller_id uuid NOT NULL,
+  order_id uuid,
+  payment_transaction_id uuid,
+  gross_amount numeric NOT NULL,
+  platform_fee numeric NOT NULL DEFAULT 0,
+  net_amount numeric NOT NULL,
+  currency character varying NOT NULL DEFAULT 'PHP'::character varying,
+  payout_method character varying NOT NULL CHECK (payout_method::text = ANY (ARRAY['bank_transfer'::character varying, 'gcash'::character varying, 'maya'::character varying]::text[])),
+  payout_account_details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying, 'on_hold'::character varying]::text[])),
+  processed_at timestamp with time zone,
+  failure_reason text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT seller_payouts_pkey PRIMARY KEY (id),
+  CONSTRAINT seller_payouts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id),
+  CONSTRAINT seller_payouts_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT seller_payouts_payment_transaction_id_fkey FOREIGN KEY (payment_transaction_id) REFERENCES public.payment_transactions(id)
+);
 CREATE TABLE public.seller_rejection_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   rejection_id uuid NOT NULL,
@@ -964,6 +1107,7 @@ CREATE TABLE public.sellers (
   temp_blacklist_count integer DEFAULT 0,
   temp_blacklist_until timestamp with time zone,
   is_permanently_blacklisted boolean DEFAULT false,
+  store_banner_url text,
   CONSTRAINT sellers_pkey PRIMARY KEY (id),
   CONSTRAINT sellers_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
 );
@@ -1044,12 +1188,10 @@ CREATE TABLE public.ticket_messages (
 );
 CREATE TABLE public.user_presence (
   user_id uuid NOT NULL,
-  user_type text NOT NULL,
-  seller_id uuid,
   is_online boolean DEFAULT false,
-  last_active_at timestamp with time zone DEFAULT now(),
-  connected_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT user_presence_pkey PRIMARY KEY (user_id, user_type)
+  last_seen timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_presence_pkey PRIMARY KEY (user_id)
 );
 CREATE TABLE public.user_roles (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

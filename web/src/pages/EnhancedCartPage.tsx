@@ -406,7 +406,7 @@ export default function EnhancedCartPage() {
                       <div className="space-y-0">
                         {group.items.map((item, itemIndex) => (
                           <motion.div
-                            key={`${item.id}-${item.selectedVariant?.id || 'base'}`}
+                            key={`${item.id}-${item.selectedVariant?.id || 'base'}-${itemIndex}`}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{

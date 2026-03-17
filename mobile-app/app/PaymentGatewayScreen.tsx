@@ -10,6 +10,7 @@ import {
   Platform,
   Image,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Lock, CheckCircle, Shield, CreditCard } from 'lucide-react-native';
@@ -22,15 +23,17 @@ import { COLORS } from '../src/constants/theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentGateway'>;
 
 import { useCartStore } from '../src/stores/cartStore';
-
-// ... (existing imports)
+import { usePaymentStore } from '../src/stores/paymentStore';
+import type { GatewayPaymentType } from '../src/types/database.types';
 
 export default function PaymentGatewayScreen({ navigation, route }: Props) {
   const { paymentMethod: rawPaymentMethod, order, isQuickCheckout } = route.params as { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
   const paymentMethod = rawPaymentMethod || 'card';
   
   const { clearCart, clearQuickOrder } = useCartStore();
-  const [status, setStatus] = useState<'idle' | 'processing' | 'approved'>('idle');
+  const { createPayment, confirmPayment, openEWalletCheckout, isSandbox } = usePaymentStore();
+  const [status, setStatus] = useState<'idle' | 'processing' | 'approved' | 'failed'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // E-Wallet State
   const [mobileNumber, setMobileNumber] = useState('');
@@ -44,9 +47,22 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
 
   const insets = useSafeAreaInsets();
 
-  // Derived state for method type
+  // Map UI payment method slug to GatewayPaymentType
   const methodSlug = paymentMethod.toLowerCase();
   const showCardForm = methodSlug === 'card' || methodSlug === 'paymongo';
+
+  const getGatewayPaymentType = (): GatewayPaymentType => {
+    switch (methodSlug) {
+      case 'gcash': return 'gcash';
+      case 'paymaya': return 'maya';
+      case 'card':
+      case 'paymongo': return 'card';
+      case 'cod': return 'cod';
+      case 'bank_transfer': return 'bank_transfer';
+      case 'grab_pay': return 'grab_pay';
+      default: return 'card';
+    }
+  };
 
   const getMethodName = () => {
     switch (methodSlug) {
@@ -86,27 +102,107 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
     return mobileNumber.length >= 10 && mpin.length >= 4;
   };
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
     if (!isFormValid()) return;
 
     setStatus('processing');
+    setErrorMessage(null);
 
-    // Simulate payment processing
-    setTimeout(() => {
-      setStatus('approved');
-      
-      // Clear cart/quick order after successful payment
-      if (isQuickCheckout) {
-        clearQuickOrder();
-      } else {
-        clearCart();
+    try {
+      const gatewayType = getGatewayPaymentType();
+
+      // Parse expiry for card
+      let expMonth: number | undefined;
+      let expYear: number | undefined;
+      if (showCardForm && expiryDate.includes('/')) {
+        const [mm, yy] = expiryDate.split('/');
+        expMonth = parseInt(mm, 10);
+        expYear = 2000 + parseInt(yy, 10);
       }
 
-      // After showing "Payment Approved!", navigate to Track Order screen
-      setTimeout(() => {
-        navigation.replace('DeliveryTracking', { order });
-      }, 1500);
-    }, 3000);
+      const result = await createPayment({
+        orderId: order.orderId || order.id,
+        buyerId: order.buyerId || '',
+        sellerId: order.sellerId || '',
+        amount: order.total,
+        paymentType: gatewayType,
+        billing: showCardForm ? { name: cardName, email: '' } : { name: '', email: '', phone: `+63${mobileNumber}` },
+        cardDetails: showCardForm ? {
+          cardNumber: cardNumber,
+          expMonth: expMonth || 12,
+          expYear: expYear || 2030,
+          cvc: cvv,
+        } : undefined,
+      });
+
+      if (result.status === 'paid') {
+        // Payment succeeded (card sandbox, COD confirmed)
+        onPaymentApproved();
+        return;
+      }
+
+      if (result.checkoutUrl && (gatewayType === 'gcash' || gatewayType === 'maya' || gatewayType === 'grab_pay')) {
+        if (isSandbox) {
+          // Sandbox: skip browser redirect, auto-confirm
+          const confirmed = await confirmPayment(result.transactionId);
+          if (confirmed.status === 'paid') {
+            onPaymentApproved();
+          } else {
+            setStatus('failed');
+            setErrorMessage('Sandbox e-wallet payment could not be confirmed');
+          }
+        } else {
+          // Production: open e-wallet checkout in browser
+          await openEWalletCheckout(result.checkoutUrl);
+          // After user returns via deep link, confirmPayment will be called
+          const confirmed = await confirmPayment(result.transactionId);
+          if (confirmed.status === 'paid') {
+            onPaymentApproved();
+          } else {
+            setStatus('idle');
+          }
+        }
+        return;
+      }
+
+      if (result.referenceNumber) {
+        // Bank transfer — show reference and approve
+        Alert.alert(
+          'Bank Transfer',
+          `Reference: ${result.referenceNumber}\n\nPlease transfer ₱${order.total.toLocaleString()} and use this reference number.`,
+          [{ text: 'OK', onPress: () => onPaymentApproved() }],
+        );
+        return;
+      }
+
+      if (result.status === 'awaiting_payment') {
+        // COD or other awaiting
+        onPaymentApproved();
+        return;
+      }
+
+      // Fallback: mark as approved for sandbox
+      if (isSandbox) {
+        onPaymentApproved();
+      }
+    } catch (err: any) {
+      setStatus('failed');
+      setErrorMessage(err?.message || 'Payment failed. Please try again.');
+    }
+  };
+
+  const onPaymentApproved = () => {
+    setStatus('approved');
+
+    if (isQuickCheckout) {
+      clearQuickOrder();
+    } else {
+      clearCart();
+    }
+
+    setTimeout(() => {
+      navigation.replace('DeliveryTracking', { order });
+    }, 1500);
   };
 
   if (status === 'approved') {
@@ -331,6 +427,23 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
               <ActivityIndicator size="large" color="#FF5722" />
               <Text style={styles.processingText}>Connecting to {getMethodName()}...</Text>
               <Text style={styles.processingSubtext}>Please wait while we verify your payment</Text>
+            </View>
+          )}
+
+          {/* Error Message */}
+          {status === 'failed' && errorMessage && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
+              <Pressable onPress={() => { setStatus('idle'); setErrorMessage(null); }}>
+                <Text style={styles.errorRetry}>Tap to try again</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Sandbox Badge */}
+          {isSandbox && (
+            <View style={styles.sandboxBadge}>
+              <Text style={styles.sandboxText}>SANDBOX MODE — No real charges</Text>
             </View>
           )}
         </ScrollView>
@@ -653,5 +766,41 @@ const styles = StyleSheet.create({
     right: 16,
     height: '100%',
     justifyContent: 'center',
+  },
+  errorContainer: {
+    marginHorizontal: 24,
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#DC2626',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  errorRetry: {
+    fontSize: 13,
+    color: '#2563EB',
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  sandboxBadge: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    padding: 8,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  sandboxText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#92400E',
+    letterSpacing: 0.5,
   },
 });

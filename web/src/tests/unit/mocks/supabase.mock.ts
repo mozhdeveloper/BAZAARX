@@ -29,6 +29,9 @@ export const createMockSupabaseQuery = (returnData: any = null, returnError: any
         single: jest.fn().mockImplementation(function () {
             return Promise.resolve({ data: returnData, error: returnError });
         }),
+        maybeSingle: jest.fn().mockImplementation(function () {
+            return Promise.resolve({ data: returnData, error: returnError });
+        }),
         insert: jest.fn().mockReturnThis(),
         update: jest.fn().mockReturnThis(),
         delete: jest.fn().mockReturnThis(),

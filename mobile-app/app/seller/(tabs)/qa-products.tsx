@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  Image,
   Alert,
   StyleSheet,
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';

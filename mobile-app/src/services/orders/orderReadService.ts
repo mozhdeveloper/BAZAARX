@@ -1,4 +1,5 @@
 import { orderService } from '@/services/orderService';
+import { supabase } from '@/lib/supabase';
 import type { OrderTrackingSnapshot, SellerOrderSnapshot } from '@/types/orders';
 import { mapOrderRowToSellerSnapshot, mapTrackingRowToSnapshot } from '@/utils/orders/mappers';
 
@@ -29,6 +30,20 @@ class OrderReadService {
   }: GetOrderTrackingInput): Promise<OrderTrackingSnapshot | null> {
     const snapshot = await orderService.getOrderTrackingSnapshot(orderIdOrNumber, buyerId);
     return mapTrackingRowToSnapshot(snapshot);
+  }
+
+  async getReceiptPhotos(orderId: string): Promise<string[]> {
+    const { data } = await supabase
+      .from('order_status_history')
+      .select('metadata')
+      .eq('order_id', orderId)
+      .eq('status', 'received')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (!data || data.length === 0) return [];
+    const metadata = data[0].metadata as Record<string, unknown> | null;
+    return (metadata?.receipt_photos as string[]) || [];
   }
 }
 

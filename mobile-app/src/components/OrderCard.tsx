@@ -133,6 +133,18 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             <Text style={styles.orderIdText}>ID: {order.transactionId}</Text>
             <Copy size={12} color="#6B7280" style={{ marginLeft: 4 }} />
           </Pressable>
+          {/* Payment Status Badge */}
+          <View style={{
+            paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8,
+            backgroundColor: order.isPaid ? '#D1FAE5' : '#FEF3C7',
+          }}>
+            <Text style={{
+              fontSize: 10, fontWeight: '700',
+              color: order.isPaid ? '#065F46' : '#92400E',
+            }}>
+              {order.isPaid ? '✓ Paid' : order.paymentMethod?.toLowerCase().includes('cod') ? 'COD' : 'Unpaid'}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -229,14 +241,10 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </Pressable>
         )}
 
-        {order.status === 'shipped' && (
-          <>
-            {onReceive && (
-              <Pressable style={[styles.solidButton, { flex: 1, backgroundColor: '#16A34A' }]} onPress={onReceive}>
-                <Text style={styles.solidButtonText}>Confirm Received</Text>
-              </Pressable>
-            )}
-          </>
+        {order.status === 'shipped' && buyerUiStatus === 'shipped' && (
+          <Pressable style={styles.solidButton} onPress={onPress}>
+            <Text style={styles.solidButtonText}>Track Package</Text>
+          </Pressable>
         )}
 
         {order.status === 'delivered' && buyerUiStatus === 'delivered' && (
@@ -283,10 +291,17 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
           </View>
         )}
 
-        {order.status === 'cancelled' && (
-          <Pressable style={styles.solidButton} onPress={onPress}>
-            <Text style={styles.solidButtonText}>View Details</Text>
-          </Pressable>
+        {buyerUiStatus === 'cancelled' && (
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={styles.buttonRow}>
+              <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={onPress}>
+                <Text style={styles.outlineButtonText}>View Details</Text>
+              </Pressable>
+              <Pressable style={[styles.solidButton, { flex: 1.5 }]} onPress={() => onBuyAgain ? onBuyAgain(order) : onPress()}>
+                <Text style={[styles.solidButtonText, { textAlign: 'center' }]}>Buy Again</Text>
+              </Pressable>
+            </View>
+          </View>
         )}
       </View>
 

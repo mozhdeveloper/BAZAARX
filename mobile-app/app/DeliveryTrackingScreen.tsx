@@ -14,10 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Warehouse, Home, Truck, CheckCircle, Package, Plane } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useOrderStore } from '../src/stores/orderStore';
+import { useDeliveryStore } from '../src/stores/deliveryStore';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { supabase, isSupabaseConfigured } from '../src/lib/supabase';
+import type { DeliveryTrackingResult } from '../src/types/delivery.types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DeliveryTracking'>;
 
@@ -36,6 +38,9 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [timeline, setTimeline] = useState<OrderStatusEntry[]>([]);
   const [showRedirectPopup, setShowRedirectPopup] = useState(false);
+  const [deliveryInfo, setDeliveryInfo] = useState<DeliveryTrackingResult | null>(null);
+  const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
+  const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -59,6 +64,10 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     initializeTimeline();
+
+    // Fetch delivery booking/tracking from deliveryStore
+    const orderUuid = order.orderId || order.id;
+    fetchTrackingByOrderId(orderUuid).catch(() => {});
 
     if (isSupabaseConfigured()) {
       fetchTimelineHistory();
@@ -103,6 +112,12 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
       };
     }
   }, [order.id, order.orderId]);
+
+  useEffect(() => {
+    if (deliveryStoreTracking) {
+      setDeliveryInfo(deliveryStoreTracking);
+    }
+  }, [deliveryStoreTracking]);
 
   const initializeTimeline = () => {
     // Fail-safe initialization: Hardcode the first node as "Order Placed"
@@ -201,6 +216,46 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Courier Info Card */}
+        {deliveryInfo?.booking && (
+          <View style={[styles.deliveryCard, { marginBottom: 0 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' }}>
+                <Truck size={18} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937' }}>{deliveryInfo.booking.courierName}</Text>
+                <Text style={{ fontSize: 12, color: '#6B7280' }}>{deliveryInfo.booking.serviceType.replace('_', ' ').toUpperCase()}</Text>
+              </View>
+              <View style={{
+                paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+                backgroundColor: deliveryInfo.booking.status === 'delivered' ? '#D1FAE5' : '#DBEAFE',
+              }}>
+                <Text style={{
+                  fontSize: 11, fontWeight: '700',
+                  color: deliveryInfo.booking.status === 'delivered' ? '#065F46' : '#1E40AF',
+                }}>
+                  {deliveryInfo.booking.status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                </Text>
+              </View>
+            </View>
+            {deliveryInfo.booking.trackingNumber && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>Tracking #</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>{deliveryInfo.booking.trackingNumber}</Text>
+              </View>
+            )}
+            {deliveryInfo.booking.estimatedDelivery && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>Est. Delivery</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>
+                  {new Date(deliveryInfo.booking.estimatedDelivery).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Delivery Estimate & Visual Journey Card */}
         <View style={styles.deliveryCard}>
           {isDelivered ? (

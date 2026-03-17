@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Wallet, DollarSign, TrendingUp, Calendar, Clock, Download, CheckCircle, AlertCircle, RotateCcw } from 'lucide-react-native';
 import { supabase } from '../../src/lib/supabase';
 import { useAuthStore } from '../../src/stores/sellerStore';
+import { usePaymentStore } from '../../src/stores/paymentStore';
 
 interface EarningsSummary {
   totalEarnings: number;
@@ -31,6 +32,8 @@ export default function EarningsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { seller } = useAuthStore();
+  const fetchSellerPayouts = usePaymentStore((s) => s.fetchSellerPayouts);
+  const sellerPayouts = usePaymentStore((s) => s.sellerPayouts);
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,10 +103,17 @@ export default function EarningsScreen() {
         earningsGrowthPercent: 0 // Placeholder
       });
 
-      // 3. Payout History (Mocked for now as per web pattern)
-      const weeklyPayouts: PayoutRecord[] = [];
-      // (Implementation matching web service could go here)
-      setPayoutHistory([]);
+      // 3. Payout History from paymentStore
+      await fetchSellerPayouts(seller.id);
+      const mappedPayouts: PayoutRecord[] = sellerPayouts.map((p: any) => ({
+        id: p.id,
+        date: p.createdAt || p.created_at || new Date().toISOString(),
+        amount: p.amount || 0,
+        status: p.status || 'completed',
+        method: p.payoutMethod || p.payout_method || 'bank_transfer',
+        reference: p.referenceNumber || p.reference_number || p.id.slice(0, 8),
+      }));
+      setPayoutHistory(mappedPayouts);
 
     } catch (err) {
       console.error('Failed to fetch earnings:', err);

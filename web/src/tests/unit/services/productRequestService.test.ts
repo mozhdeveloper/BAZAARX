@@ -472,7 +472,7 @@ describe('ProductRequestService', () => {
       it('"testing" status (invalid in DB) never appears in counts', async () => {
         fromMock([RAW_ROW_PENDING, RAW_ROW_IN_PROGRESS, RAW_ROW_APPROVED]);
         const result = await productRequestService.getAllRequests();
-        const hasTestingStatus = result.some(r => r.status === 'testing');
+        const hasTestingStatus = result.some(r => (r.status as string) === 'testing');
         expect(hasTestingStatus).toBe(false);
       });
     });

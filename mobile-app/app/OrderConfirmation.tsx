@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,28 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CheckCircle, HelpCircle, Package, ChevronRight, Home, Flame, Tag } from 'lucide-react-native';
+import { CheckCircle, HelpCircle, Package, ChevronRight, Home, Flame, Tag, CreditCard } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
 import { safeImageUri } from '../src/utils/imageUtils';
 import { COLORS } from '../src/constants/theme';
+import { usePaymentStore } from '../src/stores/paymentStore';
+import type { PaymentTransaction } from '../src/types/payment.types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderConfirmation'>;
 
 export default function OrderConfirmation({ navigation, route }: Props) {
   const { order, earnedBazcoins = 0 } = route.params as { order: Order; earnedBazcoins?: number };
+  const [paymentTx, setPaymentTx] = useState<PaymentTransaction | null>(null);
+  const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
+
+  useEffect(() => {
+    const realOrderId = (order as any).orderId || order.id;
+    getTransactionByOrderId(realOrderId)
+      .then((tx) => setPaymentTx(tx))
+      .catch(() => {});
+  }, [(order as any).orderId, order.id]);
   
   const handleViewPurchases = () => {
     navigation.navigate('Orders', {});
@@ -54,7 +65,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
           {/* Success Message */}
           <Text style={styles.title}>Order Placed Successfully!</Text>
           <Text style={styles.subtitle}>
-            Your order has been confirmed and {order.isPaid ? 'paid successfully' : 'will be paid on delivery'}!
+            Your order has been confirmed and {order.isPaid ? `paid via ${order.paymentMethod}` : 'will be paid on delivery'}!
           </Text>
 
 
@@ -75,6 +86,48 @@ export default function OrderConfirmation({ navigation, route }: Props) {
           <View style={styles.orderNumberCard}>
             <Text style={styles.orderNumberLabel}>Order Number</Text>
             <Text style={styles.orderNumber}>#{order.transactionId}</Text>
+          </View>
+
+          {/* Payment Info Card */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <CreditCard size={20} color="#D97706" />
+              <Text style={styles.sectionTitle}>Payment Information</Text>
+            </View>
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 }}>
+                <Text style={{ fontSize: 14, color: '#6B7280' }}>Method</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>{order.paymentMethod}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#FDF2E9' }}>
+                <Text style={{ fontSize: 14, color: '#6B7280' }}>Status</Text>
+                <View style={{
+                  paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8,
+                  backgroundColor: order.isPaid ? '#D1FAE5' : '#FEF3C7',
+                }}>
+                  <Text style={{
+                    fontSize: 12, fontWeight: '700',
+                    color: order.isPaid ? '#065F46' : '#92400E',
+                  }}>
+                    {order.isPaid ? 'Paid' : 'Pending'}
+                  </Text>
+                </View>
+              </View>
+              {paymentTx && (
+                <>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#FDF2E9' }}>
+                    <Text style={{ fontSize: 14, color: '#6B7280' }}>Amount</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary }}>₱{paymentTx.amount.toLocaleString()}</Text>
+                  </View>
+                  {paymentTx.gatewayPaymentIntentId && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#FDF2E9' }}>
+                      <Text style={{ fontSize: 14, color: '#6B7280' }}>Transaction ID</Text>
+                      <Text style={{ fontSize: 12, color: '#9CA3AF' }}>{paymentTx.gatewayPaymentIntentId.slice(0, 16)}...</Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
           </View>
 
           {/* Order Summary */}

@@ -5,7 +5,8 @@
 
 import { Product, ProductWithSeller } from '@/types/database.types';
 
-export const mockProduct1: Product = {
+// Use 'as Product' to allow simplified mock data (string categories/images instead of full objects)
+export const mockProduct1 = {
     id: 'prod-001',
     seller_id: 'seller-001',
     name: 'Sony WH-1000XM5',
@@ -27,7 +28,7 @@ export const mockProduct1: Product = {
     tags: ['wireless', 'noise-canceling', 'premium'],
 };
 
-export const mockProduct2: Product = {
+export const mockProduct2 = {
     id: 'prod-002',
     seller_id: 'seller-001',
     name: 'Premium Arabica Coffee',
@@ -46,7 +47,7 @@ export const mockProduct2: Product = {
     tags: ['organic', 'fair-trade', 'arabica'],
 };
 
-export const mockProduct3Inactive: Product = {
+export const mockProduct3Inactive = {
     id: 'prod-003',
     seller_id: 'seller-002',
     name: 'Vintage Film Camera',
@@ -65,7 +66,7 @@ export const mockProduct3Inactive: Product = {
     tags: ['vintage', 'collectible'],
 };
 
-export const mockProduct4Pending: Product = {
+export const mockProduct4Pending = {
     id: 'prod-004',
     seller_id: 'seller-002',
     name: 'Smart Watch Pro',
@@ -84,7 +85,7 @@ export const mockProduct4Pending: Product = {
     tags: ['fitness', 'wearable'],
 };
 
-export const mockProducts: Product[] = [
+export const mockProducts = [
     mockProduct1,
     mockProduct2,
     mockProduct3Inactive,
@@ -106,7 +107,7 @@ export const mockProductInsert: any = {
 };
 
 // For testing with seller data
-export const mockProductWithSeller: ProductWithSeller = {
+export const mockProductWithSeller = {
     ...mockProduct1,
     seller: {
         business_name: 'TechGear Philippines',

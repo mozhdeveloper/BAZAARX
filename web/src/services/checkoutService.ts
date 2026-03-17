@@ -8,7 +8,10 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { CartItem } from '@/types/database.types';
 import { notificationService } from './notificationService';
 import { discountService } from './discountService';
+import { chatService } from './chatService';
 import type { ActiveDiscount } from '@/types/discount';
+import { payMongoService } from './payMongoService';
+import type { PaymentResult } from '@/types/payment.types';
 
 export interface CheckoutPayload {
     userId: string;
@@ -39,6 +42,8 @@ export interface CheckoutResult {
     orderIds?: string[];
     error?: string;
     newBazcoinsBalance?: number;
+    /** PayMongo payment result — check redirectUrl for e-wallet payments */
+    payment?: PaymentResult;
 }
 
 type CheckoutLinePricing = {
@@ -107,15 +112,17 @@ export class CheckoutService {
                 })
             );
 
-            // Batch query base product stock for products without variants
+            // Batch query base products (stock is per-variant; products table has no stock column)
             const productIds = [...new Set(items.map(item => item.product_id).filter(Boolean))];
             const { data: productsData } = await supabase
                 .from('products')
-                .select('id, stock')
+                .select('id')
                 .in('id', productIds);
 
             const productStockMap = new Map<string, number>();
-            productsData?.forEach(p => productStockMap.set(p.id, p.stock || 0));
+            // Products table has no stock column — stock lives on product_variants.
+            // Items without a matched variant will be caught below with a 0-stock fallback.
+            productsData?.forEach(p => productStockMap.set(p.id, 0));
 
             // Validate stock and attach resolved variant IDs (reuse fetched data — no re-fetch later)
             const resolvedStockMap = new Map<string, number>(); // variantId -> current stock
@@ -228,7 +235,7 @@ export class CheckoutService {
             const sharedBaseNumber = this.generateOrderNumber();
 
             // ─── PHASE 3: Per-seller order creation (parallel across sellers) ───
-            const createdOrderNumbers = await Promise.all(
+            const createdOrders = await Promise.all(
                 sellerEntries.map(async ([sellerId, _sellerItems], index) => {
                     const orderNumber = index === 0 ? sharedBaseNumber : this.generateOrderNumber();
 
@@ -305,9 +312,24 @@ export class CheckoutService {
                         buyerName: shippingAddress.fullName || 'Customer', total: sellerTotal
                     }).catch(console.error);
 
-                    return orderData.order_number as string;
+                    // Automated chat message: Order Placed (fire-and-forget)
+                    chatService.getOrCreateConversation(userId, sellerId).then(conv => {
+                        if (conv) {
+                            chatService.triggerOrderSystemMessage(
+                                orderData.id as string,
+                                conv.id,
+                                'placed',
+                                `New order placed! Order #${(orderData.order_number as string).slice(0, 8).toUpperCase()} is being processed.`
+                            ).catch(console.error);
+                        }
+                    }).catch(console.error);
+
+                    return { id: orderData.id as string, orderNumber: orderData.order_number as string };
                 })
             );
+
+            // Convenience aliases used throughout Phase 4 & 5
+            const createdOrderNumbers = createdOrders.map(o => o.orderNumber);
 
             // ─── PHASE 4: Bazcoins update + cart cleanup in parallel ───
             let newBalance: number | undefined;
@@ -334,7 +356,42 @@ export class CheckoutService {
 
             await Promise.all(postOrderTasks);
 
-            return { success: true, orderIds: createdOrderNumbers, newBazcoinsBalance: newBalance };
+            // ─── PHASE 5: Payment Processing via PayMongo ───────────────────────
+            let paymentResult: PaymentResult | undefined;
+            const isGatewayPayment = ['card', 'gcash', 'maya', 'grab_pay', 'bank_transfer'].includes(paymentMethod);
+
+            if (isGatewayPayment) {
+                try {
+                    // Use the first seller from the split orders for the payment record
+                    const primarySellerId = sellerEntries[0]?.[0];
+                    if (!primarySellerId) throw new Error('No seller found for payment');
+
+                    paymentResult = await payMongoService.createPayment({
+                        orderId: createdOrders[0].id, // UUID required for payment_transactions FK
+                        buyerId: userId,
+                        sellerId: primarySellerId,
+                        amount: pricingSummary.total,
+                        paymentType: paymentMethod as any,
+                        description: `Bazaar Order ${createdOrderNumbers.join(', ')}`,
+                        billing: {
+                            name: shippingAddress.fullName || 'Customer',
+                            email: email,
+                            phone: shippingAddress.phone,
+                        },
+                        returnUrl: `${window.location.origin}/order/${createdOrderNumbers[0]}`,
+                    });
+                } catch (payErr: any) {
+                    console.error('Payment initiation failed:', payErr);
+                    // Orders are created but payment failed to initiate — leave as pending_payment
+                }
+            }
+
+            return {
+                success: true,
+                orderIds: createdOrderNumbers,
+                newBazcoinsBalance: newBalance,
+                payment: paymentResult,
+            };
 
         } catch (error: any) {
             console.error("Checkout processing failed:", error);

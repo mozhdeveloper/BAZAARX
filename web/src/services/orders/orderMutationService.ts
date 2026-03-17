@@ -23,6 +23,7 @@ interface MarkOrderDeliveredInput {
 interface ConfirmOrderReceivedInput {
   orderId: string;
   buyerId: string;
+  receiptPhotoUrls?: string[];
 }
 
 interface CancelOrderInput {
@@ -93,8 +94,9 @@ class OrderMutationService {
   async confirmOrderReceived({
     orderId,
     buyerId,
+    receiptPhotoUrls,
   }: ConfirmOrderReceivedInput): Promise<boolean> {
-    return orderService.confirmOrderReceived(orderId, buyerId);
+    return orderService.confirmOrderReceived(orderId, buyerId, receiptPhotoUrls);
   }
 
   async cancelOrder({

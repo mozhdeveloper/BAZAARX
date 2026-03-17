@@ -8,7 +8,6 @@ import {
   Modal,
   ScrollView,
   FlatList,
-  Image,
   StatusBar,
   ActivityIndicator,
   Pressable,
@@ -343,6 +342,16 @@ export default function ShopScreen({ navigation, route }: Props) {
     setMinInput(values[0].toString());
     setMaxInput(values[1].toString());
   };
+
+  const productsBySeller = useMemo(() => {
+    const map = new Map<string, Product[]>();
+    dbProducts.forEach(p => {
+      const sid = (p as any).seller_id || '';
+      if (!map.has(sid)) map.set(sid, []);
+      map.get(sid)!.push(p);
+    });
+    return map;
+  }, [dbProducts]);
 
   const filteredProducts = useMemo(() => {
     const sourceProducts = customResults && customResults.length > 0 ? customResults : dbProducts;

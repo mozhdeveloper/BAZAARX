@@ -47,6 +47,15 @@ export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type TicketStatus = 'open' | 'in_progress' | 'waiting_response' | 'resolved' | 'closed';
 export type ChatRequestStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 
+// Payment Gateway & Delivery Enums
+export type GatewayPaymentType = 'card' | 'gcash' | 'maya' | 'grab_pay' | 'bank_transfer' | 'cod';
+export type PaymentTransactionStatus = 'pending' | 'awaiting_payment' | 'processing' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded';
+export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'on_hold';
+export type PayoutMethod = 'bank_transfer' | 'gcash' | 'maya';
+export type CourierCode = 'jnt' | 'lbc' | 'flash' | 'ninjavan' | 'grabexpress' | 'lalamove';
+export type DeliveryBookingStatus = 'pending' | 'booked' | 'pickup_scheduled' | 'picked_up' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'failed' | 'returned_to_sender' | 'cancelled';
+export type CourierServiceType = 'standard' | 'express' | 'same_day' | 'next_day';
+
 export type DiscountCampaignType =
   | 'flash_sale'
   | 'seasonal_sale'

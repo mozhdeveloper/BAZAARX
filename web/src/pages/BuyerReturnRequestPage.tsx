@@ -8,8 +8,6 @@ import {
   AlertTriangle,
   Package,
   RotateCcw,
-  DollarSign,
-  Coins,
   X,
   ShieldCheck,
   Zap,
@@ -51,19 +49,16 @@ const REASON_OPTIONS: { value: ReturnReason; label: string; description: string;
 ];
 
 // ---------------------------------------------------------------------------
-// Return type options
+// Return type options (Lazada PH standard: 2 options only)
 // ---------------------------------------------------------------------------
 const RETURN_TYPE_OPTIONS: {
-  value: ReturnType | "bazcoin";
+  value: ReturnType;
   label: string;
   description: string;
   icon: React.ReactNode;
-  badge?: string;
 }[] = [
-  { value: "refund_only", label: "Refund Only", description: "Get your money back without returning the item (for low-value or seller-fault items)", icon: <DollarSign className="w-5 h-5" /> },
   { value: "return_refund", label: "Return & Refund", description: "Return the item and get a full refund to your original payment method", icon: <RotateCcw className="w-5 h-5" /> },
-  { value: "replacement", label: "Replacement", description: "Return the item and receive a brand new replacement at no cost", icon: <Package className="w-5 h-5" /> },
-  { value: "bazcoin", label: "BazCoin Compensation", description: "Receive refund as BazCoins with a 10% bonus — use them on any future purchase!", icon: <Coins className="w-5 h-5" />, badge: "+10% Bonus" },
+  { value: "replacement", label: "Return & Replace", description: "Return the item and receive a brand new replacement at no cost", icon: <Package className="w-5 h-5" /> },
 ];
 
 // ---------------------------------------------------------------------------
@@ -73,7 +68,7 @@ type Step = "reason" | "type" | "items" | "evidence" | "review";
 const STEPS: Step[] = ["reason", "type", "items", "evidence", "review"];
 const STEP_LABELS: Record<Step, string> = {
   reason: "Select Reason",
-  type: "Resolution Type",
+  type: "Preferred Solution",
   items: "Select Items",
   evidence: "Upload Evidence",
   review: "Review & Submit",
@@ -97,7 +92,7 @@ export default function BuyerReturnRequestPage() {
   // Form state
   const [currentStep, setCurrentStep] = useState<Step>("reason");
   const [selectedReason, setSelectedReason] = useState<ReturnReason | null>(null);
-  const [selectedType, setSelectedType] = useState<ReturnType | "bazcoin" | null>(null);
+  const [selectedType, setSelectedType] = useState<ReturnType | null>(null);
   const [selectedItems, setSelectedItems] = useState<Map<string, { quantity: number; reason?: string }>>(new Map());
   const [description, setDescription] = useState("");
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
@@ -153,7 +148,7 @@ export default function BuyerReturnRequestPage() {
     return sum + (item ? Number(item.price || 0) * sel.quantity : 0);
   }, 0);
 
-  const bazcoinBonus = Math.round(selectedItemsTotal * 0.1);
+  const isReplacement = selectedType === "replacement";
 
   // Resolution path preview
   const resolutionPath = selectedReason
@@ -253,17 +248,12 @@ export default function BuyerReturnRequestPage() {
         };
       });
 
-      // If BazCoin selected, submit as refund_only but we'll handle BazCoin compensation in the service
-      const actualReturnType: ReturnType = selectedType === "bazcoin" ? "refund_only" : selectedType;
-
       await returnService.submitReturnRequest({
         orderDbId,
         reason: selectedReason,
-        returnType: actualReturnType,
-        description: selectedType === "bazcoin"
-          ? `[BAZCOIN_COMPENSATION] ${description}`.trim()
-          : description,
-        refundAmount: selectedItemsTotal,
+        returnType: selectedType as ReturnType,
+        description,
+        refundAmount: isReplacement ? 0 : selectedItemsTotal,
         items: returnItems,
         evidenceUrls,
       });
@@ -424,8 +414,8 @@ export default function BuyerReturnRequestPage() {
             {/* STEP 2: Return Type */}
             {currentStep === "type" && (
               <div className="space-y-3">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">How would you like to be compensated?</h2>
-                <p className="text-sm text-gray-500 mb-4">Choose how you'd like your issue resolved.</p>
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Preferred Solution</h2>
+                <p className="text-sm text-gray-500 mb-4">How would you like this resolved?</p>
                 <div className="grid gap-3">
                   {RETURN_TYPE_OPTIONS.map((opt) => (
                     <button
@@ -447,18 +437,13 @@ export default function BuyerReturnRequestPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-gray-900">{opt.label}</p>
-                          {opt.badge && (
+                          {(opt as any).badge && (
                             <Badge className="bg-green-100 text-green-700 border-none text-[10px] px-1.5 py-0.5">
-                              {opt.badge}
+                              {(opt as any).badge}
                             </Badge>
                           )}
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
-                        {opt.value === "bazcoin" && selectedItemsTotal > 0 && (
-                          <p className="text-xs text-green-600 font-medium mt-1">
-                            You'd receive {(selectedItemsTotal + bazcoinBonus).toLocaleString()} BazCoins (₱{selectedItemsTotal.toLocaleString()} + {bazcoinBonus.toLocaleString()} bonus)
-                          </p>
-                        )}
                       </div>
                       {selectedType === opt.value && (
                         <CheckCircle className="w-5 h-5 text-[var(--brand-primary)] mt-1 flex-shrink-0" />
@@ -558,8 +543,10 @@ export default function BuyerReturnRequestPage() {
                 {selectedItems.size > 0 && (
                   <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
                     <p className="text-sm font-medium text-gray-700">
-                      {selectedItems.size} item{selectedItems.size > 1 ? "s" : ""} selected &middot;
-                      Total: <span className="text-[var(--brand-primary)] font-bold">₱{selectedItemsTotal.toLocaleString()}</span>
+                      {selectedItems.size} item{selectedItems.size > 1 ? "s" : ""} selected
+                      {!isReplacement && (
+                        <> &middot; Refund: <span className="text-[var(--brand-primary)] font-bold">₱{selectedItemsTotal.toLocaleString()}</span></>
+                      )}
                     </p>
                   </div>
                 )}
@@ -655,15 +642,10 @@ export default function BuyerReturnRequestPage() {
 
                   {/* Resolution type */}
                   <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-                    <p className="text-xs text-gray-500 mb-0.5">Resolution</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900">
-                        {RETURN_TYPE_OPTIONS.find((t) => t.value === selectedType)?.label || selectedType}
-                      </p>
-                      {selectedType === "bazcoin" && (
-                        <Badge className="bg-green-100 text-green-700 border-none text-[10px]">+10% Bonus</Badge>
-                      )}
-                    </div>
+                    <p className="text-xs text-gray-500 mb-0.5">Preferred Solution</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {RETURN_TYPE_OPTIONS.find((t) => t.value === selectedType)?.label || selectedType}
+                    </p>
                   </div>
 
                   {/* Items */}
@@ -690,33 +672,29 @@ export default function BuyerReturnRequestPage() {
                     })}
                   </div>
 
-                  {/* Refund amount */}
-                  <div className={cn(
-                    "p-4 rounded-lg border",
-                    selectedType === "bazcoin" ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200"
-                  )}>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-700">
-                        {selectedType === "bazcoin" ? "BazCoin Compensation" : "Refund Amount"}
-                      </p>
-                      <div className="text-right">
-                        {selectedType === "bazcoin" ? (
-                          <>
-                            <p className="text-lg font-bold text-green-700">
-                              {(selectedItemsTotal + bazcoinBonus).toLocaleString()} BazCoins
-                            </p>
-                            <p className="text-xs text-green-600">
-                              ₱{selectedItemsTotal.toLocaleString()} + {bazcoinBonus.toLocaleString()} bonus
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-lg font-bold text-[var(--brand-primary)]">
-                            ₱{selectedItemsTotal.toLocaleString()}
-                          </p>
-                        )}
+                  {/* Refund amount — only for Return & Refund, not Replacement */}
+                  {!isReplacement ? (
+                    <div className="p-4 rounded-lg border bg-orange-50 border-orange-200">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-700">Refund Amount</p>
+                        <p className="text-lg font-bold text-[var(--brand-primary)]">
+                          ₱{selectedItemsTotal.toLocaleString()}
+                        </p>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-4 rounded-lg border bg-blue-50 border-blue-200">
+                      <div className="flex items-center gap-3">
+                        <Package className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm font-semibold text-blue-800">Replacement Item</p>
+                          <p className="text-xs text-blue-600 mt-0.5">
+                            The seller will ship a brand new replacement once the return is approved. No cash refund will be issued.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Evidence */}
                   {evidencePreviews.length > 0 && (

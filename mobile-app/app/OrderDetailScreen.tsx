@@ -3,6 +3,7 @@ import {
   View,
   Text,
   ScrollView,
+  FlatList,
   StyleSheet,
   Pressable,
   Alert,
@@ -13,6 +14,9 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw, Tag } from 'lucide-react-native';
@@ -20,6 +24,7 @@ import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
+import { useCartStore } from '../src/stores/cartStore';
 import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
 import { orderService } from '../src/services/orderService';
@@ -30,6 +35,11 @@ import ReviewModal from '../src/components/ReviewModal';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import { reviewService } from '@/services/reviewService';
 import { chatService } from '../src/services/chatService';
+import { orderReadService } from '../src/services/orders/orderReadService';
+import { usePaymentStore } from '../src/stores/paymentStore';
+import { useDeliveryStore } from '../src/stores/deliveryStore';
+import type { PaymentTransaction } from '../src/types/payment.types';
+import type { DeliveryTrackingResult } from '../src/types/delivery.types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -50,6 +60,34 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const [chatLoading, setChatLoading] = useState(false);
   const chatScrollRef = useRef<ScrollView>(null);
   const chatSubscriptionRef = useRef<any>(null);
+
+  // Payment & Delivery state
+  const [paymentTx, setPaymentTx] = useState<PaymentTransaction | null>(null);
+  const [deliveryTracking, setDeliveryTracking] = useState<DeliveryTrackingResult | null>(null);
+  const [receiptPhotos, setReceiptPhotos] = useState<string[]>([]);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [isSubmittingReceipt, setIsSubmittingReceipt] = useState(false);
+  const getTransactionByOrderId = usePaymentStore((s) => s.getTransactionByOrderId);
+  const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
+  const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
+
+  // Fetch payment transaction and delivery tracking for this order
+  useEffect(() => {
+    const realOrderId = (order as any).orderId || order.id;
+    getTransactionByOrderId(realOrderId)
+      .then((tx) => setPaymentTx(tx))
+      .catch(() => {});
+    fetchTrackingByOrderId(realOrderId)
+      .then(() => {})
+      .catch(() => {});
+  }, [(order as any).orderId, order.id]);
+
+  useEffect(() => {
+    if (deliveryStoreTracking) {
+      setDeliveryTracking(deliveryStoreTracking);
+    }
+  }, [deliveryStoreTracking]);
 
   // Get seller_id from order items via products
   const getSellerIdFromOrder = useCallback(async (): Promise<string | null> => {
@@ -202,40 +240,107 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const handlePickPhoto = async (source: 'camera' | 'gallery') => {
+    try {
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Camera access is needed to take a proof-of-receipt photo.');
+          return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: 'images',
+          quality: 0.8,
+          allowsEditing: true,
+        });
+        if (!result.canceled) {
+          setReceiptPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Photo library access is needed to upload a receipt photo.');
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: 'images',
+          quality: 0.8,
+          allowsMultipleSelection: true,
+          selectionLimit: 5,
+        });
+        if (!result.canceled) {
+          setReceiptPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+        }
+      }
+    } catch (err) {
+      console.error('[OrderDetail] Photo picker error:', err);
+      Alert.alert('Error', 'Failed to open photo picker. Please try again.');
+    }
+  };
+
+  const handleConfirmReceipt = async () => {
+    if (receiptPhotos.length === 0) {
+      Alert.alert('Photo Required', 'Please take or upload at least one photo as proof of receipt.');
+      return;
+    }
+    setIsSubmittingReceipt(true);
+    try {
+      const realOrderId = (order as any).orderId || order.id;
+      const { user } = useAuthStore.getState();
+
+      // Upload photos to storage
+      const timestamp = Date.now();
+      const buyerId = user?.id || '';
+      const uploadTasks = receiptPhotos.map(async (uri, index) => {
+        try {
+          let fileData: ArrayBuffer;
+          try {
+            const base64 = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            fileData = decode(base64);
+          } catch {
+            const res = await fetch(uri);
+            fileData = await res.arrayBuffer();
+          }
+          const extMatch = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+          const fileExt = (extMatch?.[1] || 'jpg').toLowerCase();
+          const contentType =
+            fileExt === 'png' ? 'image/png' :
+            fileExt === 'webp' ? 'image/webp' :
+            (fileExt === 'heic' || fileExt === 'heif') ? 'image/heic' : 'image/jpeg';
+          const suffix = Math.random().toString(36).slice(2, 8);
+          const fileName = `${buyerId}/${realOrderId}/receipt-${timestamp}-${index}-${suffix}.${fileExt}`;
+          const { error } = await supabase.storage
+            .from('review-images')
+            .upload(fileName, fileData, { contentType, upsert: false });
+          if (error) throw error;
+          const { data } = supabase.storage.from('review-images').getPublicUrl(fileName);
+          return data.publicUrl;
+        } catch (err) {
+          console.warn('[OrderDetail] Failed to upload receipt photo:', err);
+          return null;
+        }
+      });
+      const uploaded = (await Promise.all(uploadTasks)).filter((u): u is string => Boolean(u));
+
+      await orderMutationService.confirmOrderReceived(realOrderId, buyerId, uploaded.length > 0 ? uploaded : undefined);
+
+      updateOrderStatus(realOrderId, 'delivered');
+      setShowReceiptModal(false);
+      setReceiptPhotos([]);
+      setShowReviewModal(true);
+    } catch (e) {
+      console.error('[OrderDetail] Error confirming receipt:', e);
+      Alert.alert('Error', 'Failed to confirm receipt. Please try again.');
+    } finally {
+      setIsSubmittingReceipt(false);
+    }
+  };
+
   const handleMarkAsReceived = () => {
-    Alert.alert(
-      'Confirm Receipt',
-      'Have you received this order?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Yes, Received',
-          onPress: async () => {
-            try {
-              // 1. Update Supabase - use shipment_status column
-              // Use orderId (real UUID) not id (which may be order_number)
-              const realOrderId = (order as any).orderId || order.id;
-              const { error } = await supabase
-                .from('orders')
-                .update({ shipment_status: 'received' })
-                .eq('id', realOrderId);
-
-              if (error) throw error;
-
-              // 2. Update Local Store
-              updateOrderStatus(realOrderId, 'delivered');
-
-              // 3. Update local order param (if needed for UI immediate reflection)
-              // But we are showing review modal immediately
-              setShowReviewModal(true);
-            } catch (e) {
-              console.error('Error updating order:', e);
-              Alert.alert('Error', 'Failed to update order status');
-            }
-          },
-        },
-      ]
-    );
+    setReceiptPhotos([]);
+    setShowReceiptModal(true);
   };
 
   const handleSubmitReview = async (
@@ -316,12 +421,17 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     );
   };
 
+  const uiStatus = order.buyerUiStatus || order.status;
+
   const getStatusColor = () => {
-    switch (order.status) {
+    switch (uiStatus) {
       case 'pending': return '#F59E0B';
+      case 'confirmed':
       case 'processing': return COLORS.primary;
       case 'shipped': return '#8B5CF6';
       case 'delivered': return '#22C55E';
+      case 'received': return '#3B82F6';
+      case 'reviewed': return '#16A34A';
       case 'returned': return '#D97706';
       case 'cancelled': return '#EF4444';
       default: return '#6B7280';
@@ -329,11 +439,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   };
 
   const getStatusText = () => {
-    switch (order.status) {
+    switch (uiStatus) {
       case 'pending': return 'Order Pending';
+      case 'confirmed':
       case 'processing': return 'Being Prepared';
       case 'shipped': return 'In Transit';
       case 'delivered': return 'Delivered';
+      case 'received': return 'Order Received';
+      case 'reviewed': return 'Completed';
       case 'returned': return 'Return/Refund Requested';
       case 'cancelled': return 'Cancelled';
       default: return order.status;
@@ -341,11 +454,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   };
 
   const getStatusIcon = () => {
-    switch (order.status) {
+    switch (uiStatus) {
       case 'pending': return Clock;
+      case 'confirmed':
       case 'processing': return Package;
       case 'shipped': return Truck;
       case 'delivered': return CheckCircle2;
+      case 'received': return CheckCircle;
+      case 'reviewed': return CheckCircle;
       case 'returned': return RotateCcw;
       case 'cancelled': return X;
       default: return Package;
@@ -397,9 +513,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         {(() => {
           const uiStatus = order.buyerUiStatus || order.status;
           const isCancelled = uiStatus === 'cancelled';
-          const isShipped = ['shipped', 'delivered', 'returned', 'reviewed'].includes(uiStatus);
-          const isDelivered = ['delivered', 'returned', 'reviewed'].includes(uiStatus);
+          const isShipped = ['shipped', 'delivered', 'received', 'returned', 'reviewed'].includes(uiStatus);
+          const isDelivered = ['delivered', 'received', 'returned', 'reviewed'].includes(uiStatus);
           const isReturned = uiStatus === 'returned';
+          const isReceived = uiStatus === 'received' || uiStatus === 'reviewed';
 
           const formatTs = (ts?: string | null) => {
             if (!ts) return null;
@@ -417,6 +534,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 { label: 'Confirmed', ts: formatTs(order.confirmedAt), done: uiStatus !== 'pending', icon: CheckCircle2 },
                 { label: 'Shipped', ts: formatTs(order.shippedAt), done: isShipped, icon: Truck },
                 { label: 'Delivered', ts: formatTs(order.deliveredAt), done: isDelivered, icon: CheckCircle2 },
+                ...(isReceived ? [{ label: 'Received', ts: null, done: true, icon: CheckCircle2 }] : []),
                 ...(isReturned ? [{ label: 'Return Requested', ts: null, done: true, icon: RotateCcw, amber: true }] : []),
               ];
 
@@ -523,18 +641,113 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {/* Payment Method Card */}
+        {/* Payment Details Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
               <CreditCard size={20} color={COLORS.primary} />
             </View>
-            <Text style={styles.cardTitle}>Payment Method</Text>
+            <Text style={styles.cardTitle}>Payment Details</Text>
           </View>
           <View style={styles.cardContent}>
-            <Text style={styles.paymentText}>{order.paymentMethod}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ fontSize: 13, color: '#6B7280' }}>Method</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>{order.paymentMethod}</Text>
+            </View>
+            {paymentTx && (
+              <>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, color: '#6B7280' }}>Status</Text>
+                  <View style={{
+                    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
+                    backgroundColor: paymentTx.status === 'paid' ? '#D1FAE5' : paymentTx.status === 'failed' ? '#FEE2E2' : '#FEF3C7',
+                  }}>
+                    <Text style={{
+                      fontSize: 11, fontWeight: '700',
+                      color: paymentTx.status === 'paid' ? '#065F46' : paymentTx.status === 'failed' ? '#991B1B' : '#92400E',
+                    }}>
+                      {paymentTx.status.charAt(0).toUpperCase() + paymentTx.status.slice(1)}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, color: '#6B7280' }}>Amount</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>₱{paymentTx.amount.toLocaleString()}</Text>
+                </View>
+                {paymentTx.gatewayPaymentIntentId && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Transaction ID</Text>
+                    <Text style={{ fontSize: 11, color: '#9CA3AF', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+                      {paymentTx.gatewayPaymentIntentId.slice(0, 16)}...
+                    </Text>
+                  </View>
+                )}
+                {paymentTx.paidAt && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Paid On</Text>
+                    <Text style={{ fontSize: 13, color: '#1F2937' }}>
+                      {new Date(paymentTx.paidAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+            {!paymentTx && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>Status</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: order.isPaid ? '#065F46' : '#92400E' }}>
+                  {order.isPaid ? 'Paid' : 'Pending'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
+
+        {/* Delivery Tracking Card */}
+        {deliveryTracking?.booking && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.iconCircle}>
+                <Truck size={20} color={COLORS.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Delivery Details</Text>
+            </View>
+            <View style={styles.cardContent}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>Courier</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>{deliveryTracking.booking.courierName}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>Tracking #</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+                  {deliveryTracking.booking.trackingNumber}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>Status</Text>
+                <View style={{
+                  paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
+                  backgroundColor: deliveryTracking.booking.status === 'delivered' ? '#D1FAE5' : '#DBEAFE',
+                }}>
+                  <Text style={{
+                    fontSize: 11, fontWeight: '700',
+                    color: deliveryTracking.booking.status === 'delivered' ? '#065F46' : '#1E40AF',
+                  }}>
+                    {deliveryTracking.booking.status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                  </Text>
+                </View>
+              </View>
+              {deliveryTracking.booking.estimatedDelivery && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 13, color: '#6B7280' }}>Est. Delivery</Text>
+                  <Text style={{ fontSize: 13, color: '#1F2937' }}>
+                    {new Date(deliveryTracking.booking.estimatedDelivery).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Order Summary Card */}
         <View style={styles.card}>
@@ -601,9 +814,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* Bottom Action Bar */}
+      {/* Bottom Action Bar - Follows PH e-commerce standards (Shopee/Lazada) */}
       <View style={styles.bottomBar}>
-        {order.status === 'pending' && (
+        {/* PENDING: Cancel + Chat (buyer hasn't paid or order awaiting confirmation) */}
+        {(order.buyerUiStatus || order.status) === 'pending' && (
           <>
             <Pressable
               onPress={() => setShowChatModal(true)}
@@ -621,7 +835,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </>
         )}
 
-        {order.status === 'processing' && (
+        {/* PROCESSING / TO SHIP: Chat only (seller is preparing the order) */}
+        {(order.buyerUiStatus === 'confirmed' || order.status === 'processing') && (
           <Pressable
             onPress={() => setShowChatModal(true)}
             style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
@@ -631,7 +846,19 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </Pressable>
         )}
 
-        {order.status === 'shipped' && (
+        {/* SHIPPED / TO RECEIVE: Chat only — item is in transit, buyer cannot confirm yet */}
+        {(order.buyerUiStatus === 'shipped' || (order.status === 'shipped' && order.buyerUiStatus !== 'delivered')) && (
+          <Pressable
+            onPress={() => setShowChatModal(true)}
+            style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+          >
+            <MessageCircle size={20} color="#FFFFFF" />
+            <Text style={styles.solidButtonText}>Chat with Seller</Text>
+          </Pressable>
+        )}
+
+        {/* DELIVERED: Confirm Received — item has arrived, buyer confirms receipt */}
+        {order.buyerUiStatus === 'delivered' && (
           <>
             <Pressable
               onPress={() => setShowChatModal(true)}
@@ -642,25 +869,19 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             </Pressable>
             <Pressable
               onPress={handleMarkAsReceived}
-              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+              style={[styles.solidButton, { flex: 1, backgroundColor: '#16A34A' }]}
             >
-              <Text style={styles.solidButtonText}>Order Received</Text>
+              <CheckCircle size={20} color="#FFFFFF" />
+              <Text style={styles.solidButtonText}>Confirm Received</Text>
             </Pressable>
           </>
         )}
 
-        {order.status === 'delivered' && (
+        {/* RECEIVED / COMPLETED: Return/Refund (7-day window per DTI/PH Consumer Act) + Write Review */}
+        {order.buyerUiStatus === 'received' && (
           <>
             <Pressable
-              onPress={() => setShowChatModal(true)}
-              style={[styles.outlineButton, { flex: 1 }]}
-            >
-              <MessageCircle size={20} color={COLORS.primary} />
-              <Text style={styles.outlineButtonText}>Chat</Text>
-            </Pressable>
-            <Pressable
               onPress={() => {
-                // Calculate return window validity
                 const getDeliveryDate = (dateStr: string | undefined): Date => {
                   if (!dateStr) return new Date();
                   const parts = dateStr.split('/');
@@ -676,15 +897,132 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 const isReturnable = diffDays <= 7 && diffDays >= 0;
 
                 if (isReturnable) navigation.navigate('ReturnRequest', { order });
-                else Alert.alert('Return Window Closed', 'Returns are only available within 7 days of delivery.');
+                else Alert.alert('Return Window Closed', 'Returns are only available within 7 days of delivery per Philippine consumer protection rules.');
               }}
+              style={[styles.outlineButton, { flex: 1, borderColor: '#D97706' }]}
+            >
+              <RotateCcw size={16} color="#D97706" />
+              <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Return/Refund</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowReviewModal(true)}
               style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
             >
-              <Text style={styles.solidButtonText}>Return / Refund</Text>
+              <Text style={styles.solidButtonText}>Write Review</Text>
             </Pressable>
           </>
         )}
+
+        {/* REVIEWED: Buy Again */}
+        {order.buyerUiStatus === 'reviewed' && (
+          <Pressable
+            onPress={() => {
+              if (order.items.length > 0) {
+                const addItem = useCartStore.getState().addItem;
+                Promise.all(order.items.map(item => addItem(item as any, { forceNewItem: true })))
+                  .then((ids) => {
+                    navigation.navigate('MainTabs', {
+                      screen: 'Cart',
+                      params: { selectedCartItemIds: ids.filter(Boolean) as string[] }
+                    });
+                  });
+              }
+            }}
+            style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+          >
+            <Text style={styles.solidButtonText}>Buy Again</Text>
+          </Pressable>
+        )}
       </View>
+
+      {/* Receipt Photo Modal */}
+      <Modal
+        visible={showReceiptModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => !isSubmittingReceipt && setShowReceiptModal(false)}
+      >
+        <View style={styles.receiptOverlay}>
+          <View style={styles.receiptSheet}>
+            {/* Header */}
+            <View style={styles.receiptHeader}>
+              <Text style={styles.receiptTitle}>Confirm Order Received</Text>
+              <Pressable
+                onPress={() => !isSubmittingReceipt && setShowReceiptModal(false)}
+                hitSlop={8}
+                disabled={isSubmittingReceipt}
+              >
+                <X size={22} color="#6B7280" />
+              </Pressable>
+            </View>
+            <Text style={styles.receiptSubtitle}>
+              Take or upload a photo as proof that your order has arrived.
+            </Text>
+
+            {/* Photo grid */}
+            {receiptPhotos.length > 0 && (
+              <FlatList
+                data={receiptPhotos}
+                horizontal
+                keyExtractor={(_, i) => String(i)}
+                contentContainerStyle={{ gap: 8, paddingBottom: 4, paddingTop: 4 }}
+                style={{ marginBottom: 12 }}
+                renderItem={({ item, index }) => (
+                  <View style={styles.receiptPhotoThumb}>
+                    <Image source={{ uri: item }} style={styles.receiptPhotoImg} />
+                    <Pressable
+                      style={styles.receiptPhotoRemove}
+                      onPress={() => setReceiptPhotos(prev => prev.filter((_, i) => i !== index))}
+                      hitSlop={4}
+                    >
+                      <X size={12} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
+                )}
+              />
+            )}
+
+            {/* Picker buttons */}
+            {receiptPhotos.length < 5 && (
+              <View style={styles.receiptPickerRow}>
+                <Pressable
+                  style={styles.receiptPickerBtn}
+                  onPress={() => handlePickPhoto('camera')}
+                  disabled={isSubmittingReceipt}
+                >
+                  <Text style={styles.receiptPickerIcon}>📷</Text>
+                  <Text style={styles.receiptPickerText}>Take Photo</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.receiptPickerBtn}
+                  onPress={() => handlePickPhoto('gallery')}
+                  disabled={isSubmittingReceipt}
+                >
+                  <Text style={styles.receiptPickerIcon}>🖼️</Text>
+                  <Text style={styles.receiptPickerText}>Upload from Gallery</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Confirm button */}
+            <Pressable
+              style={[
+                styles.receiptConfirmBtn,
+                (receiptPhotos.length === 0 || isSubmittingReceipt) && { opacity: 0.5 },
+              ]}
+              onPress={handleConfirmReceipt}
+              disabled={receiptPhotos.length === 0 || isSubmittingReceipt}
+            >
+              {isSubmittingReceipt ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : null}
+              <Text style={styles.receiptConfirmText}>
+                {isSubmittingReceipt ? 'Confirming...' : 'Confirm Receipt'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       {/* Review Modal */}
       <ReviewModal
@@ -1257,6 +1595,100 @@ const styles = StyleSheet.create({
   solidButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  // ===== RECEIPT PHOTO MODAL =====
+  receiptOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  receiptSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 36,
+    gap: 12,
+  },
+  receiptHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  receiptTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  receiptSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  receiptPhotoThumb: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  receiptPhotoImg: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+  },
+  receiptPhotoRemove: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 99,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  receiptPickerRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 4,
+  },
+  receiptPickerBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  receiptPickerIcon: {
+    fontSize: 18,
+  },
+  receiptPickerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  receiptConfirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  receiptConfirmText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 });

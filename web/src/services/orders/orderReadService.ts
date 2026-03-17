@@ -201,6 +201,24 @@ export class OrderReadService {
 
     return mapOrderRowToOrderDetailSnapshot(normalized);
   }
+
+  /** Fetch receipt photo URLs from order_status_history metadata. */
+  async getReceiptPhotos(orderId: string): Promise<string[]> {
+    if (!isSupabaseConfigured()) return [];
+
+    const { data } = await supabase
+      .from("order_status_history")
+      .select("metadata")
+      .eq("order_id", orderId)
+      .eq("status", "received")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!data?.metadata) return [];
+    const meta = data.metadata as Record<string, unknown>;
+    return Array.isArray(meta.receipt_photos) ? (meta.receipt_photos as string[]) : [];
+  }
 }
 
 export const orderReadService = new OrderReadService();

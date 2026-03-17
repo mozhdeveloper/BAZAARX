@@ -123,7 +123,7 @@ export const useSellerReturnStore = create<SellerReturnStore>()(
       const req = get().requests.find(r => r.id === id);
       if (!req) return;
       try {
-        await returnService.approveReturn(id, req.orderId);
+        await returnService.approveReturn(id);
         set((state) => ({
           requests: state.requests.map((r) =>
             r.id === id ? { ...r, status: 'approved' as ReturnStatus } : r
@@ -138,7 +138,7 @@ export const useSellerReturnStore = create<SellerReturnStore>()(
       const req = get().requests.find(r => r.id === id);
       if (!req) return;
       try {
-        await returnService.rejectReturn(id, req.orderId, reason);
+        await returnService.rejectReturn(id, reason);
         set((state) => ({
           requests: state.requests.map((r) =>
             r.id === id ? { ...r, status: 'rejected' as ReturnStatus, rejectedReason: reason || null } : r

@@ -137,6 +137,8 @@ export interface CartItem extends Product {
 export interface Order {
   id: string;
   orderId?: string;
+  buyerId?: string;
+  sellerId?: string;
   transactionId: string;
   items: CartItem[];
   subtotal?: number;
@@ -198,20 +200,24 @@ export interface Category {
 }
 
 export type ReturnStatus =
-  | 'pending_review'
-  | 'seller_response_required'
+  | 'pending'
+  | 'seller_review'
+  | 'counter_offered'
   | 'approved'
   | 'rejected'
-  | 'item_returned'
-  | 'refund_processing'
-  | 'refunded'
-  | 'escalated';
+  | 'escalated'
+  | 'return_in_transit'
+  | 'return_received'
+  | 'refunded';
 
 export type ReturnReason =
-  | 'defective'
   | 'damaged'
-  | 'incorrect'
+  | 'wrong_item'
   | 'not_as_described'
+  | 'defective'
+  | 'missing_parts'
+  | 'changed_mind'
+  | 'duplicate_order'
   | 'other';
 
 export type ReturnType = 'refund_only' | 'return_refund' | 'replacement';

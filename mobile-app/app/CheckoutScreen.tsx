@@ -1370,6 +1370,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       const order: Order = {
         id: result.orderIds?.[0] || 'ORD-' + Date.now(),
         orderId: result.orderUuids?.[0],
+        buyerId: user.id,
+        sellerId: checkoutItems[0]?.seller_id || checkoutItems[0]?.sellerId || '',
         transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
         items: checkoutItems,
         total,

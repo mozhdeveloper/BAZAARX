@@ -87,10 +87,14 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
+  const isReplacement = returnRequest.returnType === 'replacement';
+
   const handleApprove = () => {
     Alert.alert(
       'Approve Request',
-      'This will process the refund immediately. Proceed?',
+      isReplacement
+        ? 'This will approve the replacement. You will need to ship a new item. Proceed?'
+        : 'This will process the refund immediately. Proceed?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -98,7 +102,7 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
           onPress: async () => {
             try {
               await approveReturn(returnRequest.id);
-              Alert.alert('Success', 'Return approved and refund processed.');
+              Alert.alert('Success', isReplacement ? 'Replacement approved. Please ship the new item.' : 'Return approved and refund processed.');
             } catch (err: any) {
               Alert.alert('Error', err.message || 'Failed to approve return.');
             }
@@ -165,7 +169,9 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
   const handleConfirmReceived = () => {
     Alert.alert(
       'Confirm Received',
-      'Confirm you have received the item and are ready to release the refund?',
+      isReplacement
+        ? 'Confirm you received the returned item. You will then ship the replacement.'
+        : 'Confirm you have received the item and are ready to release the refund?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -173,7 +179,7 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
           onPress: async () => {
             try {
               await confirmReturnReceived(returnRequest.id);
-              Alert.alert('Success', 'Refund processed.');
+              Alert.alert('Success', isReplacement ? 'Item received. Please ship the replacement.' : 'Refund processed.');
             } catch (err: any) {
               Alert.alert('Error', err.message || 'Failed to confirm received.');
             }
@@ -255,8 +261,8 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
             <Text style={styles.detailValue}>{returnRequest.returnType?.replace('_', ' ').toUpperCase() || 'REFUND ONLY'}</Text>
           </View>
           <View style={[styles.detailRow, styles.totalRowLine]}>
-            <Text style={styles.totalLabel}>Amount Requested</Text>
-            <Text style={styles.totalValue}>₱{(returnRequest.refundAmount || 0).toLocaleString()}</Text>
+            <Text style={styles.totalLabel}>{isReplacement ? 'Resolution' : 'Amount Requested'}</Text>
+            <Text style={styles.totalValue}>{isReplacement ? 'Replacement Item' : `₱${(returnRequest.refundAmount || 0).toLocaleString()}`}</Text>
           </View>
         </View>
 
@@ -320,16 +326,18 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
             {/* Row 1: Approve (full width primary) */}
             <Pressable style={styles.approveBtn} onPress={handleApprove}>
               <CheckCircle size={18} color="#FFF" />
-              <Text style={styles.approveBtnText}>Approve & Refund</Text>
+              <Text style={styles.approveBtnText}>{isReplacement ? 'Approve & Ship Replacement' : 'Approve & Refund'}</Text>
             </Pressable>
 
-            {/* Row 2: Secondary actions — 2 columns */}
+            {/* Row 2: Secondary actions — counter offer only for refund, request item back always */}
             <View style={styles.secondaryRow}>
-              <Pressable style={styles.counterBtn} onPress={() => setCounterModalVisible(true)}>
-                <DollarSign size={16} color={BRAND} />
-                <Text style={styles.counterBtnText}>Counter Offer</Text>
-              </Pressable>
-              <Pressable style={styles.itemBackBtn} onPress={handleRequestItemBack}>
+              {!isReplacement && (
+                <Pressable style={styles.counterBtn} onPress={() => setCounterModalVisible(true)}>
+                  <DollarSign size={16} color={BRAND} />
+                  <Text style={styles.counterBtnText}>Counter Offer</Text>
+                </Pressable>
+              )}
+              <Pressable style={[styles.itemBackBtn, isReplacement && { flex: 1 }]} onPress={handleRequestItemBack}>
                 <Package size={16} color={BODY} />
                 <Text style={styles.itemBackBtnText}>Request Item Back</Text>
               </Pressable>
@@ -355,7 +363,7 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
         {returnRequest.status === 'return_in_transit' && (
           <Pressable style={styles.approveBtn} onPress={handleConfirmReceived}>
             <Truck size={18} color="#FFF" />
-            <Text style={styles.approveBtnText}>Confirm Received & Refund</Text>
+            <Text style={styles.approveBtnText}>{isReplacement ? 'Confirm Received & Ship Replacement' : 'Confirm Received & Refund'}</Text>
           </Pressable>
         )}
 

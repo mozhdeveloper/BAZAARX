@@ -21,7 +21,8 @@ import {
   DollarSign,
   ShieldCheck,
   Megaphone,
-  Shield
+  Shield,
+  RotateCcw
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -93,6 +94,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
       label: 'Orders',
       href: '/admin/orders',
       icon: <ShoppingBag className="h-5 w-5 flex-shrink-0" />,
+      qaVisible: false,
+    },
+    {
+      label: 'Returns',
+      href: '/admin/returns',
+      icon: <RotateCcw className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {

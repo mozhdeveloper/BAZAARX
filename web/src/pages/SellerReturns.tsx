@@ -16,6 +16,7 @@ import {
   DollarSign,
   Package,
   Image as ImageIcon,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
@@ -120,10 +121,14 @@ export function SellerReturns() {
     return colorMap[status] || 'bg-gray-100 text-gray-800';
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, returnType?: string | null) => {
+    // Show "Replaced" instead of "Refunded" for completed replacement returns
+    const label = (status === 'refunded' && returnType === 'replacement')
+      ? 'Replaced'
+      : getStatusLabel(status as ReturnStatus);
     return (
       <Badge className={cn(getStatusBadgeColor(status), 'hover:opacity-90 border-none')}>
-        {getStatusLabel(status as ReturnStatus)}
+        {label}
       </Badge>
     );
   };
@@ -256,6 +261,7 @@ export function SellerReturns() {
                       <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Order ID</TableHead>
                       <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Buyer</TableHead>
                       <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Item</TableHead>
+                      <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Type</TableHead>
                       <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Amount</TableHead>
                       <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Path</TableHead>
                       <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Date</TableHead>
@@ -266,7 +272,7 @@ export function SellerReturns() {
                   <TableBody>
                     {filteredRequests.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                           No return requests found
                         </TableCell>
                       </TableRow>
@@ -301,12 +307,27 @@ export function SellerReturns() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-bold">₱{req.totalRefundAmount.toLocaleString()}</span>
-                              {['pending', 'seller_review', 'counter_offered', 'return_in_transit', 'return_received'].includes(req.status) && (
-                                <span className="text-[9px] text-red-500 font-medium">Held from balance</span>
-                              )}
-                            </div>
+                            {req.returnType === 'replacement' ? (
+                              <Badge className="bg-blue-100 text-blue-800 border-none text-[10px]">
+                                <RefreshCw className="h-3 w-3 mr-1" /> Replacement
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-orange-100 text-orange-800 border-none text-[10px]">
+                                <DollarSign className="h-3 w-3 mr-1" /> Refund
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {req.returnType === 'replacement' ? (
+                              <span className="text-sm text-gray-400">—</span>
+                            ) : (
+                              <div className="flex flex-col">
+                                <span className="font-bold">₱{req.totalRefundAmount.toLocaleString()}</span>
+                                {['pending', 'seller_review', 'counter_offered', 'return_in_transit', 'return_received'].includes(req.status) && (
+                                  <span className="text-[9px] text-red-500 font-medium">Held from balance</span>
+                                )}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             {req.resolutionPath && (
@@ -316,7 +337,7 @@ export function SellerReturns() {
                             )}
                           </TableCell>
                           <TableCell>{new Date(req.requestDate).toLocaleDateString()}</TableCell>
-                          <TableCell>{getStatusBadge(req.status)}</TableCell>
+                          <TableCell>{getStatusBadge(req.status, req.returnType)}</TableCell>
                           <TableCell className="text-right">
                             <Button variant="ghost" size="sm" className="hover:bg-[var(--text-accent)] group" onClick={() => { setSelectedRequest(req); resetDialogState(); }}>
                               <Eye className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" />
@@ -348,7 +369,7 @@ export function SellerReturns() {
                       <p className="font-mono">#{selectedRequest.id.slice(0, 8)}</p>
                     </div>
                     <div className="text-right space-y-1">
-                      <div>{getStatusBadge(selectedRequest.status)}</div>
+                      <div>{getStatusBadge(selectedRequest.status, selectedRequest.returnType)}</div>
                       {selectedRequest.resolutionPath && (
                         <Badge variant="outline" className="text-[10px] capitalize">
                           {selectedRequest.resolutionPath.replace('_', ' ')}
@@ -376,10 +397,22 @@ export function SellerReturns() {
                       <p className="text-sm font-semibold">{selectedRequest.reason}</p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-500 mb-1">Requested Amount</p>
-                      <p className="text-lg font-bold text-orange-600">₱{selectedRequest.totalRefundAmount.toLocaleString()}</p>
-                      {['pending', 'seller_review', 'counter_offered', 'return_in_transit', 'return_received'].includes(selectedRequest.status) && (
-                        <p className="text-[10px] text-red-500 font-semibold uppercase tracking-wider">Currently held from your available balance</p>
+                      <p className="text-sm font-medium text-gray-500 mb-1">
+                        {selectedRequest.returnType === 'replacement' ? 'Resolution' : 'Requested Amount'}
+                      </p>
+                      {selectedRequest.returnType === 'replacement' ? (
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-blue-100 text-blue-800 border-none">
+                            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Replacement Item
+                          </Badge>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-lg font-bold text-orange-600">₱{selectedRequest.totalRefundAmount.toLocaleString()}</p>
+                          {['pending', 'seller_review', 'counter_offered', 'return_in_transit', 'return_received'].includes(selectedRequest.status) && (
+                            <p className="text-[10px] text-red-500 font-semibold uppercase tracking-wider">Currently held from your available balance</p>
+                          )}
+                        </>
                       )}
                     </div>
                     <div>
@@ -556,13 +589,16 @@ export function SellerReturns() {
                 </Button>
                 {selectedRequest && canTakeAction(selectedRequest.status) && !showCounterOffer && !showRejectForm && (
                   <>
-                    <Button
-                      variant="outline"
-                      className="border-orange-300 text-orange-700 hover:bg-orange-50"
-                      onClick={() => setShowCounterOffer(true)}
-                    >
-                      <DollarSign className="h-4 w-4 mr-1" /> Counter Offer
-                    </Button>
+                    {/* Counter-offer only available for refund returns, not replacements */}
+                    {selectedRequest.returnType !== 'replacement' && (
+                      <Button
+                        variant="outline"
+                        className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                        onClick={() => setShowCounterOffer(true)}
+                      >
+                        <DollarSign className="h-4 w-4 mr-1" /> Counter Offer
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
@@ -577,13 +613,15 @@ export function SellerReturns() {
                       <XCircle className="h-4 w-4 mr-1" /> Reject
                     </Button>
                     <Button className="bg-green-600 hover:bg-green-700" onClick={handleApprove}>
-                      <CheckCircle className="h-4 w-4 mr-1" /> Approve & Refund
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      {selectedRequest.returnType === 'replacement' ? 'Approve & Ship Replacement' : 'Approve & Refund'}
                     </Button>
                   </>
                 )}
                 {selectedRequest?.status === 'return_in_transit' && (
                   <Button className="bg-green-600 hover:bg-green-700" onClick={handleConfirmReceived}>
-                    <CheckCircle className="h-4 w-4 mr-1" /> Confirm Received & Refund
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    {selectedRequest.returnType === 'replacement' ? 'Confirm Received & Ship Replacement' : 'Confirm Received & Refund'}
                   </Button>
                 )}
               </DialogFooter>

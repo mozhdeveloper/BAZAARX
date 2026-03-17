@@ -17,6 +17,7 @@ import {
   X,
   RotateCcw,
   ShoppingBag,
+  Camera,
 } from "lucide-react";
 import { Order } from "../stores/cartStore";
 import { useBuyerStore, CartItem } from "../stores/buyerStore";
@@ -29,12 +30,14 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { orderReadService } from "../services/orders/orderReadService";
+import { orderMutationService } from "../services/orders/orderMutationService";
 import { chatService, Message, Conversation } from "../services/chatService";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "@/lib/utils";
 import { ReviewModal } from "../components/ReviewModal";
 import { useToast } from "../hooks/use-toast";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface ChatMessage {
   id: string;
@@ -77,6 +80,26 @@ export default function OrderDetailPage() {
   // Review modal state
   const [showReviewModal, setShowReviewModal] = useState(false);
 
+  // Cancel order state
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [otherReason, setOtherReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Receipt photos state
+  const [receiptPhotos, setReceiptPhotos] = useState<string[]>([]);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+
+  const CANCEL_REASONS = [
+    "Changed my mind",
+    "Found a better price elsewhere",
+    "Ordered by mistake",
+    "Delivery time too long",
+    "Want to change shipping address",
+    "Want to modify order items",
+    "Other"
+  ];
+
   // Load order + seller info through shared read service.
   useEffect(() => {
     const fetchOrder = async () => {
@@ -116,6 +139,15 @@ export default function OrderDetailPage() {
     void fetchOrder();
   }, [orderId, profile?.id, navigate]);
 
+  // Load receipt photos when order is received/reviewed
+  useEffect(() => {
+    if (!dbOrder?.id) return;
+    const s = (dbOrder as any).status ?? (dbOrder as any).shipmentStatus;
+    if (s !== "received" && s !== "reviewed") return;
+
+    orderReadService.getReceiptPhotos(dbOrder.id).then(setReceiptPhotos).catch(console.error);
+  }, [dbOrder?.id]);
+
   // Load chat messages when seller and profile are ready
   useEffect(() => {
     const loadChat = async () => {
@@ -138,8 +170,8 @@ export default function OrderDetailPage() {
           // Convert to local format
           const formattedMessages: ChatMessage[] = messages.map((msg: Message) => ({
             id: msg.id,
-            sender: msg.sender_type as 'buyer' | 'seller',
-            message: msg.content,
+            sender: (msg.message_type === 'system' || !msg.sender_type) ? 'system' : msg.sender_type as 'buyer' | 'seller',
+            message: msg.message_content || msg.content,
             timestamp: new Date(msg.created_at),
             read: msg.is_read,
           }));
@@ -179,8 +211,8 @@ export default function OrderDetailPage() {
       (newMessage: Message) => {
         const formattedMessage: ChatMessage = {
           id: newMessage.id,
-          sender: newMessage.sender_type as 'buyer' | 'seller',
-          message: newMessage.content,
+          sender: (newMessage.message_type === 'system' || !newMessage.sender_type) ? 'system' : newMessage.sender_type as 'buyer' | 'seller',
+          message: newMessage.message_content || newMessage.content,
           timestamp: new Date(newMessage.created_at),
           read: newMessage.is_read,
         };
@@ -287,6 +319,8 @@ export default function OrderDetailPage() {
         return <Truck className="w-5 h-5 text-purple-500" />;
       case "delivered":
         return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case "received":
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
       case "returned":
         return <RotateCcw className="w-5 h-5 text-amber-500" />;
       case "cancelled":
@@ -307,6 +341,8 @@ export default function OrderDetailPage() {
         return "bg-purple-50 text-purple-700 border-purple-200";
       case "delivered":
         return "bg-green-50 text-green-700 border-green-200";
+      case "received":
+        return "bg-green-50 text-green-700 border-green-200";
       case "returned":
         return "bg-amber-50 text-amber-700 border-amber-200";
       case "cancelled":
@@ -318,7 +354,7 @@ export default function OrderDetailPage() {
 
   const isReturned = order.status === "returned";
   const isCancelled = order.status === "cancelled";
-  const isDeliveredOrBeyond = order.status === "delivered" || order.status === "reviewed" || isReturned;
+  const isDeliveredOrBeyond = order.status === "delivered" || order.status === "received" || order.status === "reviewed" || isReturned;
   const isShippedOrBeyond = order.status === "shipped" || isDeliveredOrBeyond;
 
   const statusTimeline = [
@@ -349,6 +385,16 @@ export default function OrderDetailPage() {
       completed: isDeliveredOrBeyond,
       date: isDeliveredOrBeyond ? (order.deliveredAt || null) : null,
     },
+    ...(order.status === "received" || order.status === "reviewed"
+      ? [
+        {
+          status: "received",
+          label: "Received",
+          completed: true,
+          date: null,
+        },
+      ]
+      : []),
     ...(isReturned
       ? [
         {
@@ -491,8 +537,10 @@ export default function OrderDetailPage() {
       const labels: Record<string, string> = {
         cod: 'Cash on Delivery (COD)',
         gcash: 'GCash',
-        paymaya: 'PayMaya',
-        card: 'Credit/Debit Card'
+        maya: 'Maya',
+        paymaya: 'Maya',
+        card: 'Credit/Debit Card',
+        grab_pay: 'GrabPay',
       };
       return labels[type] || type.toUpperCase();
     };
@@ -1011,6 +1059,56 @@ export default function OrderDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Receipt / Delivery Proof Photos */}
+            {receiptPhotos.length > 0 && (
+              <Card className="border-0 shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Camera className="w-5 h-5 text-green-600" />
+                    Delivery Proof Photos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {receiptPhotos.map((url, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedPhoto(url)}
+                        className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-[var(--brand-primary)] transition-colors"
+                      >
+                        <img
+                          src={url}
+                          alt={`Receipt photo ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Photo lightbox */}
+            {selectedPhoto && (
+              <div
+                className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+                onClick={() => setSelectedPhoto(null)}
+              >
+                <button
+                  className="absolute top-4 right-4 text-white"
+                  onClick={() => setSelectedPhoto(null)}
+                >
+                  <X className="w-8 h-8" />
+                </button>
+                <img
+                  src={selectedPhoto}
+                  alt="Receipt photo"
+                  className="max-w-full max-h-[90vh] rounded-lg object-contain"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            )}
 
 
             {/* Order-based Chat */}
@@ -1293,9 +1391,11 @@ export default function OrderDetailPage() {
                       <p className="text-sm text-[var(--text-muted)]">
                         {order.paymentMethod.type === 'cod' ? 'Cash on Delivery (COD)' :
                           order.paymentMethod.type === 'gcash' ? 'GCash' :
-                            order.paymentMethod.type === 'paymaya' ? 'PayMaya' :
-                              order.paymentMethod.type === 'card' ? 'Credit/Debit Card' :
-                                String(order.paymentMethod.type).toUpperCase()}
+                            order.paymentMethod.type === 'maya' ? 'Maya' :
+                              order.paymentMethod.type === 'paymaya' ? 'Maya' :
+                                order.paymentMethod.type === 'card' ? 'PayMongo' :
+                                  order.paymentMethod.type === 'grab_pay' ? 'GrabPay' :
+                                    String(order.paymentMethod.type).toUpperCase()}
                       </p>
                     </div>
                   </div>
@@ -1338,8 +1438,35 @@ export default function OrderDetailPage() {
                     </div>
                   )}
 
-                  {/* Request Return / Refund - shown for delivered/received orders (not already returned) */}
-                  {(order.status === 'delivered' || order.status === 'received') && (
+                  {/* Cancel Order - shown for pending unpaid orders */}
+                  {order.status === 'pending' && !order.isPaid && (
+                    <div className="pt-4 mt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setCancelModalOpen(true)}
+                        className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Cancel Order
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Confirm Received - shown for delivered orders (PH standard) */}
+                  {order.status === 'delivered' && (
+                    <div className="pt-4 mt-2">
+                      <Button
+                        onClick={() => navigate(`/orders?status=delivered`)}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Confirm Received
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Request Return / Refund - shown for received orders only (PH standard: must confirm receipt first) */}
+                  {order.status === 'received' && (
                     <div className="pt-2">
                       <Button
                         variant="outline"
@@ -1408,6 +1535,132 @@ export default function OrderDetailPage() {
           />
         )
       }
+
+      {/* Cancel Order Modal */}
+      <AnimatePresence>
+        {cancelModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => { setCancelModalOpen(false); setCancelReason(""); setOtherReason(""); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 pt-6 pb-1">
+                <h3 className="text-xl font-bold text-gray-900 mb-3">Cancel Order</h3>
+                <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-3 flex gap-3 items-start -mb-4">
+                  <p className="text-[var(--brand-primary)] text-xs leading-relaxed">
+                    Please select a reason. This will cancel all items in the order and cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="px-6 py-4">
+                <div className="space-y-1 mb-4">
+                  {CANCEL_REASONS.map((reason) => (
+                    <label
+                      key={reason}
+                      className={cn(
+                        "flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all border border-transparent",
+                        cancelReason === reason ? "bg-[var(--brand-wash)]" : "bg-base"
+                      )}
+                    >
+                      <div className="relative flex items-center justify-center">
+                        <input
+                          type="radio"
+                          name="cancelReason"
+                          value={reason}
+                          checked={cancelReason === reason}
+                          onChange={(e) => setCancelReason(e.target.value)}
+                          className="sr-only"
+                        />
+                        <div className={cn(
+                          "w-4 h-4 rounded-full border transition-all flex items-center justify-center",
+                          cancelReason === reason ? "border-[var(--brand-primary)]" : "border-gray-300"
+                        )}>
+                          {cancelReason === reason && (
+                            <div className="w-2 h-2 rounded-full bg-[var(--brand-primary)]" />
+                          )}
+                        </div>
+                      </div>
+                      <span className={cn(
+                        "text-sm font-medium transition-colors",
+                        cancelReason === reason ? "text-[var(--brand-primary)]" : "text-gray-600"
+                      )}>{reason}</span>
+                    </label>
+                  ))}
+                </div>
+                {cancelReason === "Other" && (
+                  <textarea
+                    placeholder="Please specify your reason..."
+                    value={otherReason}
+                    onChange={(e) => setOtherReason(e.target.value)}
+                    className="w-full p-2.5 border-2 border-gray-100 rounded-xl text-sm mb-3 focus:border focus:border-[var(--brand-primary)] focus:ring-0 focus:outline-none transition-all"
+                    rows={2}
+                  />
+                )}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => { setCancelModalOpen(false); setCancelReason(""); setOtherReason(""); }}
+                    variant="outline"
+                    className="flex-1 border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-600 rounded-xl h-11"
+                  >
+                    Keep Order
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      if (!order.dbId || !cancelReason) return;
+                      const reason = cancelReason === "Other" ? otherReason : cancelReason;
+                      setIsCancelling(true);
+                      try {
+                        const success = await orderMutationService.cancelOrder({
+                          orderId: order.dbId,
+                          reason,
+                          cancelledBy: profile?.id,
+                          changedByRole: profile?.id ? "buyer" : null,
+                        });
+                        if (!success) throw new Error("Failed to cancel order");
+                        toast({ title: "Order Cancelled", description: "Your order has been cancelled successfully.", duration: 3000 });
+                        // Refresh the page data
+                        if (orderId) {
+                          const detail = await orderReadService.getOrderDetail({ orderIdOrNumber: orderId, buyerId: profile?.id });
+                          if (detail) {
+                            const refreshedOrder: Order & DbOrderData = {
+                              ...(detail.order as unknown as Order),
+                              buyer_id: detail.buyer_id,
+                              is_reviewed: detail.is_reviewed || false,
+                              shipping_cost: detail.shipping_cost || 0,
+                            };
+                            setDbOrder(refreshedOrder);
+                          }
+                        }
+                      } catch (e) {
+                        console.error("Error canceling order:", e);
+                        toast({ title: "Error", description: "Failed to cancel order. Please try again.", variant: "destructive" });
+                      } finally {
+                        setIsCancelling(false);
+                        setCancelModalOpen(false);
+                        setCancelReason("");
+                        setOtherReason("");
+                      }
+                    }}
+                    disabled={!cancelReason || (cancelReason === "Other" && !otherReason.trim()) || isCancelling}
+                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:opacity-50 shadow-lg shadow-orange-100 h-11 rounded-xl font-bold"
+                  >
+                    {isCancelling ? "Cancelling..." : "Confirm"}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <BazaarFooter />
     </div >

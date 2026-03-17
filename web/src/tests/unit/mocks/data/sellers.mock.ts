@@ -5,7 +5,7 @@ import type { SellerData } from '@/services/sellerService';
  * Realistic test data matching database schema
  */
 
-export const mockSeller1: SellerData = {
+export const mockSeller1 = {
     id: 'seller-001',
     business_name: 'TechGear Philippines Inc.',
     store_name: 'TechGear Store',
@@ -31,7 +31,7 @@ export const mockSeller1: SellerData = {
     updated_at: '2024-01-20T10:15:00Z',
 };
 
-export const mockSeller2: SellerData = {
+export const mockSeller2 = {
     id: 'seller-002',
     business_name: 'Vintage Finds Co.',
     store_name: 'Retro Treasures',
@@ -57,7 +57,7 @@ export const mockSeller2: SellerData = {
     updated_at: '2024-01-18T16:45:00Z',
 };
 
-export const mockSeller3Pending: SellerData = {
+export const mockSeller3Pending = {
     id: 'seller-003',
     business_name: 'New Seller Business',
     store_name: 'Fresh Start Store',
@@ -83,7 +83,7 @@ export const mockSeller3Pending: SellerData = {
     updated_at: '2024-01-28T09:00:00Z',
 };
 
-export const mockSeller4Rejected: SellerData = {
+export const mockSeller4Rejected = {
     id: 'seller-004',
     business_name: 'Rejected Seller Co.',
     store_name: 'Rejected Store',
@@ -109,7 +109,7 @@ export const mockSeller4Rejected: SellerData = {
     updated_at: '2024-01-22T14:30:00Z',
 };
 
-export const mockSellers: SellerData[] = [
+export const mockSellers = [
     mockSeller1,
     mockSeller2,
     mockSeller3Pending,

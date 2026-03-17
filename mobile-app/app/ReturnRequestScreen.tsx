@@ -14,7 +14,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Camera, X, ShieldAlert, Package, Puzzle, FileQuestion, HelpCircle, RotateCcw, RefreshCw, Wallet } from 'lucide-react-native';
+import { ArrowLeft, Camera, X, ShieldAlert, Package, Puzzle, FileQuestion, HelpCircle, RotateCcw, RefreshCw } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -57,8 +57,7 @@ const REASONS: { id: ReturnReason; label: string; description: string; icon: any
 
 const SOLUTIONS: { id: ReturnType; label: string; description: string; icon: any }[] = [
   { id: 'return_refund', label: 'Return & Refund', description: 'Send item back and get full refund', icon: RotateCcw },
-  { id: 'replacement', label: 'Replacement', description: 'Receive the same item again', icon: RefreshCw },
-  { id: 'refund_only', label: 'Refund Only', description: 'Keep item and get money back', icon: Wallet },
+  { id: 'replacement', label: 'Return & Replace', description: 'Send item back and receive a new replacement', icon: RefreshCw },
 ];
 
 // ─── Section badge ─────────────────────────────────────────────────────────

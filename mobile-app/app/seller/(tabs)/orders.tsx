@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import { useSellerStore } from '../../../src/stores/sellerStore';
 import { safeImageUri } from '../../../src/utils/imageUtils';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 import { orderExportService } from '../../../src/services/orderExportService';
-import TrackingModal from '../../../src/components/seller/TrackingModal';
+import { deliveryService } from '../../../src/services/deliveryService';
 
 // Pure mapping — no component state, defined at module level for stability
 const getStatusConfig = (status: string) => {
@@ -82,10 +82,8 @@ export default function SellerOrdersScreen() {
   // Date Picker State
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'start' | 'end'>('start');
-  const [trackingModalVisible, setTrackingModalVisible] = useState(false);
-  const [trackingNumber, setTrackingNumber] = useState('');
-  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const isUpdatingRef = useRef(false);
 
   useEffect(() => {
     if (seller?.id) {
@@ -212,13 +210,15 @@ export default function SellerOrdersScreen() {
         {
           text: 'Confirm',
           onPress: async () => {
+            if (isUpdatingRef.current) return;
+            isUpdatingRef.current = true;
             setIsUpdating(true);
             try {
               await updateOrderStatus(orderId, 'confirmed');
-              if (seller?.id) await fetchOrders(seller.id);
             } catch {
               Alert.alert('Error', 'Failed to confirm order.');
             } finally {
+              isUpdatingRef.current = false;
               setIsUpdating(false);
             }
           },
@@ -228,9 +228,72 @@ export default function SellerOrdersScreen() {
     }
 
     if (currentStatus === 'confirmed') {
-      setTrackingOrderId(orderId);
-      setTrackingNumber('');
-      setTrackingModalVisible(true);
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        Alert.alert('Error', 'Order not found.');
+        return;
+      }
+      Alert.alert(
+        'Ship Order',
+        'Book a shipment and auto-generate a tracking number for this order?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Ship Now',
+            onPress: async () => {
+              if (isUpdatingRef.current) return;
+              isUpdatingRef.current = true;
+              setIsUpdating(true);
+              try {
+                const pickup = {
+                  name: seller?.store_name || seller?.owner_name || 'Seller',
+                  phone: seller?.phone || '09000000000',
+                  addressLine1: seller?.business_profile?.address_line_1 || 'Store Address',
+                  city: seller?.business_profile?.city || 'Manila',
+                  province: seller?.business_profile?.province || 'Metro Manila',
+                  postalCode: seller?.business_profile?.postal_code || '1000',
+                };
+                const delivery = {
+                  name: order.shippingAddress?.fullName || order.buyerName || 'Buyer',
+                  phone: order.shippingAddress?.phone || '09000000000',
+                  addressLine1: order.shippingAddress?.street || 'Delivery Address',
+                  city: order.shippingAddress?.city || 'Manila',
+                  province: order.shippingAddress?.province || 'Metro Manila',
+                  postalCode: order.shippingAddress?.postalCode || '1000',
+                };
+                const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+                const itemNames = order.items.map(i => i.productName).join(', ');
+                const result = await deliveryService.bookDelivery({
+                  orderId: order.id,
+                  sellerId: order.seller_id || seller?.id || '',
+                  buyerId: order.buyer_id || '',
+                  courierCode: 'jnt',
+                  serviceType: 'standard',
+                  pickup,
+                  delivery,
+                  packageDetails: {
+                    weight: Math.max(0.5, totalItems * 0.5),
+                    description: itemNames.slice(0, 200),
+                    itemCount: totalItems,
+                  },
+                  declaredValue: order.total,
+                });
+                const generatedTracking = result.trackingNumber;
+                await markOrderAsShipped(orderId, generatedTracking);
+                Alert.alert(
+                  'Shipped!',
+                  `Order has been marked as shipped.\nTracking Number: ${generatedTracking}\nCourier: J&T Express`,
+                );
+              } catch (err: any) {
+                Alert.alert('Error', err?.message || 'Failed to book shipment. Please try again.');
+              } finally {
+                isUpdatingRef.current = false;
+                setIsUpdating(false);
+              }
+            },
+          },
+        ],
+      );
       return;
     }
 
@@ -240,40 +303,22 @@ export default function SellerOrdersScreen() {
         {
           text: 'Confirm',
           onPress: async () => {
+            if (isUpdatingRef.current) return;
+            isUpdatingRef.current = true;
             setIsUpdating(true);
             try {
               await markOrderAsDelivered(orderId);
-              if (seller?.id) await fetchOrders(seller.id);
             } catch {
               Alert.alert('Error', 'Failed to mark order as delivered.');
             } finally {
+              isUpdatingRef.current = false;
               setIsUpdating(false);
             }
           },
         },
       ]);
     }
-  }, [updateOrderStatus, markOrderAsDelivered, seller?.id, fetchOrders]);
-
-  const handleTrackingSubmit = useCallback(async () => {
-    const nextTracking = trackingNumber.trim();
-    if (!trackingOrderId || !nextTracking) {
-      Alert.alert('Error', 'Please enter a tracking number.');
-      return;
-    }
-
-    setIsUpdating(true);
-    try {
-      await markOrderAsShipped(trackingOrderId, nextTracking);
-      setTrackingModalVisible(false);
-      setTrackingOrderId(null);
-      if (seller?.id) await fetchOrders(seller.id);
-    } catch {
-      Alert.alert('Error', 'Failed to mark order as shipped.');
-    } finally {
-      setIsUpdating(false);
-    }
-  }, [trackingNumber, trackingOrderId, markOrderAsShipped, seller?.id, fetchOrders]);
+  }, [orders, seller, updateOrderStatus, markOrderAsShipped, markOrderAsDelivered]);
 
   const activeFilterCount = [
     filters.status !== 'all',
@@ -319,7 +364,11 @@ export default function SellerOrdersScreen() {
             <View style={styles.cardFooter}>
               <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
               {config.action && (
-                <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, order.status as DBStatus)}>
+                <Pressable
+                  style={[styles.actionBtn, isUpdating && { opacity: 0.5 }]}
+                  onPress={() => !isUpdating && handleQuickAction(order.id, order.status as DBStatus)}
+                  disabled={isUpdating}
+                >
                   <Text style={styles.actionBtnText}>{config.action}</Text>
                 </Pressable>
               )}
@@ -566,14 +615,7 @@ export default function SellerOrdersScreen() {
           maximumDate={new Date()}
         />
       )}
-      <TrackingModal
-        visible={trackingModalVisible}
-        onClose={() => setTrackingModalVisible(false)}
-        trackingNumber={trackingNumber}
-        setTrackingNumber={setTrackingNumber}
-        onSubmit={handleTrackingSubmit}
-        isUpdating={isUpdating}
-      />
+
     </View>
   );
 }

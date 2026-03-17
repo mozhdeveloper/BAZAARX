@@ -38,6 +38,7 @@ const formatReturnType = (t: string | null | undefined): string => {
     return_refund: 'Return & Refund',
     refund_only: 'Refund Only',
     replacement: 'Replacement',
+    bazcoin: 'BazCoin Compensation',
   };
   return map[t] || t;
 };

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  Image,
   StyleSheet,
   Pressable,
   Dimensions,
@@ -17,6 +16,7 @@ import {
   FlatList,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -972,7 +972,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <Image
               source={require('../assets/BazaarX.png')}
               style={{ width: 38, height: 38, marginRight: 6 }}
-              resizeMode="contain"
+              contentFit="contain"
             />
             <Text style={{ fontSize: 24, fontWeight: '900', color: '#FB8C00' }}>BazaarX</Text>
           </View>
@@ -1050,7 +1050,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             scrollEventThrottle={16}
           >
             {productImages.map((img: string, index: number) => (
-              <Image key={index} source={{ uri: img }} style={styles.productImage} />
+              <Image key={index} source={{ uri: img }} style={styles.productImage} contentFit="cover" />
             ))}
           </ScrollView>
           <View style={styles.pageIndicator}>
@@ -1684,7 +1684,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     marginTop: 10
   },
-  productImage: { width: width - 32, height: width - 32, resizeMode: 'cover' },
+  productImage: { width: width - 32, height: width - 32 },
   pageIndicator: {
     position: 'absolute', top: 16, left: 16,
     backgroundColor: 'rgba(255,255,255,0.8)',

@@ -1959,6 +1959,7 @@ export class OrderService {
     async confirmOrderReceived(
         orderId: string,
         buyerId: string,
+        receiptPhotoUrls?: string[],
     ): Promise<boolean> {
         if (!isSupabaseConfigured()) {
             const order = this.mockOrders.find((o) => o.id === orderId && o.buyer_id === buyerId);
@@ -1990,10 +1991,15 @@ export class OrderService {
                 throw new Error("Access denied: You can only confirm receipt of your own orders");
             }
 
-            if (order.shipment_status !== "delivered") {
+            if (order.shipment_status !== "delivered" && order.shipment_status !== "received") {
                 throw new Error(
                     `Cannot confirm receipt. Order must be in "delivered" status. Current status: ${order.shipment_status}`
                 );
+            }
+
+            // Already received — idempotent, just return success
+            if (order.shipment_status === "received") {
+                return true;
             }
 
             const { error: updateError } = await supabase
@@ -2012,7 +2018,10 @@ export class OrderService {
                 note: "Buyer confirmed receipt of order",
                 changed_by: buyerId,
                 changed_by_role: "buyer",
-                metadata: { confirmed_received_at: new Date().toISOString() },
+                metadata: {
+                    confirmed_received_at: new Date().toISOString(),
+                    ...(receiptPhotoUrls?.length ? { receipt_photos: receiptPhotoUrls } : {}),
+                },
             });
 
             return true;
