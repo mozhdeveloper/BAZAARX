@@ -578,7 +578,8 @@ export class OrderService {
             voucher:vouchers(code, title, voucher_type)
           ),
           order_shipments(id, status, tracking_number, shipped_at, delivered_at, created_at),
-          order_cancellations(id, reason, cancelled_at, created_at)
+          order_cancellations(id, reason, cancelled_at, created_at),
+          order_status_history(status, created_at)
         `)
         .eq('buyer_id', buyerId)
         .order('created_at', { ascending: false });
@@ -665,9 +666,10 @@ export class OrderService {
           },
           paymentMethod: order.payment_method || 'Cash on Delivery',
           createdAt: order.created_at,
-          confirmedAt: order.paid_at || null,
-          shippedAt: latestShipment?.shipped_at || null,
-          deliveredAt: latestShipment?.delivered_at || null,
+          confirmedAt: (order.order_status_history || []).find((h: any) => h.status === 'processing' || h.status === 'confirmed')?.created_at || order.paid_at || null,
+          shippedAt: (order.order_status_history || []).find((h: any) => h.status === 'shipped')?.created_at || latestShipment?.shipped_at || null,
+          deliveredAt: (order.order_status_history || []).find((h: any) => h.status === 'delivered')?.created_at || (latestShipment?.status === 'delivered' || latestShipment?.status === 'received' ? latestShipment?.delivered_at : null) || null,
+          receivedAt: (order.order_status_history || []).find((h: any) => h.status === 'received')?.created_at || (order.shipment_status === 'received' ? order.updated_at : null),
           cancelledAt: latestCancellation?.cancelled_at || null,
         };
       });

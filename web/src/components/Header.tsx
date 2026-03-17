@@ -375,17 +375,6 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
                         <button
                           onClick={() => {
-                            navigate("/my-reviews");
-                            setShowProfileMenu(false);
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
-                        >
-                          <Star className="h-3.5 w-3.5" />
-                          My Reviews
-                        </button>
-
-                        <button
-                          onClick={() => {
                             navigate("/returns");
                             setShowProfileMenu(false);
                           }}

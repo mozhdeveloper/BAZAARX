@@ -59,7 +59,7 @@ export interface Order {
     phone: string;
   };
   paymentMethod: {
-    type: 'card' | 'gcash' | 'paymaya' | 'cod';
+    type: 'card' | 'gcash' | 'maya' | 'paymaya' | 'grab_pay' | 'cod';
     details?: string;
   };
   estimatedDelivery: Date;
@@ -67,6 +67,7 @@ export interface Order {
   deliveredAt?: Date;
   confirmedAt?: Date;
   cancelledAt?: Date;
+  receivedAt?: Date;
   updatedAt?: Date;
   deliveryDate?: Date; // Actual delivery date
   trackingNumber?: string;

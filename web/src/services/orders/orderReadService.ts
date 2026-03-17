@@ -169,34 +169,44 @@ export class OrderReadService {
     let sellerId: string | null = null;
     let storeName = "Seller";
 
-    const firstItem = (orderData as any).order_items?.[0];
-    if (firstItem?.product_id) {
-      const { data: productData } = await supabase
-        .from("products")
-        .select("seller_id, seller:sellers(id, store_name)")
-        .eq("id", firstItem.product_id)
-        .maybeSingle();
-
-      if ((productData as any)?.seller) {
-        sellerId = (productData as any).seller.id;
-        storeName = (productData as any).seller.store_name || "Seller";
-      } else if ((productData as any)?.seller_id) {
-        sellerId = (productData as any).seller_id;
-        const { data: sellerData } = await supabase
-          .from("sellers")
-          .select("store_name")
-          .eq("id", (productData as any).seller_id)
+    const fetchProductAndSeller = async () => {
+      const firstItem = (orderData as any).order_items?.[0];
+      if (firstItem?.product_id) {
+        const { data: productData } = await supabase
+          .from("products")
+          .select("seller_id, seller:sellers(id, store_name)")
+          .eq("id", firstItem.product_id)
           .maybeSingle();
-        if (sellerData?.store_name) {
-          storeName = sellerData.store_name;
+
+        if ((productData as any)?.seller) {
+          sellerId = (productData as any).seller.id;
+          storeName = (productData as any).seller.store_name || "Seller";
+        } else if ((productData as any)?.seller_id) {
+          sellerId = (productData as any).seller_id;
+          const { data: sellerData } = await supabase
+            .from("sellers")
+            .select("store_name")
+            .eq("id", (productData as any).seller_id)
+            .maybeSingle();
+          if (sellerData?.store_name) {
+            storeName = sellerData.store_name;
+          }
         }
       }
-    }
+    };
+
+    // Parallelize the additional data fetching to minimize load time jitter
+    const [_, confirmedAtValue] = await Promise.all([
+      fetchProductAndSeller(),
+      this.getConfirmedAt((orderData as any).id)
+    ]);
 
     const normalized = {
       ...(orderData as any),
       seller_id: sellerId,
       store_name: storeName,
+      // Inject derived timestamps so they don't 'pop' later
+      derived_confirmed_at: confirmedAtValue ? confirmedAtValue.toISOString() : undefined,
     };
 
     return mapOrderRowToOrderDetailSnapshot(normalized);
@@ -204,20 +214,50 @@ export class OrderReadService {
 
   /** Fetch receipt photo URLs from order_status_history metadata. */
   async getReceiptPhotos(orderId: string): Promise<string[]> {
-    if (!isSupabaseConfigured()) return [];
+    const details = await this.getReceivedDetails(orderId);
+    return details?.photos || [];
+  }
+
+  /** Fetch received timestamp and photos from order_status_history. */
+  async getReceivedDetails(orderId: string): Promise<{ receivedAt: Date; photos: string[] } | null> {
+    if (!isSupabaseConfigured()) return null;
 
     const { data } = await supabase
       .from("order_status_history")
-      .select("metadata")
+      .select("created_at, metadata")
       .eq("order_id", orderId)
       .eq("status", "received")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (!data?.metadata) return [];
-    const meta = data.metadata as Record<string, unknown>;
-    return Array.isArray(meta.receipt_photos) ? (meta.receipt_photos as string[]) : [];
+    if (!data) return null;
+
+    const meta = (data.metadata || {}) as Record<string, unknown>;
+    const photos = Array.isArray(meta.receipt_photos) ? (meta.receipt_photos as string[]) : [];
+
+    return {
+      receivedAt: new Date(data.created_at),
+      photos,
+    };
+  }
+
+  /** Fetch the timestamp when a seller confirmed/accepted the order. */
+  async getConfirmedAt(orderId: string): Promise<Date | null> {
+    if (!isSupabaseConfigured()) return null;
+
+    // A seller "confirms" when it moves from 'waiting_for_seller' or 'pending'
+    // This query finds the earliest status change that is not 'waiting_for_seller' or 'offline'
+    const { data } = await supabase
+      .from("order_status_history")
+      .select("created_at, status")
+      .eq("order_id", orderId)
+      .not("status", "in", '("waiting_for_seller", "offline")')
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    return data ? new Date(data.created_at) : null;
   }
 }
 

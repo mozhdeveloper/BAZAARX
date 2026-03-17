@@ -536,7 +536,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 { label: 'Confirmed', ts: formatTs(order.confirmedAt), done: uiStatus !== 'pending', icon: CheckCircle2 },
                 { label: 'Shipped', ts: formatTs(order.shippedAt), done: isShipped, icon: Truck },
                 { label: 'Delivered', ts: formatTs(order.deliveredAt), done: isDelivered, icon: CheckCircle2 },
-                ...(isReceived ? [{ label: 'Received', ts: null, done: true, icon: CheckCircle2 }] : []),
+                ...(isReceived ? [{ label: 'Received', ts: formatTs((order as any).receivedAt), done: true, icon: CheckCircle2 }] : []),
                 ...(isReturned ? [{ label: 'Return Requested', ts: null, done: true, icon: RotateCcw, amber: true }] : []),
               ];
 
