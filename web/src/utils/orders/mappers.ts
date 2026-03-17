@@ -108,15 +108,15 @@ const mapOrderReviews = (order: any): OrderReviewSnapshot[] => {
         submittedAt,
         sellerReply: review.seller_reply
           ? {
-              message:
-                typeof review.seller_reply === 'string'
-                  ? review.seller_reply
-                  : (review.seller_reply as any)?.message || '',
-              repliedAt:
-                typeof review.seller_reply === 'object'
-                  ? (review.seller_reply as any)?.replied_at || null
-                  : null,
-            }
+            message:
+              typeof review.seller_reply === 'string'
+                ? review.seller_reply
+                : (review.seller_reply as any)?.message || '',
+            repliedAt:
+              typeof review.seller_reply === 'object'
+                ? (review.seller_reply as any)?.replied_at || null
+                : null,
+          }
           : null,
       } satisfies OrderReviewSnapshot;
     })
@@ -161,10 +161,11 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const recipient = order.recipient || {};
   const shippingAddressJoin = order.shipping_address || order.address || {};
   const createdAt = new Date(order.created_at);
-  const confirmedAt = order.paid_at ? new Date(order.paid_at) : undefined;
+  const confirmedAt = order.paid_at ? new Date(order.paid_at) : (order.shipment_status !== 'waiting_for_seller' && order.shipment_status !== 'pending' ? new Date(order.updated_at) : undefined);
   const shippedAt = order.shipped_at ? new Date(order.shipped_at) : undefined;
   const deliveredAt = order.delivered_at ? new Date(order.delivered_at) : undefined;
   const cancelledAt = order.cancelled_at ? new Date(order.cancelled_at) : undefined;
+  const updatedAt = order.updated_at ? new Date(order.updated_at) : undefined;
 
   const rawItems = Array.isArray(order.order_items) ? order.order_items : [];
   const fallbackStoreName =
@@ -259,6 +260,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     confirmedAt,
     shippedAt,
     deliveredAt,
+    updatedAt,
     deliveryDate: deliveredAt,
     cancelledAt,
     items,

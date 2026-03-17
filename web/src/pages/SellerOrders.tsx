@@ -828,124 +828,124 @@ export function SellerOrders() {
                 </div>
               </div>
             </div>
-
-            {/* Order Details Modal */}
-            <OrderDetailsModal
-              isOpen={!!selectedOrderNumber}
-              onClose={() => setSelectedOrder(null)}
-              order={
-                orders.find(
-                  (o) =>
-                    o.orderNumber === selectedOrderNumber ||
-                    o.id === selectedOrderNumber,
-                ) || null
-              }
-            />
-
-            {showAccessDenied && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] backdrop-blur-sm p-4">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md mx-auto border border-red-100"
-                >
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center mb-2">
-                      <AlertCircle className="h-8 w-8 text-red-600" />
-                    </div>
-
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">Access Denied</h3>
-                      <p className="text-gray-500 mt-2 text-sm leading-relaxed">
-                        You do not have permission to view this order, or the order ID
-                        <span className="font-mono font-medium text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded mx-1">
-                          {selectedOrderNumber}
-                        </span>
-                        does not exist.
-                      </p>
-                    </div>
-
-                    <div className="w-full pt-4">
-                      <Button
-                        onClick={() => setSelectedOrder(null)}
-                        className="w-full bg-gray-900 hover:bg-gray-800 text-white h-11 font-medium"
-                      >
-                        Go Back to Orders
-                      </Button>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-
-            {/* Tracking Number Modal */}
-            {trackingModal.isOpen && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
-                >
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">
-                    Enter Tracking Number
-                  </h2>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tracking Number
-                      </label>
-                      <Input
-                        type="text"
-                        placeholder="e.g., TRK123456789"
-                        value={trackingModal.trackingNumber}
-                        onChange={(e) =>
-                          setTrackingModal((prev) => ({
-                            ...prev,
-                            trackingNumber:
-                              e.target.value,
-                          }))
-                        }
-                        className="border-gray-300"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        This will be sent to the buyer for
-                        tracking their package
-                      </p>
-                    </div>
-
-                    <div className="flex gap-3 pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          setTrackingModal({
-                            isOpen: false,
-                            orderId: null,
-                            trackingNumber: "",
-                            isLoading: false,
-                          })
-                        }
-                        disabled={trackingModal.isLoading}
-                        className="flex-1"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleMarkAsShipped}
-                        disabled={trackingModal.isLoading}
-                        className="flex-1 bg-orange-600 hover:bg-orange-700"
-                      >
-                        {trackingModal.isLoading
-                          ? "Processing..."
-                          : "Mark as Shipped"}
-                      </Button>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            )}
           </div>
         </div>
+
+        {/* Order Details Modal */}
+        <OrderDetailsModal
+          isOpen={!!selectedOrderNumber}
+          onClose={() => setSelectedOrder(null)}
+          order={
+            orders.find(
+              (o) =>
+                o.orderNumber === selectedOrderNumber ||
+                o.id === selectedOrderNumber,
+            ) || null
+          }
+        />
+
+        {showAccessDenied && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[999] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md mx-auto border border-red-100"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center mb-2">
+                  <AlertCircle className="h-8 w-8 text-red-600" />
+                </div>
+
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Access Denied</h3>
+                  <p className="text-gray-500 mt-2 text-sm leading-relaxed">
+                    You do not have permission to view this order, or the order ID
+                    <span className="font-mono font-medium text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded mx-1">
+                      {selectedOrderNumber}
+                    </span>
+                    does not exist.
+                  </p>
+                </div>
+
+                <div className="w-full pt-4">
+                  <Button
+                    onClick={() => setSelectedOrder(null)}
+                    className="w-full bg-gray-900 hover:bg-gray-800 text-white h-11 font-medium"
+                  >
+                    Go Back to Orders
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Tracking Number Modal */}
+        {trackingModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
+            >
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                Enter Tracking Number
+              </h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tracking Number
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., TRK123456789"
+                    value={trackingModal.trackingNumber}
+                    onChange={(e) =>
+                      setTrackingModal((prev) => ({
+                        ...prev,
+                        trackingNumber:
+                          e.target.value,
+                      }))
+                    }
+                    className="border-gray-300"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This will be sent to the buyer for
+                    tracking their package
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setTrackingModal({
+                        isOpen: false,
+                        orderId: null,
+                        trackingNumber: "",
+                        isLoading: false,
+                      })
+                    }
+                    disabled={trackingModal.isLoading}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleMarkAsShipped}
+                    disabled={trackingModal.isLoading}
+                    className="flex-1 bg-orange-600 hover:bg-orange-700"
+                  >
+                    {trackingModal.isLoading
+                      ? "Processing..."
+                      : "Mark as Shipped"}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     </div>
   );

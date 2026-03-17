@@ -67,6 +67,7 @@ export interface Order {
   deliveredAt?: Date;
   confirmedAt?: Date;
   cancelledAt?: Date;
+  updatedAt?: Date;
   deliveryDate?: Date; // Actual delivery date
   trackingNumber?: string;
   returnRequest?: {
@@ -82,6 +83,7 @@ export interface Order {
     comment: string;
     images: string[];
     submittedAt: Date;
+    sellerReply?: { message: string; repliedAt: string | null } | null;
   };
   pricing?: {
     subtotal: number;
