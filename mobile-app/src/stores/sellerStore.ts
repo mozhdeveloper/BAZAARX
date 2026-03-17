@@ -2057,16 +2057,10 @@ const useLegacyOrderStore = create<OrderStore>()(
 
           console.log(`✅ Database updated successfully with status: ${dbStatus}`);
 
-          // Create notification for buyer if order has buyer_id (fire and forget)
-          if (order.buyer_id) {
-            const statusMessages: Record<string, string> = {
-              'confirmed': `Your order #${id.slice(-8)} has been confirmed and is being prepared.`,
-              'shipped': `Your order #${id.slice(-8)} has been shipped and is on its way!`,
-              'delivered': `Your order #${id.slice(-8)} has been delivered. Enjoy your purchase!`,
-              'cancelled': `Your order #${id.slice(-8)} has been cancelled.`
-            };
-
-            const message = statusMessages[status] || `Order #${id.slice(-8)} status updated to ${status}`;
+          // Create notification for buyer ONLY for 'confirmed' status, not for processing
+          // (processing happens after seller confirms, we only notify ONCE on confirmation)
+          if (order.buyer_id && status === 'confirmed') {
+            const message = `Your order #${id.slice(-8)} has been confirmed! We're preparing it for shipment.`;
 
             // Fire and forget - don't wait for notification
             import('../services/notificationService').then(({ notificationService }) => {
@@ -2074,13 +2068,14 @@ const useLegacyOrderStore = create<OrderStore>()(
                 buyerId: order.buyer_id!,
                 orderId: id,
                 orderNumber: id.slice(-8),
-                status,
+                status: 'confirmed',
                 message
               }).catch(err => {
                 console.error('❌ Failed to create buyer notification:', err);
               });
             });
           }
+          // Skip notifications for other statuses - they'll be sent by their specific methods (shipped, delivered, etc.)
 
           console.log(`✅ Order ${id} status updated to ${status}`);
         } catch (error) {

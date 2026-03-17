@@ -263,6 +263,32 @@ class NotificationService {
     });
   }
 
+  async notifySellerOrderCancelled(params: {
+    sellerId: string;
+    orderId: string;
+    orderNumber: string;
+    buyerName?: string;
+    reason?: string | null;
+  }): Promise<Notification | null> {
+    const buyerLabel = params.buyerName?.trim() || 'A buyer';
+    const reasonSuffix = params.reason?.trim()
+      ? ` Reason: ${params.reason.trim()}`
+      : '';
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_order_cancelled',
+      title: 'Order Cancelled by Buyer',
+      message: `${buyerLabel} cancelled order #${params.orderNumber}.${reasonSuffix}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: `/seller/orders/${params.orderId}`,
+      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
+      priority: 'high'
+    });
+  }
+
   /**
    * Notify buyer about order status change
    */
@@ -283,10 +309,10 @@ class NotificationService {
     };
 
     const titleMap: Record<string, string> = {
-      placed: 'Order Placed',
-      confirmed: 'Order Confirmed',
-      processing: 'Order Processing',
-      shipped: 'Order Shipped',
+      placed: 'Your Order is Placed',
+      confirmed: 'Order Confirmed by Seller',
+      processing: 'Being Prepared',
+      shipped: 'Order is on the Way',
       delivered: 'Order Delivered',
       cancelled: 'Order Cancelled'
     };
@@ -303,7 +329,11 @@ class NotificationService {
       icon: iconInfo.icon,
       iconBg: iconInfo.bg,
       actionUrl: `/order/${params.orderNumber}`,
-      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
+      actionData: { 
+        orderId: params.orderId, 
+        orderNumber: params.orderNumber,
+        tab: params.status === 'confirmed' ? 'processing' : undefined
+      },
       priority: params.status === 'delivered' ? 'high' : 'normal'
     });
   }
@@ -593,7 +623,7 @@ class NotificationService {
 
     const table = getNotificationTable(userType);
     const userIdColumn = getUserIdColumn(userType);
-    const channelName = `${table}_${userId}`;
+    const channelName = `${table}_${userId}_${Date.now()}`;
 
     const channel = supabase
       .channel(channelName)
@@ -610,13 +640,28 @@ class NotificationService {
           onNewNotification(payload.new);
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: table,
+          filter: `${userIdColumn}=eq.${userId}`,
+        },
+        (payload) => {
+          console.log(`[NotificationService] Real-time ${userType} notification update:`, payload.new?.type);
+          onNewNotification(payload.new);
+        }
+      )
       .subscribe((status) => {
+        console.log(`[NotificationService] Realtime subscription status for ${channelName}:`, status);
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.warn(`[NotificationService] Realtime subscription ${status} for ${channelName}`);
         }
       });
 
     return () => {
+      console.log(`[NotificationService] Removing realtime channel ${channelName}`);
       supabase.removeChannel(channel);
     };
   }

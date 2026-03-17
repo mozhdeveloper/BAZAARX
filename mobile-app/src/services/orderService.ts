@@ -1180,15 +1180,6 @@ export class OrderService {
 
       // Send notification to buyer if seller made the update
       if (userRole === 'seller' && order.buyer_id && sellerId) {
-        // Send chat message
-        await orderNotificationService.sendStatusUpdateNotification(
-          orderId,
-          status,
-          sellerId,
-          order.buyer_id
-        );
-
-        // Send proper notification (shows in notification bell)
         const statusMessages: Record<string, string> = {
           confirmed: `Your order #${order.order_number || orderId.substring(0, 8)} has been confirmed by the seller.`,
           processing: `Your order #${order.order_number || orderId.substring(0, 8)} is now being prepared.`,
@@ -1199,14 +1190,30 @@ export class OrderService {
 
         const message = statusMessages[status] || `Your order status has been updated to ${status}.`;
 
-        await notificationService.notifyBuyerOrderStatus({
-          buyerId: order.buyer_id,
-          orderId: orderId,
-          orderNumber: order.order_number || orderId.substring(0, 8),
-          status: status,
-          message: message,
-        }).catch(err => {
-          console.error('Failed to send buyer notification:', err);
+        void Promise.allSettled([
+          orderNotificationService.sendStatusUpdateNotification(
+            orderId,
+            status,
+            sellerId,
+            order.buyer_id
+          ),
+          notificationService.notifyBuyerOrderStatus({
+            buyerId: order.buyer_id,
+            orderId: orderId,
+            orderNumber: order.order_number || orderId.substring(0, 8),
+            status: status,
+            message: message,
+          }),
+        ]).then((results) => {
+          const [chatResult, bellResult] = results;
+
+          if (chatResult.status === 'rejected') {
+            console.error('Failed to send order chat notification:', chatResult.reason);
+          }
+
+          if (bellResult.status === 'rejected') {
+            console.error('Failed to send buyer notification:', bellResult.reason);
+          }
         });
       }
 
@@ -1653,7 +1660,7 @@ export class OrderService {
       // Fetch the order based on the ID or order number
       const { data: existingOrder, error: fetchError } = await supabase
         .from('orders')
-        .select('id, payment_status')
+        .select('id, buyer_id, order_number, payment_status')
         .eq(isUuid ? 'id' : 'order_number', orderId)
         .single();
 
@@ -1708,13 +1715,46 @@ export class OrderService {
         status: 'cancelled',
         note: normalizedReason || 'Order cancelled',
         changed_by: cancelledBy || null,
-        changed_by_role: cancelledBy ? 'seller' : null,
+        changed_by_role: cancelledBy && existingOrder.buyer_id === cancelledBy ? 'buyer' : null,
         metadata: {
           cancelled_at: nowIso,
           payment_status: nextPaymentStatus,
           shipment_status: 'returned',
         },
       });
+
+      if (cancelledBy && existingOrder.buyer_id === cancelledBy) {
+        const { data: sellerProduct } = await supabase
+          .from('order_items')
+          .select('product:products!order_items_product_id_fkey(seller_id)')
+          .eq('order_id', existingOrder.id)
+          .limit(1)
+          .maybeSingle();
+
+        const sellerId = (sellerProduct as any)?.product?.seller_id as string | undefined;
+
+        if (sellerId) {
+          const { data: buyerProfile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', cancelledBy)
+            .maybeSingle();
+
+          const buyerName = [buyerProfile?.first_name, buyerProfile?.last_name]
+            .filter(Boolean)
+            .join(' ');
+
+          void notificationService.notifySellerOrderCancelled({
+            sellerId,
+            orderId: existingOrder.id,
+            orderNumber: existingOrder.order_number || existingOrder.id.substring(0, 8),
+            buyerName,
+            reason: normalizedReason,
+          }).catch((error) => {
+            console.error('Failed to send seller cancellation notification:', error);
+          });
+        }
+      }
 
       return true;
     } catch (error) {

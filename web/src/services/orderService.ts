@@ -433,31 +433,38 @@ export class OrderService {
         );
 
         // Notifications are non-blocking to keep order mutations responsive.
-        void (async () => {
-            await orderNotificationService
-                .sendStatusUpdateNotification(
+            void Promise.allSettled([
+                orderNotificationService.sendStatusUpdateNotification(
                     orderId,
                     status,
                     sellerId,
                     buyerId,
                     trackingNumber,
-                )
-                .catch((error) => {
-                    console.error("Failed to send order chat notification:", error);
-                });
-
-            await notificationService
-                .notifyBuyerOrderStatus({
+                ),
+                notificationService.notifyBuyerOrderStatus({
                     buyerId,
                     orderId,
                     orderNumber: orderNumberLabel,
                     status,
                     message,
-                })
-                .catch((error) => {
-                    console.error("Failed to send buyer notification:", error);
-                });
-        })();
+                }),
+            ]).then((results) => {
+                const [chatResult, bellResult] = results;
+
+                if (chatResult.status === "rejected") {
+                    console.error(
+                        "Failed to send order chat notification:",
+                        chatResult.reason,
+                    );
+                }
+
+                if (bellResult.status === "rejected") {
+                    console.error(
+                        "Failed to send buyer notification:",
+                        bellResult.reason,
+                    );
+                }
+            });
     }
 
     /**
@@ -1617,39 +1624,62 @@ export class OrderService {
                     : await this.resolveOrderSellerId(orderId);
 
             if (userRole === "seller" && order.buyer_id && sellerId) {
-                await orderNotificationService.sendStatusUpdateNotification(
-                    orderId,
-                    status,
-                    sellerId,
-                    order.buyer_id,
-                );
+                console.log(`[OrderService] Seller updated order ${orderId} to ${status}, dispatching buyer notifications for ${order.buyer_id}`);
 
-                const statusMessages: Record<string, string> = {
-                    confirmed: `Your order #${order.order_number} has been confirmed by the seller.`,
-                    processing: `Your order #${order.order_number} is now being prepared.`,
-                    shipped: `Your order #${order.order_number} has been shipped!`,
-                    delivered: `Your order #${order.order_number} has been delivered!`,
-                    cancelled: `Your order #${order.order_number} has been cancelled.`,
-                };
+                if (status === "processing") {
+                    const message = `Your order #${order.order_number} has been confirmed! We're preparing it for shipment.`;
 
-                const message =
-                    statusMessages[status] ||
-                    `Your order status has been updated to ${status}.`;
+                    console.log(`[OrderService] Sending order confirmed notification to buyer ${order.buyer_id}`);
 
-                await notificationService
-                    .notifyBuyerOrderStatus({
-                        buyerId: order.buyer_id,
-                        orderId: orderId,
-                        orderNumber: order.order_number,
-                        status: status,
-                        message: message,
-                    })
-                    .catch((err) => {
-                        console.error(
-                            "Failed to send buyer notification:",
-                            err,
-                        );
+                    void Promise.allSettled([
+                        orderNotificationService.sendStatusUpdateNotification(
+                            orderId,
+                            status,
+                            sellerId,
+                            order.buyer_id,
+                        ),
+                        notificationService.notifyBuyerOrderStatus({
+                            buyerId: order.buyer_id,
+                            orderId: orderId,
+                            orderNumber: order.order_number,
+                            status: "confirmed",
+                            message,
+                        }),
+                    ]).then((results) => {
+                        const [chatResult, bellResult] = results;
+
+                        if (chatResult.status === "rejected") {
+                            console.error(
+                                "Failed to send order chat notification:",
+                                chatResult.reason,
+                            );
+                        }
+
+                        if (bellResult.status === "rejected") {
+                            console.error(
+                                "Failed to send buyer notification:",
+                                bellResult.reason,
+                            );
+                        } else {
+                            console.log(`[OrderService] Order confirmed notification sent to buyer ${order.buyer_id}`);
+                        }
                     });
+                } else {
+                    void orderNotificationService
+                        .sendStatusUpdateNotification(
+                            orderId,
+                            status,
+                            sellerId,
+                            order.buyer_id,
+                        )
+                        .catch((error) => {
+                            console.error(
+                                "Failed to send order chat notification:",
+                                error,
+                            );
+                        });
+                }
+                // Skip bell notifications for other statuses - they'll be sent by their specific methods
             }
 
             invalidateOrderCache();
@@ -2055,7 +2085,7 @@ export class OrderService {
 
             const { data: existingOrder, error: fetchError } = await supabase
                 .from("orders")
-                .select("id, payment_status")
+                .select("id, buyer_id, order_number, payment_status")
                 .eq("id", orderId)
                 .single();
 
@@ -2097,13 +2127,50 @@ export class OrderService {
                 status: "cancelled",
                 note: normalizedReason || "Order cancelled",
                 changed_by: cancelledBy || null,
-                changed_by_role: cancelledBy ? "buyer" : null,
+                changed_by_role:
+                    cancelledBy && existingOrder.buyer_id === cancelledBy
+                        ? "buyer"
+                        : null,
                 metadata: {
                     cancelled_at: nowIso,
                     payment_status: nextPaymentStatus,
                     shipment_status: "returned",
                 },
             });
+
+            if (cancelledBy && existingOrder.buyer_id === cancelledBy) {
+                const sellerId = await this.resolveOrderSellerId(orderId);
+
+                if (sellerId) {
+                    const { data: buyerProfile } = await supabase
+                        .from("profiles")
+                        .select("first_name, last_name")
+                        .eq("id", cancelledBy)
+                        .maybeSingle();
+
+                    const buyerName = [
+                        buyerProfile?.first_name,
+                        buyerProfile?.last_name,
+                    ]
+                        .filter(Boolean)
+                        .join(" ");
+
+                    void notificationService
+                        .notifySellerOrderCancelled({
+                            sellerId,
+                            orderId,
+                            orderNumber: existingOrder.order_number || orderId,
+                            buyerName,
+                            reason: normalizedReason,
+                        })
+                        .catch((error) => {
+                            console.error(
+                                "Failed to send seller cancellation notification:",
+                                error,
+                            );
+                        });
+                }
+            }
 
             invalidateOrderCache();
             return true;

@@ -470,3 +470,113 @@ git push origin feat/notification-badge
 - Newly added Buy Again items auto-select in mobile cart
 - Pending follow-up: remove remaining checkout bypass logic still tied to buy-again mode in web checkout path
 
+---
+
+## Session Log — March 17, 2026
+
+### Feature — Realtime Notifications Architecture (Parallelization + Realtime-First Pattern)
+
+**Prompt:** "Order Confirmed by Seller notification is real time but slow to appear" → "Message notification and badge in mobile and web is not real time or just slow" → "In mobile seller's module notification and notification badges, it is slow to appear" → "If buyer cancel the order, should notify seller AND make seller notification page no need to load and automatically appear"
+
+**Root Cause / Context (Multi-Phase Issue):**
+- Order status notifications awaited sequential dispatches (chat message → bell notification) instead of parallel
+- Chat subscription only partially listened to message inserts; badge consumers relied on 20-30s polling
+- Notification subscription callbacks still queried count instead of instant state increment
+- Buyer cancellation had NO seller notification path in web atomic RPC — only in mobile orderService
+- Seller notification pages required manual refresh UI to see new notifications
+
+**Phase 1 — Parallelized Order Status Notifications:**
+1. `web/src/services/orderService.ts` + `mobile-app/src/services/orderService.ts`
+   - Changed `dispatchStatusNotifications()`: `Promise.allSettled()` for chat message + bell notification in parallel instead of sequential await
+
+**Phase 2 — Extended Chat Subscriptions + Badge Realtime:**
+1. `web/src/services/chatService.ts` + `mobile-app/src/services/chatService.ts`
+   - `subscribeToConversations()`: Now listens to both conversations table (all events) AND messages table (INSERT only)
+   - Consolidated change handler for both event types
+2. `web/src/components/Header.tsx`
+   - Added buyer message badge with realtime `subscribeToConversations()` callback
+   - Fallback polling reduced to 5s (was 30s)
+3. `web/src/components/seller/BaseSellerSidebar.tsx`
+   - Added realtime subscriptions for both chat AND notifications (separate subscriptions)
+   - Fallback polling reduced to 5s (was 20-30s)
+4. `mobile-app/App.tsx`
+   - Added buyer message badge realtime subscription
+   - Fallback polling reduced to 5s (was 30s)
+5. `mobile-app/src/components/SellerDrawer.tsx`
+   - Added notification badge with instant increment pattern: callback increments state immediately, then background reconciles with DB count
+   - Fallback polling reduced to 1s (was 2-5s)
+6. `mobile-app/app/seller/(tabs)/dashboard.tsx`
+   - Added notification badge with same instant-increment + background-reconcile pattern
+   - Fallback polling reduced to 1s (was 2-5s)
+
+**Phase 3 — Notification Subscription Robustness:**
+1. `mobile-app/src/services/notificationService.ts`
+   - `subscribeToNotifications()`: Unique channel names `${table}_${userId}_${Date.now()}` to prevent collision
+   - Listens to both INSERT AND UPDATE events on notification table
+   - Subscription status logging added
+
+**Phase 4 — Buyer Cancellation → Seller Notification:**
+1. `web/src/services/notificationService.ts` + `mobile-app/src/services/notificationService.ts`
+   - Added `notifySellerOrderCancelled()` helper with type `'seller_order_cancelled'`, icon `'XCircle'`, priority `'high'`
+2. `mobile-app/src/services/orderService.ts`
+   - `cancelOrder()`: Detects buyer-initiated cancellation, resolves seller from order_items, fetches buyer profile name, calls `notifySellerOrderCancelled()`
+3. `web/src/services/orders/orderMutationService.ts` (Critical RPC Path Fix)
+   - After `supabase.rpc("cancel_order_atomic")` succeeds, added logic to:
+     - Detect if `changedByRole === "buyer"` and `cancelledBy` exists
+     - Fetch order with buyer_id + order_items with seller_id
+     - Fetch buyer profile for name
+     - Call `notifySellerOrderCancelled()` fire-and-forget
+   - This patch was critical because web's atomic RPC completely bypassed orderService notification logic
+
+**Phase 5 — Remove Manual Refresh UI from Seller Notifications:**
+1. `mobile-app/app/seller/notifications.tsx`
+   - Removed `RefreshControl` import, `refreshing` state, `onRefresh()` handler, `refreshControl` prop from FlatList
+   - Changed `addNotificationToState()` → `upsertNotificationInState()` to handle both new inserts and mark-as-read updates
+   - Kept 1s background polling as silent safety net; realtime is primary
+2. `web/src/pages/SellerNotifications.tsx`
+   - Removed `RefreshCw` icon import and Refresh button from filter controls
+   - Added realtime subscription in `useEffect`: `notificationService.subscribeToNotifications()` triggers `upsertNotificationInState()`
+   - Replaced loading spinner icon from `<RefreshCw>` to CSS-based spinner
+   - Notifications now update automatically when new notifications arrive via Supabase realtime
+
+**Realtime Architecture Summary:**
+- Chat subscriptions: Listen to conversations table (all events) + messages table (INSERT only)
+- Notification subscriptions: Listen to notifications table (INSERT + UPDATE) with unique channel names
+- Badge update pattern: Callback increments state instantly → background polling reconciles with DB count
+- Fallback polling: 5s (web badges), 1s (mobile seller badges), 1s (seller notifications page)
+
+**Files Changed Summary (11 files):**
+1. `web/src/services/orderService.ts` — Parallelize status notifications
+2. `web/src/services/chatService.ts` — Extend subscription to message inserts
+3. `web/src/services/notificationService.ts` — Add `notifySellerOrderCancelled()` helper
+4. `web/src/components/Header.tsx` — Realtime message badge subscription
+5. `web/src/components/seller/BaseSellerSidebar.tsx` — Realtime chat + notification subscriptions
+6. `web/src/pages/SellerNotifications.tsx` — Remove refresh button, add realtime subscription
+7. `web/src/services/orders/orderMutationService.ts` — Patch atomic RPC path for buyer cancellation notification
+8. `mobile-app/src/services/orderService.ts` — Parallelize status + add cancellation notification
+9. `mobile-app/src/services/chatService.ts` — Extend subscription to message inserts
+10. `mobile-app/src/services/notificationService.ts` — Robustify subscriptions, add `notifySellerOrderCancelled()`
+11. `mobile-app/App.tsx` — Realtime message badge subscription
+12. `mobile-app/src/components/SellerDrawer.tsx` — Instant badge increment + background polling
+13. `mobile-app/app/seller/(tabs)/dashboard.tsx` — Instant badge increment + background polling
+14. `mobile-app/app/seller/notifications.tsx` — Remove refresh UI, add realtime upsert subscription
+
+**Testing / Validation:**
+- All modified files compile without errors (TypeScript)
+- No new runtime errors introduced
+- Realtime subscriptions remain in place with fallback polling as safety net
+
+**Known Limitations:**
+- Fallback polling still in place (1-5s); realtime might miss rare events — acceptable per design
+- Notification page still does 1s polling as background reconciliation (UI-primary is realtime)
+
+**Continuation Context:**
+All user requests from this session have been completed:
+1. ✅ Order Confirmed notification now appears faster (parallelized dispatch)
+2. ✅ Message notifications and badges now real-time on web and mobile
+3. ✅ Seller mobile notification badges now instant
+4. ✅ Buyer cancellation now notifies seller on both web (RPC path) and mobile (orderService path)
+5. ✅ Seller notification pages now automatically update in real-time without manual refresh
+
+Realtime notification system is now primary with polling as secondary safety net across all surfaces.
+

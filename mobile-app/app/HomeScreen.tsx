@@ -158,6 +158,9 @@ export default function HomeScreen({ navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   // Removed local notifications array state as we only need count here
   const [unreadCount, setUnreadCount] = useState(0);
+  const unsubRealtimeRef = useRef<(() => void) | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
   // LOCATION STATE — from shared store
   const { sessionAddress, setSessionAddress, loadSessionAddress } = useAddressStore();
@@ -431,37 +434,76 @@ export default function HomeScreen({ navigation }: Props) {
     if (!user?.id || isGuest) return;
     try {
       const data = await notificationService.getNotifications(user.id, 'buyer', 20);
-      setUnreadCount(data.filter(n => !n.is_read).length);
+      if (mountedRef.current) {
+        setUnreadCount(data.filter(n => !n.is_read).length);
+      }
     } catch (error) {
       console.error('[HomeScreen] Error loading notifications:', error);
     }
   }, [user?.id, isGuest]);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     // Refresh count on focus
     const unsubFocus = navigation.addListener('focus', () => {
       loadNotifications();
     });
     loadNotifications();
 
-    // Real-time subscription for live badge updates
-    let unsubRealtime: (() => void) | undefined;
-    if (user?.id && !isGuest) {
-      unsubRealtime = notificationService.subscribeToNotifications(
+    // Set up persistent real-time subscription if not already set up
+    if (user?.id && !isGuest && !unsubRealtimeRef.current) {
+      console.log('[HomeScreen] Setting up real-time subscription for buyer:', user.id);
+      unsubRealtimeRef.current = notificationService.subscribeToNotifications(
         user.id,
         'buyer',
-        () => {
-          setUnreadCount((prev) => prev + 1);
-          loadNotifications();
+        (newNotification) => {
+          console.log('[HomeScreen] New notification received:', newNotification);
+          // Immediately increment badge and reload
+          if (mountedRef.current) {
+            setUnreadCount((prev) => prev + 1);
+            loadNotifications();
+          }
         }
       );
     }
 
+    // Clean up old polling interval if it exists
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    // Aggressive polling every 2 seconds as fallback safety net
+    if (user?.id && !isGuest) {
+      pollIntervalRef.current = setInterval(() => {
+        if (mountedRef.current && user?.id) {
+          loadNotifications();
+        }
+      }, 2000);
+    }
+
     return () => {
       unsubFocus();
-      unsubRealtime?.();
     };
   }, [navigation, loadNotifications, user?.id, isGuest]);
+
+  // Cleanup subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (unsubRealtimeRef.current) {
+        console.log('[HomeScreen] Cleaning up real-time subscription');
+        unsubRealtimeRef.current();
+        unsubRealtimeRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        console.log('[HomeScreen] Cleaning up polling interval');
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // ... (Location logic — now via addressStore) ...
   useEffect(() => {

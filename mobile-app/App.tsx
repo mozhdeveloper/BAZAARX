@@ -143,15 +143,41 @@ function MainTabs() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const [unreadMsgCount, setUnreadMsgCount] = React.useState(0);
+  const unsubChatRef = useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     if (!user?.id) return;
+    let active = true;
     const fetchCount = () =>
-      chatService.getUnreadCount(user.id, 'buyer').then(setUnreadMsgCount);
+      chatService.getUnreadCount(user.id, 'buyer').then((count) => {
+        if (active) setUnreadMsgCount(count);
+      });
+
     fetchCount();
-    const interval = setInterval(fetchCount, 30000);
-    return () => clearInterval(interval);
+
+    if (!unsubChatRef.current) {
+      unsubChatRef.current = chatService.subscribeToConversations(
+        user.id,
+        'buyer',
+        () => { void fetchCount(); }
+      );
+    }
+
+    const interval = setInterval(fetchCount, 5000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [user?.id]);
+
+  React.useEffect(() => {
+    return () => {
+      if (unsubChatRef.current) {
+        unsubChatRef.current();
+        unsubChatRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <ErrorBoundary>

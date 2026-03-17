@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LogOut, Users } from "lucide-react";
@@ -70,6 +70,8 @@ export const BaseSellerSidebar = ({
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const unsubChatRef = useRef<(() => void) | null>(null);
+  const unsubNotifRef = useRef<(() => void) | null>(null);
 
   // Map each seller route to the notification types that are actioned there.
   // When the seller navigates to one of these pages, those notifications are
@@ -124,18 +126,46 @@ export const BaseSellerSidebar = ({
     };
 
     autoReadAndFetch();
-    const interval = setInterval(async () => {
-      try {
-        const count = await notificationService.getUnreadCount(seller.id, "seller");
-        setUnreadCount(count);
-        if (!location.pathname.startsWith("/seller/messages")) {
-          const msgCount = await chatService.getUnreadCount(seller.id, "seller");
-          setUnreadMessageCount(msgCount);
-        }
-      } catch { /* silently ignore */ }
-    }, 30000);
+
+    if (!unsubChatRef.current) {
+      unsubChatRef.current = chatService.subscribeToConversations(
+        seller.id,
+        "seller",
+        () => {
+          void autoReadAndFetch();
+        },
+      );
+    }
+
+    if (!unsubNotifRef.current) {
+      unsubNotifRef.current = notificationService.subscribeToNotifications(
+        seller.id,
+        "seller",
+        () => {
+          void autoReadAndFetch();
+        },
+      );
+    }
+
+    const interval = setInterval(() => {
+      void autoReadAndFetch();
+    }, 5000);
+
     return () => clearInterval(interval);
   }, [seller?.id, location.pathname]);
+
+  useEffect(() => {
+    return () => {
+      if (unsubChatRef.current) {
+        unsubChatRef.current();
+        unsubChatRef.current = null;
+      }
+      if (unsubNotifRef.current) {
+        unsubNotifRef.current();
+        unsubNotifRef.current = null;
+      }
+    };
+  }, []);
 
   const handleLogout = () => {
     logout();
