@@ -54,6 +54,8 @@ const DEFAULT_CATEGORY_CHIPS: CategoryChip[] = [
   { id: 'all', name: 'All' }
 ];
 
+const SHOP_SCREEN_FETCH_LIMIT = 200;
+
 const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
   'home-living': ['home-garden', 'home-and-garden'],
   'home-garden': ['home-living', 'home-and-living'],
@@ -237,6 +239,7 @@ export default function ShopScreen({ navigation, route }: Props) {
           productService.getProducts({
             isActive: true,
             approvalStatus: 'approved',
+            limit: SHOP_SCREEN_FETCH_LIMIT,
           }),
           categoryService.getActiveCategories(),
         ]);
