@@ -144,7 +144,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
@@ -239,7 +239,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
 
                     {/* Loading Overlay */}
                     {isSearching && (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-sm z-50">
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50">
                         <div className="bg-white px-6 py-4 rounded-xl flex items-center gap-3">
                           <Loader2 className="w-5 h-5 text-[var(--brand-primary)] animate-spin" />
                           <span className="font-semibold text-gray-800">Analyzing image...</span>

@@ -713,9 +713,9 @@ export default function OrdersPage() {
                         {order.status === "delivered" && (order.deliveredAt
                           ? `Delivered ${formatDateTime(order.deliveredAt)}`
                           : order.shippedAt ? `Shipped ${formatDateTime(order.shippedAt)}` : `Placed ${formatDateTime(order.createdAt)}`)}
-                        {order.status === "reviewed" && (order.deliveredAt
-                          ? `Delivered ${formatDateTime(order.deliveredAt)}`
-                          : `Placed ${formatDateTime(order.createdAt)}`)}
+                        {order.status === "received" && (order.updatedAt
+                          ? `Received ${formatDateTime(order.updatedAt)}`
+                          : order.deliveredAt ? `Delivered ${formatDateTime(order.deliveredAt)}` : `Placed ${formatDateTime(order.createdAt)}`)}
                         {order.status === "returned" && `Placed ${formatDateTime(order.createdAt)}`}
                         {order.status === "cancelled" && (order.cancelledAt
                           ? `Cancelled ${formatDateTime(order.cancelledAt)}`
@@ -823,11 +823,11 @@ export default function OrdersPage() {
                                 </Button>
                               )}
                             </>
-                          ) : order.status === "received" || order.status === "reviewed" ? (
+                          ) : order.status === "received" ? (
                             /* Received/Reviewed - Write Review and Buy Again */
                             <>
                               {/* Write Review */}
-                              {(order.status === "received" || order.status === "reviewed") && (
+                              {order.status === "received" && (
                                 <Button
                                   onClick={() => {
                                     setOrderToReview(order);

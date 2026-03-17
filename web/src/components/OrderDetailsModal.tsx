@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Package,
@@ -306,12 +307,12 @@ export function OrderDetailsModal({
             }
             : null);
 
-    return (
+    const modalContent = (
         <AnimatePresence>
             {isOpen && (
                 <div
                     key="order-details-modal"
-                    className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4"
+                    className="fixed inset-0 bg-black/60 flex items-center justify-center z-[999] p-4"
                     onClick={onClose}
                 >
                     <motion.div
@@ -979,7 +980,7 @@ export function OrderDetailsModal({
             {trackingModal.isOpen && (
                 <div
                     key="tracking-modal"
-                    className="fixed inset-0 bg-black/40 flex items-center justify-center z-[250] p-4 backdrop-blur-sm"
+                    className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1000] p-4"
                 >
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -1088,4 +1089,6 @@ export function OrderDetailsModal({
             </Dialog>
         </AnimatePresence>
     );
+
+    return createPortal(modalContent, document.body);
 }

@@ -103,6 +103,7 @@ export interface BuyerOrderSnapshot {
   deliveredAt?: Date;
   deliveryDate?: Date;
   cancelledAt?: Date;
+  updatedAt?: Date;
   items: BuyerOrderItemSnapshot[];
   shippingAddress: NormalizedShippingAddress;
   paymentMethod: {
