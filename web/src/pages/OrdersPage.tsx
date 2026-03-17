@@ -16,6 +16,7 @@ import {
   Store,
   ChevronRight,
   PackageCheck,
+  User,
   Camera,
   ImagePlus,
 } from "lucide-react";
@@ -74,7 +75,9 @@ export default function OrdersPage() {
   const [reviewWarningModalOpen, setReviewWarningModalOpen] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [orderToReview, setOrderToReview] = useState<any>(null);
-  const [viewImage, setViewImage] = useState<string | null>(null);
+  const [viewingOrderIndex, setViewingOrderIndex] = useState<number | null>(null);
+  const [viewingImageIndex, setViewingImageIndex] = useState<number>(0);
+  const [viewingReviewData, setViewingReviewData] = useState<any>(null); // For return request evidence or other single image views
 
   // Cancel order state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -671,7 +674,8 @@ export default function OrdersPage() {
                                     className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:ring-2 hover:ring-[var(--brand-accent)] transition-all"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setViewImage(img);
+                                      setViewingOrderIndex(index);
+                                      setViewingImageIndex(idx);
                                     }}
                                   >
                                     <img
@@ -861,162 +865,161 @@ export default function OrdersPage() {
                             Track Package
                           </Button>
                         ) : order.status === "delivered" ? (
-                            /* Delivered - Confirm Received only */
-                            <>
-                              {order.status === "delivered" && (
-                                <Button
-                                  onClick={() => {
-                                    setOrderToConfirmReceived(order);
-                                    setConfirmReceivedModalOpen(true);
-                                  }}
-                                  size="sm"
-                                  className="bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                  <PackageCheck className="w-4 h-4 mr-1.5" />
-                                  Confirm Received
-                                </Button>
-                              )}
-                            </>
-                          ) : order.status === "received" ? (
-                            /* Received/Reviewed - Write Review and Buy Again */
-                            <>
-                              {/* Write Review */}
-                              {order.status === "received" && (
-                                <Button
-                                  onClick={() => {
-                                    setOrderToReview(order);
-                                    setReviewWarningModalOpen(true);
-                                  }}
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)]"
-                                >
-                                  Write Review
-                                </Button>
-                              )}
-
-                              {/* Buy Again - add items to cart and go to cart for editing before checkout */}
+                          /* Delivered - Confirm Received only */
+                          <>
+                            {order.status === "delivered" && (
                               <Button
-                                onClick={async () => {
-                                  if (!order.items || order.items.length === 0) {
-                                    toast({
-                                      title: "Cannot buy again",
-                                      description: "No items found in this order.",
-                                      variant: "destructive"
-                                    });
-                                    return;
-                                  }
-
-                                  const addedIds: string[] = [];
-                                  await Promise.all(order.items.map(async (item: any) => {
-                                    const productObj = {
-                                      id: item.productId || item.id,
-                                      name: item.name,
-                                      price: item.price,
-                                      originalPrice: item.originalPrice,
-                                      image: item.image,
-                                    } as any;
-
-                                    const variantObj = item.selectedVariant || item.variant;
-                                    try {
-                                      const addedCartItemId = await addToCart(productObj, item.quantity || 1, variantObj, { forceNewItem: true });
-                                      addedIds.push(addedCartItemId || productObj.id);
-                                    } catch (e) {
-                                      console.error('Buy Again addToCart failed:', e);
-                                    }
-                                  }));
-
-                                  navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
+                                onClick={() => {
+                                  setOrderToConfirmReceived(order);
+                                  setConfirmReceivedModalOpen(true);
                                 }}
                                 size="sm"
-                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md shadow-orange-500/20"
+                                className="bg-green-600 hover:bg-green-700 text-white"
                               >
-                                Buy Again
+                                Confirm Received
                               </Button>
-                            </>
-                          ) : order.status === "cancelled" ? (
-                            /* Canceled - View Details */
+                            )}
+                          </>
+                        ) : order.status === "received" ? (
+                          /* Received/Reviewed - Write Review and Buy Again */
+                          <>
+                            {/* Write Review */}
+                            {order.status === "received" && (
+                              <Button
+                                onClick={() => {
+                                  setOrderToReview(order);
+                                  setReviewWarningModalOpen(true);
+                                }}
+                                size="sm"
+                                variant="outline"
+                                className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)]"
+                              >
+                                Write Review
+                              </Button>
+                            )}
+
+                            {/* Buy Again - add items to cart and go to cart for editing before checkout */}
                             <Button
-                              onClick={() =>
-                                navigate(`/order/${encodeURIComponent(order.id)}`)
-                              }
-                              variant="outline"
+                              onClick={async () => {
+                                if (!order.items || order.items.length === 0) {
+                                  toast({
+                                    title: "Cannot buy again",
+                                    description: "No items found in this order.",
+                                    variant: "destructive"
+                                  });
+                                  return;
+                                }
+
+                                const addedIds: string[] = [];
+                                await Promise.all(order.items.map(async (item: any) => {
+                                  const productObj = {
+                                    id: item.productId || item.id,
+                                    name: item.name,
+                                    price: item.price,
+                                    originalPrice: item.originalPrice,
+                                    image: item.image,
+                                  } as any;
+
+                                  const variantObj = item.selectedVariant || item.variant;
+                                  try {
+                                    const addedCartItemId = await addToCart(productObj, item.quantity || 1, variantObj, { forceNewItem: true });
+                                    addedIds.push(addedCartItemId || productObj.id);
+                                  } catch (e) {
+                                    console.error('Buy Again addToCart failed:', e);
+                                  }
+                                }));
+
+                                navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
+                              }}
                               size="sm"
-                              className="border-gray-300 text-gray-500 hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)] hover:bg-transparent"
+                              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
                             >
-                              <Eye className="w-4 h-4 mr-1" />
-                              View Details
+                              Buy Again
                             </Button>
-                          ) : order.status === "returned" ? (
-                            /* Returned - View Return Details */
-                            <Button
-                              onClick={() => setViewReturnDetails(order)}
-                              variant="outline"
-                              size="sm"
-                              className="border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)]"
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              View Details
-                            </Button>
-                          ) : order.status === "reviewed" ? (
-                            /* Reviewed - Show Details */
-                            <div className="flex flex-col items-end gap-3 text-right w-full sm:w-auto mt-4 sm:mt-0">
-                              <div className="flex flex-col items-end gap-1">
-                                <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100 mb-1">
-                                  <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mr-1">
-                                    Your Rating
-                                  </span>
-                                  <div className="flex">
-                                    {[1, 2, 3, 4, 5].map((star) => (
-                                      <Star
-                                        key={star}
-                                        className={`w-4 h-4 ${star <= (order.review?.rating || 5) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`}
-                                      />
-                                    ))}
-                                  </div>
+                          </>
+                        ) : order.status === "cancelled" ? (
+                          /* Canceled - View Details */
+                          <Button
+                            onClick={() =>
+                              navigate(`/order/${encodeURIComponent(order.id)}`)
+                            }
+                            variant="outline"
+                            size="sm"
+                            className="border-gray-300 text-gray-500 hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)] hover:bg-transparent"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View Details
+                          </Button>
+                        ) : order.status === "returned" ? (
+                          /* Returned - View Return Details */
+                          <Button
+                            onClick={() => setViewReturnDetails(order)}
+                            variant="outline"
+                            size="sm"
+                            className="border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)]"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View Details
+                          </Button>
+                        ) : order.status === "reviewed" ? (
+                          /* Reviewed - Show Details */
+                          <div className="flex flex-col items-end gap-3 text-right w-full sm:w-auto mt-4 sm:mt-0">
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100 mb-1">
+                                <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mr-1">
+                                  Your Rating
+                                </span>
+                                <div className="flex">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className={`w-4 h-4 ${star <= (order.review?.rating || 5) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`}
+                                    />
+                                  ))}
                                 </div>
-                                {order.review?.submittedAt && (
-                                  <span className="text-xs text-gray-400">
-                                    Submitted on{" "}
-                                    {new Date(
-                                      order.review.submittedAt,
-                                    ).toLocaleDateString()}
-                                  </span>
-                                )}
                               </div>
-
-                              {order.review?.comment && (
-                                <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-left w-full sm:max-w-md">
-                                  "{order.review.comment}"
-                                </p>
-                              )}
-
-                              {order.review?.images &&
-                                order.review.images.length > 0 && (
-                                  <div className="flex gap-2 justify-end mt-1">
-                                    {order.review.images.map((img, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden"
-                                      >
-                                        <img
-                                          src={img}
-                                          alt={`Review ${idx}`}
-                                          className="w-full h-full object-cover"
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                              {(order.review as any)?.sellerReply && (
-                                <div className="w-full sm:max-w-md border-l-2 border-[var(--brand-primary)] pl-3 text-left mt-1">
-                                  <p className="text-xs font-semibold text-[var(--brand-primary)] mb-0.5">Seller's Reply</p>
-                                  <p className="text-sm text-gray-600 italic">{(order.review as any).sellerReply.message}</p>
-                                </div>
+                              {order.review?.submittedAt && (
+                                <span className="text-xs text-gray-400">
+                                  Submitted on{" "}
+                                  {new Date(
+                                    order.review.submittedAt,
+                                  ).toLocaleDateString()}
+                                </span>
                               )}
                             </div>
-                          ) : null}
+
+                            {order.review?.comment && (
+                              <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-left w-full sm:max-w-md">
+                                "{order.review.comment}"
+                              </p>
+                            )}
+
+                            {order.review?.images &&
+                              order.review.images.length > 0 && (
+                                <div className="flex gap-2 justify-end mt-1">
+                                  {order.review.images.map((img, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden"
+                                    >
+                                      <img
+                                        src={img}
+                                        alt={`Review ${idx}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                            {(order.review as any)?.sellerReply && (
+                              <div className="w-full sm:max-w-md border-l-2 border-[var(--brand-primary)] pl-3 text-left mt-1">
+                                <p className="text-xs font-semibold text-[var(--brand-primary)] mb-0.5">Seller's Reply</p>
+                                <p className="text-sm text-gray-600 italic">{(order.review as any).sellerReply.message}</p>
+                              </div>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -1377,7 +1380,16 @@ export default function OrdersPage() {
                                 className="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-pointer hover:ring-2 hover:ring-[var(--brand-accent)] transition-all"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setViewImage(url);
+                                  // Special handling for return details - for now just open single image since it's not in the main list
+                                  setViewingOrderIndex(-1); // Use -1 to indicate it's not from the main filteredOrders list
+                                  setViewingImageIndex(0);
+                                  setViewingReviewData({
+                                    image: url,
+                                    comment: viewReturnDetails.returnRequest.reason,
+                                    rating: 0,
+                                    date: new Date(viewReturnDetails.returnRequest.createdAt).toLocaleDateString(),
+                                    items: viewReturnDetails.items
+                                  });
                                 }}
                               />
                             ))}
@@ -1487,29 +1499,185 @@ export default function OrdersPage() {
 
       {/* Image Viewer Modal */}
       <AnimatePresence>
-        {viewImage && (
+        {(viewingOrderIndex !== null || viewingReviewData) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-md p-4"
-            onClick={() => setViewImage(null)}
+            className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/70 p-4 lg:p-10"
+            onClick={() => {
+              setViewingOrderIndex(null);
+              setViewingReviewData(null);
+            }}
           >
+            {/* Review Navigation - Outside Modal (Only for main orders list) */}
+            {viewingOrderIndex !== null && viewingOrderIndex >= 0 && (
+              <div className="absolute inset-0 flex items-center justify-between px-4 lg:px-10 pointer-events-none">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    let prev = viewingOrderIndex - 1;
+                    while (prev >= 0 && (!filteredOrders[prev].review?.images || filteredOrders[prev].review.images.length === 0)) prev--;
+                    if (prev >= 0) {
+                      setViewingOrderIndex(prev);
+                      setViewingImageIndex(0);
+                    }
+                  }}
+                  disabled={!filteredOrders.slice(0, viewingOrderIndex).some(o => o.review?.images && o.review.images.length > 0)}
+                  className="p-3 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all pointer-events-auto disabled:opacity-0"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    let next = viewingOrderIndex + 1;
+                    while (next < filteredOrders.length && (!filteredOrders[next].review?.images || filteredOrders[next].review.images.length === 0)) next++;
+                    if (next < filteredOrders.length) {
+                      setViewingOrderIndex(next);
+                      setViewingImageIndex(0);
+                    }
+                  }}
+                  disabled={!filteredOrders.slice(viewingOrderIndex + 1).some(o => o.review?.images && o.review.images.length > 0)}
+                  className="p-3 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all pointer-events-auto disabled:opacity-0"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </div>
+            )}
+
             <button
-              onClick={() => setViewImage(null)}
-              className="absolute top-4 right-4 p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+              onClick={() => {
+                setViewingOrderIndex(null);
+                setViewingReviewData(null);
+              }}
+              className="absolute top-4 right-4 lg:top-8 lg:right-8 p-3 text-white/70 hover:text-white z-20"
             >
-              <X className="w-6 h-6" />
+              <X className="w-4 h-4 lg:w-6 lg:h-6" />
             </button>
-            <motion.img
+
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              src={viewImage}
-              alt="Review Image"
-              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              className="bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col lg:flex-row w-full max-w-6xl max-h-[90vh] relative"
               onClick={(e) => e.stopPropagation()}
-            />
+            >
+              {/* Left: Image Container */}
+              <div className="flex-[1.5] bg-gray-900 relative min-h-[400px] lg:min-h-0 overflow-hidden group">
+                <img
+                  src={viewingOrderIndex !== null && viewingOrderIndex >= 0
+                    ? filteredOrders[viewingOrderIndex].review.images[viewingImageIndex]
+                    : viewingReviewData?.image}
+                  alt="Review Full Size"
+                  className="w-full h-full object-contain"
+                />
+
+                {/* Internal Image Navigation */}
+                {viewingOrderIndex !== null && viewingOrderIndex >= 0 && filteredOrders[viewingOrderIndex].review.images.length > 1 && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingImageIndex(prev => (prev > 0 ? prev - 1 : filteredOrders[viewingOrderIndex!].review.images.length - 1));
+                      }}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingImageIndex(prev => (prev < filteredOrders[viewingOrderIndex!].review.images.length - 1 ? prev + 1 : 0));
+                      }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/50 text-white text-xs rounded-full">
+                      {viewingImageIndex + 1} / {filteredOrders[viewingOrderIndex].review.images.length}
+                    </div>
+                  </>
+                )}
+
+                <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" />
+              </div>
+
+              {/* Right: Review Details */}
+              <div className="w-full lg:w-[400px] bg-white flex flex-col p-6 lg:p-8 overflow-y-auto">
+                {/* User Info */}
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center font-bold text-xl text-gray-500 overflow-hidden ring-2 ring-gray-50 shrink-0">
+                    {profile?.avatar ? (
+                      <img
+                        src={profile.avatar}
+                        alt={`${profile.firstName} ${profile.lastName}`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-6 w-6" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-gray-900 text-md truncate">
+                      {profile?.firstName} {profile?.lastName}
+                    </h4>
+                    <p className="text-xs text-gray-400">
+                      {viewingOrderIndex !== null && viewingOrderIndex >= 0
+                        ? (filteredOrders[viewingOrderIndex].review?.submittedAt ? new Date(filteredOrders[viewingOrderIndex].review.submittedAt).toLocaleDateString() : "")
+                        : viewingReviewData?.date}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Rating & Variants */}
+                <div className="space-y-2 mb-6">
+                  <div className="flex gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={cn(
+                          "w-4 h-4",
+                          i < (viewingOrderIndex !== null && viewingOrderIndex >= 0
+                            ? (filteredOrders[viewingOrderIndex].review?.rating || 0)
+                            : (viewingReviewData?.rating || 0))
+                            ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]"
+                            : "fill-gray-100 text-gray-400",
+                        )}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="space-y-1">
+                      {(viewingOrderIndex !== null && viewingOrderIndex >= 0 ? filteredOrders[viewingOrderIndex].items : viewingReviewData?.items)?.map((item: any, i: number) => (
+                        <div key={i} className="flex flex-col">
+                          <span className="text-xs text-gray-700">{item.name}</span>
+                          {item.variantDisplay && (
+                            <span className="text-xs text-gray-600 italic">{item.variantDisplay}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Comment */}
+                <div className="flex-1">
+                  <p className="text-gray-700 leading-relaxed text-sm">
+                    {(viewingOrderIndex !== null && viewingOrderIndex >= 0
+                      ? filteredOrders[viewingOrderIndex].review?.comment
+                      : viewingReviewData?.comment) || "No written feedback."}
+                  </p>
+                </div>
+
+                {/* Footer Message */}
+                <div className="mt-8 pt-6 border-t border-gray-100 italic text-[10px] text-gray-400 text-center">
+                  Your feedback helps other shoppers make better decisions.
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1633,7 +1801,7 @@ export default function OrdersPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[110]"
             onClick={() => setConfirmReceivedModalOpen(false)}
           >
             <motion.div
@@ -1644,13 +1812,10 @@ export default function OrdersPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                  <PackageCheck className="w-8 h-8 text-green-600" />
-                </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">
                   Confirm Order Received
                 </h3>
-                <p className="text-gray-600 mb-4">
+                <p className="text-gray-600 mb-4 text-sm">
                   Have you received your order <span className="font-semibold">{orderToConfirmReceived.orderNumber || orderToConfirmReceived.id}</span>?
                   This will confirm that the package was delivered to you.
                 </p>
@@ -1658,7 +1823,6 @@ export default function OrdersPage() {
                 {/* Photo Upload Section */}
                 <div className="text-left mb-4">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Camera className="w-4 h-4 inline mr-1.5 -mt-0.5" />
                     Photo Proof <span className="text-red-500">*</span>
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
@@ -1682,7 +1846,7 @@ export default function OrdersPage() {
                               setReceiptPhotos(newPhotos);
                               setReceiptPhotoPreviews(newPreviews);
                             }}
-                            className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-0.5 right-0.5 w-5 h-5 bg-white/40 text-black rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -1693,9 +1857,9 @@ export default function OrdersPage() {
 
                   {/* Upload Buttons */}
                   <div className="flex gap-2">
-                    <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors">
-                      <Camera className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">Take Photo</span>
+                    <label className="group flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-500 hover:bg-gray-100 transition-colors">
+                      <Camera className="w-4 h-4 text-gray-300 group-hover:text-gray-500" />
+                      <span className="text-sm text-gray-300 group-hover:text-gray-500">Take Photo</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -1717,9 +1881,9 @@ export default function OrdersPage() {
                         disabled={isConfirmingReceived}
                       />
                     </label>
-                    <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors">
-                      <ImagePlus className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">Upload</span>
+                    <label className="group flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-500 hover:bg-gray-100 transition-colors">
+                      <ImagePlus className="w-4 h-4 text-gray-300 group-hover:text-gray-500" />
+                      <span className="text-sm text-gray-300 group-hover:text-gray-500">Upload</span>
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
@@ -1751,7 +1915,7 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                <p className="text-sm text-amber-600 mb-6">
+                <p className="text-sm text-[var(--brand-accent)] mb-6">
                   Only confirm if you have actually received the items.
                 </p>
                 <div className="flex gap-3">
@@ -1763,7 +1927,7 @@ export default function OrdersPage() {
                       setReceiptPhotoPreviews([]);
                     }}
                     variant="outline"
-                    className="flex-1 border-gray-200 text-gray-600 hover:bg-gray-100 rounded-xl h-11"
+                    className="flex-1 border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-600 rounded-xl h-11"
                     disabled={isConfirmingReceived}
                   >
                     Not Yet
@@ -1771,10 +1935,10 @@ export default function OrdersPage() {
                   <Button
                     onClick={handleConfirmReceived}
                     disabled={isConfirmingReceived || receiptPhotos.length === 0}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 shadow-lg h-11 rounded-xl font-bold"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 h-11 rounded-xl font-bold"
                   >
                     {isConfirmingReceived ? (
-                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="h-4 w-4 rounded-full animate-spin" />
                     ) : (
                       "Yes, I Received It"
                     )}

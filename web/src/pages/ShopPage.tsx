@@ -93,7 +93,7 @@ export default function ShopPage() {
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
@@ -325,7 +325,18 @@ export default function ShopPage() {
     setSearchQuery(queryParam);
 
     if (categoryParam) {
-      setSelectedCategory(categoryParam);
+      // Resolve slug to name for proper filtering and sidebar highlighting
+      const matchedCategory = categories.find(
+        c => c.slug === categoryParam || c.name.toLowerCase() === categoryParam.toLowerCase()
+      );
+      
+      if (matchedCategory) {
+        setSelectedCategory(matchedCategory.name);
+      } else if (categoryParam.toLowerCase() === 'others') {
+        setSelectedCategory('Others');
+      } else {
+        setSelectedCategory(categoryParam);
+      }
     } else {
       setSelectedCategory("All Categories");
     }
@@ -348,7 +359,7 @@ export default function ShopPage() {
       }
       manualScrollRef.current = false;
     }, 100);
-  }, [searchParams, location.key, priceRange, minRating, selectedSort]);
+  }, [searchParams, location.key, priceRange, minRating, selectedSort, categories]);
 
   // Handle toolbar scroll visibility
   useEffect(() => {

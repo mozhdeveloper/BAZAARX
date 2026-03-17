@@ -103,11 +103,12 @@ export interface BuyerOrderSnapshot {
   deliveredAt?: Date;
   deliveryDate?: Date;
   cancelledAt?: Date;
+  receivedAt?: Date;
   updatedAt?: Date;
   items: BuyerOrderItemSnapshot[];
   shippingAddress: NormalizedShippingAddress;
   paymentMethod: {
-    type: "card" | "gcash" | "paymaya" | "cod";
+    type: "card" | "gcash" | "maya" | "paymaya" | "grab_pay" | "cod";
     details?: string;
   };
   trackingNumber?: string;

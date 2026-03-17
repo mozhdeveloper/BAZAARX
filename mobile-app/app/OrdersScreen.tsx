@@ -199,7 +199,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
           ),
           return_requests:refund_return_periods (
             id, status, is_returnable, refund_date
-          )
+          ),
+          shipments:order_shipments(*),
+          history:order_status_history(status, created_at)
         `)
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false })
@@ -404,6 +406,10 @@ export default function OrdersScreen({ navigation, route }: Props) {
                     ? 'PayMongo'
                     : (order.payment_method as any)?.type || 'Cash on Delivery'),
           createdAt: order.created_at,
+          confirmedAt: (order.history || []).find((h: any) => h.status === 'processing' || h.status === 'confirmed')?.created_at || order.paid_at || null,
+          shippedAt: (order.history || []).find((h: any) => h.status === 'shipped')?.created_at || (order.shipments || []).find((s: any) => s.shipped_at)?.shipped_at || null,
+          deliveredAt: (order.history || []).find((h: any) => h.status === 'delivered')?.created_at || (order.shipments || []).find((s: any) => s.status === 'delivered' || s.status === 'received')?.delivered_at || null,
+          receivedAt: (order.history || []).find((h: any) => h.status === 'received')?.created_at || (order.shipment_status === 'received' ? order.updated_at : null),
           buyerUiStatus,
           isReviewed,
           returnRequestId,

@@ -27,13 +27,17 @@ const mapOrderItems = (orderItems: any[], fallbackStoreName: string, fallbackSel
     const variantLabel2 = personalized.variantLabel2 || variantData?.color;
     const variantParts = [];
 
+    const normalizedName = (variantData?.variant_name || "").toLowerCase();
+    const normalizedL1 = (variantLabel1 || "").toLowerCase();
+    const normalizedL2 = (variantLabel2 || "").toLowerCase();
+
     if (variantData?.variant_name) {
       variantParts.push(variantData.variant_name);
     }
-    if (variantLabel1) {
+    if (variantLabel1 && normalizedL1 && !normalizedName.includes(normalizedL1)) {
       variantParts.push(`Size: ${variantLabel1}`);
     }
-    if (variantLabel2) {
+    if (variantLabel2 && normalizedL2 && !normalizedName.includes(normalizedL2) && normalizedL2 !== normalizedL1) {
       variantParts.push(`Color: ${variantLabel2}`);
     }
 
@@ -163,11 +167,16 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const recipient = order.recipient || {};
   const shippingAddressJoin = order.shipping_address || order.address || {};
   const createdAt = new Date(order.created_at);
-  const confirmedAt = order.paid_at ? new Date(order.paid_at) : (order.shipment_status !== 'waiting_for_seller' && order.shipment_status !== 'pending' ? new Date(order.updated_at) : undefined);
+  const confirmedAt = order.derived_confirmed_at
+    ? new Date(order.derived_confirmed_at)
+    : order.paid_at
+      ? new Date(order.paid_at)
+      : undefined;
   const shippedAt = order.shipped_at ? new Date(order.shipped_at) : undefined;
   const deliveredAt = order.delivered_at ? new Date(order.delivered_at) : undefined;
   const cancelledAt = order.cancelled_at ? new Date(order.cancelled_at) : undefined;
   const updatedAt = order.updated_at ? new Date(order.updated_at) : undefined;
+  const receivedAt = order.shipment_status === 'received' ? updatedAt : undefined;
 
   const rawItems = Array.isArray(order.order_items) ? order.order_items : [];
   const fallbackStoreName =
@@ -265,6 +274,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     updatedAt,
     deliveryDate: deliveredAt,
     cancelledAt,
+    receivedAt,
     items,
     shippingAddress: {
       fullName:
