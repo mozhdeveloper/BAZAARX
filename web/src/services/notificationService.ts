@@ -60,9 +60,9 @@ export class NotificationService {
   private getUserIdColumn(userType: 'buyer' | 'seller' | 'admin'): string {
     switch (userType) {
       case 'buyer': return 'buyer_id';
-      case 'seller': return 'seller_id';
+      case 'seller': return 'seller_id'; // Added in migration 015_add_seller_id_to_seller_notifications
       case 'admin': return 'admin_id';
-      default: return 'buyer_id'; // seller_notifications doesn't have a seller_id column in the schema
+      default: return 'buyer_id';
     }
   }
 
@@ -365,6 +365,30 @@ export class NotificationService {
       actionUrl: `/seller/order/${params.orderId}`,
       actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
       priority: 'high'
+    });
+  }
+
+  async notifySellerOrderReceived(params: {
+    sellerId: string;
+    orderId: string;
+    orderNumber: string;
+    buyerName?: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    const buyerLabel = params.buyerName?.trim() || 'A buyer';
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_order_received',
+      title: 'Order Received by Buyer',
+      message: `${buyerLabel} confirmed receipt of order #${params.orderNumber}`,
+      icon: 'CheckCircle',
+      iconBg: 'bg-green-500',
+      actionUrl: `/seller/order/${params.orderId}`,
+      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
+      priority: 'normal'
     });
   }
 

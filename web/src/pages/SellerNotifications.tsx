@@ -54,6 +54,8 @@ function getNotificationIcon(type: string, actionData?: any) {
     return <Truck className="w-5 h-5 text-orange-600" />;
   if (type.includes("delivered"))
     return <Package className="w-5 h-5 text-green-600" />;
+  if (type.includes("received"))
+    return <CheckCircle className="w-5 h-5 text-green-600" />;
   if (type.includes("cancelled"))
     return <XCircle className="w-5 h-5 text-red-600" />;
   if (type.includes("return"))
@@ -83,6 +85,7 @@ function getNotificationBgColor(type: string, actionData?: any) {
   if (type.includes("confirmed")) return "bg-blue-50";
   if (type.includes("shipped")) return "bg-orange-50";
   if (type.includes("delivered")) return "bg-green-50";
+  if (type.includes("received")) return "bg-green-50";
   if (type.includes("cancelled")) return "bg-red-50";
   if (type.includes("return")) return "bg-yellow-50";
   if (type === "product_rejected" || type.includes("product_rejected")) return "bg-red-50";

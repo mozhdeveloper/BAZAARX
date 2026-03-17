@@ -2054,6 +2054,44 @@ export class OrderService {
                 },
             });
 
+            // Notify sellers about order receipt (fire-and-forget)
+            (async () => {
+                try {
+                    // Fetch order items with seller info
+                    const { data: orderItems = [] } = await supabase
+                        .from("order_items")
+                        .select("*, products(seller_id)")
+                        .eq("order_id", orderId);
+
+                    // Get unique seller IDs
+                    const sellerIds = Array.from(
+                        new Set(orderItems
+                            .map((item: any) => item.products?.seller_id)
+                            .filter(Boolean))
+                    );
+
+                    // Fetch buyer name
+                    const { data: buyer } = await supabase
+                        .from("buyers")
+                        .select("name")
+                        .eq("id", buyerId)
+                        .single();
+
+                    // Notify each seller
+                    sellerIds.forEach((sellerId) => {
+                        void notificationService.notifySellerOrderReceived({
+                            sellerId: sellerId as string,
+                            orderId,
+                            orderNumber: order.order_number,
+                            buyerName: buyer?.name,
+                        });
+                    });
+                } catch (notifyError) {
+                    console.error("Error notifying sellers of order receipt:", notifyError);
+                    // Non-blocking, don't rethrow
+                }
+            })();
+
             return true;
         } catch (error) {
             console.error("Error confirming order received:", error);

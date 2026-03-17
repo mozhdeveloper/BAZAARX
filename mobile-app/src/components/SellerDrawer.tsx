@@ -134,12 +134,12 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
       pollIntervalRef.current = null;
     }
 
-    // Faster fallback polling every 1 second as safety net
+    // Fallback polling every 10 seconds as safety net (realtime is primary)
     pollIntervalRef.current = setInterval(() => {
       if (seller?.id && mountedRef.current) {
         fetchCounts();
       }
-    }, 1000);
+    }, 10000);
 
     return () => {
       // Don't unsubscribe here - keep subscriptions alive across drawer open/close
