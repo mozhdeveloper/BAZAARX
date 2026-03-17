@@ -26,12 +26,13 @@ import { safeImageUri } from '../../../src/utils/imageUtils';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 import { orderExportService } from '../../../src/services/orderExportService';
 import { deliveryService } from '../../../src/services/deliveryService';
+import { supabase } from '../../../src/lib/supabase';
 
 // Pure mapping — no component state, defined at module level for stability
 const getStatusConfig = (status: string) => {
   const configs: Record<string, { color: string; label: string; action: string | null }> = {
     pending: { color: '#FBBF24', label: 'PENDING', action: 'Confirm' },
-    confirmed: { color: '#3B82F6', label: 'CONFIRMED', action: 'Ship Now' },
+    confirmed: { color: '#3B82F6', label: 'CONFIRMED', action: 'Ship' },
     shipped: { color: '#8B5CF6', label: 'SHIPPED', action: 'Deliver' },
     delivered: { color: '#10B981', label: 'DELIVERED', action: null },
     cancelled: { color: '#DC2626', label: 'CANCELLED', action: null },
@@ -233,13 +234,14 @@ export default function SellerOrdersScreen() {
         Alert.alert('Error', 'Order not found.');
         return;
       }
+      
       Alert.alert(
         'Ship Order',
         'Book a shipment and auto-generate a tracking number for this order?',
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Ship Now',
+            text: 'Ship',
             onPress: async () => {
               if (isUpdatingRef.current) return;
               isUpdatingRef.current = true;

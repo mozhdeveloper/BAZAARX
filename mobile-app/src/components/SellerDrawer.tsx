@@ -66,12 +66,110 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
   const { switchRole } = useAuthStore();
   const [unreadMsgCount, setUnreadMsgCount] = React.useState(0);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
+  const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const unsubChatRef = React.useRef<(() => void) | null>(null);
+  const unsubNotifRef = React.useRef<(() => void) | null>(null);
+  const mountedRef = React.useRef(true);
 
+  // Set up real-time listeners for unread counts
   useEffect(() => {
-    if (!visible || !seller?.id) return;
-    chatService.getUnreadCount(seller.id, 'seller').then(setUnreadMsgCount);
-    notificationService.getUnreadCount(seller.id, 'seller').then(setUnreadNotifCount);
-  }, [visible, seller?.id]);
+    if (!seller?.id) return;
+    mountedRef.current = true;
+
+    // Initial fetch
+    const fetchCounts = async () => {
+      try {
+        const [msgCount, notifCount] = await Promise.all([
+          chatService.getUnreadCount(seller.id, 'seller'),
+          notificationService.getUnreadCount(seller.id, 'seller')
+        ]);
+        if (mountedRef.current) {
+          setUnreadMsgCount(msgCount);
+          setUnreadNotifCount(notifCount);
+        }
+      } catch (error) {
+        console.error('[SellerDrawer] Error fetching counts:', error);
+      }
+    };
+
+    fetchCounts();
+
+    // Real-time listeners to update counts as messages/notifications arrive
+    try {
+      // Set up chat subscription if not already set up
+      if (!unsubChatRef.current) {
+        console.log('[SellerDrawer] Setting up real-time chat subscription for seller:', seller.id);
+        unsubChatRef.current = chatService.subscribeToConversations(seller.id, 'seller', () => {
+          console.log('[SellerDrawer] New chat message received');
+          if (mountedRef.current) {
+            chatService.getUnreadCount(seller.id, 'seller').then(setUnreadMsgCount);
+          }
+        });
+      }
+
+      // Set up notification subscription if not already set up
+      if (!unsubNotifRef.current) {
+        console.log('[SellerDrawer] Setting up real-time notification subscription for seller:', seller.id);
+        unsubNotifRef.current = notificationService.subscribeToNotifications(seller.id, 'seller', (newNotification) => {
+          console.log('[SellerDrawer] New notification received:', newNotification);
+          if (mountedRef.current) {
+            if (!newNotification?.read_at) {
+              setUnreadNotifCount((prev) => prev + 1);
+            }
+            notificationService.getUnreadCount(seller.id, 'seller').then((count) => {
+              if (mountedRef.current) {
+                setUnreadNotifCount(count);
+              }
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('[SellerDrawer] Error setting up real-time listeners:', error);
+    }
+
+    // Clean up old polling interval if it exists
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    // Faster fallback polling every 1 second as safety net
+    pollIntervalRef.current = setInterval(() => {
+      if (seller?.id && mountedRef.current) {
+        fetchCounts();
+      }
+    }, 1000);
+
+    return () => {
+      // Don't unsubscribe here - keep subscriptions alive across drawer open/close
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [seller?.id]);
+
+  // Only clean up subscriptions on component unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (unsubChatRef.current) {
+        console.log('[SellerDrawer] Cleaning up chat subscription on unmount');
+        unsubChatRef.current();
+        unsubChatRef.current = null;
+      }
+      if (unsubNotifRef.current) {
+        console.log('[SellerDrawer] Cleaning up notification subscription on unmount');
+        unsubNotifRef.current();
+        unsubNotifRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   const drawerWidth = Math.min(Dimensions.get('window').width * 0.85, 320);
   const translateX = useRef(new Animated.Value(-drawerWidth)).current;

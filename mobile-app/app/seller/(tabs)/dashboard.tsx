@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -79,6 +79,8 @@ export default function SellerDashboardScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const unsubChatRef = useRef<(() => void) | null>(null);
+  const unsubNotifRef = useRef<(() => void) | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
@@ -96,23 +98,66 @@ export default function SellerDashboardScreen() {
     }
   }, [currentSeller?.id, filters.startDate, filters.endDate]);
 
-  // Unread badge polling (notifications + messages)
+  // Unread badges (notifications + messages)
   useEffect(() => {
     if (!currentSeller?.id) return;
+    let active = true;
+
     const fetchCounts = async () => {
       try {
         const [notifCount, msgCount] = await Promise.all([
           notificationService.getUnreadCount(currentSeller.id, 'seller'),
           chatService.getUnreadCount(currentSeller.id, 'seller'),
         ]);
-        setUnreadNotifCount(notifCount);
-        setUnreadMessagesCount(msgCount);
+        if (active) {
+          setUnreadNotifCount(notifCount);
+          setUnreadMessagesCount(msgCount);
+        }
       } catch (_) {}
     };
+
     fetchCounts();
-    const interval = setInterval(fetchCounts, 30000);
-    return () => clearInterval(interval);
+
+    if (!unsubChatRef.current) {
+      unsubChatRef.current = chatService.subscribeToConversations(
+        currentSeller.id,
+        'seller',
+        () => { void fetchCounts(); }
+      );
+    }
+
+    if (!unsubNotifRef.current) {
+      unsubNotifRef.current = notificationService.subscribeToNotifications(
+        currentSeller.id,
+        'seller',
+        (newNotification) => {
+          if (active && !newNotification?.read_at) {
+            setUnreadNotifCount((prev) => prev + 1);
+          }
+          void fetchCounts();
+        }
+      );
+    }
+
+    const interval = setInterval(fetchCounts, 1000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [currentSeller?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (unsubChatRef.current) {
+        unsubChatRef.current();
+        unsubChatRef.current = null;
+      }
+      if (unsubNotifRef.current) {
+        unsubNotifRef.current();
+        unsubNotifRef.current = null;
+      }
+    };
+  }, []);
 
   // Derived Stats Logic
   const stats = React.useMemo(() => {

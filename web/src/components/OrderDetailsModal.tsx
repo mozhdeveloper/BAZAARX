@@ -1062,7 +1062,7 @@ export function OrderDetailsModal({
                                                 }))
                                             }
                                         >
-                                            Ship Order
+                                            Ship
                                         </Button>
                                         <Button
                                             size="lg"
