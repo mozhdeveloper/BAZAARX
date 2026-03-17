@@ -217,14 +217,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   
   // ─── Refined Variant Logic (Align with Web) ───
   
-  // Extract raw values from variants
-  const rawValues1 = hasStructuredVariants
-    ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
-    : (product.option1Values || product.colors || []);
-  const rawValues2 = hasStructuredVariants
-    ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
-    : (product.option2Values || product.sizes || []);
-
   const dedupe = (opts: any) => {
     if (!Array.isArray(opts)) return [];
     const seen = new Set();
@@ -240,13 +232,56 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }, []);
   };
 
-  const option1Values = dedupe(rawValues1);
-  const option2Values = dedupe(rawValues2);
+  // Detect if a set of values looks like colors by checking against the known color map
+  const looksLikeColor = (values: string[]) =>
+    values.length > 0 && values.every(v => colorNameToHex[v.toLowerCase().trim()] !== undefined);
 
-  // If labels are not provided by DB, we only auto-assign if there are actual values
-  // This prevents showing "Color" label with empty selection if only Size exists
-  const variantLabel1 = product.variant_label_1 || (option1Values.length > 0 ? 'Color' : undefined);
-  const variantLabel2 = product.variant_label_2 || (option2Values.length > 0 ? 'Size' : undefined);
+  // Extract raw values from variants — respecting DB labels when present
+  const rawValues1 = hasStructuredVariants
+    ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
+    : (product.option1Values || product.colors || []);
+  const rawValues2 = hasStructuredVariants
+    ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
+    : (product.option2Values || product.sizes || []);
+
+  const deduped1 = dedupe(rawValues1);
+  const deduped2 = dedupe(rawValues2);
+
+  // If DB labels are provided, trust them. Otherwise detect by value content.
+  // When no DB labels: if option1 looks like sizes and option2 looks like colors, swap them
+  // so that Color always comes first (option1) and Size/Variant comes second (option2).
+  const dbLabel1 = product.variant_label_1 as string | undefined;
+  const dbLabel2 = product.variant_label_2 as string | undefined;
+
+  const inferLabel = (values: string[], fallback: string) =>
+    looksLikeColor(values) ? 'Color' : fallback;
+
+  let option1Values: string[];
+  let option2Values: string[];
+  let variantLabel1: string | undefined;
+  let variantLabel2: string | undefined;
+
+  if (dbLabel1 || dbLabel2) {
+    // Trust DB labels as-is
+    option1Values = deduped1;
+    option2Values = deduped2;
+    variantLabel1 = dbLabel1 || (deduped1.length > 0 ? inferLabel(deduped1, 'Variant') : undefined);
+    variantLabel2 = dbLabel2 || (deduped2.length > 0 ? inferLabel(deduped2, 'Color') : undefined);
+  } else {
+    // No DB labels — detect and swap if needed so Color is always option1
+    const axis1IsColor = looksLikeColor(deduped1);
+    const axis2IsColor = looksLikeColor(deduped2);
+    const shouldSwap = !axis1IsColor && axis2IsColor && deduped2.length > 0;
+
+    option1Values = shouldSwap ? deduped2 : deduped1;
+    option2Values = shouldSwap ? deduped1 : deduped2;
+    variantLabel1 = deduped1.length > 0 || deduped2.length > 0
+      ? inferLabel(option1Values, 'Variant')
+      : undefined;
+    variantLabel2 = option2Values.length > 0
+      ? inferLabel(option2Values, 'Color')
+      : undefined;
+  }
 
   // Check if axis 1 and 2 are effectively identical (redundant case often seen in vinyls/posters)
   const isRedundant = useMemo(() => {
@@ -311,19 +346,30 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [modalQuantity, setModalQuantity] = useState(1);
   const [showVariantFilterModal, setShowVariantFilterModal] = useState(false); // Filter dropdown state
 
+  // Whether axes were swapped (color was in option_2 in DB)
+  const axesSwapped = !dbLabel1 && !dbLabel2 && !looksLikeColor(deduped1) && looksLikeColor(deduped2) && deduped2.length > 0;
+
+  // Match a variant row against our (possibly swapped) option1/option2 selections
+  const matchVariant = (v: any, op1: string | null, op2: string | null) => {
+    const n = (val: any) => String(val || '').trim().toLowerCase();
+    // DB axis values (before any swap)
+    const dbAxis1 = n(v.option_1_value || v.color);
+    const dbAxis2 = n(v.option_2_value || v.size);
+    // Our op1 = color axis, op2 = size axis
+    // If swapped: our op1 maps to DB axis2, our op2 maps to DB axis1
+    const colorAxisVal = axesSwapped ? dbAxis2 : dbAxis1;
+    const sizeAxisVal  = axesSwapped ? dbAxis1 : dbAxis2;
+    const op1Match = !op1 || colorAxisVal === n(op1);
+    const op2Match = !op2 || sizeAxisVal  === n(op2);
+    return op1Match && op2Match;
+  };
+
   // Computed modal variant price, stock, and image
   const modalVariantInfo = useMemo(() => {
     if (!hasStructuredVariants) {
       return { price: product.price, stock: product.stock, image: null };
     }
-
-    const matchedVariant = productVariants.find((v: any) => {
-      // Match by option values OR legacy color/size
-      const option1Match = !modalSelectedOption1 || v.option_1_value === modalSelectedOption1 || v.color === modalSelectedOption1;
-      const option2Match = !modalSelectedOption2 || v.option_2_value === modalSelectedOption2 || v.size === modalSelectedOption2;
-      return option1Match && option2Match;
-    });
-
+    const matchedVariant = productVariants.find((v: any) => matchVariant(v, modalSelectedOption1, modalSelectedOption2));
     return {
       price: matchedVariant?.price ?? product.price,
       stock: matchedVariant?.stock ?? product.stock,
@@ -337,25 +383,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     if (!hasStructuredVariants) {
       return { price: product.price, stock: product.stock, image: null };
     }
-
-    const normalize = (val: any) => String(val || '').trim().toLowerCase();
-
-    const matchedVariant = productVariants.find((v: any) => {
-      // Match by option values OR legacy color/size using main screen state with normalization
-      const targetOp1 = normalize(selectedOption1);
-      const targetOp2 = normalize(selectedOption2);
-
-      const vOption1 = normalize(v.option_1_value || v.color);
-      const vOption2 = normalize(v.option_2_value || v.size);
-
-      const option1Match = !selectedOption1 || vOption1 === targetOp1;
-      const option2Match = !selectedOption2 || vOption2 === targetOp2;
-      return option1Match && option2Match;
-    });
-
+    const matchedVariant = productVariants.find((v: any) => matchVariant(v, selectedOption1, selectedOption2));
     return {
       price: matchedVariant?.price ?? product.price,
-      stock: matchedVariant?.stock ?? product.stock, // Default to product stock if no variant match found (though unlikely if options exist)
+      stock: matchedVariant?.stock ?? product.stock,
       variantId: matchedVariant?.id,
       image: matchedVariant?.thumbnail_url || matchedVariant?.image || null,
     };
@@ -619,12 +650,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     let matchedVariant: any = null;
 
     if (hasStructuredVariants) {
-      matchedVariant = productVariants.find((v: any) => {
-        const option1Match = !modalSelectedOption1 || v.option_1_value === modalSelectedOption1 || v.color === modalSelectedOption1;
-        const option2Match = !modalSelectedOption2 || v.option_2_value === modalSelectedOption2 || v.size === modalSelectedOption2;
-        return option1Match && option2Match;
-      });
-
+      matchedVariant = productVariants.find((v: any) => matchVariant(v, modalSelectedOption1, modalSelectedOption2));
       if (matchedVariant?.price) {
         variantPrice = matchedVariant.price;
       }
@@ -1106,21 +1132,39 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <View style={styles.colorOptions}>
                 {option1Values.filter((c: string) => c.trim() !== '').map((value: string, index: number) => {
                   const isColor = finalVariantLabel1.toLowerCase() === 'color';
+                  const variantImg = isColor
+                    ? productVariants.find((v: any) =>
+                        (axesSwapped ? v.option_2_value : v.option_1_value) === value
+                      )?.thumbnail_url || null
+                    : null;
+                  const isSelected = selectedOption1 === value;
+                  if (isColor) {
+                    return (
+                      <Pressable
+                        key={`${value}-${index}`}
+                        style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
+                        onPress={() => setSelectedOption1(value)}
+                      >
+                        {variantImg ? (
+                          <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
+                        ) : (
+                          <View style={[styles.variantImgThumb, { backgroundColor: getColorHex(value) }]} />
+                        )}
+                        {isSelected && (
+                          <View style={styles.variantImgCheck}>
+                            <CheckCircle size={14} color={BRAND_COLOR} fill="#FFF" />
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  }
                   return (
                     <Pressable
                       key={`${value}-${index}`}
-                      style={[
-                        styles.colorOption,
-                        { backgroundColor: isColor ? getColorHex(value) : COLORS.background },
-                        selectedOption1 === value && styles.colorOptionSelected,
-                      ]}
+                      style={[styles.sizeOption, isSelected && styles.sizeOptionSelected]}
                       onPress={() => setSelectedOption1(value)}
                     >
-                      {!isColor && (
-                        <Text style={[styles.optionText, selectedOption1 === value && { color: BRAND_COLOR }]}>
-                          {value}
-                        </Text>
-                      )}
+                      <Text style={[styles.sizeOptionText, isSelected && styles.sizeOptionTextSelected]}>{value}</Text>
                     </Pressable>
                   );
                 })}
@@ -1133,24 +1177,27 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <Text style={styles.variantLabel}>
                 {finalVariantLabel2}: <Text style={styles.variantSelected}>{selectedOption2}</Text>
               </Text>
-              <View style={styles.sizeOptions}>
+              <View style={styles.colorOptions}>
                 {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => {
-                  const isColor = finalVariantLabel2.toLowerCase() === 'color';
+                  const isSelected = selectedOption2 === value;
+                  const variantImg = productVariants.find((v: any) =>
+                    (axesSwapped ? v.option_1_value : v.option_2_value) === value
+                  )?.thumbnail_url || productImages[0] || null;
                   return (
                     <Pressable
                       key={`${value}-${index}`}
-                      style={[
-                        isColor ? styles.colorOption : styles.sizeOption,
-                        isColor ? { backgroundColor: getColorHex(value) } : null,
-                        selectedOption2 === value && (isColor ? styles.colorOptionSelected : styles.sizeOptionSelected),
-                      ]}
+                      style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
                       onPress={() => setSelectedOption2(value)}
                     >
-                      {!isColor && (
-                        <Text style={[
-                          styles.sizeOptionText,
-                          selectedOption2 === value && styles.sizeOptionTextSelected,
-                        ]}>{value}</Text>
+                      {variantImg ? (
+                        <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.variantImgThumb, { backgroundColor: '#E5E7EB' }]} />
+                      )}
+                      {isSelected && (
+                        <View style={styles.variantImgCheck}>
+                          <CheckCircle size={14} color={BRAND_COLOR} fill="#FFF" />
+                        </View>
                       )}
                     </Pressable>
                   );
@@ -1923,11 +1970,11 @@ const styles = StyleSheet.create({
   variantSection: { marginTop: 16 },
   variantLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textHeadline, marginBottom: 10 },
   variantSelected: { fontWeight: '700', color: COLORS.textHeadline },
-  colorOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  colorOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   colorOption: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 6,
     borderWidth: 2,
     borderColor: '#E5E7EB',
     justifyContent: 'center',
@@ -1940,16 +1987,41 @@ const styles = StyleSheet.create({
   colorCheckmark: {
     width: 16,
     height: 16,
-    borderRadius: 8,
+    borderRadius: 3,
     backgroundColor: BRAND_COLOR,
     justifyContent: 'center',
     alignItems: 'center',
   },
   optionText: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     color: COLORS.textHeadline,
     textAlign: 'center',
+  },
+  variantImgBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  variantImgBtnSelected: {
+    borderColor: BRAND_COLOR,
+    borderWidth: 3,
+  },
+  variantImgThumb: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 6,
+  },
+  variantImgCheck: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: '#FFF',
+    borderRadius: 8,
   },
   sizeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   sizeOption: {
