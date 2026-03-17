@@ -34,14 +34,27 @@ import SellerDrawer from '../../src/components/SellerDrawer';
 
 const getNotificationStyles = (type: string) => {
   const t = type.toLowerCase();
-  if (t.includes('new_order') || t.includes('order')) {
-    return { Icon: ShoppingBag, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
+  // Check for more specific patterns first before general patterns
+  if (t.includes('product_rejected')) {
+    return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
   }
-  if (t.includes('received') || t.includes('confirmed')) {
-    return { Icon: CheckCircle, color: '#0D9488', bg: '#CCFBF1', border: '#99F6E4' };
+  if (t.includes('product_approved')) {
+    return { Icon: CheckCircle, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
+  }
+  if (t.includes('product_sample_request') || t.includes('sample')) {
+    return { Icon: Package, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
   }
   if (t.includes('cancelled') || t.includes('cancellation')) {
     return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
+  }
+  if (t.includes('shipped') || t.includes('delivered')) {
+    return { Icon: Truck, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
+  }
+  if (t.includes('received') || t.includes('confirmed')) {
+    return { Icon: CheckCircle, color: '#16A34A', bg: '#F0FDF4', border: '#DCFCE7' };
+  }
+  if (t.includes('new_order') || t.includes('order')) {
+    return { Icon: ShoppingBag, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
   }
   if (t.includes('return')) {
     return { Icon: RotateCcw, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
@@ -49,23 +62,11 @@ const getNotificationStyles = (type: string) => {
   if (t.includes('message')) {
     return { Icon: MessageSquare, color: '#7C3AED', bg: '#EDE9FE', border: '#DDD6FE' };
   }
-  if (t === 'product_rejected' || t.includes('product_rejected')) {
-    return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
-  }
-  if (t === 'product_approved' || t.includes('product_approved')) {
-    return { Icon: CheckCircle, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
-  }
-  if (t === 'product_sample_request' || t.includes('sample')) {
-    return { Icon: Package, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
-  }
   if (t.includes('product') || t.includes('verification')) {
     return { Icon: Package, color: '#4F46E5', bg: '#E0E7FF', border: '#C7D2FE' };
   }
   if (t.includes('review')) {
     return { Icon: Star, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' };
-  }
-  if (t.includes('shipped') || t.includes('delivered')) {
-    return { Icon: Truck, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
   }
   return { Icon: Bell, color: '#4B5563', bg: '#F3F4F6', border: '#E5E7EB' };
 };
@@ -160,12 +161,12 @@ export default function SellerNotificationsScreen() {
       pollIntervalRef.current = null;
     }
 
-    // Faster fallback polling every 1 second as safety net for missed real-time events
+    // Faster fallback polling every 10 seconds as safety net for missed real-time events
     pollIntervalRef.current = setInterval(() => {
-      if (seller?.id) {
+      if (seller?.id && mountedRef.current) {
         void fetchNotifications();
       }
-    }, 1000);
+    }, 10000);
 
     return () => {
       mountedRef.current = false;

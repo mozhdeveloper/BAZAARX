@@ -580,3 +580,65 @@ All user requests from this session have been completed:
 
 Realtime notification system is now primary with polling as secondary safety net across all surfaces.
 
+---
+
+### Feature — Seller Notification When Buyer Confirms Order Receipt (Web + Mobile)
+
+**Prompt:** "Confirm Order by the buyer is not notifying to the seller in both web and mobile."
+
+**Root Cause:**
+- `confirmOrderReceived()` method existed in both orderService files
+- Method updated shipment_status and order_status_history correctly
+- **Missing**: No seller notification dispatch after confirmation
+
+**Implementation:**
+1. `web/src/services/notificationService.ts` + `mobile-app/src/services/notificationService.ts`
+   - Added `notifySellerOrderReceived()` helper with:
+     - Type: `'seller_order_received'`
+     - Icon: `'CheckCircle'` (green-500)
+     - Title: "Order Received by Buyer"
+     - Priority: `'normal'`
+     - Signature: `{ sellerId, orderId, orderNumber, buyerName? }`
+
+2. `web/src/services/orderService.ts`
+   - `confirmOrderReceived()`: Added fire-and-forget async block after order_status_history insert
+   - Fetches order_items with seller_id via products join
+   - Resolves unique sellers (supports multi-seller orders)
+   - Fetches buyer name
+   - Calls `notifySellerOrderReceived()` for each seller without blocking confirmation
+
+3. `mobile-app/src/services/orderService.ts`
+   - Applied same fire-and-forget pattern as web
+   - Resolves sellers from order_items, sends notifications asynchronously
+
+**Result:**
+- When buyer confirms receipt of delivered order, seller receives notification instantly (realtime) or within 10s (polling fallback)
+- Works for single-seller and multi-seller orders
+- Notification routes seller to order detail page
+
+---
+
+### Bug Fix — Mobile Seller Notification Icon Consistency for "Order Received"
+
+**Prompt:** "The icon of order received by buyer notification is not same as in web. Make it always the same icon."
+
+**Root Cause:**
+- Mobile `getNotificationStyles()` used teal colors for 'received' notifications (CheckCircle with #0D9488)
+- Web used green colors for the same (CheckCircle with green-600)
+- Color mismatch made notifications visually inconsistent across platforms
+
+**Files Changed:**
+1. `web/src/pages/SellerNotifications.tsx`
+   - Added explicit check for `type.includes("received")` → CheckCircle (green-600), bg-green-50
+   - Ensures "order received" notifications render with consistent green styling
+
+2. `mobile-app/app/seller/notifications.tsx`
+   - Changed 'received' notification colors from teal to green:
+     - Icon color: #0D9488 (teal) → #16A34A (green)
+     - Background: #CCFBF1 (teal) → #F0FDF4 (light green)
+     - Border: #99F6E4 (teal) → #DCFCE7 (green)
+
+**Result:**
+- "Order Received by Buyer" notifications now display with identical green CheckCircle icon on both web and mobile
+- Visual consistency maintained across platforms
+
