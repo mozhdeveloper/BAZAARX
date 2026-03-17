@@ -332,6 +332,17 @@ export default function ShopPage() {
     }
 
     // Scroll logic - handles both initial mount and updates
+
+    // When "Clear filter" is clicked, scroll back to the featured section after it re-mounts
+    if ((location.state as any)?.scrollToFeatured) {
+      setTimeout(() => {
+        const element = document.getElementById("featured-section");
+        if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
+        manualScrollRef.current = false;
+      }, 400);
+      return;
+    }
+
     setTimeout(() => {
       const isClean = !categoryParam && !queryParam && !filterParam &&
         priceRange[0] === 0 && priceRange[1] === 100000 &&
@@ -348,7 +359,9 @@ export default function ShopPage() {
         }
       }
       manualScrollRef.current = false;
-    }, 100);
+    // When filter=featured, the featured section exit animation takes 350ms — wait for it
+    // to fully collapse before scrolling so the layout is settled
+    }, filterParam === "featured" ? 420 : 100);
   }, [searchParams, location.key, priceRange, minRating, selectedSort]);
 
   // Handle toolbar scroll visibility
@@ -596,8 +609,17 @@ export default function ShopPage() {
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
-          {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
-            <div className="mb-10">
+          <AnimatePresence>
+          {(featuredProducts.length > 0 || boostedProducts.length > 0) && searchParams.get("filter") !== "featured" && (
+            <motion.div
+              id="featured-section"
+              key="featured-section"
+              className="mb-10 scroll-mt-24"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+            >
               {/* Section Header */}
               <div className="flex items-center justify-between mb-5 px-1">
                 <div className="flex items-center gap-2.5">
@@ -729,8 +751,9 @@ export default function ShopPage() {
                   });
                 })()}
               </div>
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
 
           {/* Main Content */}
           <div className="w-full" id="shop-content">
@@ -994,8 +1017,16 @@ export default function ShopPage() {
               {/* Products Area */}
               <div className="flex-1 min-w-0">
                 {/* Featured filter banner */}
+                <AnimatePresence>
                 {searchParams.get("filter") === "featured" && (
-                  <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200">
+                  <motion.div
+                    key="featured-banner"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25 }}
+                    className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200"
+                  >
                     <div className="flex items-center gap-2.5">
                       <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-1.5 rounded-lg shadow-sm">
                         <Star className="h-3.5 w-3.5 text-white fill-white" />
@@ -1006,13 +1037,14 @@ export default function ShopPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => navigate('/shop')}
+                      onClick={() => navigate('/shop', { state: { scrollToFeatured: true } })}
                       className="text-xs text-amber-700 hover:text-amber-900 font-semibold underline underline-offset-2 transition-colors whitespace-nowrap"
                     >
                       Clear filter
                     </button>
-                  </div>
+                  </motion.div>
                 )}
+                </AnimatePresence>
 
                 {/* Toolbar - Now inside Product Area */}
                 <motion.div
