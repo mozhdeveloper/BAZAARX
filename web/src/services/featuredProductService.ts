@@ -57,6 +57,31 @@ function _getFeaturedCache<T>(key: string): T | null {
 function _setFeaturedCache<T>(key: string, data: T): void {
   _featuredCache.set(key, { data, expiresAt: Date.now() + FEATURED_CACHE_TTL });
 }
+
+/**
+ * Invalidate entries in the featured-products TTL cache.
+ *
+ * - If called with no arguments, clears the entire cache.
+ * - If called with a string, treats it as a key prefix and removes matching entries.
+ * - If called with a RegExp, removes entries whose keys match the pattern.
+ */
+export function invalidateFeaturedCache(pattern?: string | RegExp): void {
+  if (pattern === undefined) {
+    _featuredCache.clear();
+    return;
+  }
+
+  const isRegExp = pattern instanceof RegExp;
+
+  for (const key of _featuredCache.keys()) {
+    if (
+      (isRegExp && (pattern as RegExp).test(key)) ||
+      (!isRegExp && key.startsWith(pattern as string))
+    ) {
+      _featuredCache.delete(key);
+    }
+  }
+}
 // ---------------------------------------------------------------------------
 
 class FeaturedProductService {
@@ -108,11 +133,15 @@ class FeaturedProductService {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const productIds = filtered.map((fp: any) => fp.product?.id).filter(Boolean);
       
-      const { data: soldCountsData } = await supabase
+      const { data: soldCountsData, error: soldCountsError } = await supabase
         .from('order_items')
-        .select('product_id, quantity, order:orders!inner(payment_status, shipment_status)')
+        .select('product_id, quantity, order:orders!inner(shipment_status)')
         .in('product_id', productIds)
         .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
+
+      if (soldCountsError) {
+        console.error('[FeaturedProductService] getFeaturedProducts sold counts error:', soldCountsError);
+      }
 
       const soldCountsMap = new Map<string, number>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

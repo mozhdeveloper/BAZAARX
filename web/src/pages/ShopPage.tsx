@@ -319,6 +319,7 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => {
+    const timeouts: number[] = [];
     const queryParam = searchParams.get("q") || "";
     const categoryParam = searchParams.get("category");
     const filterParam = searchParams.get("filter");
@@ -335,33 +336,40 @@ export default function ShopPage() {
 
     // When "Clear filter" is clicked, scroll back to the featured section after it re-mounts
     if ((location.state as any)?.scrollToFeatured) {
-      setTimeout(() => {
+      const featuredTimeoutId = window.setTimeout(() => {
         const element = document.getElementById("featured-section");
         if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
         manualScrollRef.current = false;
       }, 400);
-      return;
+      timeouts.push(featuredTimeoutId);
+    } else {
+      const scrollTimeoutId = window.setTimeout(() => {
+        const isClean = !categoryParam && !queryParam && !filterParam &&
+          priceRange[0] === 0 && priceRange[1] === 100000 &&
+          minRating === 0 && selectedSort === "newest";
+
+        if (isClean && !manualScrollRef.current) {
+          // Landing on a clean Shop page (or reset via Shop tab), scroll to the very top
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          // Any filter change (URL or local state), or manual "All" selection, scroll to results
+          const element = document.getElementById("shop-results-header");
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }
+        manualScrollRef.current = false;
+      // When filter=featured, the featured section exit animation takes 350ms — wait for it
+      // to fully collapse before scrolling so the layout is settled
+      }, filterParam === "featured" ? 420 : 100);
+      timeouts.push(scrollTimeoutId);
     }
 
-    setTimeout(() => {
-      const isClean = !categoryParam && !queryParam && !filterParam &&
-        priceRange[0] === 0 && priceRange[1] === 100000 &&
-        minRating === 0 && selectedSort === "newest";
-
-      if (isClean && !manualScrollRef.current) {
-        // Landing on a clean Shop page (or reset via Shop tab), scroll to the very top
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      } else {
-        // Any filter change (URL or local state), or manual "All" selection, scroll to results
-        const element = document.getElementById("shop-results-header");
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      }
-      manualScrollRef.current = false;
-    // When filter=featured, the featured section exit animation takes 350ms — wait for it
-    // to fully collapse before scrolling so the layout is settled
-    }, filterParam === "featured" ? 420 : 100);
+    return () => {
+      timeouts.forEach((id) => {
+        clearTimeout(id);
+      });
+    };
   }, [searchParams, location.key, priceRange, minRating, selectedSort]);
 
   // Handle toolbar scroll visibility
@@ -403,8 +411,6 @@ export default function ShopPage() {
   const filteredProducts = useMemo<ShopProduct[]>(() => {
     const filterParam = searchParams.get("filter");
     const filtered = pricedProducts.filter((product) => {
-      if (filterParam === "featured" && !featuredProductIds.has(product.id)) return false;
-
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -442,6 +448,16 @@ export default function ShopPage() {
       default:
         // Keep original order for relevance and newest
         break;
+    }
+
+    // When filter=featured is active, prioritize known featured/boosted products
+    if (filterParam === "featured" && featuredProductIds.size > 0) {
+      filtered.sort((a, b) => {
+        const aFeatured = featuredProductIds.has(a.id);
+        const bFeatured = featuredProductIds.has(b.id);
+        if (aFeatured === bFeatured) return 0;
+        return aFeatured ? -1 : 1;
+      });
     }
 
     return filtered;
