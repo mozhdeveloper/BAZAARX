@@ -144,6 +144,7 @@ export default function OrdersPage() {
         files: data.files,
         refundAmount: data.refundAmount,
         submittedAt: new Date(),
+        status: 'pending',
       });
 
       setReturnModalOpen(false);
@@ -196,6 +197,14 @@ export default function OrdersPage() {
 
     const reason = cancelReason === "Other" ? otherReason : cancelReason;
 
+    // ── Optimistic update: immediately reflect cancellation in the UI ──────
+    updateOrderStatus(orderToCancel.id, "cancelled");
+    setStatusFilter("cancelled");
+    setCancelModalOpen(false);
+    setOrderToCancel(null);
+    setCancelReason("");
+    setOtherReason("");
+
     try {
       const success = await orderMutationService.cancelOrder({
         orderId: orderToCancel.dbId,
@@ -207,30 +216,24 @@ export default function OrdersPage() {
         throw new Error("Failed to cancel order");
       }
 
-      // Note: Don't call updateOrderStatus here - the database is already updated via RPC
-      // and the real-time subscription will fetch the updated data.
-      // Calling updateOrderStatus would create a duplicate client-side notification.
-
       toast({
         title: "Order Cancelled",
         duration: 1000,
       });
 
+      // Sync with server state to get accurate cancelledAt timestamp etc.
       await loadBuyerOrders();
     } catch (e) {
       console.error("Error canceling order:", e);
+      // Roll back the optimistic update by re-fetching
+      await loadBuyerOrders();
       toast({
         title: "Error",
         description: "Failed to cancel order. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setCancelModalOpen(false);
-      setOrderToCancel(null);
-      setCancelReason("");
-      setOtherReason("");
     }
-  }, [orderToCancel, cancelReason, otherReason, profile?.id, loadBuyerOrders, toast]);
+  }, [orderToCancel, cancelReason, otherReason, profile?.id, loadBuyerOrders, updateOrderStatus, toast]);
 
   const onConfirmReceivedSuccess = useCallback(() => {
     // Update local state to reflect the change
@@ -362,7 +365,18 @@ export default function OrdersPage() {
       return filtered.sort((a, b) => {
         const aTime = a.cancelledAt ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
         const bTime = b.cancelledAt ? getTimestamp(b.cancelledAt) : getTimestamp(b.createdAt);
-        return bTime - aTime;
+        if (aTime !== bTime) return bTime - aTime;
+        return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
+      });
+    }
+
+    // If viewing returned tab, sort by returnRequest.submittedAt desc
+    if (statusFilter === "returned") {
+      return filtered.sort((a, b) => {
+        const aTime = a.returnRequest?.submittedAt ? getTimestamp(a.returnRequest.submittedAt) : getTimestamp(a.createdAt);
+        const bTime = b.returnRequest?.submittedAt ? getTimestamp(b.returnRequest.submittedAt) : getTimestamp(b.createdAt);
+        if (aTime !== bTime) return bTime - aTime;
+        return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
       });
     }
     // Otherwise, sort by createdAt desc
@@ -541,7 +555,7 @@ export default function OrdersPage() {
                       </div>
 
                       <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
-                        <OrderStatusBadge status={order.status} compact />
+                        <OrderStatusBadge status={order.returnRequest?.status || order.status} compact />
                         <span className="hidden sm:inline text-xs text-gray-300">|</span>
                         <span className="text-sm text-gray-500 font-mono hidden sm:inline">{order.orderNumber || order.id}</span>
                       </div>
@@ -666,7 +680,7 @@ export default function OrdersPage() {
                             In-Store
                           </span>
                         )}
-                        <OrderStatusBadge status={order.status} compact />
+                        <OrderStatusBadge status={order.returnRequest?.status || order.status} compact />
                         <span className="hidden sm:inline text-xs text-gray-300">|</span>
                         <span className="text-sm text-gray-500 font-mono hidden sm:inline">{order.orderNumber || order.id}</span>
                       </div>
@@ -675,6 +689,12 @@ export default function OrdersPage() {
                     <div className="flex items-center gap-1.5 text-xs text-gray-400 -mt-1 mb-1">
                       <Clock className="w-3 h-3 shrink-0 text-gray-300" />
                       <span>
+                        {order.status === "returned" && order.returnRequest && (
+                          `Requested ${formatDateTime(order.returnRequest.submittedAt)}`
+                        )}
+                        {order.status === "cancelled" && (order.cancelledAt
+                          ? `Cancelled ${formatDateTime(order.cancelledAt)}`
+                          : `Placed ${formatDateTime(order.createdAt)}`)}
                         {order.status === "pending" && `Placed ${formatDateTime(order.createdAt)}`}
                         {order.status === "confirmed" && (order.confirmedAt
                           ? `Confirmed ${formatDateTime(order.confirmedAt)}`
@@ -962,7 +982,7 @@ export default function OrdersPage() {
 
             {/* Status */}
             <OrderStatusBadge
-              status={selectedOrderData.status}
+              status={selectedOrderData.returnRequest?.status || selectedOrderData.status}
               className="mb-6"
             />
 
