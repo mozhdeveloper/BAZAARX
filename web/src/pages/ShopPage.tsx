@@ -411,8 +411,6 @@ export default function ShopPage() {
   const filteredProducts = useMemo<ShopProduct[]>(() => {
     const filterParam = searchParams.get("filter");
     const filtered = pricedProducts.filter((product) => {
-      if (filterParam === "featured" && !featuredProductIds.has(product.id)) return false;
-
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -450,6 +448,16 @@ export default function ShopPage() {
       default:
         // Keep original order for relevance and newest
         break;
+    }
+
+    // When filter=featured is active, prioritize known featured/boosted products
+    if (filterParam === "featured" && featuredProductIds.size > 0) {
+      filtered.sort((a, b) => {
+        const aFeatured = featuredProductIds.has(a.id);
+        const bFeatured = featuredProductIds.has(b.id);
+        if (aFeatured === bFeatured) return 0;
+        return aFeatured ? -1 : 1;
+      });
     }
 
     return filtered;
