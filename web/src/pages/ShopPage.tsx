@@ -431,36 +431,32 @@ export default function ShopPage() {
       return matchesSearch && matchesCategory && matchesPrice && matchesRating;
     });
 
+    // When filter=featured is active, show ONLY featured/boosted products
+    let result = filtered;
+    if (filterParam === "featured" && featuredProductIds.size > 0) {
+      result = filtered.filter(product => featuredProductIds.has(product.id));
+    }
+
     // Apply sorting
     switch (selectedSort) {
       case "price-low":
-        filtered.sort((a, b) => a.price - b.price);
+        result.sort((a, b) => a.price - b.price);
         break;
       case "price-high":
-        filtered.sort((a, b) => b.price - a.price);
+        result.sort((a, b) => b.price - a.price);
         break;
       case "rating":
-        filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
       case "bestseller":
-        filtered.sort((a, b) => (b.sold || 0) - (a.sold || 0));
+        result.sort((a, b) => (b.sold || 0) - (a.sold || 0));
         break;
       default:
         // Keep original order for relevance and newest
         break;
     }
 
-    // When filter=featured is active, prioritize known featured/boosted products
-    if (filterParam === "featured" && featuredProductIds.size > 0) {
-      filtered.sort((a, b) => {
-        const aFeatured = featuredProductIds.has(a.id);
-        const bFeatured = featuredProductIds.has(b.id);
-        if (aFeatured === bFeatured) return 0;
-        return aFeatured ? -1 : 1;
-      });
-    }
-
-    return filtered;
+    return result;
   }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, searchParams, featuredProductIds]);
 
 
