@@ -884,19 +884,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           <>
             <Pressable
               onPress={() => {
-                const getDeliveryDate = (dateStr: string | undefined): Date => {
-                  if (!dateStr) return new Date();
-                  const parts = dateStr.split('/');
-                  if (parts.length === 3) {
-                    return new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
-                  }
-                  return new Date(dateStr);
-                };
-                const deliveryDate = getDeliveryDate(order.deliveryDate);
-                const currentDate = new Date();
-                const diffTime = currentDate.getTime() - deliveryDate.getTime();
-                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                const isReturnable = diffDays <= 7 && diffDays >= 0;
+                const returnWindowStart = order.deliveredAt || order.updatedAt || order.createdAt;
+                const diffTime = Date.now() - new Date(returnWindowStart).getTime();
+                const isReturnable = diffTime >= 0 && diffTime <= 7 * 24 * 60 * 60 * 1000;
 
                 if (isReturnable) navigation.navigate('ReturnRequest', { order });
                 else Alert.alert('Return Window Closed', 'Returns are only available within 7 days of delivery per Philippine consumer protection rules.');

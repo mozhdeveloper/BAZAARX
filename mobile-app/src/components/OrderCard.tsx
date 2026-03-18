@@ -249,6 +249,12 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
 
         {order.status === 'delivered' && buyerUiStatus === 'delivered' && (
           <>
+            {onReturn && (
+                <Pressable style={[styles.returnButton, { flex: 1 }]} onPress={onReturn}>
+                  <RotateCcw size={13} color="#B45309" strokeWidth={2.5} />
+                  <Text style={styles.returnButtonText}>Return/Refund</Text>
+                </Pressable>
+            )}
             {onReceive && (
               <Pressable style={[styles.solidButton, { flex: 1, backgroundColor: '#16A34A' }]} onPress={onReceive}>
                 <Text style={styles.solidButtonText}>Confirm Received</Text>
