@@ -90,6 +90,7 @@ export default function ShopPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const manualScrollRef = useRef(false);
+  const suppressNextAutoScrollRef = useRef(false);
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
@@ -323,6 +324,12 @@ export default function ShopPage() {
     const queryParam = searchParams.get("q") || "";
     const categoryParam = searchParams.get("category");
     const filterParam = searchParams.get("filter");
+
+    // Sorting should not move the viewport; skip one auto-scroll cycle.
+    if (suppressNextAutoScrollRef.current) {
+      suppressNextAutoScrollRef.current = false;
+      return;
+    }
 
     setSearchQuery(queryParam);
 
@@ -1103,7 +1110,7 @@ export default function ShopPage() {
                   <div className="flex items-center gap-2 h-10">
                     <span className="text-sm font-medium text-[var(--text-muted)] whitespace-nowrap">Sort by:</span>
                     <Select value={selectedSort} onValueChange={(val) => {
-                      manualScrollRef.current = true;
+                      suppressNextAutoScrollRef.current = true;
                       setSelectedSort(val);
                     }}>
                       <SelectTrigger className="w-[120px] md:w-[160px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
