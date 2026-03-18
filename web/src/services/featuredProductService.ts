@@ -40,12 +40,61 @@ export interface FeaturedProductWithDetails extends FeaturedProduct {
 
 const MAX_FEATURED_PER_SELLER = 6;
 
+// ---------------------------------------------------------------------------
+// TTL cache (60 s) — avoids redundant Supabase round-trips for featured products
+// ---------------------------------------------------------------------------
+const FEATURED_CACHE_TTL = 60_000;
+interface FeaturedCacheEntry<T> { data: T; expiresAt: number; }
+const _featuredCache = new Map<string, FeaturedCacheEntry<unknown>>();
+
+function _getFeaturedCache<T>(key: string): T | null {
+  const entry = _featuredCache.get(key) as FeaturedCacheEntry<T> | undefined;
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _featuredCache.delete(key); return null; }
+  return entry.data;
+}
+
+function _setFeaturedCache<T>(key: string, data: T): void {
+  _featuredCache.set(key, { data, expiresAt: Date.now() + FEATURED_CACHE_TTL });
+}
+
+/**
+ * Invalidate entries in the featured-products TTL cache.
+ *
+ * - If called with no arguments, clears the entire cache.
+ * - If called with a string, treats it as a key prefix and removes matching entries.
+ * - If called with a RegExp, removes entries whose keys match the pattern.
+ */
+export function invalidateFeaturedCache(pattern?: string | RegExp): void {
+  if (pattern === undefined) {
+    _featuredCache.clear();
+    return;
+  }
+
+  const isRegExp = pattern instanceof RegExp;
+
+  for (const key of _featuredCache.keys()) {
+    if (
+      (isRegExp && (pattern as RegExp).test(key)) ||
+      (!isRegExp && key.startsWith(pattern as string))
+    ) {
+      _featuredCache.delete(key);
+    }
+  }
+}
+// ---------------------------------------------------------------------------
+
 class FeaturedProductService {
   /**
    * Get all active featured products for the public storefront
    */
   async getFeaturedProducts(limit = 12): Promise<FeaturedProductWithDetails[]> {
     if (!isSupabaseConfigured()) return [];
+
+    // Cache check
+    const cacheKey = `featured_products:limit:${limit}`;
+    const cached = _getFeaturedCache<FeaturedProductWithDetails[]>(cacheKey);
+    if (cached) return cached;
 
     try {
       const { data, error } = await supabase
@@ -80,29 +129,39 @@ class FeaturedProductService {
 
       if (filtered.length === 0) return filtered;
 
-      // Fetch real sold counts from the product_sold_counts view (computed from completed orders)
+      // Fetch real sold counts from order_items (matches ProductService logic for consistency/speed)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const productIds = filtered.map((fp: any) => fp.product?.id).filter(Boolean);
-      const { data: soldCountsData } = await supabase
-        .from('product_sold_counts')
-        .select('product_id, sold_count')
-        .in('product_id', productIds);
+      
+      const { data: soldCountsData, error: soldCountsError } = await supabase
+        .from('order_items')
+        .select('product_id, quantity, order:orders!inner(shipment_status)')
+        .in('product_id', productIds)
+        .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
+
+      if (soldCountsError) {
+        console.error('[FeaturedProductService] getFeaturedProducts sold counts error:', soldCountsError);
+      }
 
       const soldCountsMap = new Map<string, number>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (soldCountsData || []).forEach((row: any) => {
-        soldCountsMap.set(row.product_id, row.sold_count || 0);
+      (soldCountsData || []).forEach((item: any) => {
+        const currentCount = soldCountsMap.get(item.product_id) || 0;
+        soldCountsMap.set(item.product_id, currentCount + (item.quantity || 0));
       });
 
       // Attach sold_count to each product object
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return filtered.map((fp: any) => ({
+      const result = filtered.map((fp: any) => ({
         ...fp,
         product: {
           ...fp.product,
           sold_count: soldCountsMap.get(fp.product?.id) || 0,
         },
       }));
+
+      _setFeaturedCache(cacheKey, result);
+      return result;
     } catch (err) {
       console.error('[FeaturedProductService] getFeaturedProducts exception:', err);
       return [];

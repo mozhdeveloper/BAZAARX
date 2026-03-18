@@ -319,8 +319,10 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => {
+    const timeouts: number[] = [];
     const queryParam = searchParams.get("q") || "";
     const categoryParam = searchParams.get("category");
+    const filterParam = searchParams.get("filter");
 
     setSearchQuery(queryParam);
 
@@ -341,24 +343,48 @@ export default function ShopPage() {
       setSelectedCategory("All Categories");
     }
 
-    // Scroll logic - handles both initial mount and updates
-    setTimeout(() => {
-      const isClean = !categoryParam && !queryParam &&
-        priceRange[0] === 0 && priceRange[1] === 100000 &&
-        minRating === 0 && selectedSort === "newest";
+  // Scroll logic - handles both initial mount and updates
+
+  // When "Clear filter" is clicked, scroll back to the featured section after it re-mounts
+  if ((location.state as any)?.scrollToFeatured) {
+    const featuredTimeoutId = window.setTimeout(() => {
+      const element = document.getElementById("featured-section");
+      if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
+      manualScrollRef.current = false;
+    }, 400);
+    timeouts.push(featuredTimeoutId);
+  } else {
+    const scrollTimeoutId = window.setTimeout(() => {
+      const isClean =
+        !categoryParam &&
+        !queryParam &&
+        !filterParam &&
+        priceRange[0] === 0 &&
+        priceRange[1] === 100000 &&
+        minRating === 0 &&
+        selectedSort === "newest";
 
       if (isClean && !manualScrollRef.current) {
-        // Landing on a clean Shop page (or reset via Shop tab), scroll to the very top
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
-        // Any filter change (URL or local state), or manual "All" selection, scroll to results
         const element = document.getElementById("shop-results-header");
         if (element) {
           element.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       }
+
       manualScrollRef.current = false;
-    }, 100);
+    }, filterParam === "featured" ? 420 : 100);
+
+    timeouts.push(scrollTimeoutId);
+  }
+
+  return () => {
+    timeouts.forEach((id) => {
+      clearTimeout(id);
+    });
+  };
+
   }, [searchParams, location.key, priceRange, minRating, selectedSort, categories]);
 
   // Handle toolbar scroll visibility
@@ -385,7 +411,20 @@ export default function ShopPage() {
 
   // flashSaleProducts comes from the real discount campaigns (state above)
 
+  const featuredProductIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const bp of boostedProducts) {
+      if (bp.product?.id) ids.add(bp.product.id);
+    }
+    for (const fp of featuredProducts) {
+      const p = (fp as any).product;
+      if (p?.id) ids.add(p.id);
+    }
+    return ids;
+  }, [boostedProducts, featuredProducts]);
+
   const filteredProducts = useMemo<ShopProduct[]>(() => {
+    const filterParam = searchParams.get("filter");
     const filtered = pricedProducts.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -407,27 +446,33 @@ export default function ShopPage() {
       return matchesSearch && matchesCategory && matchesPrice && matchesRating;
     });
 
+    // When filter=featured is active, show ONLY featured/boosted products
+    let result = filtered;
+    if (filterParam === "featured" && featuredProductIds.size > 0) {
+      result = filtered.filter(product => featuredProductIds.has(product.id));
+    }
+
     // Apply sorting
     switch (selectedSort) {
       case "price-low":
-        filtered.sort((a, b) => a.price - b.price);
+        result.sort((a, b) => a.price - b.price);
         break;
       case "price-high":
-        filtered.sort((a, b) => b.price - a.price);
+        result.sort((a, b) => b.price - a.price);
         break;
       case "rating":
-        filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
       case "bestseller":
-        filtered.sort((a, b) => (b.sold || 0) - (a.sold || 0));
+        result.sort((a, b) => (b.sold || 0) - (a.sold || 0));
         break;
       default:
         // Keep original order for relevance and newest
         break;
     }
 
-    return filtered;
-  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating]);
+    return result;
+  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, searchParams, featuredProductIds]);
 
 
 
@@ -591,8 +636,17 @@ export default function ShopPage() {
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
-          {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
-            <div className="mb-10">
+          <AnimatePresence>
+          {(featuredProducts.length > 0 || boostedProducts.length > 0) && searchParams.get("filter") !== "featured" && (
+            <motion.div
+              id="featured-section"
+              key="featured-section"
+              className="mb-10 scroll-mt-24"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+            >
               {/* Section Header */}
               <div className="flex items-center justify-between mb-5 px-1">
                 <div className="flex items-center gap-2.5">
@@ -604,7 +658,10 @@ export default function ShopPage() {
                     Sponsored
                   </span>
                 </div>
-                <button className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1">
+                <button
+                  onClick={() => navigate('/shop?filter=featured')}
+                  className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1"
+                >
                   See All <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -721,8 +778,9 @@ export default function ShopPage() {
                   });
                 })()}
               </div>
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
 
           {/* Main Content */}
           <div className="w-full" id="shop-content">
@@ -985,6 +1043,36 @@ export default function ShopPage() {
 
               {/* Products Area */}
               <div className="flex-1 min-w-0">
+                {/* Featured filter banner */}
+                <AnimatePresence>
+                {searchParams.get("filter") === "featured" && (
+                  <motion.div
+                    key="featured-banner"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25 }}
+                    className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-1.5 rounded-lg shadow-sm">
+                        <Star className="h-3.5 w-3.5 text-white fill-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-amber-900">Featured &amp; Sponsored Products</p>
+                        <p className="text-xs text-amber-700">Showing all featured and boosted listings</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => navigate('/shop', { state: { scrollToFeatured: true } })}
+                      className="text-xs text-amber-700 hover:text-amber-900 font-semibold underline underline-offset-2 transition-colors whitespace-nowrap"
+                    >
+                      Clear filter
+                    </button>
+                  </motion.div>
+                )}
+                </AnimatePresence>
+
                 {/* Toolbar - Now inside Product Area */}
                 <motion.div
                   id="shop-results-header"
