@@ -264,23 +264,15 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
         )}
 
         {buyerUiStatus === 'received' && (
-          <View style={{ flex: 1, gap: 8 }}>
-            <View style={styles.buttonRow}>
-              {onReturn && (
-                <Pressable style={[styles.returnButton, { flex: 1 }]} onPress={onReturn}>
-                  <RotateCcw size={13} color="#B45309" strokeWidth={2.5} />
-                  <Text style={styles.returnButtonText}>Return/Refund</Text>
-                </Pressable>
-              )}
-              {onReview && (
-                <Pressable style={[styles.outlineButton, { flex: 1, borderColor: COLORS.primary }]} onPress={onReview}>
-                  <Text style={[styles.outlineButtonText, { color: COLORS.primary }]}>Write Review</Text>
-                </Pressable>
-              )}
-            </View>
-            <Pressable style={[styles.solidButton, { width: '100%' }]} onPress={() => onBuyAgain ? onBuyAgain(order) : onPress()}>
-              <Text style={[styles.solidButtonText, { textAlign: 'center' }]}>Buy Again</Text>
+          <View style={styles.buttonRow}>
+            <Pressable style={[styles.outlineButton, { flex: 1, borderColor: COLORS.primary }]} onPress={() => onBuyAgain ? onBuyAgain(order) : onPress()}>
+              <Text style={[styles.outlineButtonText, { color: COLORS.primary }]}>Buy Again</Text>
             </Pressable>
+            {onReview && (
+              <Pressable style={[styles.solidButton, { flex: 1 }]} onPress={onReview}>
+                <Text style={[styles.solidButtonText, { textAlign: 'center' }]}>Write Review</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
