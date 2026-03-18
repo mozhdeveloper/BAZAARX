@@ -210,6 +210,7 @@ export interface Product {
   location: string;
   description: string;
   specifications: Record<string, string>;
+  sizeGuideImage?: string;
   variants: ProductVariant[];
 }
 
@@ -657,7 +658,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         // Single call to Edge Function — addresses + sellers fetched concurrently inside
         const ctx = await getCheckoutContext(productIds);
 
-       // Merge addresses from Edge Function into existing address book
+        // Merge addresses from Edge Function into existing address book
         if (ctx.addresses && ctx.addresses.length > 0) {
           const mapped = ctx.addresses.map((a: any) => ({
             id: a.id,

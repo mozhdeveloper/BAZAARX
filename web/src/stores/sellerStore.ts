@@ -103,6 +103,7 @@ export interface SellerProduct {
     sellerLocation?: string;
     variantLabel1?: string;
     variantLabel2?: string;
+    sizeGuideImage?: string;
     variants?: {
         id: string;
         name?: string;
@@ -489,6 +490,7 @@ const buildProductInsert = (
     specifications: {},
     variant_label_1: product.variantLabel1 || null,
     variant_label_2: product.variantLabel2 || null,
+    size_guide_image: product.sizeGuideImage || null,
     weight: null,
     dimensions: null,
     is_free_shipping: false,
@@ -515,6 +517,8 @@ const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): any => {
         dbUpdates.variant_label_1 = updates.variantLabel1;
     if (updates.variantLabel2 !== undefined)
         dbUpdates.variant_label_2 = updates.variantLabel2;
+    if (updates.sizeGuideImage !== undefined)
+        dbUpdates.size_guide_image = updates.sizeGuideImage;
 
     return dbUpdates;
 };
