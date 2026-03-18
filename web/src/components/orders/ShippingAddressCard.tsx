@@ -13,12 +13,11 @@ export function ShippingAddressCard({
   className,
 }: ShippingAddressCardProps) {
   return (
-    <div className={`p-4 bg-gray-50 rounded-xl ${className || ""}`.trim()}>
-      <div className="flex items-center gap-3 mb-3">
-        <MapPin className="w-5 h-5 text-gray-600" />
-        <span className="font-medium text-gray-900">{title}</span>
+    <div className={`p-4 bg-gray-50 rounded-lg ${className || ""}`.trim()}>
+      <div className="flex items-center gap-3 mb-2">
+        <span className="text-sm font-medium text-gray-900">{title}</span>
       </div>
-      <div className="text-sm text-gray-600 leading-relaxed">
+      <div className="text-xs text-gray-600 leading-relaxed">
         <div className="font-medium">{address.fullName}</div>
         <div>{address.street}</div>
         <div>

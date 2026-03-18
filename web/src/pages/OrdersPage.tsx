@@ -20,12 +20,14 @@ import {
   Camera,
   ImagePlus,
 } from "lucide-react";
+import type { BuyerOrderSnapshot } from "../types/orders";
 import { useCartStore } from "../stores/cartStore";
 import { Button } from "../components/ui/button";
 import { useBuyerStore, CartItem } from "../stores/buyerStore";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import TrackingModal from "../components/TrackingModal";
+import { ConfirmReceivedModal } from "../components/ConfirmReceivedModal";
 import ReturnRefundModal from "../components/ReturnRefundModal";
 import { ReviewModal } from "../components/ReviewModal";
 import { cn } from "../lib/utils";
@@ -34,8 +36,6 @@ import { orderReadService } from "../services/orders/orderReadService";
 import { orderMutationService } from "../services/orders/orderMutationService";
 import { returnService } from "../services/returnService";
 import { OrderStatusBadge } from "../components/orders/OrderStatusBadge";
-import type { BuyerOrderSnapshot } from "../types/orders";
-import { uploadReceiptPhotos, validateImageFile } from "../utils/storage";
 import {
   BuyerReturnSubmissionPayload,
   isBuyerOrderWithinReturnWindow,
@@ -88,9 +88,6 @@ export default function OrdersPage() {
   // Confirm received state
   const [confirmReceivedModalOpen, setConfirmReceivedModalOpen] = useState(false);
   const [orderToConfirmReceived, setOrderToConfirmReceived] = useState<any>(null);
-  const [isConfirmingReceived, setIsConfirmingReceived] = useState(false);
-  const [receiptPhotos, setReceiptPhotos] = useState<File[]>([]);
-  const [receiptPhotoPreviews, setReceiptPhotoPreviews] = useState<string[]>([]);
 
   const CANCEL_REASONS = [
     "Changed my mind",
@@ -235,45 +232,9 @@ export default function OrdersPage() {
     }
   }, [orderToCancel, cancelReason, otherReason, profile?.id, loadBuyerOrders, toast]);
 
-  const handleConfirmReceived = useCallback(async () => {
-    if (!orderToConfirmReceived?.dbId || !profile?.id) {
-      toast({
-        title: "Error",
-        description: "Unable to confirm receipt. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (receiptPhotos.length === 0) {
-      toast({
-        title: "Photo Required",
-        description: "Please take or upload a photo of the received package.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsConfirmingReceived(true);
-    try {
-      // Upload receipt photos
-      const photoUrls = await uploadReceiptPhotos(
-        receiptPhotos,
-        orderToConfirmReceived.dbId,
-        profile.id,
-      );
-
-      const success = await orderMutationService.confirmOrderReceived({
-        orderId: orderToConfirmReceived.dbId,
-        buyerId: profile.id,
-        receiptPhotoUrls: photoUrls,
-      });
-
-      if (!success) {
-        throw new Error("Failed to confirm receipt");
-      }
-
-      // Update local state to reflect the change
+  const onConfirmReceivedSuccess = useCallback(() => {
+    // Update local state to reflect the change
+    if (orderToConfirmReceived) {
       const updatedOrders = orders.map((order) => {
         if (order.id === orderToConfirmReceived.id) {
           return {
@@ -285,28 +246,9 @@ export default function OrdersPage() {
         return order;
       });
       hydrateBuyerOrders(updatedOrders as any);
-
-      toast({
-        title: "Order Confirmed",
-        description: "Thank you for confirming receipt! You can now leave a review.",
-      });
-
-      setConfirmReceivedModalOpen(false);
-      setOrderToConfirmReceived(null);
-      setReceiptPhotos([]);
-      setReceiptPhotoPreviews([]);
       void loadBuyerOrders();
-    } catch (error: any) {
-      console.error("Error confirming receipt:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to confirm receipt. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsConfirmingReceived(false);
     }
-  }, [orderToConfirmReceived, profile?.id, orders, receiptPhotos, hydrateBuyerOrders, loadBuyerOrders, toast]);
+  }, [orderToConfirmReceived, orders, hydrateBuyerOrders, loadBuyerOrders]);
 
   // Show success message for newly created orders
   const newOrderId = (
@@ -626,11 +568,11 @@ export default function OrdersPage() {
                                 {item.name}
                               </span>
                               {(item as any).variantDisplay && (
-                                <span className="text-xs text-orange-600 font-medium">
+                                <span className="text-xs text-[var(--text-muted)]">
                                   {(item as any).variantDisplay}
                                 </span>
                               )}
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-[var(--text-muted)]">
                                 x{item.quantity}
                               </span>
                             </div>
@@ -760,36 +702,45 @@ export default function OrdersPage() {
                           : navigate(`/order/${encodeURIComponent(order.id)}`)
                       }
                     >
-                      {order.items.map((item, itemIndex) => (
-                        <div
-                          key={getOrderItemKey(order.id, item, itemIndex)}
-                          className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-2 last:border-0 last:pb-0"
-                        >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <img
-                              src={item.image}
-                              alt={item.name}
-                              className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
-                            />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-800 line-clamp-1">
-                                {item.name}
-                              </span>
-                              {(item as any).variantDisplay && (
-                                <span className="text-xs text-orange-600 font-medium">
-                                  {(item as any).variantDisplay}
-                                </span>
-                              )}
-                              <span className="text-xs text-gray-500">
-                                x{item.quantity}
-                              </span>
+                      {order.items.map((item, itemIndex) => {
+                        const itemReview = (order as any).reviews?.find((r: any) => r.productId === ((item as any).productId || item.id)) ||
+                          (!(order as any).reviews?.some((r: any) => r.productId) ? order.review : null);
+
+                        return (
+                          <div
+                            key={getOrderItemKey(order.id, item, itemIndex)}
+                            className="flex flex-col w-full border-b border-gray-50 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0"
+                          >
+                            <div className="flex items-center justify-between gap-3 w-full">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <img
+                                  src={item.image}
+                                  alt={item.name}
+                                  className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
+                                />
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium text-gray-800 line-clamp-1">
+                                    {item.name}
+                                  </span>
+                                  {(item as any).variantDisplay && (
+                                    <span className="text-xs text-[var(--text-muted)]">
+                                      {(item as any).variantDisplay}
+                                    </span>
+                                  )}
+                                  <span className="text-xs text-[var(--text-muted)]">
+                                    x{item.quantity}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-sm font-semibold text-gray-900 whitespace-nowrap pl-2">
+                                ₱{item.price.toLocaleString()}
+                              </div>
                             </div>
+
+
                           </div>
-                          <div className="text-sm font-semibold text-gray-900 whitespace-nowrap pl-2">
-                            ₱{item.price.toLocaleString()}
-                          </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                       <div className="flex justify-end items-center pt-2 border-t border-gray-50">
                         <span className="text-sm text-gray-500 mr-2">Order Total:</span>
                         <span className="text-lg font-bold text-[var(--price-standard)]">₱{order.total.toLocaleString()}</span>
@@ -802,13 +753,13 @@ export default function OrdersPage() {
                         {/* Return/Refund - only for RECEIVED orders within the 7-day return window (PH standard: buyer must confirm receipt first) */}
                         {order.status === "received" && isWithinReturnWindow(order) && !(order as any).returnRequest && (
                           <Button
-                            onClick={() => {
-                              setOrderToReturn(order);
-                              setReturnModalOpen(true);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/order/${encodeURIComponent(order.id)}/return`);
                             }}
                             size="sm"
                             variant="outline"
-                            className="border-amber-500 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-600 text-xs font-medium px-3"
+                            className="border-[var(--brand-accent)] text-[var(--brand-accent)] hover:text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:border-[var(--brand-accent)] text-xs font-medium px-3"
                           >
                             <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
                             Return / Refund
@@ -827,7 +778,7 @@ export default function OrdersPage() {
                               }}
                               size="sm"
                               variant="outline"
-                              className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
+                              className="border-red-600 text-red-600 hover:bg-red-50 hover:text-red-600"
                             >
                               Cancel Order
                             </Button>
@@ -838,7 +789,7 @@ export default function OrdersPage() {
                             onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
                             variant="outline"
                             size="sm"
-                            className="border-gray-300 text-gray-600 hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)]"
+                            className="border-gray-200 text-gray-500 hover:text-gray-600 hover:bg-gray-100"
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             View Details
@@ -849,7 +800,7 @@ export default function OrdersPage() {
                             onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
                             variant="outline"
                             size="sm"
-                            className="border-gray-300 text-gray-600 hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)]"
+                            className="border-gray-200 text-gray-500 hover:text-gray-600 hover:bg-gray-100"
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             View Details
@@ -858,11 +809,11 @@ export default function OrdersPage() {
                           /* Shipped - Track Package */
                           <Button
                             onClick={() => setTrackingOrder(order.id)}
+                            variant="outline"
                             size="sm"
-                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                            className="border-gray-200 text-gray-500 hover:text-gray-600 hover:bg-gray-100"
                           >
-                            <Package className="w-4 h-4 mr-1" />
-                            Track Package
+                            Track Package <ChevronRight className="h-4 w-4 ml-1" />
                           </Button>
                         ) : order.status === "delivered" ? (
                           /* Delivered - Confirm Received only */
@@ -884,19 +835,23 @@ export default function OrdersPage() {
                           /* Received/Reviewed - Write Review and Buy Again */
                           <>
                             {/* Write Review */}
-                            {order.status === "received" && (
-                              <Button
-                                onClick={() => {
-                                  setOrderToReview(order);
-                                  setReviewWarningModalOpen(true);
-                                }}
-                                size="sm"
-                                variant="outline"
-                                className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)]"
-                              >
-                                Write Review
-                              </Button>
-                            )}
+                            {order.status === "received" && order.items.some((item) => {
+                              const itemReview = (order as any).reviews?.find((r: any) => r.productId === ((item as any).productId || item.id)) ||
+                                (!(order as any).reviews?.some((r: any) => r.productId) ? order.review : null);
+                              return !itemReview;
+                            }) && (
+                                <Button
+                                  onClick={() => {
+                                    setOrderToReview(order);
+                                    setReviewWarningModalOpen(true);
+                                  }}
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)]"
+                                >
+                                  Write Review
+                                </Button>
+                              )}
 
                             {/* Buy Again - add items to cart and go to cart for editing before checkout */}
                             <Button
@@ -945,7 +900,7 @@ export default function OrdersPage() {
                             }
                             variant="outline"
                             size="sm"
-                            className="border-gray-300 text-gray-500 hover:text-[var(--brand-accent)] hover:border-[var(--brand-accent)] hover:bg-transparent"
+                            className="border-gray-200 text-gray-500 hover:text-gray-600 hover:bg-gray-100"
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             View Details
@@ -956,69 +911,11 @@ export default function OrdersPage() {
                             onClick={() => setViewReturnDetails(order)}
                             variant="outline"
                             size="sm"
-                            className="border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)]"
+                            className="border-gray-200 text-gray-500 hover:text-gray-600 hover:bg-gray-100"
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             View Details
                           </Button>
-                        ) : order.status === "reviewed" ? (
-                          /* Reviewed - Show Details */
-                          <div className="flex flex-col items-end gap-3 text-right w-full sm:w-auto mt-4 sm:mt-0">
-                            <div className="flex flex-col items-end gap-1">
-                              <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100 mb-1">
-                                <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mr-1">
-                                  Your Rating
-                                </span>
-                                <div className="flex">
-                                  {[1, 2, 3, 4, 5].map((star) => (
-                                    <Star
-                                      key={star}
-                                      className={`w-4 h-4 ${star <= (order.review?.rating || 5) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                              {order.review?.submittedAt && (
-                                <span className="text-xs text-gray-400">
-                                  Submitted on{" "}
-                                  {new Date(
-                                    order.review.submittedAt,
-                                  ).toLocaleDateString()}
-                                </span>
-                              )}
-                            </div>
-
-                            {order.review?.comment && (
-                              <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-left w-full sm:max-w-md">
-                                "{order.review.comment}"
-                              </p>
-                            )}
-
-                            {order.review?.images &&
-                              order.review.images.length > 0 && (
-                                <div className="flex gap-2 justify-end mt-1">
-                                  {order.review.images.map((img, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden"
-                                    >
-                                      <img
-                                        src={img}
-                                        alt={`Review ${idx}`}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                            {(order.review as any)?.sellerReply && (
-                              <div className="w-full sm:max-w-md border-l-2 border-[var(--brand-primary)] pl-3 text-left mt-1">
-                                <p className="text-xs font-semibold text-[var(--brand-primary)] mb-0.5">Seller's Reply</p>
-                                <p className="text-sm text-gray-600 italic">{(order.review as any).sellerReply.message}</p>
-                              </div>
-                            )}
-                          </div>
                         ) : null}
                       </div>
                     </div>
@@ -1043,7 +940,7 @@ export default function OrdersPage() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto scrollbar-hide"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-6">
@@ -1198,7 +1095,7 @@ export default function OrdersPage() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto scrollbar-hide"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-6">
@@ -1475,7 +1372,6 @@ export default function OrdersPage() {
             setOrderToReview(null);
           }}
           onSubmitted={() => {
-            setStatusFilter("reviewed");
             void loadBuyerOrders();
 
             toast({
@@ -1487,7 +1383,11 @@ export default function OrdersPage() {
           orderId={orderToReview.dbId} // Use actual UUID for DB operations
           displayOrderId={orderToReview.id} // Use order number for display
           sellerName={orderToReview.items[0]?.seller || "Bazaar Seller"}
-          items={orderToReview.items.map((item: any) => ({
+          items={orderToReview.items.filter((item: any) => {
+            const itemReview = (orderToReview as any).reviews?.find((r: any) => r.productId === ((item as any).productId || item.id)) ||
+              (!(orderToReview as any).reviews?.some((r: any) => r.productId) ? orderToReview.review : null);
+            return !itemReview;
+          }).map((item: any) => ({
             id: item.id,
             name: item.name,
             image: item.image,
@@ -1690,7 +1590,7 @@ export default function OrdersPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4"
             onClick={() => {
               setCancelModalOpen(false);
               setCancelReason("");
@@ -1776,14 +1676,14 @@ export default function OrdersPage() {
                       setOtherReason("");
                     }}
                     variant="outline"
-                    className="flex-1 border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-600 rounded-xl h-11"
+                    className="flex-1 border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-600 rounded-lg h-11"
                   >
                     Keep Order
                   </Button>
                   <Button
                     onClick={handleCancelOrder}
                     disabled={!cancelReason || (cancelReason === "Other" && !otherReason.trim())}
-                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:opacity-50 shadow-lg shadow-orange-100 h-11 rounded-xl font-bold"
+                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:opacity-50 h-11 rounded-lg font-bold"
                   >
                     Confirm
                   </Button>
@@ -1795,160 +1695,18 @@ export default function OrdersPage() {
       </AnimatePresence>
 
       {/* Confirm Received Modal */}
-      <AnimatePresence>
-        {confirmReceivedModalOpen && orderToConfirmReceived && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[110]"
-            onClick={() => setConfirmReceivedModalOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-center">
-                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  Confirm Order Received
-                </h3>
-                <p className="text-gray-600 mb-4 text-sm">
-                  Have you received your order <span className="font-semibold">{orderToConfirmReceived.orderNumber || orderToConfirmReceived.id}</span>?
-                  This will confirm that the package was delivered to you.
-                </p>
-
-                {/* Photo Upload Section */}
-                <div className="text-left mb-4">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Photo Proof <span className="text-red-500">*</span>
-                  </label>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Take a photo or upload an image of the received package as proof of delivery.
-                  </p>
-
-                  {/* Photo Previews */}
-                  {receiptPhotoPreviews.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {receiptPhotoPreviews.map((preview, index) => (
-                        <div key={index} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 group">
-                          <img src={preview} alt={`Receipt ${index + 1}`} className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newPhotos = [...receiptPhotos];
-                              const newPreviews = [...receiptPhotoPreviews];
-                              URL.revokeObjectURL(newPreviews[index]);
-                              newPhotos.splice(index, 1);
-                              newPreviews.splice(index, 1);
-                              setReceiptPhotos(newPhotos);
-                              setReceiptPhotoPreviews(newPreviews);
-                            }}
-                            className="absolute top-0.5 right-0.5 w-5 h-5 bg-white/40 text-black rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Upload Buttons */}
-                  <div className="flex gap-2">
-                    <label className="group flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-500 hover:bg-gray-100 transition-colors">
-                      <Camera className="w-4 h-4 text-gray-300 group-hover:text-gray-500" />
-                      <span className="text-sm text-gray-300 group-hover:text-gray-500">Take Photo</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const validation = validateImageFile(file);
-                            if (!validation.valid) {
-                              toast({ title: "Invalid File", description: validation.error, variant: "destructive" });
-                              return;
-                            }
-                            setReceiptPhotos(prev => [...prev, file]);
-                            setReceiptPhotoPreviews(prev => [...prev, URL.createObjectURL(file)]);
-                          }
-                          e.target.value = "";
-                        }}
-                        disabled={isConfirmingReceived}
-                      />
-                    </label>
-                    <label className="group flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-500 hover:bg-gray-100 transition-colors">
-                      <ImagePlus className="w-4 h-4 text-gray-300 group-hover:text-gray-500" />
-                      <span className="text-sm text-gray-300 group-hover:text-gray-500">Upload</span>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
-                          const validFiles: File[] = [];
-                          const previews: string[] = [];
-                          for (const file of files) {
-                            const validation = validateImageFile(file);
-                            if (validation.valid) {
-                              validFiles.push(file);
-                              previews.push(URL.createObjectURL(file));
-                            }
-                          }
-                          if (validFiles.length > 0) {
-                            setReceiptPhotos(prev => [...prev, ...validFiles]);
-                            setReceiptPhotoPreviews(prev => [...prev, ...previews]);
-                          }
-                          e.target.value = "";
-                        }}
-                        disabled={isConfirmingReceived}
-                      />
-                    </label>
-                  </div>
-                  {receiptPhotos.length === 0 && (
-                    <p className="text-xs text-red-500 mt-1.5">At least one photo is required</p>
-                  )}
-                </div>
-
-                <p className="text-sm text-[var(--brand-accent)] mb-6">
-                  Only confirm if you have actually received the items.
-                </p>
-                <div className="flex gap-3">
-                  <Button
-                    onClick={() => {
-                      setConfirmReceivedModalOpen(false);
-                      setOrderToConfirmReceived(null);
-                      setReceiptPhotos([]);
-                      setReceiptPhotoPreviews([]);
-                    }}
-                    variant="outline"
-                    className="flex-1 border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-600 rounded-xl h-11"
-                    disabled={isConfirmingReceived}
-                  >
-                    Not Yet
-                  </Button>
-                  <Button
-                    onClick={handleConfirmReceived}
-                    disabled={isConfirmingReceived || receiptPhotos.length === 0}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 h-11 rounded-xl font-bold"
-                  >
-                    {isConfirmingReceived ? (
-                      <div className="h-4 w-4 rounded-full animate-spin" />
-                    ) : (
-                      "Yes, I Received It"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {orderToConfirmReceived && profile?.id && (
+        <ConfirmReceivedModal
+          isOpen={confirmReceivedModalOpen}
+          onClose={() => {
+            setConfirmReceivedModalOpen(false);
+            setOrderToConfirmReceived(null);
+          }}
+          order={orderToConfirmReceived}
+          buyerId={profile.id}
+          onSuccess={onConfirmReceivedSuccess}
+        />
+      )}
 
       <BazaarFooter />
     </div >
