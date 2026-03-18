@@ -1,5 +1,5 @@
 /**
- * Seller Store — Barrel re-export
+ * Seller Store ï¿½ Barrel re-export
  * The monolithic sellerStore has been split into domain-specific files
  * under ./seller/ for better maintainability.
  *

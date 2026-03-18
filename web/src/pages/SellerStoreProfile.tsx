@@ -151,7 +151,7 @@ export function SellerStoreProfile() {
       const filename = `${sellerId}/avatar_${timestamp}.${ext}`;
 
       // Upload to Supabase Storage
-      const { data, error: uploadError } = await supabase.storage
+      const { data, error: uploadError } = await (supabase as any).storage
         .from("profile-avatars")
         .upload(filename, file, {
           cacheControl: "3600",
@@ -174,7 +174,7 @@ export function SellerStoreProfile() {
       console.log("Upload successful", { data });
 
       // Get public URL
-      const { data: publicData } = supabase.storage
+      const { data: publicData } = (supabase as any).storage
         .from("profile-avatars")
         .getPublicUrl(filename);
 
@@ -182,7 +182,7 @@ export function SellerStoreProfile() {
       console.log("Generated public URL:", avatarUrl);
 
       // Update seller in database (sellers table, not profiles!)
-      const { error: updateError, data: updateData } = await supabase
+      const { error: updateError, data: updateData } = await (supabase as any)
         .from("sellers")
         .update({ avatar_url: avatarUrl })
         .eq("id", sellerId);
@@ -262,7 +262,7 @@ export function SellerStoreProfile() {
       console.log("Banner upload successful:", bannerUrl);
 
       // Update sellers table
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from("sellers")
         .update({ store_banner_url: bannerUrl })
         .eq("id", sellerId);
@@ -652,11 +652,11 @@ export function SellerStoreProfile() {
 
       try {
         // Fetch seller approval status and restrictions
-        const { data: sellerData, error: sellerError } = await supabase
+        const { data: sellerData, error: sellerError } = await (supabase as any)
           .from("sellers")
           .select("approval_status, reapplication_attempts, cooldown_count, temp_blacklist_count, blacklisted_at, cool_down_until, temp_blacklist_until, is_permanently_blacklisted")
           .eq("id", sellerId)
-          .single();
+          .single() as any;
 
         if (sellerError) {
           console.error("Error fetching seller status:", sellerError);
@@ -686,13 +686,13 @@ export function SellerStoreProfile() {
         }
 
         // Fetch verification documents from separate table
-        const { data: docData, error: docError } = await supabase
+        const { data: docData, error: docError } = await (supabase as any)
           .from("seller_verification_documents")
           .select(
             "business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, updated_at",
           )
           .eq("seller_id", sellerId)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         if (docError && docError.code !== 'PGRST116') { // PGRST116 = no rows
           console.error("Error fetching seller documents:", docError);
@@ -708,13 +708,13 @@ export function SellerStoreProfile() {
         }
 
         // Fetch draft documents for resubmission staging
-        const { data: draftData, error: draftError } = await supabase
+        const { data: draftData, error: draftError } = await (supabase as any)
           .from("seller_verification_document_drafts")
           .select(
             "business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, updated_at, business_permit_updated_at, valid_id_updated_at, proof_of_address_updated_at, dti_registration_updated_at, tax_id_updated_at",
           )
           .eq("seller_id", sellerId)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         if (draftError && draftError.code !== "PGRST116") {
           console.error("Error fetching draft seller documents:", draftError);
@@ -744,7 +744,7 @@ export function SellerStoreProfile() {
           });
         }
 
-        const { data: rejectionData, error: rejectionError } = await supabase
+        const { data: rejectionData, error: rejectionError } = await (supabase as any)
           .from("seller_rejections")
           .select(
             "description, rejection_type, created_at, items:seller_rejection_items(document_field, reason, created_at)",
@@ -752,7 +752,7 @@ export function SellerStoreProfile() {
           .eq("seller_id", seller.id)
           .order("created_at", { ascending: false })
           .limit(1)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         if (rejectionError && rejectionError.code !== "PGRST116") {
           console.warn("Unable to load rejection details:", rejectionError.message);
@@ -819,11 +819,11 @@ export function SellerStoreProfile() {
       // During partial rejection, save to draft table instead of live table
       if (useDraftDocuments) {
         // Save to draft staging table
-        const { data: existingDraft } = await supabase
+        const { data: existingDraft } = await (supabase as any)
           .from("seller_verification_document_drafts")
           .select("seller_id")
           .eq("seller_id", sellerId)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         const draftUpdatedAtColumn = {
           business_permit_url: "business_permit_updated_at",
@@ -841,18 +841,18 @@ export function SellerStoreProfile() {
 
         let error;
         if (existingDraft) {
-          const result = await supabase
+          const result = await (supabase as any)
             .from("seller_verification_document_drafts")
-            .update(draftUpdateData)
-            .eq("seller_id", sellerId);
+            .update(draftUpdateData as any)
+            .eq("seller_id", sellerId) as any;
           error = result.error;
         } else {
-          const result = await supabase
+          const result = await (supabase as any)
             .from("seller_verification_document_drafts")
             .insert({
               seller_id: sellerId,
               ...draftUpdateData,
-            });
+            } as any) as any;
           error = result.error;
         }
 
@@ -876,11 +876,11 @@ export function SellerStoreProfile() {
         });
       } else {
         // Normal upload - save to live documents table
-        const { data: existingDoc } = await supabase
+        const { data: existingDoc } = await (supabase as any)
           .from("seller_verification_documents")
           .select("seller_id")
           .eq("seller_id", sellerId)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         const updateData: Record<string, string> = {
           [columnName]: documentUrl,
@@ -889,18 +889,18 @@ export function SellerStoreProfile() {
 
         let error;
         if (existingDoc) {
-          const result = await supabase
+          const result = await (supabase as any)
             .from("seller_verification_documents")
-            .update(updateData)
-            .eq("seller_id", sellerId);
+            .update(updateData as any)
+            .eq("seller_id", sellerId) as any;
           error = result.error;
         } else {
-          const result = await supabase
+          const result = await (supabase as any)
             .from("seller_verification_documents")
             .insert({
               seller_id: sellerId,
               ...updateData,
-            });
+            } as any) as any;
           error = result.error;
         }
 
