@@ -440,7 +440,7 @@ export default function OrderDetailPage() {
       return sum + Math.max(0, baseUnitPrice - effectiveUnitPrice) * item.quantity;
     }, 0);
   const voucherDiscountAmount = order.pricing?.voucherDiscount ?? 0;
-  const taxAmount = order.pricing?.tax ?? 0;
+  const taxAmount = Math.round(subtotalAmount * 0.12);
   const bazcoinDiscountAmount = order.pricing?.bazcoinDiscount ?? 0;
   const shippingAmount = order.pricing?.shipping ?? Number(dbOrder?.shipping_cost || 0);
   const totalAmount =
