@@ -133,11 +133,15 @@ class FeaturedProductService {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const productIds = filtered.map((fp: any) => fp.product?.id).filter(Boolean);
       
-      const { data: soldCountsData } = await supabase
+      const { data: soldCountsData, error: soldCountsError } = await supabase
         .from('order_items')
-        .select('product_id, quantity, order:orders!inner(payment_status, shipment_status)')
+        .select('product_id, quantity, order:orders!inner(shipment_status)')
         .in('product_id', productIds)
         .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
+
+      if (soldCountsError) {
+        console.error('[FeaturedProductService] getFeaturedProducts sold counts error:', soldCountsError);
+      }
 
       const soldCountsMap = new Map<string, number>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
