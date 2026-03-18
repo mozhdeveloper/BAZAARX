@@ -137,20 +137,56 @@ export default function StoreProfileScreen() {
         
       if (profileError) {
         console.warn('Error fetching profile:', profileError);
-        // Don't throw, just use what we have from seller
       }
 
+      // Fetch related seller data from normalized tables
+      const { data: businessData } = await supabase
+        .from('seller_business_profiles')
+        .select('*')
+        .eq('seller_id', user.id)
+        .single();
+
+      const { data: payoutData } = await supabase
+        .from('seller_payout_accounts')
+        .select('*')
+        .eq('seller_id', user.id)
+        .single();
+
+      const { data: docsData } = await supabase
+        .from('seller_verification_documents')
+        .select('*')
+        .eq('seller_id', user.id)
+        .single();
+
       if (sellerData) {
-        // Construct full name if available
         const profileName = profileData 
           ? `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
           : null;
 
-        const mergedData = {
+        const mergedData: any = {
           ...sellerData,
           owner_name: profileName || profileData?.first_name || sellerData.owner_name,
-          email: profileData?.email || sellerData.email,
-          phone: profileData?.phone || sellerData.phone,
+          email: profileData?.email || '',
+          phone: profileData?.phone || '',
+          // Business profile fields
+          business_name: sellerData.store_name || '',
+          business_type: businessData?.business_type || '',
+          business_registration_number: businessData?.business_registration_number || '',
+          tax_id_number: businessData?.tax_id_number || '',
+          business_address: businessData?.address_line_1 || '',
+          city: businessData?.city || '',
+          province: businessData?.province || '',
+          postal_code: businessData?.postal_code || '',
+          // Payout account fields
+          bank_name: payoutData?.bank_name || '',
+          account_name: payoutData?.account_name || '',
+          account_number: payoutData?.account_number || '',
+          // Verification document URLs
+          business_permit_url: docsData?.business_permit_url || '',
+          valid_id_url: docsData?.valid_id_url || '',
+          proof_of_address_url: docsData?.proof_of_address_url || '',
+          dti_registration_url: docsData?.dti_registration_url || '',
+          tax_id_url: docsData?.tax_id_url || '',
         };
         
         setSeller(mergedData);
@@ -162,19 +198,19 @@ export default function StoreProfileScreen() {
           email: mergedData.email || '',
         });
         setBusinessForm({
-          businessName: sellerData.business_name || '',
-          businessType: sellerData.business_type || '',
-          businessRegistrationNumber: sellerData.business_registration_number || '',
-          taxIdNumber: sellerData.tax_id_number || '',
-          businessAddress: sellerData.business_address || '',
-          city: sellerData.city || '',
-          province: sellerData.province || '',
-          postalCode: sellerData.postal_code || '',
+          businessName: sellerData.store_name || '',
+          businessType: businessData?.business_type || '',
+          businessRegistrationNumber: businessData?.business_registration_number || '',
+          taxIdNumber: businessData?.tax_id_number || '',
+          businessAddress: businessData?.address_line_1 || '',
+          city: businessData?.city || '',
+          province: businessData?.province || '',
+          postalCode: businessData?.postal_code || '',
         });
         setBankingForm({
-          bankName: sellerData.bank_name || '',
-          accountName: sellerData.account_name || '',
-          accountNumber: sellerData.account_number || '',
+          bankName: payoutData?.bank_name || '',
+          accountName: payoutData?.account_name || '',
+          accountNumber: payoutData?.account_number || '',
         });
         setStoreLogoUri(sellerData.avatar_url || null);
       }
@@ -217,15 +253,16 @@ export default function StoreProfileScreen() {
           (payload) => {
             if (payload.new && Object.keys(payload.new).length > 0) {
               const newData = payload.new as any;
+              const nameStr = `${newData.first_name || ''} ${newData.last_name || ''}`.trim();
               setSeller((prev: any) => ({
                 ...prev,
-                owner_name: newData.full_name || `${newData.first_name || ''} ${newData.last_name || ''}`.trim(),
+                owner_name: nameStr,
                 email: newData.email || '',
                 phone: newData.phone || '',
               }));
               setFormData((prev) => ({
                 ...prev,
-                ownerName: newData.full_name || `${newData.first_name || ''} ${newData.last_name || ''}`.trim(),
+                ownerName: nameStr,
                 email: newData.email || '',
                 phone: newData.phone || '',
               }));
@@ -250,7 +287,7 @@ export default function StoreProfileScreen() {
     }));
   };
 
-  const isVerified = seller?.is_verified || seller?.approval_status === 'approved';
+  const isVerified = seller?.approval_status === 'verified';
   const isPending = seller?.approval_status === 'pending';
   const isRejected = seller?.approval_status === 'rejected';
 
@@ -320,24 +357,42 @@ export default function StoreProfileScreen() {
   const handleAddCategory = async () => {
     if (!newCategory.trim()) return;
     try {
-      const currentCategories = seller?.store_category || [];
-      if (currentCategories.includes(newCategory.trim())) {
-        Alert.alert('Info', 'Category already exists');
-        return;
-      }
-      const updatedCategories = [...currentCategories, newCategory.trim()];
-
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Look up category by name
+      const { data: categoryData } = await supabase
+        .from('categories')
+        .select('id, name')
+        .ilike('name', newCategory.trim())
+        .single();
+
+      if (!categoryData) {
+        Alert.alert('Info', 'Category not found. Please choose from existing categories.');
+        return;
+      }
+
+      // Check if already linked
+      const { data: existing } = await supabase
+        .from('seller_categories')
+        .select('id')
+        .eq('seller_id', user.id)
+        .eq('category_id', categoryData.id)
+        .maybeSingle();
+
+      if (existing) {
+        Alert.alert('Info', 'Category already exists');
+        return;
+      }
+
       const { error } = await supabase
-        .from('sellers')
-        .update({ store_category: updatedCategories })
-        .eq('id', user.id);
+        .from('seller_categories')
+        .insert({ seller_id: user.id, category_id: categoryData.id });
 
       if (error) throw error;
 
-      setSeller({ ...seller, store_category: updatedCategories });
+      const currentCategories = seller?.store_category || [];
+      setSeller({ ...seller, store_category: [...currentCategories, newCategory.trim()] });
       setNewCategory('');
     } catch (error) {
       Alert.alert('Error', 'Failed to add category');
@@ -346,18 +401,27 @@ export default function StoreProfileScreen() {
 
   const handleRemoveCategory = async (category: string) => {
     try {
-      const updatedCategories = (seller?.store_category || []).filter((c: string) => c !== category);
-
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase
-        .from('sellers')
-        .update({ store_category: updatedCategories })
-        .eq('id', user.id);
+      // Look up category by name
+      const { data: categoryData } = await supabase
+        .from('categories')
+        .select('id')
+        .ilike('name', category)
+        .single();
 
-      if (error) throw error;
+      if (categoryData) {
+        const { error } = await supabase
+          .from('seller_categories')
+          .delete()
+          .eq('seller_id', user.id)
+          .eq('category_id', categoryData.id);
 
+        if (error) throw error;
+      }
+
+      const updatedCategories = (seller?.store_category || []).filter((c: string) => c !== category);
       setSeller({ ...seller, store_category: updatedCategories });
     } catch (error) {
       Alert.alert('Error', 'Failed to remove category');
@@ -381,10 +445,12 @@ export default function StoreProfileScreen() {
       if (sellerError) throw sellerError;
 
       // Update profile info
+      const nameParts = formData.ownerName.split(' ');
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
-          full_name: formData.ownerName,
+          first_name: nameParts[0] || '',
+          last_name: nameParts.slice(1).join(' ') || '',
           email: formData.email,
           phone: formData.phone,
         })
@@ -413,19 +479,23 @@ export default function StoreProfileScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Also update store_name on sellers table if businessName changed
+      if (businessForm.businessName) {
+        await supabase.from('sellers').update({ store_name: businessForm.businessName }).eq('id', user.id);
+      }
+
       const { data, error } = await supabase
-        .from('sellers')
-        .update({
-          business_name: businessForm.businessName,
+        .from('seller_business_profiles')
+        .upsert({
+          seller_id: user.id,
           business_type: businessForm.businessType,
           business_registration_number: businessForm.businessRegistrationNumber,
           tax_id_number: businessForm.taxIdNumber,
-          business_address: businessForm.businessAddress,
+          address_line_1: businessForm.businessAddress,
           city: businessForm.city,
           province: businessForm.province,
           postal_code: businessForm.postalCode,
-        })
-        .eq('id', user.id)
+        } as any)
         .select()
         .single();
 
@@ -447,13 +517,13 @@ export default function StoreProfileScreen() {
       if (!user) return;
 
       const { data, error } = await supabase
-        .from('sellers')
-        .update({
+        .from('seller_payout_accounts')
+        .upsert({
+          seller_id: user.id,
           bank_name: bankingForm.bankName,
           account_name: bankingForm.accountName,
           account_number: bankingForm.accountNumber,
         })
-        .eq('id', user.id)
         .select()
         .single();
 
@@ -509,9 +579,8 @@ export default function StoreProfileScreen() {
         .getPublicUrl(filePath);
 
       const { error: updateError } = await supabase
-        .from('sellers')
-        .update({ [columnName]: publicUrl })
-        .eq('id', user.id);
+        .from('seller_verification_documents')
+        .upsert({ seller_id: user.id, [columnName]: publicUrl } as any);
 
       if (updateError) throw updateError;
 

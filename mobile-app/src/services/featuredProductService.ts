@@ -63,7 +63,7 @@ class FeaturedProductService {
       const now = new Date().toISOString();
       const filtered = (data || []).filter((fp: any) => !fp.expires_at || fp.expires_at > now);
 
-      if (filtered.length === 0) return filtered;
+      if (filtered.length === 0) return filtered as unknown as FeaturedProductMobile[];
 
       // Fetch real sold counts from the product_sold_counts view
       const productIds = filtered.map((fp: any) => fp.product?.id).filter(Boolean);

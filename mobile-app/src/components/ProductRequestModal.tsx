@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { X, Send, Package, MessageSquare, CheckCircle } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
-import { supabaseAdmin } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 
 interface ProductRequestModalProps {
@@ -80,11 +79,20 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
       const { error } = await supabase.from('product_requests').insert(insertData);
 
       if (error) {
-        // If RLS error, fallback to admin client
-        if (error.message?.includes('row-level security') && supabaseAdmin) {
-          console.warn('[ProductRequest] RLS blocked, using admin client fallback');
-          const { error: adminErr } = await supabaseAdmin.from('product_requests').insert(insertData);
-          if (adminErr) throw adminErr;
+        // If RLS error, fallback to Edge Function
+        if (error.message?.includes('row-level security')) {
+          console.warn('[ProductRequest] RLS blocked, using Edge Function fallback');
+          const { error: fnErr } = await supabase.functions.invoke('submit-product-request', {
+            body: {
+              productName: productName.trim(),
+              description: description.trim(),
+              category: finalCategory,
+              requestedByName,
+              requestedById: user?.id,
+              estimatedDemand: quantity ? parseInt(quantity, 10) || 0 : 0,
+            },
+          });
+          if (fnErr) throw fnErr;
         } else {
           throw error;
         }

@@ -20,10 +20,7 @@
  * See AD_BOOST_PRICING_FORMULA.md for full documentation.
  */
 
-import { supabase, isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
-
-// Helper: use supabaseAdmin if available, otherwise fall back to supabase (anon)
-const getClient = () => supabaseAdmin || supabase;
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -343,7 +340,7 @@ class AdBoostService {
     if (!isSupabaseConfigured()) return [];
 
     try {
-      let query = getClient()
+      let query = supabase
         .from('product_ad_boosts')
         .select(`
           *,
@@ -380,7 +377,7 @@ class AdBoostService {
 
       // Fetch sold counts from product_sold_counts view
       const productIds = results.map((b: any) => b.product?.id).filter(Boolean);
-      const { data: soldCountsData } = await getClient()
+      const { data: soldCountsData } = await supabase
         .from('product_sold_counts')
         .select('product_id, sold_count')
         .in('product_id', productIds);
@@ -410,7 +407,7 @@ class AdBoostService {
     if (!isSupabaseConfigured() || !sellerId) return [];
 
     try {
-      const { data, error } = await getClient()
+      const { data, error } = await supabase
         .from('product_ad_boosts')
         .select(`
           *,
@@ -447,7 +444,7 @@ class AdBoostService {
     if (!isSupabaseConfigured() || !sellerId) return [];
 
     try {
-      const { data, error } = await getClient()
+      const { data, error } = await supabase
         .from('products')
         .select(`
           id, name, price, approval_status,
@@ -491,7 +488,7 @@ class AdBoostService {
     const endsAt = new Date(startsAt.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
     try {
-      const { data, error } = await getClient()
+      const { data, error } = await supabase
         .from('product_ad_boosts')
         .insert({
           product_id: productId,
@@ -517,7 +514,7 @@ class AdBoostService {
 
       // Also upsert into featured_products if boost type is 'featured'
       if (boostType === 'featured') {
-        await getClient()
+        await supabase
           .from('featured_products')
           .upsert({
             product_id: productId,
@@ -543,7 +540,7 @@ class AdBoostService {
     if (!isSupabaseConfigured()) return false;
 
     try {
-      const { error } = await getClient()
+      const { error } = await supabase
         .from('product_ad_boosts')
         .update({ status: 'paused', paused_at: new Date().toISOString() })
         .eq('id', boostId)
@@ -567,7 +564,7 @@ class AdBoostService {
     if (!isSupabaseConfigured()) return false;
 
     try {
-      const { error } = await getClient()
+      const { error } = await supabase
         .from('product_ad_boosts')
         .update({ status: 'active', paused_at: null })
         .eq('id', boostId)
@@ -592,13 +589,13 @@ class AdBoostService {
 
     try {
       // Get the boost to check if it has a featured_products entry
-      const { data: boost } = await getClient()
+      const { data: boost } = await supabase
         .from('product_ad_boosts')
         .select('product_id, boost_type')
         .eq('id', boostId)
         .single();
 
-      const { error } = await getClient()
+      const { error } = await supabase
         .from('product_ad_boosts')
         .update({ status: 'cancelled' })
         .eq('id', boostId)
@@ -611,7 +608,7 @@ class AdBoostService {
 
       // Remove from featured_products if it was a featured boost
       if (boost?.boost_type === 'featured' && boost?.product_id) {
-        await getClient()
+        await supabase
           .from('featured_products')
           .delete()
           .eq('product_id', boost.product_id)
@@ -631,7 +628,7 @@ class AdBoostService {
   async trackImpression(boostId: string): Promise<void> {
     if (!isSupabaseConfigured()) return;
     try {
-      await getClient().rpc('increment_boost_impressions', { boost_id: boostId }).maybeSingle();
+      await supabase.rpc('increment_boost_impressions', { boost_id: boostId }).maybeSingle();
     } catch {
       // silent — analytics are non-critical
     }
@@ -643,7 +640,7 @@ class AdBoostService {
   async trackClick(boostId: string): Promise<void> {
     if (!isSupabaseConfigured()) return;
     try {
-      await getClient().rpc('increment_boost_clicks', { boost_id: boostId }).maybeSingle();
+      await supabase.rpc('increment_boost_clicks', { boost_id: boostId }).maybeSingle();
     } catch {
       // silent
     }

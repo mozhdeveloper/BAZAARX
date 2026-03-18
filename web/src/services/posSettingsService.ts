@@ -70,7 +70,7 @@ export interface DBPOSSettings {
 /**
  * Convert database format to app format
  */
-function dbToApp(db: DBPOSSettings): POSSettings {
+function dbToApp(db: any): POSSettings {
   // Convert separate payment booleans to array
   const acceptedPaymentMethods: ('cash' | 'card' | 'ewallet' | 'bank_transfer')[] = [];
   if (db.accept_cash) acceptedPaymentMethods.push('cash');
@@ -86,19 +86,19 @@ function dbToApp(db: DBPOSSettings): POSSettings {
     taxIncludedInPrice: db.tax_inclusive,
     receiptHeader: db.receipt_header,
     receiptFooter: db.receipt_footer,
-    showLogo: db.show_logo_on_receipt,
+    showLogo: db.show_logo_on_receipt ?? false,
     logoUrl: db.logo_url || undefined,
-    receiptTemplate: db.receipt_template,
+    receiptTemplate: db.receipt_template || 'standard',
     autoPrintReceipt: db.auto_print_receipt,
     printerName: db.printer_name || undefined,
-    enableCashDrawer: db.cash_drawer_enabled,
-    openingCash: db.default_opening_cash,
-    enableStaffTracking: db.staff_tracking_enabled,
-    requireStaffLogin: db.require_staff_login,
+    enableCashDrawer: db.cash_drawer_enabled ?? false,
+    openingCash: db.default_opening_cash ?? 0,
+    enableStaffTracking: db.staff_tracking_enabled ?? false,
+    requireStaffLogin: db.require_staff_login ?? false,
     enableBarcodeScanner: db.barcode_scanner_enabled,
     scannerType: db.scanner_type || 'camera',
     autoAddOnScan: db.auto_add_on_scan ?? true,
-    enableMultiBranch: db.multi_branch_enabled,
+    enableMultiBranch: db.multi_branch_enabled ?? false,
     defaultBranchId: db.default_branch || undefined,
     acceptedPaymentMethods,
     enableLowStockAlert: db.enable_low_stock_alert ?? true,
@@ -117,7 +117,7 @@ function appToDb(app: POSSettings, sellerId: string, includeNewColumns = true): 
   // Convert array to separate payment booleans
   const hasPaymentMethod = (method: string) => app.acceptedPaymentMethods?.includes(method as 'cash' | 'card' | 'ewallet' | 'bank_transfer') ?? false;
 
-  const baseSettings = {
+  const baseSettings: Record<string, any> = {
     seller_id: sellerId,
     // Payment methods as separate booleans
     accept_cash: hasPaymentMethod('cash'),
@@ -128,9 +128,6 @@ function appToDb(app: POSSettings, sellerId: string, includeNewColumns = true): 
     barcode_scanner_enabled: app.enableBarcodeScanner,
     // Sound
     sound_enabled: app.enableSoundEffects,
-    // Multi-branch
-    multi_branch_enabled: app.enableMultiBranch,
-    default_branch: app.defaultBranchId || null,
     // Tax settings
     tax_enabled: app.enableTax,
     tax_rate: app.taxRate,
@@ -140,11 +137,15 @@ function appToDb(app: POSSettings, sellerId: string, includeNewColumns = true): 
     receipt_header: app.receiptHeader,
     receipt_footer: app.receiptFooter,
     show_logo_on_receipt: app.showLogo,
-    receipt_template: app.receiptTemplate,
+    receipt_template: app.receiptTemplate || 'standard',
     auto_print_receipt: app.autoPrintReceipt,
+    printer_type: 'thermal',
+    // Branch settings
+    multi_branch_enabled: app.enableMultiBranch,
+    default_branch: app.defaultBranchId || 'Main',
     // Cash drawer
     cash_drawer_enabled: app.enableCashDrawer,
-    default_opening_cash: app.openingCash,
+    default_opening_cash: app.openingCash ?? 0,
     // Staff tracking
     staff_tracking_enabled: app.enableStaffTracking,
     require_staff_login: app.requireStaffLogin,

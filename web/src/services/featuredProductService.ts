@@ -3,7 +3,7 @@
  * Handles seller product advertising / featured products
  */
 
-import { supabase, isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface FeaturedProduct {
   id: string;
@@ -163,22 +163,13 @@ class FeaturedProductService {
         );
 
       if (error) {
-        // Fallback to admin client on RLS error
+        // Fallback to Edge Function on RLS error
         if (error.message?.includes('row-level security') || error.code === '42501') {
-          const { error: adminError } = await supabaseAdmin
-            .from('featured_products')
-            .upsert(
-              {
-                product_id: productId,
-                seller_id: sellerId,
-                is_active: true,
-                priority,
-                featured_at: new Date().toISOString(),
-              },
-              { onConflict: 'product_id' }
-            );
-          if (adminError) {
-            console.error('[FeaturedProductService] featureProduct admin error:', adminError);
+          const { error: fnError } = await supabase.functions.invoke('admin-featured-products', {
+            body: { action: 'feature', productId, sellerId, priority },
+          });
+          if (fnError) {
+            console.error('[FeaturedProductService] featureProduct edge fn error:', fnError);
             return false;
           }
           return true;
@@ -209,13 +200,11 @@ class FeaturedProductService {
 
       if (error) {
         if (error.message?.includes('row-level security') || error.code === '42501') {
-          const { error: adminError } = await supabaseAdmin
-            .from('featured_products')
-            .delete()
-            .eq('product_id', productId)
-            .eq('seller_id', sellerId);
-          if (adminError) {
-            console.error('[FeaturedProductService] unfeatureProduct admin error:', adminError);
+          const { error: fnError } = await supabase.functions.invoke('admin-featured-products', {
+            body: { action: 'unfeature', productId, sellerId },
+          });
+          if (fnError) {
+            console.error('[FeaturedProductService] unfeatureProduct edge fn error:', fnError);
             return false;
           }
           return true;

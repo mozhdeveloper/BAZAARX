@@ -536,6 +536,10 @@ CREATE TABLE public.payment_transactions (
   refunded_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  escrow_status character varying NOT NULL DEFAULT 'none'::character varying CHECK (escrow_status::text = ANY (ARRAY['none'::character varying, 'held'::character varying, 'released'::character varying, 'refunded'::character varying]::text[])),
+  escrow_held_at timestamp with time zone,
+  escrow_release_at timestamp with time zone,
+  escrow_released_at timestamp with time zone,
   CONSTRAINT payment_transactions_pkey PRIMARY KEY (id),
   CONSTRAINT payment_transactions_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
   CONSTRAINT payment_transactions_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id),
@@ -773,6 +777,7 @@ CREATE TABLE public.products (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   image_embedding USER-DEFINED,
   seller_id uuid,
+  size_guide_image text,
   CONSTRAINT products_pkey PRIMARY KEY (id),
   CONSTRAINT products_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.categories(id),
   CONSTRAINT products_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
@@ -1025,10 +1030,13 @@ CREATE TABLE public.seller_payouts (
   failure_reason text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  escrow_transaction_id uuid,
+  release_after timestamp with time zone,
   CONSTRAINT seller_payouts_pkey PRIMARY KEY (id),
   CONSTRAINT seller_payouts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id),
   CONSTRAINT seller_payouts_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT seller_payouts_payment_transaction_id_fkey FOREIGN KEY (payment_transaction_id) REFERENCES public.payment_transactions(id)
+  CONSTRAINT seller_payouts_payment_transaction_id_fkey FOREIGN KEY (payment_transaction_id) REFERENCES public.payment_transactions(id),
+  CONSTRAINT seller_payouts_escrow_transaction_id_fkey FOREIGN KEY (escrow_transaction_id) REFERENCES public.payment_transactions(id)
 );
 CREATE TABLE public.seller_rejection_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

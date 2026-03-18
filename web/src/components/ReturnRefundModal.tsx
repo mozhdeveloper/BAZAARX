@@ -8,11 +8,17 @@ import {
     validateBuyerReturnSubmissionPayload,
 } from '../utils/orders/returns';
 
+export interface ReturnRefundOrder {
+    id: string;
+    dbId?: string;
+    total: number;
+}
+
 interface ReturnRefundModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (data: BuyerReturnSubmissionPayload) => void | Promise<void>;
-    order: any;
+    order: ReturnRefundOrder;
 }
 
 export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: ReturnRefundModalProps) {

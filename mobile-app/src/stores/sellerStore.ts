@@ -7,7 +7,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { authService } from '@/services/authService';
 import { productService } from '@/services/productService';
 import { orderService } from '@/services/orderService';
-import type { Seller as DBSeller, Database, Order, OrderItem } from '@/types/database.types';
+import type { Seller as DBSeller, Order, OrderItem } from '@/types/database.types';
+import type { Database } from '@/types/supabase-generated.types';
 
 // Types - Matches normalized database schema (February 2026)
 interface Seller {
@@ -775,12 +776,12 @@ export const useAuthStore = create<AuthStore>()(
 
               // Check if they're already a seller
               const { data: existingProfile } = await supabase
-                .from('profiles')
-                .select('user_type')
+                .from('sellers')
+                .select('id')
                 .eq('id', user.id)
-                .single();
+                .maybeSingle();
 
-              if (existingProfile && existingProfile.user_type === 'seller') {
+              if (existingProfile) {
                 console.error('User is already registered as a seller');
                 return false;
               }
@@ -822,12 +823,12 @@ export const useAuthStore = create<AuthStore>()(
 
                   // Check if they're already a seller
                   const { data: existingProfile } = await supabase
-                    .from('profiles')
-                    .select('user_type')
+                    .from('sellers')
+                    .select('id')
                     .eq('id', user.id)
-                    .single();
+                    .maybeSingle();
 
-                  if (existingProfile && existingProfile.user_type === 'seller') {
+                  if (existingProfile) {
                     console.error('User is already registered as a seller');
                     return false;
                   }

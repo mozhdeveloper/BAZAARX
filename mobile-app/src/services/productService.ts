@@ -12,7 +12,8 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { categoryService } from './categoryService';
-import type { Product, ProductWithSeller, ProductImage, ProductVariant, Category, Database } from '@/types/database.types';
+import type { Product, ProductWithSeller, ProductImage, ProductVariant, Category } from '@/types/database.types';
+import type { Database } from '@/types/supabase-generated.types';
 
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
 type ProductUpdate = Database['public']['Tables']['products']['Update'];
@@ -210,8 +211,8 @@ export class ProductService {
       // Calculate sold counts per product
       const soldCountsMap = new Map<string, number>();
       soldCountsData?.forEach(item => {
-        const currentCount = soldCountsMap.get(item.product_id) || 0;
-        soldCountsMap.set(item.product_id, currentCount + (item.quantity || 0));
+        const currentCount = soldCountsMap.get(item.product_id ?? '') || 0;
+        soldCountsMap.set(item.product_id ?? '', currentCount + (item.quantity || 0));
       });
 
       // Transform to add legacy compatibility fields
@@ -492,7 +493,7 @@ export class ProductService {
       if (!data) throw new Error('No data returned upon product creation');
 
       this.clearCache(); // Invalidate query cache after mutation
-      return data;
+      return data as unknown as Product;
     } catch (error) {
       console.error('Error creating product:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to create product.');
@@ -521,7 +522,7 @@ export class ProductService {
         .select();
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as Product[];
     } catch (error) {
       console.error('Error bulk creating products:', error);
       throw new Error('Failed to create products in bulk.');
@@ -548,7 +549,7 @@ export class ProductService {
       if (!data) throw new Error('Product not found or update failed');
 
       this.clearCache(); // Invalidate query cache after mutation
-      return data;
+      return data as unknown as Product;
     } catch (error) {
       console.error('Error updating product:', error);
       throw new Error('Failed to update product.');
@@ -696,11 +697,11 @@ export class ProductService {
     try {
       const { data, error } = await supabase
         .from('product_variants')
-        .insert(variants.map(v => ({ ...v, product_id: productId })))
+        .insert(variants.map(v => ({ ...v, product_id: productId })) as any)
         .select();
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as ProductVariant[];
     } catch (error) {
       console.error('Error adding product variants:', error);
       throw new Error('Failed to add product variants.');

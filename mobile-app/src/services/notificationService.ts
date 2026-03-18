@@ -87,7 +87,7 @@ class NotificationService {
 
       insertData[userIdColumn] = params.userId;
       
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from(table)
         .insert(insertData)
         .select()
@@ -110,6 +110,14 @@ class NotificationService {
         priority: data.priority,
         created_at: data.created_at
       };
+
+      // Also fire a push notification for high-priority or all non-admin notifications
+      if (params.userType !== 'admin') {
+        this._sendPush(params.userId, params.title, params.message, {
+          type: params.type,
+          ...params.actionData,
+        }).catch(() => { /* non-critical */ });
+      }
       
       return notification;
     } catch (error) {
@@ -134,7 +142,7 @@ class NotificationService {
       const table = getNotificationTable(userType);
       const userIdColumn = getUserIdColumn(userType);
       
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from(table)
         .select('*')
         .eq(userIdColumn, userId)
@@ -179,7 +187,7 @@ class NotificationService {
 
     try {
       const table = getNotificationTable(userType);
-      await supabase
+      await (supabase as any)
         .from(table)
         .update({ read_at: new Date().toISOString() })
         .eq('id', notificationId);
@@ -198,7 +206,7 @@ class NotificationService {
       const table = getNotificationTable(userType);
       const userIdColumn = getUserIdColumn(userType);
       
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from(table)
         .update({ read_at: new Date().toISOString() })
         .eq(userIdColumn, userId)
@@ -221,7 +229,7 @@ class NotificationService {
       const userIdColumn = getUserIdColumn(userType);
       
       // Change: Select only the ID to reduce data transfer/overhead
-      const { count, error } = await supabase
+      const { count, error } = await (supabase as any)
         .from(table)
         .select('id', { count: 'exact' })
         .eq(userIdColumn, userId)
@@ -651,6 +659,25 @@ class NotificationService {
       actionData: { returnId: params.returnId },
       priority: 'high'
     });
+  }
+
+  /**
+   * Fire a push notification via the send-push-notification Edge Function.
+   * Non-critical — failures are swallowed.
+   */
+  private async _sendPush(
+    userId: string,
+    title: string,
+    body: string,
+    data?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await supabase.functions.invoke('send-push-notification', {
+        body: { userId, title, body, data: data ?? {} },
+      });
+    } catch {
+      // silent — push is best-effort
+    }
   }
 }
 

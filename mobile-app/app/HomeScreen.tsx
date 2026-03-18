@@ -1013,7 +1013,7 @@ export default function HomeScreen({ navigation }: Props) {
                       <Text style={{ fontSize: 10, fontWeight: '700', color: '#B45309' }}>Sponsored</Text>
                     </View>
                   </View>
-                  <Pressable onPress={() => navigation.navigate('Shop', {})}>
+                  <Pressable onPress={() => navigation.navigate('Shop', { customResults: mergedFeaturedProducts.map(({ mapped }) => mapped as any) })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>

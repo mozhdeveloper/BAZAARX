@@ -41,7 +41,7 @@ export class AdminService {
 
         try {
             // Assuming a database function exists for summary
-            const { data, error } = await supabase.rpc('get_admin_dashboard_summary');
+            const { data, error } = await supabase.rpc('get_admin_dashboard_summary' as any);
 
             if (error) throw error;
             return data;

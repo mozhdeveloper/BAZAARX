@@ -132,6 +132,14 @@ export class NotificationService {
       }
       if (!data) throw new Error('No data returned upon notification creation');
 
+      // Fire push notification for buyer/seller (not admin)
+      if (params.userType !== 'admin') {
+        this._sendPush(params.userId, params.title, params.message, {
+          type: params.type,
+          ...params.actionData,
+        }).catch(() => { /* non-critical */ });
+      }
+
       return data;
     } catch (error) {
       console.error('Error creating notification:', error);
@@ -835,6 +843,25 @@ export class NotificationService {
     return () => {
       supabase.removeChannel(channel);
     };
+  }
+
+  /**
+   * Fire a push notification via the send-push-notification Edge Function.
+   * Non-critical — failures are swallowed.
+   */
+  private async _sendPush(
+    userId: string,
+    title: string,
+    body: string,
+    data?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await supabase.functions.invoke('send-push-notification', {
+        body: { userId, title, body, data: data ?? {} },
+      });
+    } catch {
+      // silent — push is best-effort
+    }
   }
 }
 

@@ -291,7 +291,7 @@ class ReturnService {
 
     const { data: returnData, error: returnError } = await supabase
       .from('refund_return_periods')
-      .insert(insertPayload)
+      .insert(insertPayload as any)
       .select()
       .single();
 
@@ -329,10 +329,10 @@ class ReturnService {
         if (orderDetails?.buyer_id) {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('full_name')
+            .select('first_name, last_name')
             .eq('id', orderDetails.buyer_id)
             .single();
-          if (profile?.full_name) buyerName = profile.full_name;
+          if (profile) buyerName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'A buyer';
         }
 
         const sellerIds = new Set<string>();

@@ -68,11 +68,14 @@ export class CheckoutService {
         return CheckoutService.instance;
     }
 
+    /**
+     * Generate a fallback order number (only used if DB trigger is not deployed).
+     * Prefer server-side generation via the trg_set_order_number trigger.
+     */
     private generateOrderNumber(): string {
         const year = new Date().getFullYear();
-        const randomNum = Math.floor(100000 + Math.random() * 900000);
-        const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
-        return `ORD-${year}${randomNum}${timestamp}`;
+        const seq = Date.now().toString(36).toUpperCase();
+        return `ORD-${year}${seq}`;
     }
 
     async processCheckout(payload: CheckoutPayload): Promise<CheckoutResult> {
@@ -294,7 +297,7 @@ export class CheckoutService {
 
                     // Fire all per-order writes in parallel
                     await Promise.all([
-                        supabase.from('order_payments').insert({
+                        supabase.from('payment_transactions').insert({
                             order_id: orderData.id,
                             payment_method: paymentMethod,
                             amount: pricingSummary.total,

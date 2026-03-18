@@ -1171,39 +1171,44 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         {/* --- SELLER SECTION --- */}
         <View style={styles.sellerSection}>
           <View style={styles.sellerHeader}>
-            <View style={styles.sellerAvatarContainer}>
-              <Image
-                source={{ uri: product.seller_avatar || product.sellerAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayStoreName) + '&background=FFD89A&color=78350F' }}
-                style={styles.sellerAvatar}
-              />
-            </View>
-            <View style={styles.sellerInfo}>
-              <View style={styles.sellerNameRow}>
-                <Text style={styles.sellerName} numberOfLines={1}>{displayStoreName}</Text>
-                {product.sellerVerified && <BadgeCheck size={16} color={COLORS.primary} fill="#FFF" style={{ flexShrink: 0 }} />}
+            <Pressable style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 10 }} onPress={handleVisitStore}>
+              <View style={styles.sellerAvatarContainer}>
+                <Image
+                  source={{ uri: product.seller_avatar || product.sellerAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayStoreName) + '&background=FFD89A&color=78350F' }}
+                  style={styles.sellerAvatar}
+                />
               </View>
-              <View style={styles.sellerMetaRow}>
-                <View style={styles.sellerRating}>
-                  <Star size={12} color="#FB8C00" fill="#FB8C00" />
-                  <Text style={styles.sellerMetaText}>{product.sellerRating || '0.0'}</Text>
+              <View style={styles.sellerInfo}>
+                <View style={styles.sellerNameRow}>
+                  <Text style={styles.sellerName} numberOfLines={1}>{displayStoreName}</Text>
+                  {product.sellerVerified && <BadgeCheck size={14} color={COLORS.primary} fill="#FFF" style={{ flexShrink: 0 }} />}
                 </View>
-                <View style={styles.sellerMetaDivider} />
-                <Text style={styles.sellerMetaText}>{soldCount.toLocaleString()} items sold</Text>
+                <View style={styles.sellerMetaRow}>
+                  <View style={styles.sellerRating}>
+                    <Star size={12} color="#FB8C00" fill="#FB8C00" />
+                    <Text style={styles.sellerMetaText}>{product.sellerRating || '0.0'}</Text>
+                  </View>
+                  <View style={styles.sellerMetaDivider} />
+                  <Text style={styles.sellerMetaText}>{soldCount.toLocaleString()} items sold</Text>
+                </View>
               </View>
+            </Pressable>
+            
+            <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
+              <Pressable
+                style={[styles.followBtn, isFollowingSeller && styles.followBtnActive]}
+                onPress={handleFollowSeller}
+              >
+                <Heart size={12} color={isFollowingSeller ? '#FFF' : BRAND_COLOR} fill={isFollowingSeller ? '#FFF' : 'none'} />
+                <Text style={[styles.followBtnText, isFollowingSeller && styles.followBtnTextActive]}>
+                  {isFollowingSeller ? 'Following' : 'Follow'}
+                </Text>
+              </Pressable>
+              <Pressable style={styles.visitStoreBtn} onPress={handleVisitStore}>
+                <Text style={styles.visitStoreText}>Visit Store</Text>
+                <ChevronRight size={14} color={BRAND_COLOR} strokeWidth={2.5} />
+              </Pressable>
             </View>
-            <Pressable
-              style={[styles.followBtn, isFollowingSeller && styles.followBtnActive]}
-              onPress={handleFollowSeller}
-            >
-              <Heart size={14} color={isFollowingSeller ? '#FFF' : BRAND_COLOR} fill={isFollowingSeller ? '#FFF' : 'none'} />
-              <Text style={[styles.followBtnText, isFollowingSeller && styles.followBtnTextActive]}>
-                {isFollowingSeller ? 'Following' : 'Follow'}
-              </Text>
-            </Pressable>
-            <Pressable style={styles.visitStoreBtn} onPress={handleVisitStore}>
-              <Text style={styles.visitStoreText}>Visit Store</Text>
-              <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
-            </Pressable>
           </View>
         </View>
 
@@ -1787,19 +1792,20 @@ const styles = StyleSheet.create({
 
   followBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 6,
+    paddingHorizontal: 12, paddingVertical: 5,
     borderRadius: 20, borderWidth: 1, borderColor: BRAND_COLOR,
-    marginRight: 6,
   } as any,
   followBtnActive: {
     backgroundColor: BRAND_COLOR,
   },
-  followBtnText: { fontSize: 12, fontWeight: '600', color: BRAND_COLOR } as any,
+  followBtnText: { fontSize: 11, fontWeight: '700', color: BRAND_COLOR } as any,
   followBtnTextActive: { color: '#FFF' },
   visitStoreBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
   },
   visitStoreText: { fontSize: 13, fontWeight: '700', color: BRAND_COLOR },
 

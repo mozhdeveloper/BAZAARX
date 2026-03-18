@@ -13,6 +13,8 @@ import {
   Twitter,
   RefreshCw,
   Store,
+  AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
@@ -24,13 +26,54 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 export function SellerSettings() {
-  const { seller } = useAuthStore();
+  const { seller, logout } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const navigate = useNavigate();
+
+  // Account deletion state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    if (!deletePassword) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        body: { password: deletePassword, confirm: true },
+      });
+      if (error || data?.error) {
+        const msg = data?.message || data?.error || error?.message || 'Failed to delete account';
+        setDeleteError(msg);
+        return;
+      }
+      logout();
+      await supabase.auth.signOut();
+      navigate('/');
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
 
 
@@ -61,6 +104,7 @@ export function SellerSettings() {
   };
 
   return (
+    <>
     <SellerWorkspaceLayout>
 
       <div className="flex flex-1 w-full overflow-hidden relative">
@@ -353,6 +397,30 @@ export function SellerSettings() {
                         </div>
                         <Switch onCheckedChange={() => setHasChanges(true)} />
                       </div>
+
+                      {/* Danger Zone */}
+                      <div className="border-t border-red-200 pt-6">
+                        <div className="flex items-start gap-3 p-4 rounded-xl border border-red-200 bg-red-50/60">
+                          <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="font-bold text-red-700">Danger Zone</p>
+                            <p className="text-sm text-red-600/80 mt-1">
+                              Deleting your seller account will permanently remove your store,
+                              products, and all associated data. Active payouts must be settled first.
+                              This complies with the Data Privacy Act (RA 10173).
+                            </p>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="shrink-0 mt-0.5"
+                            onClick={() => setShowDeleteModal(true)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1.5" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -434,6 +502,83 @@ export function SellerSettings() {
         </div>
       </div>
     </SellerWorkspaceLayout>
+
+      {/* Account Deletion Confirmation Dialog */}
+      <Dialog open={showDeleteModal} onOpenChange={(open) => {
+        if (!isDeleting) {
+          setShowDeleteModal(open);
+          if (!open) { setDeletePassword(''); setDeleteConfirmText(''); setDeleteError(''); }
+        }
+      }}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Seller Account
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              This will permanently delete your store, all products, and seller data.
+              Ensure all pending orders and payouts are settled before proceeding.
+              This action cannot be undone (RA 10173 — Data Privacy Act).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {deleteError && (
+              <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="seller-delete-password">Confirm your password</Label>
+              <Input
+                id="seller-delete-password"
+                type="password"
+                placeholder="Your current password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                disabled={isDeleting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="seller-delete-confirm">
+                Type <strong>DELETE</strong> to confirm
+              </Label>
+              <Input
+                id="seller-delete-confirm"
+                placeholder="DELETE"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                disabled={isDeleting}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={isDeleting || deleteConfirmText !== 'DELETE' || !deletePassword}
+            >
+              {isDeleting ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deleting...</>
+              ) : (
+                <><Trash2 className="h-4 w-4 mr-2" />Permanently Delete</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -43,25 +43,13 @@ const AdminAuth: React.FC = () => {
 
     const success = await login(formData.email, formData.password);
     if (success) {
-      navigate("/admin", { replace: true });
+      // Role-aware redirect — QA users go directly to QA dashboard
+      const currentUser = useAdminAuth.getState().user;
+      const destination = currentUser?.role === 'qa_team' ? '/admin/qa-dashboard' : '/admin';
+      navigate(destination, { replace: true });
     }
   };
 
-  const handleDemoLogin = async () => {
-    // Auto-fill demo credentials
-    setFormData({
-      email: "admin@gmail.com",
-      password: "password",
-    });
-
-    // Auto-login after brief delay
-    setTimeout(async () => {
-      const success = await login("admin@gmail.com", "password");
-      if (success) {
-        navigate("/admin", { replace: true });
-      }
-    }, 500);
-  };
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -126,84 +114,6 @@ const AdminAuth: React.FC = () => {
 
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Test Credentials */}
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="bg-gradient-to-r from-orange-50 to-orange-100/50 border border-orange-200 rounded-xl p-4"
-                >
-                  <h3 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
-                    <Shield className="w-4 h-4" />
-                    Test Accounts
-                  </h3>
-                  <div className="space-y-3">
-                    {/* Demo Admin */}
-                    <div className="flex items-center justify-between gap-3 p-2 bg-white/60 rounded-lg">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">Demo Admin</p>
-                        <p className="text-xs font-mono text-orange-700">admin@gmail.com / password</p>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={handleDemoLogin}
-                        disabled={isLoading}
-                        size="sm"
-                        variant="outline"
-                        className="border-orange-300 hover:bg-orange-100 text-orange-700"
-                      >
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
-                      </Button>
-                    </div>
-                    {/* Since Admin */}
-                    <div className="flex items-center justify-between gap-3 p-2 bg-white/60 rounded-lg">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">Since Admin</p>
-                        <p className="text-xs font-mono text-orange-700">sinceadmin@gmail.com / password</p>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setFormData({ email: 'sinceadmin@gmail.com', password: 'password' });
-                          setTimeout(async () => {
-                            const success = await login('sinceadmin@gmail.com', 'password');
-                            if (success) navigate('/admin', { replace: true });
-                          }, 300);
-                        }}
-                        disabled={isLoading}
-                        size="sm"
-                        variant="outline"
-                        className="border-orange-300 hover:bg-orange-100 text-orange-700"
-                      >
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
-                      </Button>
-                    </div>
-                    {/* QA Team */}
-                    <div className="flex items-center justify-between gap-3 p-2 bg-white/60 rounded-lg">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">QA Team</p>
-                        <p className="text-xs font-mono text-orange-700">qa@gmail.com / password</p>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setFormData({ email: 'qa@gmail.com', password: 'password' });
-                          setTimeout(async () => {
-                            const success = await login('qa@gmail.com', 'password');
-                            if (success) navigate('/admin/qa-dashboard', { replace: true });
-                          }, 300);
-                        }}
-                        disabled={isLoading}
-                        size="sm"
-                        variant="outline"
-                        className="border-indigo-300 hover:bg-indigo-100 text-indigo-700"
-                      >
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
-                      </Button>
-                    </div>
-                  </div>
-                </motion.div>
-
                 {/* Error Alert */}
                 {error && (
                   <motion.div
@@ -276,23 +186,6 @@ const AdminAuth: React.FC = () => {
                       )}
                     </Button>
                   </div>
-                </div>
-
-                {/* Demo Credentials */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-800 font-medium mb-1">
-                    Demo Credentials:
-                  </p>
-                  <p className="text-xs text-blue-700">
-                    Email:{" "}
-                    <code className="bg-blue-100 px-1 rounded">
-                      admin@gmail.com
-                    </code>
-                  </p>
-                  <p className="text-xs text-blue-700">
-                    Password:{" "}
-                    <code className="bg-blue-100 px-1 rounded">password</code>
-                  </p>
                 </div>
 
                 {/* Submit Button */}

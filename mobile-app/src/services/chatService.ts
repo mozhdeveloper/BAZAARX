@@ -276,16 +276,16 @@ class ChatService {
     if (targetUserId) {
         const { data: presence } = await supabase
             .from('user_presence')
-            .select('status')
+            .select('is_online')
             .eq('user_id', targetUserId)
             .maybeSingle();
-        isOnline = presence?.status === 'online';
+        isOnline = !!presence?.is_online;
     }
 
     // Get conversation stats
     const stats = await this.getConversationStats(conv.id, conv.buyer_id, resolvedSellerId);
 
-    const buyerFullName = buyer ? this.getBuyerFullName(buyer) : 'Unknown Buyer';
+    const buyerFullName = buyer ? this.getBuyerFullName(buyer as any) : 'Unknown Buyer';
 
     return {
       ...conv,
@@ -303,8 +303,8 @@ class ChatService {
       is_online: isOnline,
       isOnline: isOnline,
       buyer: {
-        first_name: buyer?.first_name,
-        last_name: buyer?.last_name,
+        first_name: buyer?.first_name ?? undefined,
+        last_name: buyer?.last_name ?? undefined,
         full_name: buyerFullName,
         email: buyer?.email,
         avatar_url: buyerData?.avatar_url,
@@ -471,7 +471,7 @@ class ChatService {
             .eq('id', senderId)
             .single();
 
-          const buyerName = buyer ? this.getBuyerFullName(buyer) : 'A customer';
+          const buyerName = buyer ? this.getBuyerFullName(buyer as any) : 'A customer';
 
           await notificationService.notifySellerNewMessage({
             sellerId,
@@ -502,7 +502,7 @@ class ChatService {
       // Don't fail the message send if notification fails
     }
 
-    return message;
+    return message as unknown as Message;
   }
 
   /**
@@ -665,7 +665,7 @@ class ChatService {
         (payload) => {
           const newRecord = payload.new as any;
           if (newRecord && newRecord.user_id) {
-             onPresenceChange(newRecord.user_id, newRecord.status === 'online');
+             onPresenceChange(newRecord.user_id, newRecord.is_online === true);
           }
         }
       )
@@ -681,8 +681,7 @@ class ChatService {
   async updateUserPresence(userId: string, status: 'online' | 'offline', platform: 'mobile' | 'web' | 'both'): Promise<void> {
     await supabase.from('user_presence').upsert({ 
       user_id: userId, 
-      status: status, 
-      active_platform: platform,
+      is_online: status === 'online',
       last_seen: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id' });

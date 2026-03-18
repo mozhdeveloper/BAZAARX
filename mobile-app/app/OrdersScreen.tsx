@@ -212,7 +212,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       }
 
       console.log('Fetched orders:', data); // Log the fetched orders
-      setDbOrders(data || []);
+      setDbOrders((data || []) as any);
 
       const mapped: Order[] = (data || []).map((order: any) => {
         const hasReviews = Array.isArray(order.reviews) && order.reviews.length > 0;

@@ -24,7 +24,13 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#FF6A00"
       },
-      "package": "com.bazaarx.mobile"
+      "package": "com.bazaarx.mobile",
+      "googleServicesFile": "./google-services.json"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bazaarx-mobile"
+      }
     },
     "web": {
       "favicon": "./assets/icon.png",
@@ -43,7 +49,16 @@
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FF6A00",
+          "sounds": [],
+          "mode": "production"
+        }
+      ]
     ]
   }
 }

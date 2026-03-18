@@ -211,55 +211,87 @@ export function SellerOnboarding() {
     setIsSubmitting(true);
 
     try {
-      // 1. Map ALL form fields to your exact SQL schema columns
-      const sellerData = {
-        id: seller?.id, // Must match the authenticated user's profile ID
+      const sellerId = seller?.id;
+      if (!sellerId) throw new Error('No authenticated seller ID');
 
-        // Basic Store Info
-        business_name: formData.businessName,
-        store_name: formData.storeName,
-        store_description: formData.storeDescription,
-        store_category: formData.storeCategory, // This is already an array
-
-        // Business Legal Info
-        business_type: formData.businessType,
-        business_registration_number: formData.businessRegistrationNumber,
-        tax_id_number: formData.taxIdNumber,
-
-        // Address Details
-        business_address: formData.businessAddress,
-        city: formData.city,
-        province: formData.province,
-        postal_code: formData.postalCode,
-
-        // Banking Details
-        bank_name: formData.bankName,
-        account_name: formData.accountName,
-        account_number: formData.accountNumber,
-
-        // Document URLs (from the final step)
-        business_permit_url: formData.businessPermitUrl,
-        valid_id_url: formData.validIdUrl,
-        proof_of_address_url: formData.proofOfAddressUrl,
-        dti_registration_url: formData.dtiRegistrationUrl,
-        tax_id_url: formData.taxIdUrl,
-
-        // Default Statuses
-        approval_status: 'pending',
-        is_verified: false,
-        join_date: new Date().toISOString(),
-        rating: 0.0,
-        total_sales: 0
-      };
-
-      // 2. Perform the upsert to the 'sellers' table
-      const { error } = await supabase
+      // 1. Upsert the sellers row (only columns that exist on the sellers table)
+      const { error: sellerError } = await supabase
         .from('sellers')
-        .upsert(sellerData as any);
+        .upsert({
+          id: sellerId,
+          store_name: formData.storeName,
+          store_description: formData.storeDescription,
+          owner_name: formData.businessName,
+          approval_status: 'pending',
+        } as any);
 
-      if (error) throw error;
+      if (sellerError) throw sellerError;
 
-      // 3. Update local state and proceed to success screens
+      // 2. Upsert business profile (seller_business_profiles)
+      const { error: bpError } = await supabase
+        .from('seller_business_profiles')
+        .upsert({
+          seller_id: sellerId,
+          business_type: formData.businessType,
+          business_registration_number: formData.businessRegistrationNumber,
+          tax_id_number: formData.taxIdNumber,
+          address_line_1: formData.businessAddress,
+          city: formData.city,
+          province: formData.province,
+          postal_code: formData.postalCode,
+        } as any);
+
+      if (bpError) throw bpError;
+
+      // 3. Upsert payout account (seller_payout_accounts)
+      if (formData.bankName || formData.accountName || formData.accountNumber) {
+        const { error: payoutError } = await supabase
+          .from('seller_payout_accounts')
+          .upsert({
+            seller_id: sellerId,
+            bank_name: formData.bankName,
+            account_name: formData.accountName,
+            account_number: formData.accountNumber,
+          } as any);
+
+        if (payoutError) console.warn('Payout account save error:', payoutError);
+      }
+
+      // 4. Upsert verification documents (seller_verification_documents)
+      const { error: docError } = await supabase
+        .from('seller_verification_documents')
+        .upsert({
+          seller_id: sellerId,
+          business_permit_url: formData.businessPermitUrl || null,
+          valid_id_url: formData.validIdUrl || null,
+          proof_of_address_url: formData.proofOfAddressUrl || null,
+          dti_registration_url: formData.dtiRegistrationUrl || null,
+          tax_id_url: formData.taxIdUrl || null,
+        } as any);
+
+      if (docError) console.warn('Verification documents save error:', docError);
+
+      // 5. Save store categories via junction table (seller_categories)
+      if (formData.storeCategory && Array.isArray(formData.storeCategory) && formData.storeCategory.length > 0) {
+        // Look up category IDs by name
+        const { data: categories } = await supabase
+          .from('categories')
+          .select('id, name')
+          .in('name', formData.storeCategory);
+
+        if (categories && categories.length > 0) {
+          // Remove old categories
+          await supabase.from('seller_categories').delete().eq('seller_id', sellerId);
+          // Insert new ones
+          const categoryRows = categories.map((cat: any) => ({
+            seller_id: sellerId,
+            category_id: cat.id,
+          }));
+          await supabase.from('seller_categories').insert(categoryRows as any);
+        }
+      }
+
+      // 6. Update local state and proceed to success screens
       updateSellerDetails({ ...formData, approvalStatus: "pending" });
       setIsSubmitting(false);
       setIsVerifying(true);

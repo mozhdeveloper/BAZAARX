@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../types/supabase-generated.types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_KEY || '';
 
 // Custom fetch with 10-second timeout to prevent Expo Go from hanging indefinitely
 const fetchWithTimeout = (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
@@ -12,13 +12,25 @@ const fetchWithTimeout = (url: RequestInfo | URL, options?: RequestInit): Promis
     return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
 };
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+/** Clear all auth-related AsyncStorage keys */
+const clearAuthStorage = async () => {
+  try {
+    await AsyncStorage.removeItem('supabase.auth.token');
+    const supabaseProject = supabaseUrl.split('//')[1]?.split('.')[0];
+    if (supabaseProject) {
+      await AsyncStorage.removeItem(`sb-${supabaseProject}-auth-token`);
+    }
+  } catch (_) {
+    // Swallow — storage may already be empty
+  }
+};
+
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
         storage: AsyncStorage,
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
-        // Handle refresh token errors gracefully
         storageKey: 'supabase.auth.token',
     },
     global: {
@@ -26,27 +38,32 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     },
 });
 
-// Set up auth state change listener to handle token refresh errors
+// Handle auth state changes and refresh-token errors gracefully
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (event === 'TOKEN_REFRESHED') {
-    console.log('Auth token refreshed successfully');
+    // Successful refresh — nothing to do
   } else if (event === 'SIGNED_OUT') {
-    console.log('User signed out');
-    // Clear all auth-related storage keys
-    try {
-      await AsyncStorage.removeItem('supabase.auth.token');
-      // Also clear the Supabase-specific storage key
-      const supabaseProject = supabaseUrl.split('//')[1]?.split('.')[0];
-      if (supabaseProject) {
-        await AsyncStorage.removeItem(`sb-${supabaseProject}-auth-token`);
-      }
-    } catch (error) {
-      console.error('Error clearing auth token:', error);
-    }
-  } else if (event === 'USER_UPDATED') {
-    console.log('User updated');
+    // Clean up stale tokens so the next sign-in starts fresh
+    await clearAuthStorage();
   }
 });
+
+// Proactively validate the stored session on cold start.
+// If the refresh token is invalid/revoked Supabase will throw; we catch
+// that, wipe the stale tokens and let the app redirect to sign-in.
+(async () => {
+  try {
+    const { error } = await supabase.auth.getSession();
+    if (error) {
+      console.log('[Auth] Stale session cleared on startup');
+      await clearAuthStorage();
+      await supabase.auth.signOut().catch(() => {});
+    }
+  } catch {
+    await clearAuthStorage();
+    await supabase.auth.signOut().catch(() => {});
+  }
+})();
 
 export const isSupabaseConfigured = (): boolean => {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -55,22 +72,9 @@ export const isSupabaseConfigured = (): boolean => {
 };
 
 /**
- * Admin Supabase Client (service role)
- * Used for public-facing inserts that bypass RLS (e.g., product requests)
- * NOTE: For V1 only. In production, use Edge Functions or a backend API.
+ * Admin operations have been moved to Supabase Edge Functions.
+ * Use supabase.functions.invoke('function-name', { body }) instead.
+ *
+ * @deprecated — do not use supabaseAdmin in new code
  */
-export const supabaseAdmin = supabaseServiceKey
-  ? createClient(
-      supabaseUrl,
-      supabaseServiceKey,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-        global: {
-          fetch: fetchWithTimeout,
-        },
-      }
-    )
-  : null;
+export const supabaseAdmin = null;

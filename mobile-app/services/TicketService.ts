@@ -244,7 +244,7 @@ export const TicketService = {
       return null;
     }
 
-    return data ? mapDbTicketToTicket(data as DbTicket, currentUserId) : null;
+    return data ? mapDbTicketToTicket(data as unknown as DbTicket, currentUserId) : null;
   },
 
   async createTicket(userId: string, data: { categoryId?: string | null; subject: string; description: string; priority: TicketPriority; images?: string[] }): Promise<Ticket> {
@@ -352,7 +352,7 @@ export const TicketService = {
       id: data.id,
       ticketId: data.ticket_id,
       senderId: data.sender_id,
-      senderType: data.sender_type,
+      senderType: data.sender_type as "user" | "admin",
       senderName: 'You',
       message: data.message,
       createdAt: data.created_at,

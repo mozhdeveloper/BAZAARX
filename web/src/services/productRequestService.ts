@@ -2,7 +2,7 @@
  * Product Request Service
  * Handles CRUD for buyer product requests that admins review
  */
-import { supabase, isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface ProductRequest {
   id: string;
@@ -148,17 +148,24 @@ class ProductRequestService {
 
       if (!error) return this.mapRow(data);
 
-      // If RLS error, fallback to admin client (bypasses RLS for unauthenticated users)
-      if (error.message?.includes('row-level security') && supabaseAdmin) {
-        console.warn('[ProductRequest] RLS blocked insert, using admin client fallback');
-        const { data: adminData, error: adminError } = await supabaseAdmin
-          .from('product_requests')
-          .insert(insertData)
-          .select()
-          .single();
+      // If RLS error, fallback to Edge Function (handles unauthenticated users)
+      if (error.message?.includes('row-level security')) {
+        console.warn('[ProductRequest] RLS blocked insert, using Edge Function fallback');
+        const { data: fnResult, error: fnError } = await supabase.functions.invoke('submit-product-request', {
+          body: {
+            productName: params.productName,
+            description: params.description,
+            category: params.category,
+            requestedByName: params.requestedByName,
+            requestedById: params.requestedById,
+            priority: params.priority,
+            estimatedDemand: params.estimatedDemand,
+          },
+        });
 
-        if (adminError) throw adminError;
-        return this.mapRow(adminData);
+        if (fnError) throw fnError;
+        if (fnResult?.data) return this.mapRow(fnResult.data);
+        throw new Error('Edge Function returned no data');
       }
 
       throw error;

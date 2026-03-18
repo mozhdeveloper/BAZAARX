@@ -9,38 +9,20 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Image,
   Dimensions,
 } from 'react-native';
-import { ChevronLeft, Send, Bot, MoreVertical, Scale } from 'lucide-react-native';
+import { ChevronLeft, Send, Bot } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
+import { aiChatService } from '../services/aiChatService';
 
 const { width } = Dimensions.get('window');
 
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  image: string;
-  specs: { label: string; value: string }[];
-}
-
-interface ProductComparison {
-  title: string;
-  products: [Product, Product];
-}
-
 interface Message {
   id: string;
-  text?: string;
+  text: string;
   isUser: boolean;
   timestamp: Date;
-  comparison?: ProductComparison;
-
 }
 
 interface AIChatModalProps {
@@ -49,26 +31,24 @@ interface AIChatModalProps {
 }
 
 const suggestedQuestions = [
-  'Compare wireless earbuds',
-  'Find best gaming laptops',
-  'Track my order',
-  'Show me phone deals',
+  'What products are trending on BazaarX?',
+  'How do I track my order?',
+  'What is the return policy?',
+  'What payment methods are accepted?',
 ];
 
 export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: 'Hi! 👋 I\'m your BazaarX AI shopping assistant. I can help you find products, compare items, track orders, and answer questions. How can I assist you today?',
+      text: '👋 Hello! I\'m BazBot, your AI shopping assistant for BazaarX.\n\nI can help you with product information, store details, shipping policies, returns, and more.\n\nHow may I assist you today?',
       isUser: false,
       timestamp: new Date(),
     },
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -77,195 +57,66 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
     }
   }, [messages, visible]);
 
+  // Reset conversation when modal closes
+  useEffect(() => {
+    if (!visible) {
+      aiChatService.resetConversation();
+    }
+  }, [visible]);
+
   const scrollToBottom = () => {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
   };
 
-  const handleSend = (text?: string) => {
-    const messageText = text || inputText.trim();
-    if (messageText) {
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        text: messageText,
-        isUser: true,
+  const handleSend = async (text?: string) => {
+    const messageText = (text || inputText).trim();
+    if (!messageText || isTyping) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: messageText,
+      isUser: true,
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputText('');
+    setIsTyping(true);
+
+    try {
+      // Call the real AI service — no product context since this is the general assistant
+      const { response } = await aiChatService.sendAIMessage(messageText, {});
+
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        text: response,
+        isUser: false,
         timestamp: new Date(),
-      };
-
-      setMessages([...messages, userMessage]);
-      setInputText('');
-      setIsTyping(true);
-
-      // Simulate AI typing and response
-      setTimeout(() => {
-        setIsTyping(false);
-        const aiResponse = getDummyResponse(messageText);
-        if (aiResponse) {
-          setMessages((prev) => [...prev, aiResponse]);
-        }
-      }, 1500);
+      }]);
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        text: 'I\'m having trouble right now. Please try again in a moment.',
+        isUser: false,
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
   const handleClearChat = () => {
+    aiChatService.resetConversation();
     setMessages([
       {
         id: '1',
-        text: 'Hi! 👋 I\'m your BazaarX AI shopping assistant. I can help you find products, compare items, track orders, and answer questions. How can I assist you today?',
+        text: '👋 Hello! I\'m BazBot, your AI shopping assistant for BazaarX.\n\nI can help you with product information, store details, shipping policies, returns, and more.\n\nHow may I assist you today?',
         isUser: false,
         timestamp: new Date(),
       },
     ]);
-    setSelectedProduct(null);
-  };
-
-  const renderProductComparison = (comparison: ProductComparison) => {
-    return (
-      <View style={styles.comparisonCard}>
-        <View style={styles.comparisonHeader}>
-          <Scale size={18} color={COLORS.primary} strokeWidth={2.5} />
-          <Text style={styles.comparisonTitle}>{comparison.title}</Text>
-        </View>
-
-        <View style={styles.comparisonGrid}>
-          {comparison.products.map((product) => (
-            <Pressable
-              key={product.id}
-              style={[
-                styles.productColumn,
-                selectedProduct === product.id && styles.productColumnSelected,
-              ]}
-              onPress={() => setSelectedProduct(product.id)}
-            >
-              <Image source={{ uri: product.image }} style={styles.productImage} />
-              <Text style={styles.productName} numberOfLines={2}>
-                {product.name}
-              </Text>
-              <Text style={styles.productPrice}>${product.price}</Text>
-
-              <View style={styles.specsContainer}>
-                {product.specs.map((spec, index) => (
-                  <View key={index} style={styles.specRow}>
-                    <Text style={styles.specLabel}>{spec.label}:</Text>
-                    <Text style={styles.specValue}>{spec.value}</Text>
-                  </View>
-                ))}
-              </View>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-    );
-  };
-
-  const getDummyResponse = (input: string): Message | null => {
-    const lowerInput = input.toLowerCase();
-
-    // Smart Redirect Logic
-
-
-    if (lowerInput.includes('compare') && (lowerInput.includes('earbud') || lowerInput.includes('headphone'))) {
-      return {
-        id: (Date.now() + 1).toString(),
-        text: 'I found two popular wireless earbuds for you. Here\'s a detailed comparison:',
-        isUser: false,
-        timestamp: new Date(),
-        comparison: {
-          title: 'Wireless Earbuds Comparison',
-          products: [
-            {
-              id: 'prod1',
-              name: 'Sony WF-1000XM5 Premium Noise Cancelling',
-              price: 299.99,
-              image: 'https://images.unsplash.com/photo-1606220838315-056192d5e927?w=300',
-              specs: [
-                { label: 'Connection', value: 'Bluetooth 5.3' },
-                { label: 'Battery Life', value: '24 hours' },
-                { label: 'Noise Cancelling', value: 'Premium ANC' },
-                { label: 'Water Resistant', value: 'IPX4' },
-              ],
-            },
-            {
-              id: 'prod2',
-              name: 'Apple AirPods Pro (2nd Gen) with MagSafe',
-              price: 249.99,
-              image: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=300',
-              specs: [
-                { label: 'Connection', value: 'Bluetooth 5.3' },
-                { label: 'Battery Life', value: '30 hours' },
-                { label: 'Noise Cancelling', value: 'Active ANC' },
-                { label: 'Water Resistant', value: 'IPX4' },
-              ],
-            },
-          ],
-        },
-      };
-    } else if (lowerInput.includes('compare') && lowerInput.includes('laptop')) {
-      return {
-        id: (Date.now() + 1).toString(),
-        text: 'Here are two excellent gaming laptops to compare:',
-        isUser: false,
-        timestamp: new Date(),
-        comparison: {
-          title: 'Gaming Laptop Comparison',
-          products: [
-            {
-              id: 'prod3',
-              name: 'ASUS ROG Strix G16 Gaming Laptop',
-              price: 1499.99,
-              image: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=300',
-              specs: [
-                { label: 'Processor', value: 'Intel i9-13980HX' },
-                { label: 'RAM', value: '32GB DDR5' },
-                { label: 'Graphics', value: 'RTX 4070 8GB' },
-                { label: 'Display', value: '16" QHD 240Hz' },
-              ],
-            },
-            {
-              id: 'prod4',
-              name: 'MSI Raider GE78 HX Gaming Laptop',
-              price: 1799.99,
-              image: 'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=300',
-              specs: [
-                { label: 'Processor', value: 'Intel i9-13950HX' },
-                { label: 'RAM', value: '32GB DDR5' },
-                { label: 'Graphics', value: 'RTX 4080 12GB' },
-                { label: 'Display', value: '17" QHD 240Hz' },
-              ],
-            },
-          ],
-        },
-      };
-    } else if (lowerInput.includes('hello') || lowerInput.includes('hi')) {
-      return {
-        id: (Date.now() + 1).toString(),
-        text: 'Hello! 😊 How can I assist you with your shopping today? Try asking me to compare products!',
-        isUser: false,
-        timestamp: new Date(),
-      };
-    } else if (lowerInput.includes('order') || lowerInput.includes('track')) {
-      return {
-        id: (Date.now() + 1).toString(),
-        text: 'You can track your orders in the "Orders" tab. 📦 I can show you real-time delivery updates with precise location tracking!',
-        isUser: false,
-        timestamp: new Date(),
-      };
-    } else if (lowerInput.includes('phone') || lowerInput.includes('deal')) {
-      return {
-        id: (Date.now() + 1).toString(),
-        text: 'We have amazing phone deals right now! 📱 Check out our Flash Sale section for up to 40% off on flagship smartphones. Would you like me to compare specific models?',
-        isUser: false,
-        timestamp: new Date(),
-      };
-    } else {
-      return {
-        id: (Date.now() + 1).toString(),
-        text: 'I understand! 💡 I can help you find products, compare items side-by-side, or answer questions. Try asking me to "compare wireless earbuds" or "find gaming laptops"!',
-        isUser: false,
-        timestamp: new Date(),
-      };
-    }
   };
 
   return (
@@ -314,45 +165,33 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
 
           {messages.map((message) => (
             <View key={message.id}>
-              {/* Text Message */}
-              {message.text && (
+              <View
+                style={[
+                  styles.messageBubble,
+                  message.isUser ? styles.userBubble : styles.aiBubble,
+                ]}
+              >
+                {!message.isUser && (
+                  <View style={styles.aiAvatar}>
+                    <Bot size={18} color={COLORS.primary} strokeWidth={2.5} />
+                  </View>
+                )}
                 <View
                   style={[
-                    styles.messageBubble,
-                    message.isUser ? styles.userBubble : styles.aiBubble,
+                    styles.messageContent,
+                    message.isUser ? styles.userMessageContent : styles.aiMessageContent,
                   ]}
                 >
-                  {!message.isUser && (
-                    <View style={styles.aiAvatar}>
-                      <Bot size={18} color={COLORS.primary} strokeWidth={2.5} />
-                    </View>
-                  )}
-                  <View
+                  <Text
                     style={[
-                      styles.messageContent,
-                      message.isUser ? styles.userMessageContent : styles.aiMessageContent,
+                      styles.messageText,
+                      message.isUser ? styles.userText : styles.aiText,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.messageText,
-                        message.isUser ? styles.userText : styles.aiText,
-                      ]}
-                    >
-                      {message.text}
-                    </Text>
-
-
-                  </View>
+                    {message.text}
+                  </Text>
                 </View>
-              )}
-
-              {/* Product Comparison Widget */}
-              {message.comparison && (
-                <View style={styles.comparisonWrapper}>
-                  {renderProductComparison(message.comparison)}
-                </View>
-              )}
+              </View>
             </View>
           ))}
 
@@ -556,95 +395,6 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#9CA3AF',
-  },
-  // Product Comparison Card
-  comparisonWrapper: {
-    marginBottom: 16,
-    alignSelf: 'flex-start',
-    maxWidth: '95%',
-    marginLeft: 40,
-  },
-  comparisonCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  comparisonHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  comparisonTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1F2937',
-    letterSpacing: -0.3,
-  },
-  comparisonGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  productColumn: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  productColumnSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: '#FFF5F0',
-  },
-  productImage: {
-    width: '100%',
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: '#E5E7EB',
-    marginBottom: 10,
-  },
-  productName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 6,
-    lineHeight: 18,
-    letterSpacing: -0.2,
-  },
-  productPrice: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: COLORS.primary,
-    marginBottom: 12,
-    letterSpacing: -0.3,
-  },
-  specsContainer: {
-    gap: 6,
-  },
-  specRow: {
-    flexDirection: 'column',
-    gap: 2,
-  },
-  specLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6B7280',
-    letterSpacing: 0.2,
-  },
-  specValue: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#1F2937',
-    letterSpacing: -0.1,
   },
   // Floating Input Area
   inputContainer: {
