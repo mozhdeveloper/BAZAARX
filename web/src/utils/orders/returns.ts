@@ -53,17 +53,10 @@ export const mapDbReturnRequestToBuyerReturnRequest = (
 ): NonNullable<BuyerOrderSnapshot["returnRequest"]> => {
   const { reason, comments } = splitPersistedReturnReason(request.returnReason);
 
-  let status: 'pending' | 'approved' | 'rejected' = 'pending';
-  if (request.refundDate) {
-    status = 'approved';
-  } else if (request.isReturnable === false) {
-    status = 'rejected';
-  }
-
   return {
     id: request.id,
     reason,
-    solution: "return_refund",
+    solution: request.returnType === "refund_only" ? "refund_only" : "return_refund",
     comments,
     files: [],
     refundAmount: request.refundAmount ?? fallbackRefundAmount,
