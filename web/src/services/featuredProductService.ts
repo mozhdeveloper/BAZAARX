@@ -48,7 +48,8 @@ class FeaturedProductService {
     if (!isSupabaseConfigured()) return [];
 
     try {
-      const { data, error } = await supabase
+      const [featuredResult, soldResult] = await Promise.all([
+        supabase
         .from('featured_products')
         .select(`
           *,
@@ -66,7 +67,14 @@ class FeaturedProductService {
         .eq('product.approval_status', 'approved')
         .order('priority', { ascending: false })
         .order('featured_at', { ascending: false })
-        .limit(limit);
+        .limit(limit),
+
+        supabase
+          .from('product_sold_counts')
+          .select('product_id, sold_count')
+      ]);
+
+      const { data, error } = featuredResult;
 
       if (error) {
         console.error('[FeaturedProductService] getFeaturedProducts error:', error);
@@ -80,6 +88,24 @@ class FeaturedProductService {
 
       if (filtered.length === 0) return filtered;
 
+      const { data: soldCountsData } = soldCountResult;
+
+      const soldCountsMap = new Map<string, number>();
+      (soldCountsData || []).forEach((row: any) => {
+        soldCountsMap.set(row.product_id, row.sold_count || 0);
+      });
+
+      return filtered.map((fp: any) => ({
+        ...fp,
+        product: {
+          ...fp.product,
+          sold_count: soldCountsMap.get(fp.product?.id) || 0,
+        },
+      }));
+    } catch (err) {
+      console.error('[FeaturedProductService] getFeaturedProducts exception:', err);
+      return [];
+    }
       // Fetch real sold counts from the product_sold_counts view (computed from completed orders)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const productIds = filtered.map((fp: any) => fp.product?.id).filter(Boolean);
