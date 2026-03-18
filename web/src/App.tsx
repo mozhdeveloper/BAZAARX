@@ -49,8 +49,6 @@ const AboutUsPage = lazy(() => import("./pages/AboutUsPage"));
 const EnhancedCartPage = lazy(() => import("./pages/EnhancedCartPage"));
 const BuyerProfilePage = lazy(() => import("./pages/BuyerProfilePage"));
 const SellerStorefrontPage = lazy(() => import("./pages/SellerStorefrontPage"));
-const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
-const BuyerReviewsPage = lazy(() => import("./pages/BuyerReviewsPage"));
 const BuyerFollowingPage = lazy(() => import("./pages/BuyerFollowingPage"));
 const BuyerSettingsPage = lazy(() => import("./pages/BuyerSettingsPage"));
 const BuyerProductRequestsPage = lazy(() => import("./pages/BuyerProductRequestsPage"));
@@ -257,15 +255,6 @@ function App() {
               element={
                 <ProtectedBuyerRoute>
                   <MessagesPage />
-                </ProtectedBuyerRoute>
-              }
-            />
-            <Route path="/reviews" element={<ReviewsPage />} />
-            <Route
-              path="/my-reviews"
-              element={
-                <ProtectedBuyerRoute>
-                  <BuyerReviewsPage />
                 </ProtectedBuyerRoute>
               }
             />
