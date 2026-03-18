@@ -108,12 +108,20 @@ function DeliveryTrackingPage() {
           const dbShipmentStatus = orderData.shipment_status || 'pending';
           const mappedStatus = shipmentStatusMap[dbShipmentStatus] || "pending";
 
-          // Compute total from order items
+          // Compute total from order items (consistent with CheckoutPage pricing)
           const items = orderData.order_items || [];
-          const computedTotal = items.reduce((sum: number, item: any) => {
-            const itemPrice = (item.variant?.price || item.price || 0);
-            return sum + (item.quantity * itemPrice);
+          const originalSubtotal = items.reduce((sum: number, item: any) => {
+            const originalPrice = item.variant?.price || item.price || 0;
+            const priceDiscount = (item.price_discount || 0);
+            return sum + ((originalPrice - priceDiscount) * (item.quantity || 1));
           }, 0);
+          const campaignDiscountTotal = items.reduce((sum: number, item: any) => {
+            return sum + ((item.price_discount || 0) * (item.quantity || 1));
+          }, 0);
+          const subtotalAfterDiscount = Math.max(0, originalSubtotal - campaignDiscountTotal);
+          const tax = Math.round(originalSubtotal * 0.12);
+          const shippingFee = orderData.shipping_fee || 100;
+          const computedTotal = originalSubtotal + shippingFee - campaignDiscountTotal + tax;
 
           const mappedOrder: Order = {
             id: orderData.id,
@@ -135,6 +143,7 @@ function DeliveryTrackingPage() {
               id: item.id,
               name: item.product_name,
               price: item.variant?.price || item.price || 0,
+              priceDiscount: item.price_discount || 0,
               quantity: item.quantity || 1,
               image:
                 item.variant?.thumbnail_url ||
@@ -871,12 +880,19 @@ function DeliveryTrackingPage() {
                             {item.name}
                           </p>
                           <p className="text-sm text-gray-600">
-                            Qty: {item.quantity} • ₱
-                            {(item.price || 0).toLocaleString()} each
+                            Qty: {item.quantity}
+                            {(item.priceDiscount || 0) > 0 ? (
+                              <>
+                                <span className="text-gray-400 line-through mx-1">₱{(item.price || 0).toLocaleString()}</span>
+                                <span className="text-[var(--brand-primary)] font-medium">₱{((item.price || 0) - (item.priceDiscount || 0)).toLocaleString()}</span>
+                              </>
+                            ) : (
+                              <> ₱{(item.price || 0).toLocaleString()}</>
+                            )} each
                           </p>
                         </div>
                         <p className="font-medium text-gray-900">
-                          ₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                          ₱{(((item.price || 0) - (item.priceDiscount || 0)) * (item.quantity || 1)).toLocaleString()}
                         </p>
                       </div>
                     ))}
@@ -1000,13 +1016,19 @@ function DeliveryTrackingPage() {
                               {item.name}
                             </p>
                             <p className="text-xs text-gray-500">
-                              Qty: {item.quantity} × ₱
-                              {(item.price || 0).toLocaleString()}
+                              Qty: {item.quantity} × {(item.priceDiscount || 0) > 0 ? (
+                                <>
+                                  <span className="text-gray-400 line-through">₱{(item.price || 0).toLocaleString()}</span>
+                                  <span className="text-[var(--brand-primary)]">₱{((item.price || 0) - (item.priceDiscount || 0)).toLocaleString()}</span>
+                                </>
+                              ) : (
+                                <>₱{(item.price || 0).toLocaleString()}</>
+                              )}
                             </p>
                           </div>
                         </div>
                         <p className="font-semibold text-gray-900">
-                          ₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                          ₱{(((item.price || 0) - (item.priceDiscount || 0)) * (item.quantity || 1)).toLocaleString()}
                         </p>
                       </div>
                     ))}
@@ -1038,32 +1060,62 @@ function DeliveryTrackingPage() {
                   </div>
                 </div>
 
-                {/* Payment Summary */}
+                  {/* Payment Summary */}
                 <div className="space-y-3 p-4 bg-[var(--brand-wash)] border border-[var(--brand-primary)]/10 rounded-lg">
                   <h4 className="font-semibold text-gray-900">
                     Payment Summary
                   </h4>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Subtotal</span>
-                      <span className="font-medium">
-                        ₱{Math.max(0, (order.total || 0) - 50).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Delivery Fee</span>
-                      <span className="font-medium">₱50</span>
-                    </div>
-                    <div className="border-t border-[var(--brand-primary)]/20 pt-2">
-                      <div className="flex justify-between text-base">
-                        <span className="font-bold text-gray-900">
-                          Total Amount
-                        </span>
-                        <span className="font-bold text-[var(--brand-primary)] text-lg">
-                          ₱{(order.total || 0).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
+                    {(() => {
+                      const items = order.items || [];
+                      const originalSubtotal = items.reduce((sum: number, item: any) => {
+                        return sum + ((item.price || 0) * (item.quantity || 1));
+                      }, 0);
+                      const totalDiscount = items.reduce((sum: number, item: any) => {
+                        return sum + ((item.priceDiscount || 0) * (item.quantity || 1));
+                      }, 0);
+                      const subtotalAfterDiscount = originalSubtotal - totalDiscount;
+                      const tax = Math.round(originalSubtotal * 0.12);
+                      const shippingFee = order.shippingFee || 100;
+                      return (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Subtotal</span>
+                            <span className="font-medium">
+                              ₱{originalSubtotal.toLocaleString()}
+                            </span>
+                          </div>
+                          {totalDiscount > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Discount</span>
+                              <span className="font-medium text-green-600">
+                                -₱{totalDiscount.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Tax (12% VAT)</span>
+                            <span className="font-medium">₱{tax.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Delivery Fee</span>
+                            <span className="font-medium">
+                              {shippingFee === 0 ? "Free" : `₱${shippingFee}`}
+                            </span>
+                          </div>
+                          <div className="border-t border-[var(--brand-primary)]/20 pt-2">
+                            <div className="flex justify-between text-base">
+                              <span className="font-bold text-gray-900">
+                                Total Amount
+                              </span>
+                              <span className="font-bold text-[var(--brand-primary)] text-lg">
+                                ₱{(subtotalAfterDiscount + tax + shippingFee).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 

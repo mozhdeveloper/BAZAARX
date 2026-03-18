@@ -384,14 +384,14 @@ export default function CheckoutPage() {
   const maxRedeemableBazcoins = Math.min(availableBazcoins, Math.max(0, subtotalAfterCampaign - discount));
   const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
 
-  // VAT is included in the subtotal in the PH market context to match EnhancedCartPage
-  const tax = Math.round((subtotalAfterCampaign / 1.12) * 0.12);
+  // Tax calculated on original subtotal (per Philippine VAT regulations)
+  const tax = Math.round(originalSubtotal * 0.12);
 
   const couponSavings = campaignDiscountTotal + discount + bazcoinDiscount;
   const grandTotalSavings = couponSavings;
 
-  // Final total calculation consistent with EnhancedCartPage (Tax is inclusive)
-  const finalTotal = Math.max(0, originalSubtotal + shippingFee - couponSavings);
+  // Final total calculation (Tax included, consistent with checkoutService)
+  const finalTotal = Math.max(0, originalSubtotal + shippingFee - couponSavings + tax);
 
   const handleApplyVoucher = useCallback(async () => {
     const code = voucherCode.trim().toUpperCase();
@@ -1368,7 +1368,7 @@ export default function CheckoutPage() {
                   )}
 
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Tax (12% VAT Included)</span>
+                    <span className="text-gray-600">Tax (12% VAT)</span>
                     <span className="text-gray-600 font-medium">₱{tax.toLocaleString()}</span>
                   </div>
                   <hr className="border-gray-300" />
