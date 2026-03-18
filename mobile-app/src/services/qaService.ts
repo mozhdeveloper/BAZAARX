@@ -239,7 +239,7 @@ export class QAService {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as ProductAssessment[];
     } catch (error) {
       console.error('Error fetching all assessments:', error);
       return [];
@@ -278,7 +278,7 @@ export class QAService {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as ProductAssessment[];
     } catch (error) {
       console.error('Error fetching pending assessments:', error);
       return [];
@@ -317,7 +317,7 @@ export class QAService {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as ProductAssessment[];
     } catch (error) {
       console.error('Error fetching assessments by status:', error);
       return [];
@@ -358,7 +358,7 @@ export class QAService {
         .maybeSingle();
 
       if (error) throw error;
-      return data;
+      return data as unknown as ProductAssessment | null;
     } catch (error) {
       console.error('Error fetching assessment:', error);
       return null;
@@ -922,7 +922,7 @@ export class QAService {
         .maybeSingle();
 
       if (error) throw error;
-      return data ? this.transformToLegacy(data) : null;
+      return data ? this.transformToLegacy(data as any) : null;
     } catch (error) {
       console.error('Error fetching QA entry:', error);
       return null;

@@ -4,11 +4,11 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../types/database.types';
 
 // Environment variables - these will be set when Supabase project is created
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY || '';
 
 // Validate that environment variables are set
 if (!supabaseUrl || !supabaseAnonKey) {
@@ -24,7 +24,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Realtime subscriptions
  * - Edge Functions
  */
-export const supabase = createClient<any>(
+export const supabase = createClient<Database>(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-key',
   {
@@ -46,28 +46,13 @@ export const supabase = createClient<any>(
   });
 
 /**
- * Admin Supabase Client (service role)
- * Used for public-facing inserts that bypass RLS (e.g., product requests)
- * NOTE: For V1 only. In production, use Edge Functions or a backend API.
+ * Admin operations have been moved to Supabase Edge Functions.
+ * Use supabase.functions.invoke('function-name', { body }) instead.
+ * See: supabase/functions/admin-seller-tiers, admin-featured-products, submit-product-request
+ *
+ * @deprecated — do not use supabaseAdmin in new code
  */
-export const supabaseAdmin = supabaseServiceKey
-  ? createClient<any>(
-      supabaseUrl || 'https://placeholder.supabase.co',
-      supabaseServiceKey,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          // Use a separate storage key so it doesn't conflict with the anon client
-          // (prevents "Multiple GoTrueClient instances" warning)
-          storageKey: 'sb-admin-auth-token',
-        },
-        global: {
-          headers: { 'X-Client-Info': 'bazaarx-web-admin' },
-        },
-      }
-    )
-  : null;
+export const supabaseAdmin = null;
 
 /**
  * Helper function to check if Supabase is configured

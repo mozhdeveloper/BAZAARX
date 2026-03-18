@@ -394,6 +394,12 @@ export class PayMongoGatewayService {
       refundedAt: new Date().toISOString(),
     });
 
+    // Mark escrow as refunded
+    await supabase
+      .from('payment_transactions')
+      .update({ escrow_status: 'refunded', updated_at: new Date().toISOString() })
+      .eq('id', transactionId);
+
     // Update order payment status
     await supabase
       .from('orders')
@@ -403,12 +409,12 @@ export class PayMongoGatewayService {
       })
       .eq('id', txn.order_id);
 
-    // Reverse payout if exists
+    // Reverse payout — put back on hold so it cannot be paid out
     await supabase
       .from('seller_payouts')
       .update({ status: 'on_hold', updated_at: new Date().toISOString() })
       .eq('payment_transaction_id', transactionId)
-      .eq('status', 'pending');
+      .in('status', ['pending', 'on_hold']);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -495,6 +501,8 @@ export class PayMongoGatewayService {
       status: p.status,
       processedAt: p.processed_at,
       failureReason: p.failure_reason,
+      escrowTransactionId: p.escrow_transaction_id,
+      releaseAfter: p.release_after,
       createdAt: p.created_at,
       updatedAt: p.updated_at,
     }));
@@ -578,8 +586,23 @@ export class PayMongoGatewayService {
   private async onPaymentSuccess(transactionId: string, request: Pick<CreatePaymentRequest, 'orderId' | 'buyerId' | 'sellerId' | 'amount' | 'paymentType'>): Promise<void> {
     const now = new Date().toISOString();
 
-    // 1. Mark transaction as paid
-    await this.updateTransactionStatus(transactionId, 'paid', { paidAt: now });
+    // Escrow hold duration: funds are held for 3 days after delivery confirmation.
+    // escrow_release_at is re-set by the DB trigger when shipment_status → 'delivered'.
+    // We set a conservative default of 7 days from payment as a safety net.
+    const escrowReleaseAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // 1. Mark transaction as paid and put in escrow
+    await supabase
+      .from('payment_transactions')
+      .update({
+        status: 'paid',
+        paid_at: now,
+        escrow_status: 'held',
+        escrow_held_at: now,
+        escrow_release_at: escrowReleaseAt,
+        updated_at: now,
+      })
+      .eq('id', transactionId);
 
     // 2. Update order payment status
     await supabase
@@ -591,11 +614,11 @@ export class PayMongoGatewayService {
     await supabase.from('order_status_history').insert({
       order_id: request.orderId,
       status: 'payment_received',
-      note: `Payment of ₱${request.amount.toLocaleString()} received via ${request.paymentType}`,
+      note: `Payment of ₱${request.amount.toLocaleString()} received via ${request.paymentType}. Funds held in escrow.`,
       changed_by_role: 'system',
     });
 
-    // 4. Create seller payout record
+    // 4. Create seller payout record — status is 'on_hold' until escrow releases
     const platformFee = Math.round(request.amount * PLATFORM_FEE_RATE * 100) / 100;
     const netAmount = Math.round((request.amount - platformFee) * 100) / 100;
 
@@ -610,6 +633,7 @@ export class PayMongoGatewayService {
       seller_id: request.sellerId,
       order_id: request.orderId,
       payment_transaction_id: transactionId,
+      escrow_transaction_id: transactionId,
       gross_amount: request.amount,
       platform_fee: platformFee,
       net_amount: netAmount,
@@ -620,7 +644,8 @@ export class PayMongoGatewayService {
         ewalletProvider: settings.ewallet_provider,
         ewalletNumber: settings.ewallet_number,
       } : {},
-      status: 'pending',
+      status: 'on_hold',  // held in escrow until delivery confirmed + 3-day window
+      release_after: escrowReleaseAt,
     });
   }
 
@@ -694,6 +719,10 @@ export class PayMongoGatewayService {
       failureReason: row.failure_reason,
       paidAt: row.paid_at,
       refundedAt: row.refunded_at,
+      escrowStatus: row.escrow_status ?? 'none',
+      escrowHeldAt: row.escrow_held_at,
+      escrowReleaseAt: row.escrow_release_at,
+      escrowReleasedAt: row.escrow_released_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

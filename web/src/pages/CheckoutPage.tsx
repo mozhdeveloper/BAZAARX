@@ -80,14 +80,14 @@ const paymentMethods = [
     name: "GCash",
     icon: Smartphone,
     description: "Pay with your GCash wallet",
-    comingSoon: false,
+    comingSoon: true,
   },
   {
     id: "maya" as const,
     name: "Maya",
     icon: Smartphone,
     description: "Pay with your Maya account",
-    comingSoon: false,
+    comingSoon: true,
   },
 ];
 
@@ -607,7 +607,7 @@ export default function CheckoutPage() {
     setIsLoading(true);
 
     // Import processCheckout at top of file (I will need to add the import in a separate step or assume I can add it here if I replace enough context, but I only replaced body. I'll rely on TS to complain or I will add import in next step if missed, but let's try to add import with the other changes if possible. Unfortunately this tool only does one block. I will add import in a separate call or just rely on auto-imports if I was in an IDE, but here I must be explicit.
-    // Actually I can't add import here easily without changing top of file. 
+    // Actually I can't add import here easily without changing top of file.
     // I will execute this change, then add the import.
 
     try {
@@ -619,7 +619,7 @@ export default function CheckoutPage() {
 
       // Map checkout items to expected payload
       const payloadItems = checkoutItems.map(item => ({
-        // We cast to any to satisfy the strict database type requirement 
+        // We cast to any to satisfy the strict database type requirement
         // since we are adapting from BuyerStore structure
         id: item.id, // This is Product ID in BuyerStore
         product_id: item.id,
@@ -757,7 +757,7 @@ export default function CheckoutPage() {
       }
 
       if (firstOrderNumber) {
-        // If there are multiple orders, navigating to the first one is standard, 
+        // If there are multiple orders, navigating to the first one is standard,
         // or you could navigate to a general "Order History" page.
         navigate(`/order/${firstOrderNumber}`, {
           state: { fromCheckout: true, earnedBazcoins: earnedBazcoins },

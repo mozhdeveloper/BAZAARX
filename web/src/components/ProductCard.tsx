@@ -1,11 +1,32 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BadgeCheck, ShieldCheck, Flame, Star } from 'lucide-react';
+import { BadgeCheck, ShieldCheck, Flame, Star, Heart } from 'lucide-react';
+import { useWishlist } from '../hooks/useWishlist';
 
+export interface ProductCardProduct {
+  id: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  rating?: number;
+  sold?: number;
+  stock?: number;
+  isVerified?: boolean;
+  seller?: string;
+  sellerVerified?: boolean;
+  discountBadgePercent?: number;
+  discountBadgeTooltip?: string;
+  sellerTierLevel?: string;
+  isPremiumOutlet?: boolean;
+  lifetimeSold?: number;
+  campaignSold?: number;
+  campaignStock?: number;
+}
 
 interface ProductCardProps {
-  product: any;
+  product: ProductCardProduct;
   index?: number;
   isFlash?: boolean;
   variant?: 'default' | 'hero';
@@ -13,6 +34,8 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash = false, variant = 'default' }) => {
   const navigate = useNavigate();
+  const { isWishlisted, toggleWishlist } = useWishlist();
+  const wishlisted = isWishlisted(product.id);
   const hasDiscount =
     (product.originalPrice && product.originalPrice > product.price) ||
     (typeof product.discountBadgePercent === 'number' && product.discountBadgePercent > 0);
@@ -54,6 +77,15 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
             {discountPercent}% OFF
           </div>
         )}
+
+        {/* Wishlist Heart */}
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleWishlist(product.id); }}
+          className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm transition-all"
+          aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+        >
+          <Heart className={`w-4 h-4 transition-colors ${wishlisted ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400'}`} />
+        </button>
 
 
         {product.isVerified && !isFlash && (

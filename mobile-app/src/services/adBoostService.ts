@@ -8,10 +8,6 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { supabaseAdmin } from '../lib/supabase';
-
-// Helper: prefer supabaseAdmin if available, otherwise supabase
-const getClient = () => supabaseAdmin || supabase;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -187,7 +183,7 @@ class AdBoostServiceMobile {
    */
   async getActiveBoostedProducts(boostType?: BoostType, limit = 12): Promise<AdBoostMobile[]> {
     try {
-      let query = getClient()
+      let query = supabase
         .from('product_ad_boosts')
         .select(`
           *,
@@ -223,7 +219,7 @@ class AdBoostServiceMobile {
 
       // Fetch sold counts from product_sold_counts view
       const productIds = results.map((b: any) => b.product?.id).filter(Boolean);
-      const { data: soldCountsData } = await getClient()
+      const { data: soldCountsData } = await supabase
         .from('product_sold_counts')
         .select('product_id, sold_count')
         .in('product_id', productIds);
@@ -251,7 +247,7 @@ class AdBoostServiceMobile {
    */
   async getSellerBoosts(sellerId: string): Promise<AdBoostMobile[]> {
     try {
-      const { data, error } = await getClient()
+      const { data, error } = await supabase
         .from('product_ad_boosts')
         .select(`
           *,
@@ -284,7 +280,7 @@ class AdBoostServiceMobile {
    */
   async getBoostableProducts(sellerId: string): Promise<any[]> {
     try {
-      const { data, error } = await getClient()
+      const { data, error } = await supabase
         .from('products')
         .select(`
           id, name, price, approval_status,
@@ -326,7 +322,7 @@ class AdBoostServiceMobile {
     const endsAt = new Date(startsAt.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
     try {
-      const { data, error } = await getClient()
+      const { data, error } = await supabase
         .from('product_ad_boosts')
         .insert({
           product_id: productId,
@@ -362,7 +358,7 @@ class AdBoostServiceMobile {
    */
   async pauseBoost(boostId: string, sellerId: string): Promise<boolean> {
     try {
-      const { error } = await getClient()
+      const { error } = await supabase
         .from('product_ad_boosts')
         .update({ status: 'paused', paused_at: new Date().toISOString() })
         .eq('id', boostId)
@@ -379,7 +375,7 @@ class AdBoostServiceMobile {
    */
   async resumeBoost(boostId: string, sellerId: string): Promise<boolean> {
     try {
-      const { error } = await getClient()
+      const { error } = await supabase
         .from('product_ad_boosts')
         .update({ status: 'active', paused_at: null })
         .eq('id', boostId)
@@ -396,7 +392,7 @@ class AdBoostServiceMobile {
    */
   async cancelBoost(boostId: string, sellerId: string): Promise<boolean> {
     try {
-      const { error } = await getClient()
+      const { error } = await supabase
         .from('product_ad_boosts')
         .update({ status: 'cancelled' })
         .eq('id', boostId)

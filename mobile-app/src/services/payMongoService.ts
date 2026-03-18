@@ -24,6 +24,8 @@ import type {
   SellerPayoutSettings,
   SellerPayout,
   SellerEarningsSummary,
+  GatewayPaymentType,
+  PayoutMethod,
 } from '../types/payment.types';
 
 // ============================================================================
@@ -298,7 +300,7 @@ export class PayMongoGatewayService {
           buyerId: txn.buyer_id,
           sellerId: txn.seller_id,
           amount: Number(txn.amount),
-          paymentType: txn.payment_type,
+          paymentType: txn.payment_type as GatewayPaymentType,
         });
         return { success: true, transactionId, status: 'paid' };
       }
@@ -319,7 +321,7 @@ export class PayMongoGatewayService {
           buyerId: txn.buyer_id,
           sellerId: txn.seller_id,
           amount: Number(txn.amount),
-          paymentType: txn.payment_type,
+          paymentType: txn.payment_type as GatewayPaymentType,
         });
         return { success: true, transactionId, status: 'paid' };
       }
@@ -349,7 +351,7 @@ export class PayMongoGatewayService {
         buyerId: txn.buyer_id,
         sellerId: txn.seller_id,
         amount: Number(txn.amount),
-        paymentType: txn.payment_type,
+        paymentType: txn.payment_type as GatewayPaymentType,
       });
     }
   }
@@ -381,6 +383,12 @@ export class PayMongoGatewayService {
       refundedAt: new Date().toISOString(),
     });
 
+    // Mark escrow as refunded
+    await supabase
+      .from('payment_transactions')
+      .update({ escrow_status: 'refunded', updated_at: new Date().toISOString() })
+      .eq('id', transactionId);
+
     await supabase
       .from('orders')
       .update({
@@ -393,7 +401,7 @@ export class PayMongoGatewayService {
       .from('seller_payouts')
       .update({ status: 'on_hold', updated_at: new Date().toISOString() })
       .eq('payment_transaction_id', transactionId)
-      .eq('status', 'pending');
+      .in('status', ['pending', 'on_hold']);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -414,16 +422,16 @@ export class PayMongoGatewayService {
     return {
       id: data.id,
       sellerId: data.seller_id,
-      payoutMethod: data.payout_method,
+      payoutMethod: data.payout_method as PayoutMethod,
       bankName: data.bank_name,
       bankAccountName: data.bank_account_name,
       bankAccountNumber: data.bank_account_number,
-      ewalletProvider: data.ewallet_provider,
+      ewalletProvider: data.ewallet_provider as "gcash" | "maya" | null,
       ewalletNumber: data.ewallet_number,
-      autoPayout: data.auto_payout,
+      autoPayout: data.auto_payout ?? false,
       minPayoutAmount: Number(data.min_payout_amount),
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      createdAt: data.created_at ?? '',
+      updatedAt: data.updated_at ?? '',
     };
   }
 
@@ -445,7 +453,7 @@ export class PayMongoGatewayService {
 
     const { error } = await supabase
       .from('seller_payout_settings')
-      .upsert(payload, { onConflict: 'seller_id' });
+      .upsert(payload as any, { onConflict: 'seller_id' });
 
     if (error) throw new Error(error.message || 'Failed to save payout settings');
   }
@@ -482,7 +490,7 @@ export class PayMongoGatewayService {
       failureReason: p.failure_reason,
       createdAt: p.created_at,
       updatedAt: p.updated_at,
-    }));
+    })) as unknown as SellerPayout[];
   }
 
   async getSellerEarningsSummary(sellerId: string): Promise<SellerEarningsSummary> {
@@ -565,8 +573,20 @@ export class PayMongoGatewayService {
     request: Pick<CreatePaymentRequest, 'orderId' | 'buyerId' | 'sellerId' | 'amount' | 'paymentType'>,
   ): Promise<void> {
     const now = new Date().toISOString();
+    const escrowReleaseAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    await this.updateTransactionStatus(transactionId, 'paid', { paidAt: now });
+    // Mark transaction as paid and put in escrow
+    await supabase
+      .from('payment_transactions')
+      .update({
+        status: 'paid',
+        paid_at: now,
+        escrow_status: 'held',
+        escrow_held_at: now,
+        escrow_release_at: escrowReleaseAt,
+        updated_at: now,
+      })
+      .eq('id', transactionId);
 
     await supabase
       .from('orders')
@@ -576,7 +596,7 @@ export class PayMongoGatewayService {
     await supabase.from('order_status_history').insert({
       order_id: request.orderId,
       status: 'payment_received',
-      note: `Payment of ₱${request.amount.toLocaleString()} received via ${request.paymentType}`,
+      note: `Payment of ₱${request.amount.toLocaleString()} received via ${request.paymentType}. Funds held in escrow.`,
       changed_by_role: 'system',
     });
 
@@ -593,6 +613,7 @@ export class PayMongoGatewayService {
       seller_id: request.sellerId,
       order_id: request.orderId,
       payment_transaction_id: transactionId,
+      escrow_transaction_id: transactionId,
       gross_amount: request.amount,
       platform_fee: platformFee,
       net_amount: netAmount,
@@ -603,7 +624,8 @@ export class PayMongoGatewayService {
         ewalletProvider: settings.ewallet_provider,
         ewalletNumber: settings.ewallet_number,
       } : {},
-      status: 'pending',
+      status: 'on_hold',
+      release_after: escrowReleaseAt,
     });
   }
 
@@ -677,6 +699,10 @@ export class PayMongoGatewayService {
       failureReason: row.failure_reason,
       paidAt: row.paid_at,
       refundedAt: row.refunded_at,
+      escrowStatus: row.escrow_status ?? 'none',
+      escrowHeldAt: row.escrow_held_at,
+      escrowReleaseAt: row.escrow_release_at,
+      escrowReleasedAt: row.escrow_released_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

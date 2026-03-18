@@ -60,26 +60,11 @@ const sortOptions = [
   { value: "bestseller", label: "Best Sellers" },
 ];
 
-const brandOptions = [
-  { name: "The North Face", count: 24 },
-  { name: "Zara Basic", count: 68 },
-  { name: "Moschino", count: 35 },
-  { name: "Supreme", count: 15 },
-  { name: "Ecko Unltd", count: 68 },
-];
+const brandOptions: { name: string; count: number }[] = [];
 
-const sizeOptions = ["S", "M", "L", "XL", "XXL"];
+const sizeOptions: string[] = [];
 
-const colorOptions = [
-  { name: "Pink", hex: "#fbcfe8" },
-  { name: "Orange", hex: "#fb923c" },
-  { name: "Beige", hex: "#fef3c7" },
-  { name: "Light Yellow", hex: "#fef9c3" },
-  { name: "Light Green", hex: "#dcfce7" },
-  { name: "Light Blue", hex: "#dbeafe" },
-  { name: "Purple", hex: "#ede9fe" },
-  { name: "Lavender", hex: "#f5f3ff" },
-];
+const colorOptions: { name: string; hex: string }[] = [];
 
 const popularTags = [
   "Bag", "Backpack", "Chair", "Clock", "Interior", "Indoor", "Gift", "Accessories", "Fashion", "Simple"
@@ -93,7 +78,7 @@ export default function ShopPage() {
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
-  const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
@@ -124,6 +109,7 @@ export default function ShopPage() {
   // Featured products
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
 
   // Fetch real flash sale products (global admin events from global_flash_sale_slots)
   useEffect(() => {
@@ -136,14 +122,16 @@ export default function ShopPage() {
       .catch((e) => console.error('Failed to load flash sales:', e));
 
     // Fetch featured products
-    featuredProductService.getFeaturedProducts(12).then(data => {
+    const featuredPromise = featuredProductService.getFeaturedProducts(12).then(data => {
       setFeaturedProducts(data);
     }).catch(e => console.error('Failed to load featured products:', e));
 
     // Fetch boosted products (ad boosts)
-    adBoostService.getActiveBoostedProducts('featured', 12).then(data => {
+    const boostedPromise = adBoostService.getActiveBoostedProducts('featured', 12).then(data => {
       setBoostedProducts(data);
     }).catch(e => console.error('Failed to load boosted products:', e));
+
+    Promise.all([featuredPromise, boostedPromise]).finally(() => setFeaturedLoading(false));
   }, []);
 
   // 2. Fetch categories on mount
@@ -282,6 +270,35 @@ export default function ShopPage() {
     return map;
   }, [allProducts]);
 
+  // Dynamic filter options derived from actual products
+  const dynamicBrandOptions = useMemo(() => {
+    const brandMap = new Map<string, number>();
+    for (const p of allProducts) {
+      const brand = p.seller || 'Unknown';
+      brandMap.set(brand, (brandMap.get(brand) || 0) + 1);
+    }
+    return Array.from(brandMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [allProducts]);
+
+  const dynamicSizeOptions = useMemo(() => {
+    const sizes = new Set<string>();
+    for (const p of allProducts) {
+      (p.variantLabel1Values || []).forEach(v => sizes.add(v));
+    }
+    return Array.from(sizes).slice(0, 10);
+  }, [allProducts]);
+
+  const dynamicColorOptions = useMemo(() => {
+    const colors = new Set<string>();
+    for (const p of allProducts) {
+      (p.variantLabel2Values || []).forEach(v => colors.add(v));
+    }
+    return Array.from(colors).slice(0, 10);
+  }, [allProducts]);
+
   const otherProductsCount = useMemo(() => {
     const activeCategoryNames = new Set(categories.map(c => c.name.toLowerCase()));
     let count = 0;
@@ -325,18 +342,7 @@ export default function ShopPage() {
     setSearchQuery(queryParam);
 
     if (categoryParam) {
-      // Resolve slug to name for proper filtering and sidebar highlighting
-      const matchedCategory = categories.find(
-        c => c.slug === categoryParam || c.name.toLowerCase() === categoryParam.toLowerCase()
-      );
-      
-      if (matchedCategory) {
-        setSelectedCategory(matchedCategory.name);
-      } else if (categoryParam.toLowerCase() === 'others') {
-        setSelectedCategory('Others');
-      } else {
-        setSelectedCategory(categoryParam);
-      }
+      setSelectedCategory(categoryParam);
     } else {
       setSelectedCategory("All Categories");
     }
@@ -359,7 +365,7 @@ export default function ShopPage() {
       }
       manualScrollRef.current = false;
     }, 100);
-  }, [searchParams, location.key, priceRange, minRating, selectedSort, categories]);
+  }, [searchParams, location.key, priceRange, minRating, selectedSort]);
 
   // Handle toolbar scroll visibility
   useEffect(() => {
@@ -591,7 +597,7 @@ export default function ShopPage() {
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
-          {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
+          {(featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
             <div className="mb-10">
               {/* Section Header */}
               <div className="flex items-center justify-between mb-5 px-1">
@@ -609,7 +615,34 @@ export default function ShopPage() {
                 </button>
               </div>
 
+              {/* Skeleton Loading State */}
+              {featuredLoading && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={`skel-${i}`} className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm flex flex-col animate-pulse">
+                      <div className="aspect-square bg-gray-200" />
+                      <div className="p-3 flex flex-col gap-2">
+                        <div className="h-4 bg-gray-200 rounded w-full" />
+                        <div className="h-3 bg-gray-200 rounded w-3/4" />
+                        <div className="flex gap-0.5 mt-1">
+                          {[...Array(5)].map((_, j) => (
+                            <div key={j} className="h-3 w-3 bg-gray-200 rounded-full" />
+                          ))}
+                        </div>
+                        <div className="h-5 bg-gray-200 rounded w-1/2 mt-1" />
+                        <div className="flex justify-between mt-1">
+                          <div className="h-3 bg-gray-200 rounded w-1/3" />
+                          <div className="h-3 bg-gray-200 rounded w-1/4" />
+                        </div>
+                        <div className="h-3 bg-gray-100 rounded w-2/3 mt-2 pt-2 border-t border-gray-50" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Sponsored Products Grid */}
+              {!featuredLoading && (featuredProducts.length > 0 || boostedProducts.length > 0) && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {(() => {
                   const seenIds = new Set<string>();
@@ -721,6 +754,7 @@ export default function ShopPage() {
                   });
                 })()}
               </div>
+              )}
             </div>
           )}
 
@@ -910,10 +944,11 @@ export default function ShopPage() {
                       </div>
 
                       {/* Size Section */}
+                      {dynamicSizeOptions.length > 0 && (
                       <div className="space-y-3">
                         <h3 className="font-bold text-[var(--text-headline)] text-sm">Size</h3>
                         <div className="flex flex-wrap gap-2">
-                          {sizeOptions.map((size) => (
+                          {dynamicSizeOptions.map((size) => (
                             <button
                               key={size}
                               className="w-9 h-9 rounded-full border border-[var(--border)] bg-white flex items-center justify-center text-xs font-bold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-all active:scale-95 shadow-sm"
@@ -923,46 +958,51 @@ export default function ShopPage() {
                           ))}
                         </div>
                       </div>
+                      )}
 
                       {/* Color Section */}
+                      {dynamicColorOptions.length > 0 && (
                       <div className="space-y-3">
                         <h3 className="font-bold text-[var(--text-headline)] text-sm">Color</h3>
                         <div className="flex flex-wrap gap-2.5">
-                          {colorOptions.map((color) => (
+                          {dynamicColorOptions.map((color) => (
                             <button
-                              key={color.name}
-                              className={`w-5 h-5 rounded-full border border-[var(--border)] shadow-sm hover:scale-110 transition-transform ${color.name === "Orange" ? "ring-2 ring-offset-2 ring-[var(--brand-primary)]" : ""}`}
-                              style={{ backgroundColor: color.hex }}
-                              title={color.name}
-                              aria-label={`Filter by color: ${color.name}`}
-                            />
+                              key={color}
+                              className="px-2.5 py-1 rounded-full border border-[var(--border)] shadow-sm hover:border-[var(--brand-primary)] transition-all text-xs font-medium text-[var(--text-primary)]"
+                              aria-label={`Filter by color: ${color}`}
+                            >
+                              {color}
+                            </button>
                           ))}
                         </div>
                       </div>
+                      )}
 
 
 
                       {/* Brands Section */}
+                      {dynamicBrandOptions.length > 0 && (
                       <div className="space-y-3">
-                        <h3 className="font-bold text-gray-900 text-sm">Brands</h3>
+                        <h3 className="font-bold text-gray-900 text-sm">Sellers</h3>
                         <div className="space-y-3">
-                          {brandOptions.map((brand) => (
+                          {dynamicBrandOptions.map((brand) => (
                             <button
                               key={brand.name}
                               className="w-full flex justify-between items-center group cursor-pointer hover:text-gray-900"
                             >
                               <div className="flex items-center gap-2">
-                                <span className={`text-sm transition-colors ${brand.name === "The North Face" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium"}`}>
+                                <span className="text-sm transition-colors text-[var(--text-primary)] font-medium">
                                   {brand.name}
                                 </span>
                               </div>
-                              <span className={`text-[11px] transition-colors ${brand.name === "The North Face" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)]"}`}>
+                              <span className="text-[11px] transition-colors text-[var(--text-muted)] group-hover:text-[var(--text-primary)]">
                                 {brand.count}
                               </span>
                             </button>
                           ))}
                         </div>
                       </div>
+                      )}
 
                       {/* Popular Tags */}
                       <div className="space-y-3">

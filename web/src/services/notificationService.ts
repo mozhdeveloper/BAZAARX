@@ -60,9 +60,9 @@ export class NotificationService {
   private getUserIdColumn(userType: 'buyer' | 'seller' | 'admin'): string {
     switch (userType) {
       case 'buyer': return 'buyer_id';
-      case 'seller': return 'seller_id'; // Added in migration 015_add_seller_id_to_seller_notifications
+      case 'seller': return 'seller_id';
       case 'admin': return 'admin_id';
-      default: return 'buyer_id';
+      default: return 'buyer_id'; // seller_notifications doesn't have a seller_id column in the schema
     }
   }
 
@@ -97,8 +97,6 @@ export class NotificationService {
       const tableName = this.getTableName(params.userType);
       const userIdColumn = this.getUserIdColumn(params.userType);
       
-      console.log(`[NotificationService] Creating notification: type=${params.type}, title=${params.title}, table=${tableName}, userId=${params.userId}`);
-
       // Build the insert data based on user type
       const insertData: any = {
         [userIdColumn]: params.userId,
@@ -117,7 +115,6 @@ export class NotificationService {
         .single();
 
       if (error) {
-        console.error(`[NotificationService] Error inserting notification:`, error);
         // Handle table not existing gracefully
         if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
           console.warn(`Notifications table ${tableName} does not exist`);
@@ -135,7 +132,14 @@ export class NotificationService {
       }
       if (!data) throw new Error('No data returned upon notification creation');
 
-      console.log(`[NotificationService] Notification created successfully:`, data);
+      // Fire push notification for buyer/seller (not admin)
+      if (params.userType !== 'admin') {
+        this._sendPush(params.userId, params.title, params.message, {
+          type: params.type,
+          ...params.actionData,
+        }).catch(() => { /* non-critical */ });
+      }
+
       return data;
     } catch (error) {
       console.error('Error creating notification:', error);
@@ -340,58 +344,6 @@ export class NotificationService {
     });
   }
 
-  async notifySellerOrderCancelled(params: {
-    sellerId: string;
-    orderId: string;
-    orderNumber: string;
-    buyerName?: string;
-    reason?: string | null;
-  }): Promise<Notification> {
-    if (!params.sellerId) throw new Error('sellerId is missing');
-
-    const buyerLabel = params.buyerName?.trim() || 'A buyer';
-    const reasonSuffix = params.reason?.trim()
-      ? ` Reason: ${params.reason.trim()}`
-      : '';
-
-    return this.createNotification({
-      userId: params.sellerId,
-      userType: 'seller',
-      type: 'seller_order_cancelled',
-      title: 'Order Cancelled by Buyer',
-      message: `${buyerLabel} cancelled order #${params.orderNumber}.${reasonSuffix}`,
-      icon: 'XCircle',
-      iconBg: 'bg-red-500',
-      actionUrl: `/seller/order/${params.orderId}`,
-      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
-      priority: 'high'
-    });
-  }
-
-  async notifySellerOrderReceived(params: {
-    sellerId: string;
-    orderId: string;
-    orderNumber: string;
-    buyerName?: string;
-  }): Promise<Notification> {
-    if (!params.sellerId) throw new Error('sellerId is missing');
-
-    const buyerLabel = params.buyerName?.trim() || 'A buyer';
-
-    return this.createNotification({
-      userId: params.sellerId,
-      userType: 'seller',
-      type: 'seller_order_received',
-      title: 'Order Received by Buyer',
-      message: `${buyerLabel} confirmed receipt of order #${params.orderNumber}`,
-      icon: 'CheckCircle',
-      iconBg: 'bg-green-500',
-      actionUrl: `/seller/order/${params.orderId}`,
-      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
-      priority: 'normal'
-    });
-  }
-
   /**
    * Helper function to create order status notification for buyer
    */
@@ -414,21 +366,16 @@ export class NotificationService {
     };
 
     const titleMap: Record<string, string> = {
-      placed: 'Your Order is Placed',
-      confirmed: 'Order Confirmed by Seller',
-      processing: 'Being Prepared',
-      shipped: 'Order is on the Way',
+      placed: 'Order Placed',
+      confirmed: 'Order Confirmed',
+      processing: 'Order Processing',
+      shipped: 'Order Shipped',
       delivered: 'Order Delivered',
       cancelled: 'Order Cancelled'
     };
 
     const iconInfo = iconMap[params.status] || { icon: 'Bell', bg: 'bg-gray-500' };
     const title = titleMap[params.status] || `Order ${params.status.charAt(0).toUpperCase() + params.status.slice(1)}`;
-
-    // For 'confirmed' notifications, navigate to processing tab in Orders page
-    const actionUrl = params.status === 'confirmed' 
-      ? '/orders?status=processing'
-      : `/order/${params.orderNumber}`;
 
     return this.createNotification({
       userId: params.buyerId,
@@ -438,7 +385,7 @@ export class NotificationService {
       message: params.message,
       icon: iconInfo.icon,
       iconBg: iconInfo.bg,
-      actionUrl: actionUrl,
+      actionUrl: `/order/${params.orderNumber}`,
       actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
       priority: params.status === 'delivered' ? 'high' : 'normal'
     });
@@ -871,9 +818,7 @@ export class NotificationService {
 
     const tableName = this.getTableName(userType);
     const userIdColumn = this.getUserIdColumn(userType);
-    const channelName = `${tableName}_${userId}_web_${Date.now()}`;
-
-    console.log(`[NotificationService] Setting up real-time subscription on ${tableName} for ${userIdColumn}=${userId}`);
+    const channelName = `${tableName}_${userId}_web`;
 
     const channel = supabase
       .channel(channelName)
@@ -886,38 +831,37 @@ export class NotificationService {
           filter: `${userIdColumn}=eq.${userId}`,
         },
         (payload) => {
-          console.log(`[NotificationService] INSERT event on ${tableName}:`, payload.new);
-          // Immediate callback with new notification
-          onNewNotification(payload.new);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: tableName,
-          filter: `${userIdColumn}=eq.${userId}`,
-        },
-        (payload) => {
-          console.log(`[NotificationService] UPDATE event on ${tableName}:`, payload.new);
-          // Also handle updates (for is_read changes)
           onNewNotification(payload.new);
         }
       )
       .subscribe((status) => {
-        console.log(`[NotificationService] Subscription status for ${channelName}:`, status);
         if (status === 'CHANNEL_ERROR') {
           console.warn('[NotificationService] Realtime channel error for', channelName);
-        } else if (status === 'SUBSCRIBED') {
-          console.log('[NotificationService] ✅ Successfully subscribed to', channelName);
         }
       });
 
     return () => {
-      console.log(`[NotificationService] Unsubscribing from ${channelName}`);
       supabase.removeChannel(channel);
     };
+  }
+
+  /**
+   * Fire a push notification via the send-push-notification Edge Function.
+   * Non-critical — failures are swallowed.
+   */
+  private async _sendPush(
+    userId: string,
+    title: string,
+    body: string,
+    data?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await supabase.functions.invoke('send-push-notification', {
+        body: { userId, title, body, data: data ?? {} },
+      });
+    } catch {
+      // silent — push is best-effort
+    }
   }
 }
 

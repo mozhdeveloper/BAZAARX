@@ -494,8 +494,8 @@ export class OrderService {
         orderNumber: string;
         buyerLinked?: boolean;
     } | null> {
-        // Generate order number
-        const orderNumber = `POS-${Date.now().toString().slice(-8)}`;
+        // Generate order number (fallback — DB trigger will override if deployed)
+        const orderNumber = `POS-${Date.now().toString(36).toUpperCase()}`;
         const orderId = crypto.randomUUID();
 
         // Try to find buyer by email if provided (for BazCoins points)
@@ -688,13 +688,13 @@ export class OrderService {
             }[paymentMethodValue] || 'Cash';
 
             const { error: paymentError } = await supabase
-                .from("order_payments")
+                .from("payment_transactions")
                 .insert({
                     order_id: orderId,
-                    payment_method: { type: paymentMethodValue, label: paymentMethodLabel },
+                    payment_method: paymentMethodValue,
                     amount: total,
                     status: 'completed',
-                    payment_date: new Date().toISOString(),
+                    processed_at: new Date().toISOString(),
                 });
 
             if (paymentError) {

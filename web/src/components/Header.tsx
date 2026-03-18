@@ -138,7 +138,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
           </div>
 
           {!hideSearch && (
-            <div className={`hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className={`hidden md:flex flex-1 min-w-[200px] mx-auto items-center justify-center lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg

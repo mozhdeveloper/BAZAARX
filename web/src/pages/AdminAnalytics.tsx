@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
 import AdminSidebar from '../components/AdminSidebar';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AreaChart,
@@ -26,7 +27,8 @@ import {
   Users,
   ArrowUpRight,
   ArrowDownRight,
-  Filter
+  Filter,
+  Loader2
 } from 'lucide-react';
 import {
   Select,
@@ -36,77 +38,175 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+const PERIOD_DAYS: Record<string, number | null> = {
+  '30': 30,
+  '90': 90,
+  'year': 365,
+  'all': null,
+};
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const PIE_COLORS = ['#D97706', '#E58C1A', '#F5DDB0', '#EDD9A3', '#FDE8C8', '#FBBF24', '#F59E0B', '#D97706'];
+
 const AdminAnalytics: React.FC = () => {
   const { isAuthenticated } = useAdminAuth();
   const [open, setOpen] = useState(false);
+  const [period, setPeriod] = useState('30');
+  const [loading, setLoading] = useState(true);
+
+  const [revenueData, setRevenueData] = useState<{ month: string; revenue: number; orders: number }[]>([]);
+  const [categoryData, setCategoryData] = useState<{ name: string; value: number; color: string }[]>([]);
+  const [topProductsData, setTopProductsData] = useState<{ name: string; sales: number; revenue: number }[]>([]);
+  const [stats, setStats] = useState({ totalRevenue: 0, totalOrders: 0, activeUsers: 0 });
+
+  const fetchAnalytics = useCallback(async () => {
+    setLoading(true);
+    try {
+      const days = PERIOD_DAYS[period];
+      const since = days ? new Date(Date.now() - days * 86400000).toISOString() : undefined;
+
+      // Fetch orders with items in parallel
+      const orderFilter = supabase.from('orders').select('id, created_at, order_items(price, price_discount, quantity)');
+      const ordersQuery = since ? orderFilter.gte('created_at', since) : orderFilter;
+
+      const [ordersRes, categoriesRes, usersRes] = await Promise.all([
+        ordersQuery,
+        supabase.from('categories').select('id, name').eq('is_active', true),
+        supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      ]);
+
+      const orders = ordersRes.data || [];
+      const categories = categoriesRes.data || [];
+      const activeUsers = usersRes.count || 0;
+
+      // Calculate total revenue & orders
+      let totalRevenue = 0;
+      orders.forEach((o: any) => {
+        (o.order_items || []).forEach((item: any) => {
+          totalRevenue += (Number(item.price) - Number(item.price_discount || 0)) * Number(item.quantity);
+        });
+      });
+
+      setStats({ totalRevenue, totalOrders: orders.length, activeUsers });
+
+      // Monthly revenue breakdown
+      const monthlyMap = new Map<string, { revenue: number; orders: number }>();
+      orders.forEach((o: any) => {
+        const d = new Date(o.created_at);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        const entry = monthlyMap.get(key) || { revenue: 0, orders: 0 };
+        entry.orders += 1;
+        (o.order_items || []).forEach((item: any) => {
+          entry.revenue += (Number(item.price) - Number(item.price_discount || 0)) * Number(item.quantity);
+        });
+        monthlyMap.set(key, entry);
+      });
+
+      const sortedMonths = Array.from(monthlyMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-12)
+        .map(([key, data]) => ({
+          month: MONTH_NAMES[parseInt(key.split('-')[1])],
+          revenue: Math.round(data.revenue),
+          orders: data.orders,
+        }));
+      setRevenueData(sortedMonths);
+
+      // Category distribution — count products per category
+      if (categories.length > 0) {
+        const catIds = categories.map(c => c.id);
+        const { data: products } = await supabase
+          .from('products')
+          .select('category_id')
+          .in('category_id', catIds)
+          .is('deleted_at', null);
+
+        const catCount = new Map<string, number>();
+        (products || []).forEach((p: any) => {
+          catCount.set(p.category_id, (catCount.get(p.category_id) || 0) + 1);
+        });
+
+        const catData = categories
+          .map((c, i) => ({
+            name: c.name,
+            value: catCount.get(c.id) || 0,
+            color: PIE_COLORS[i % PIE_COLORS.length],
+          }))
+          .filter(c => c.value > 0)
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 6);
+        setCategoryData(catData);
+      }
+
+      // Top products by sold quantity
+      const { data: topProducts } = await supabase
+        .from('order_items')
+        .select('product_name, price, price_discount, quantity');
+
+      if (topProducts) {
+        const productMap = new Map<string, { sales: number; revenue: number }>();
+        topProducts.forEach((item: any) => {
+          const name = item.product_name;
+          const entry = productMap.get(name) || { sales: 0, revenue: 0 };
+          entry.sales += Number(item.quantity);
+          entry.revenue += (Number(item.price) - Number(item.price_discount || 0)) * Number(item.quantity);
+          productMap.set(name, entry);
+        });
+
+        const sorted = Array.from(productMap.entries())
+          .map(([name, data]) => ({ name, sales: data.sales, revenue: Math.round(data.revenue) }))
+          .sort((a, b) => b.sales - a.sales)
+          .slice(0, 5);
+        setTopProductsData(sorted);
+      }
+    } catch (err) {
+      console.error('Failed to fetch analytics:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [period]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchAnalytics();
+    }
+  }, [isAuthenticated, fetchAnalytics]);
 
   // Redirect if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
   }
 
-  // Sample data for charts
-  const revenueData = [
-    { month: 'Jan', revenue: 45000, orders: 120 },
-    { month: 'Feb', revenue: 52000, orders: 145 },
-    { month: 'Mar', revenue: 48000, orders: 132 },
-    { month: 'Apr', revenue: 61000, orders: 168 },
-    { month: 'May', revenue: 55000, orders: 151 },
-    { month: 'Jun', revenue: 67000, orders: 189 },
-    { month: 'Jul', revenue: 72000, orders: 203 },
-    { month: 'Aug', revenue: 68000, orders: 195 },
-    { month: 'Sep', revenue: 75000, orders: 218 },
-    { month: 'Oct', revenue: 82000, orders: 241 },
-    { month: 'Nov', revenue: 78000, orders: 229 },
-    { month: 'Dec', revenue: 89000, orders: 267 }
-  ];
-
-  const categoryData = [
-    { name: 'Electronics', value: 35, color: '#D97706' },
-    { name: 'Fashion', value: 25, color: '#E58C1A' },
-    { name: 'Home & Garden', value: 20, color: '#F5DDB0' },
-    { name: 'Books', value: 12, color: '#EDD9A3' },
-    { name: 'Others', value: 8, color: '#FDE8C8' }
-  ];
-
-  const topProductsData = [
-    { name: 'Wireless Earbuds', sales: 234, revenue: 584166 },
-    { name: 'Leather Bag', sales: 189, revenue: 623511 },
-    { name: 'Smart Watch', sales: 156, revenue: 779844 },
-    { name: 'Running Shoes', sales: 143, revenue: 428857 },
-    { name: 'Coffee Maker', sales: 128, revenue: 383872 }
-  ];
-
   const statsCards = [
     {
       title: 'Total Revenue',
-      value: '₱823,000',
-      change: '+12.5%',
+      value: `₱${stats.totalRevenue.toLocaleString()}`,
+      change: '',
       isPositive: true,
       icon: DollarSign,
       color: 'green'
     },
     {
       title: 'Total Orders',
-      value: '2,357',
-      change: '+8.2%',
+      value: stats.totalOrders.toLocaleString(),
+      change: '',
       isPositive: true,
       icon: ShoppingBag,
       color: 'blue'
     },
     {
-      title: 'Active Users',
-      value: '1,289',
-      change: '+15.3%',
+      title: 'Registered Users',
+      value: stats.activeUsers.toLocaleString(),
+      change: '',
       isPositive: true,
       icon: Users,
       color: 'purple'
     },
     {
-      title: 'Conversion Rate',
-      value: '3.24%',
-      change: '-2.1%',
-      isPositive: false,
+      title: 'Avg Order Value',
+      value: stats.totalOrders > 0 ? `₱${Math.round(stats.totalRevenue / stats.totalOrders).toLocaleString()}` : '₱0',
+      change: '',
+      isPositive: true,
       icon: TrendingUp,
       color: 'orange'
     }
@@ -126,15 +226,16 @@ const AdminAnalytics: React.FC = () => {
                 <p className="text-[var(--text-muted)]">Comprehensive platform insights and metrics</p>
               </div>
               <div className="flex items-center gap-3">
+                {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
                 <Filter className="text-gray-400 w-4 h-4" />
-                <Select defaultValue="30">
+                <Select value={period} onValueChange={setPeriod}>
                   <SelectTrigger className="h-9 w-[150px] bg-white rounded-xl border-gray-200 focus:ring-0 text-gray-600">
                     <SelectValue placeholder="Period" />
                   </SelectTrigger>
                   <SelectContent className="border-none shadow-xl">
                     <SelectItem value="30">Last 30 days</SelectItem>
                     <SelectItem value="90">Last 90 days</SelectItem>
-                    <SelectItem value="365">Last year</SelectItem>
+                    <SelectItem value="year">Last year</SelectItem>
                     <SelectItem value="all">All time</SelectItem>
                   </SelectContent>
                 </Select>
@@ -157,13 +258,7 @@ const AdminAnalytics: React.FC = () => {
                         </div>
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-gray-400">{stat.title}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xl font-bold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors">{stat.value}</p>
-                            <div className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${stat.isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                              {stat.isPositive ? <ArrowUpRight className="h-2.5 w-2.5" /> : <ArrowDownRight className="h-2.5 w-2.5" />}
-                              {stat.change}
-                            </div>
-                          </div>
+                          <p className="text-xl font-bold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors">{stat.value}</p>
                         </div>
                       </div>
                     </CardContent>

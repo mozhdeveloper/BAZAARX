@@ -301,7 +301,7 @@ export class SellerService {
 
         try {
             // Try RPC first
-            const { data, error } = await supabase.rpc('get_seller_sales_summary', {
+            const { data, error } = await supabase.rpc('get_seller_sales_summary' as any, {
                 p_seller_id: sellerId,
             });
 

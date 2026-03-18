@@ -167,11 +167,19 @@ export default function OrderDetailPage() {
 
       setIsLoadingChat(true);
       try {
-        // Get or create conversation
-        const conv = await chatService.getOrCreateConversation(profile.id, sellerId);
+        // Use lightweight lookup — pass orderId for fast indexed query
+        const conv = await chatService.getOrCreateConversationLite(profile.id, sellerId, orderId);
 
         if (conv) {
-          setConversation(conv);
+          // Only need conv.id for messages + subscriptions; cast minimal object
+          setConversation({
+            id: conv.id,
+            buyer_id: profile.id,
+            order_id: orderId || null,
+            seller_id: sellerId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as Conversation);
 
           // Load messages
           const messages = await chatService.getMessages(conv.id);
@@ -198,8 +206,8 @@ export default function OrderDetailPage() {
 
           setChatMessages(formattedMessages);
 
-          // Mark messages as read
-          await chatService.markConversationAsRead(conv.id, 'buyer');
+          // Mark messages as read — fire and forget, don't block rendering
+          chatService.markConversationAsRead(conv.id, 'buyer').catch(() => {});
         }
       } catch (error) {
         console.error('Error loading chat:', error);
@@ -209,7 +217,7 @@ export default function OrderDetailPage() {
     };
 
     loadChat();
-  }, [sellerId, profile?.id]);
+  }, [sellerId, profile?.id, orderId]);
 
   // Subscribe to real-time chat updates
   useEffect(() => {

@@ -1,7 +1,7 @@
 /**
  * AIChatBubble - Floating AI chat assistant for product pages
  * Features:
- * - AI-powered chat using Gemini 2.5 Flash
+ * - AI-powered chat using BazBot (Qwen via Edge Function)
  * - Product context awareness
  * - Quick reply suggestions
  * - Smooth animations

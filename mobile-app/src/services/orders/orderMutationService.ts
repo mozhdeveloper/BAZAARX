@@ -58,9 +58,9 @@ class OrderMutationService {
 
     const { data, error } = await supabase.rpc('cancel_order_atomic', {
       p_order_id: orderId,
-      p_reason: reason?.trim() || null,
-      p_cancelled_by: cancelledBy || null,
-      p_changed_by_role: changedByRole || null,
+      p_reason: reason?.trim() || undefined,
+      p_cancelled_by: cancelledBy || undefined,
+      p_changed_by_role: changedByRole || undefined,
     });
 
     if (error) {
