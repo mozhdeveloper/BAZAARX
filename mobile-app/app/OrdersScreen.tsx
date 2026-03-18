@@ -656,7 +656,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       onCancel={() => handleCancelOrder(order)}
       onReceive={order.buyerUiStatus === 'delivered' ? () => handleOrderReceived(order) : undefined}
       onReview={order.buyerUiStatus === 'received' ? () => handleReview(order) : undefined}
-      onReturn={(order.buyerUiStatus === 'received' || order.buyerUiStatus === 'delivered') && (Date.now() - new Date(order.deliveredAt || order.updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000 ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
+      onReturn={(order.buyerUiStatus === 'delivered') && (Date.now() - new Date(order.deliveredAt || order.updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000 ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
       onBuyAgain={handleBuyAgain}
       onShopPress={(shopId) => {
         const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;
