@@ -112,6 +112,7 @@ class FeaturedProductService {
         .from('order_items')
         .select('product_id, quantity, order:orders!inner(payment_status, shipment_status)')
         .in('product_id', productIds)
+        .in('order.shipment_status', ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received']);
 
       const soldCountsMap = new Map<string, number>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
