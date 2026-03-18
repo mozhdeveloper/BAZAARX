@@ -1642,7 +1642,7 @@ export class OrderService {
 
           // Get unique seller IDs
           const sellerIds = Array.from(
-            new Set(orderItems
+            new Set((orderItems ?? [])
               .map((item: any) => item.products?.seller_id)
               .filter(Boolean))
           );
@@ -1650,7 +1650,7 @@ export class OrderService {
           // Fetch buyer name
           const { data: buyer } = await supabase
             .from('buyers')
-            .select('name')
+            .select('full_name')
             .eq('id', buyerId)
             .single();
 
@@ -1660,7 +1660,7 @@ export class OrderService {
               sellerId: sellerId as string,
               orderId,
               orderNumber: order.order_number,
-              buyerName: buyer?.name,
+              buyerName: (buyer as any)?.full_name,
             });
           });
         } catch (notifyError) {
