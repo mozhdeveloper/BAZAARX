@@ -73,36 +73,91 @@ export default function NotificationsScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const unsubscribeRef = React.useRef<(() => void) | null>(null);
+  const mountedRef = React.useRef(true);
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const loadNotifications = useCallback(async () => {
     if (!user?.id) return;
     try {
       const data = await notificationService.getNotifications(user.id, 'buyer', 50);
-      setNotifications(data);
+      if (mountedRef.current) {
+        setNotifications(data);
+      }
     } catch (e) {
-      console.error(e);
+      console.error('[NotificationsScreen] Error loading notifications:', e);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [user?.id]);
 
+  const addNotificationToState = useCallback((newNotification: Notification) => {
+    console.log('[NotificationsScreen] Adding notification to state directly:', newNotification);
+    if (mountedRef.current) {
+      setNotifications(prev => {
+        // Prepend new notification and remove duplicates by ID
+        const filtered = prev.filter(n => n.id !== newNotification.id);
+        return [newNotification, ...filtered];
+      });
+    }
+  }, []);
+
   useEffect(() => {
+    mountedRef.current = true;
     loadNotifications();
 
-    // Real-time: auto-refresh when a new notification arrives
-    let unsubRealtime: (() => void) | undefined;
-    if (user?.id) {
-      unsubRealtime = notificationService.subscribeToNotifications(
+    // Real-time: immediately add new notification to state instead of reloading
+    if (user?.id && !unsubscribeRef.current) {
+      console.log('[NotificationsScreen] Setting up real-time subscription for buyer:', user.id);
+      unsubscribeRef.current = notificationService.subscribeToNotifications(
         user.id,
         'buyer',
-        () => { loadNotifications(); }
+        (newNotification) => { 
+          console.log('[NotificationsScreen] New notification received via real-time:', newNotification);
+          // Instantly add to UI without waiting for full reload
+          addNotificationToState(newNotification);
+        }
       );
     }
 
-    return () => { unsubRealtime?.(); };
-  }, [loadNotifications, user?.id]);
+    // Clean up old polling interval if it exists
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    // Faster fallback polling every 2 seconds as safety net for missed real-time events
+    pollIntervalRef.current = setInterval(() => {
+      if (user?.id && mountedRef.current) {
+        loadNotifications();
+      }
+    }, 2000);
+
+    return () => {
+      // Don't unsubscribe on unmount of this effect - keep subscription alive
+    };
+  }, [loadNotifications, user?.id, addNotificationToState]);
+
+  // Only clean up subscriptions on component unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (unsubscribeRef.current) {
+        console.log('[NotificationsScreen] Cleaning up real-time subscription on unmount');
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        console.log('[NotificationsScreen] Cleaning up polling interval on unmount');
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -140,7 +195,30 @@ export default function NotificationsScreen({ navigation }: Props) {
       return;
     }
 
-    // Handle order-related notifications
+    // Order notifications (confirmed, shipped, delivered) — go directly to order details
+    const orderNotificationTypes = ['order_confirmed', 'order_shipped', 'order_delivered'];
+    if (orderNotificationTypes.includes(n.type)) {
+      const orderId = n.action_data?.orderId || n.action_data?.orderNumber;
+      if (orderId) {
+        setProcessingId(n.id);
+        try {
+          const uiOrder = await orderService.getOrderById(orderId);
+          if (uiOrder) {
+            navigation.navigate('OrderDetail', { order: uiOrder });
+          } else {
+            navigation.navigate('Orders' as any);
+          }
+        } catch (e) {
+          console.error('[NotificationsScreen] Error fetching order:', e);
+          navigation.navigate('Orders' as any);
+        } finally {
+          setProcessingId(null);
+        }
+        return;
+      }
+    }
+
+    // Handle other order-related notifications
     const orderId = n.action_data?.orderId || n.action_data?.orderNumber;
     if (orderId) {
       setProcessingId(n.id);
@@ -152,6 +230,7 @@ export default function NotificationsScreen({ navigation }: Props) {
           navigation.navigate('Orders' as any);
         }
       } catch (e) {
+        console.error('[NotificationsScreen] Error fetching order:', e);
         navigation.navigate('Orders' as any);
       } finally {
         setProcessingId(null);

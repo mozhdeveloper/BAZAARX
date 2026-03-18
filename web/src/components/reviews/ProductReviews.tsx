@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-import { MessageCircle, Star, User } from "lucide-react";
+import { MessageCircle, Star, User, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   reviewService,
   type ReviewFeedItem,
@@ -48,6 +49,8 @@ export function ProductReviews({
   const [filteringVariantId, setFilteringVariantId] = useState<string | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'helpful' | 'recent'>('recent');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [viewingReviewIndex, setViewingReviewIndex] = useState<number | null>(null);
+  const [viewingImageIndex, setViewingImageIndex] = useState<number>(0);
   const reviewsRef = useRef<HTMLDivElement>(null);
 
   const handleScrollToTop = () => {
@@ -313,7 +316,7 @@ export function ProductReviews({
         ) : (
           <>
             <div className="bg-[var(--bg-secondary)] border-0 rounded-2xl shadow-md divide-y divide-[var(--brand-wash-gold)]/30">
-              {reviews.map((review) => (
+              {reviews.map((review, rIndex) => (
                 <div
                   key={review.id}
                   className="py-2 px-6 last:border-0"
@@ -370,12 +373,20 @@ export function ProductReviews({
                   {review.images.length > 0 && (
                     <div className="flex gap-2 mb-4 flex-wrap">
                       {review.images.map((imageUrl, index) => (
-                        <img
+                        <div
                           key={`${review.id}-${index}`}
-                          src={imageUrl}
-                          alt={`Review attachment ${index + 1}`}
-                          className="w-20 h-20 rounded-lg object-cover border border-gray-200"
-                        />
+                          className="w-20 h-20 rounded-lg overflow-hidden border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity group relative"
+                          onClick={() => {
+                            setViewingReviewIndex(rIndex);
+                            setViewingImageIndex(index);
+                          }}
+                        >
+                          <img
+                            src={imageUrl}
+                            alt={`Review attachment ${index + 1}`}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          />
+                        </div>
                       ))}
                     </div>
                   )}
@@ -423,6 +434,172 @@ export function ProductReviews({
         )}
       </div>
 
+      <AnimatePresence>
+        {viewingReviewIndex !== null && reviews[viewingReviewIndex] && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/70 p-4 lg:p-10"
+            onClick={() => setViewingReviewIndex(null)}
+          >
+            {/* Review Navigation - Outside Modal */}
+            <div className="absolute inset-0 flex items-center justify-between px-4 lg:px-10 pointer-events-none">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Find previous review with images
+                  let prev = viewingReviewIndex - 1;
+                  while (prev >= 0 && reviews[prev].images.length === 0) prev--;
+                  if (prev >= 0) {
+                    setViewingReviewIndex(prev);
+                    setViewingImageIndex(0);
+                  }
+                }}
+                disabled={!reviews.slice(0, viewingReviewIndex).some(r => r.images.length > 0)}
+                className="p-3 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all pointer-events-auto disabled:opacity-0"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Find next review with images
+                  let next = viewingReviewIndex + 1;
+                  while (next < reviews.length && reviews[next].images.length === 0) next++;
+                  if (next < reviews.length) {
+                    setViewingReviewIndex(next);
+                    setViewingImageIndex(0);
+                  }
+                }}
+                disabled={!reviews.slice(viewingReviewIndex + 1).some(r => r.images.length > 0)}
+                className="p-3 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all pointer-events-auto disabled:opacity-0"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </div>
+
+            <button
+              onClick={() => setViewingReviewIndex(null)}
+              className="absolute top-4 right-4 lg:top-8 lg:right-8 p-3 text-white/70 hover:text-white z-20"
+            >
+              <X className="w-4 h-4 lg:w-6 lg:h-6" />
+            </button>
+
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col lg:flex-row w-full max-w-6xl max-h-[90vh] relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Left: Image Container */}
+              <div className="flex-[1.5] bg-gray-900 relative min-h-[400px] lg:min-h-0 overflow-hidden group">
+                <img
+                  src={reviews[viewingReviewIndex].images[viewingImageIndex]}
+                  alt="Review Full Size"
+                  className="w-full h-full object-contain"
+                />
+
+                {/* Internal Image Navigation (multiple images in one review) */}
+                {reviews[viewingReviewIndex].images.length > 1 && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingImageIndex(prev => (prev > 0 ? prev - 1 : reviews[viewingReviewIndex!].images.length - 1));
+                      }}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingImageIndex(prev => (prev < reviews[viewingReviewIndex!].images.length - 1 ? prev + 1 : 0));
+                      }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+
+                    {/* Image Counter */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/50 text-white text-xs rounded-full">
+                      {viewingImageIndex + 1} / {reviews[viewingReviewIndex].images.length}
+                    </div>
+                  </>
+                )}
+
+                <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" />
+              </div>
+
+              {/* Right: Review Details */}
+              <div className="w-full lg:w-[400px] bg-white flex flex-col p-6 lg:p-8 overflow-y-auto">
+                {/* User Info */}
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center font-bold text-xl text-gray-500 overflow-hidden ring-2 ring-gray-50 shrink-0">
+                    {!reviews[viewingReviewIndex].isHidden && reviews[viewingReviewIndex].buyerAvatar ? (
+                      <img
+                        src={reviews[viewingReviewIndex].buyerAvatar}
+                        alt={reviews[viewingReviewIndex].buyerName || ""}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-6 w-6" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-gray-900 text-md truncate">
+                      {reviews[viewingReviewIndex].isHidden ? "Anonymous Buyer" : (reviews[viewingReviewIndex].buyerName || "Anonymous Buyer")}
+                    </h4>
+                    <p className="text-xs text-gray-500">
+                      {formatDate(reviews[viewingReviewIndex].createdAt)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Rating & Variant */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={cn(
+                          "w-4 h-4",
+                          i < reviews[viewingReviewIndex!].rating
+                            ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]"
+                            : "fill-gray-100 text-gray-400",
+                        )}
+                      />
+                    ))}
+                  </div>
+                  {reviews[viewingReviewIndex].variantLabel && (
+                    <div className="inline-flex items-center text-gray-500 text-xs italic">
+                      {reviews[viewingReviewIndex].variantLabel}
+                    </div>
+                  )}
+                </div>
+
+                {/* Comment */}
+                <div className="flex-1">
+                  <p className="text-gray-700 text-sm">
+                    {reviews[viewingReviewIndex].comment || "No written feedback."}
+                  </p>
+                </div>
+
+                {/* Footer / Vote */}
+                <div className="mt-8 pt-6 border-t border-gray-100">
+                  <ReviewVoteButton
+                    reviewId={reviews[viewingReviewIndex].id}
+                    helpfulCount={reviews[viewingReviewIndex].helpfulCount}
+                    onVoteChange={(newCount) => handleVoteChange(reviews[viewingReviewIndex!].id, newCount)}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  RefreshControl,
   ActivityIndicator,
   TextInput,
   FlatList,
@@ -35,14 +34,27 @@ import SellerDrawer from '../../src/components/SellerDrawer';
 
 const getNotificationStyles = (type: string) => {
   const t = type.toLowerCase();
-  if (t.includes('new_order') || t.includes('order')) {
-    return { Icon: ShoppingBag, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
+  // Check for more specific patterns first before general patterns
+  if (t.includes('product_rejected')) {
+    return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
   }
-  if (t.includes('received') || t.includes('confirmed')) {
-    return { Icon: CheckCircle, color: '#0D9488', bg: '#CCFBF1', border: '#99F6E4' };
+  if (t.includes('product_approved')) {
+    return { Icon: CheckCircle, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
+  }
+  if (t.includes('product_sample_request') || t.includes('sample')) {
+    return { Icon: Package, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
   }
   if (t.includes('cancelled') || t.includes('cancellation')) {
     return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
+  }
+  if (t.includes('shipped') || t.includes('delivered')) {
+    return { Icon: Truck, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
+  }
+  if (t.includes('received') || t.includes('confirmed')) {
+    return { Icon: CheckCircle, color: '#16A34A', bg: '#F0FDF4', border: '#DCFCE7' };
+  }
+  if (t.includes('new_order') || t.includes('order')) {
+    return { Icon: ShoppingBag, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
   }
   if (t.includes('return')) {
     return { Icon: RotateCcw, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
@@ -50,23 +62,11 @@ const getNotificationStyles = (type: string) => {
   if (t.includes('message')) {
     return { Icon: MessageSquare, color: '#7C3AED', bg: '#EDE9FE', border: '#DDD6FE' };
   }
-  if (t === 'product_rejected' || t.includes('product_rejected')) {
-    return { Icon: XCircle, color: '#DC2626', bg: '#FEE2E2', border: '#FECACA' };
-  }
-  if (t === 'product_approved' || t.includes('product_approved')) {
-    return { Icon: CheckCircle, color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0' };
-  }
-  if (t === 'product_sample_request' || t.includes('sample')) {
-    return { Icon: Package, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
-  }
   if (t.includes('product') || t.includes('verification')) {
     return { Icon: Package, color: '#4F46E5', bg: '#E0E7FF', border: '#C7D2FE' };
   }
   if (t.includes('review')) {
     return { Icon: Star, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' };
-  }
-  if (t.includes('shipped') || t.includes('delivered')) {
-    return { Icon: Truck, color: '#EA580C', bg: '#FFEDD5', border: '#FED7AA' };
   }
   return { Icon: Bell, color: '#4B5563', bg: '#F3F4F6', border: '#E5E7EB' };
 };
@@ -97,8 +97,10 @@ export default function SellerNotificationsScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const unsubRealRef = React.useRef<(() => void) | null>(null);
+  const mountedRef = React.useRef(true);
 
   const [filterType, setFilterType] = useState('All Types');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -109,53 +111,75 @@ export default function SellerNotificationsScreen() {
     if (!seller?.id) return;
     try {
       const data = await notificationService.getNotifications(seller.id, 'seller', 100);
-      setNotifications(data);
+      if (mountedRef.current) {
+        setNotifications(data);
+      }
     } catch (error) {
       console.error('[Notifications] Error fetching:', error);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [seller?.id]);
 
+  const upsertNotificationInState = useCallback((newNotification: Notification) => {
+    console.log('[SellerNotifications] Upserting notification in state:', newNotification);
+    if (!mountedRef.current) return;
+
+    setLoading(false);
+    setNotifications(prev => {
+      const existingIndex = prev.findIndex((n) => n.id === newNotification.id);
+
+      if (existingIndex >= 0) {
+        return prev.map((item) => item.id === newNotification.id ? { ...item, ...newNotification } : item);
+      }
+
+      return [newNotification, ...prev];
+    });
+  }, []);
+
   useEffect(() => {
+    mountedRef.current = true;
     fetchNotifications();
 
-    // Real-time subscription for live seller notification updates
-    let unsubRealtime: (() => void) | undefined;
-    if (seller?.id) {
-      unsubRealtime = notificationService.subscribeToNotifications(
+    // Real-time subscription for live seller notification updates - instantly add to UI
+    if (seller?.id && !unsubRealRef.current) {
+      unsubRealRef.current = notificationService.subscribeToNotifications(
         seller.id,
         'seller',
-        (newNotif) => {
-          // Prepend the new notification to the list
-          setNotifications((prev) => [{
-            id: newNotif.id,
-            user_id: seller.id!,
-            user_type: 'seller' as const,
-            type: newNotif.type,
-            title: newNotif.title,
-            message: newNotif.message,
-            action_url: newNotif.action_url,
-            action_data: newNotif.action_data,
-            is_read: false,
-            read_at: undefined,
-            priority: newNotif.priority,
-            created_at: newNotif.created_at,
-          }, ...prev]);
+        (newNotification) => {
+          console.log('[SellerNotifications] New notification via real-time:', newNotification);
+          upsertNotificationInState(newNotification);
         }
       );
     }
 
-    return () => {
-      unsubRealtime?.();
-    };
-  }, [fetchNotifications, seller?.id]);
+    // Cleanup old polling interval if it exists
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchNotifications();
-  };
+    // Faster fallback polling every 10 seconds as safety net for missed real-time events
+    pollIntervalRef.current = setInterval(() => {
+      if (seller?.id && mountedRef.current) {
+        void fetchNotifications();
+      }
+    }, 10000);
+
+    return () => {
+      mountedRef.current = false;
+      if (unsubRealRef.current) {
+        unsubRealRef.current();
+        unsubRealRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [fetchNotifications, seller?.id, upsertNotificationInState]);
 
   const handleMarkAllAsRead = async () => {
     if (!seller?.id) return;
@@ -291,8 +315,7 @@ export default function SellerNotificationsScreen() {
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D97706']} />}
-        ListEmptyComponent={loading ? <ActivityIndicator size="large" color="#D97706" style={{ marginTop: 40 }} /> : null}
+        ListEmptyComponent={loading ? <ActivityIndicator size="large" color="#D97706" style={{ marginTop: 40 }} /> : <Text style={styles.emptyText}>No notifications yet.</Text>}
       />
 
       {/* Sticky Footer Summary */}
@@ -347,6 +370,7 @@ const styles = StyleSheet.create({
   timeText: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
   summaryContainer: { padding: 12, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB', alignItems: 'center' },
   summaryText: { fontSize: 12, color: '#9CA3AF' },
+  emptyText: { marginTop: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14, fontWeight: '500' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContainer: { backgroundColor: '#FFF', width: '80%', borderRadius: 20, padding: 20 },
   modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 15, color: '#1F2937' },

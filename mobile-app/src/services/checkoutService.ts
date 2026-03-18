@@ -362,23 +362,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             console.log(`[Checkout] ✅ Order created: ${orderData.order_number} for seller ${sellerId}`);
 
-            // 💬 Send order confirmation chat message to buyer
-            orderNotificationService.sendStatusUpdateNotification(
-                orderData.id,
-                'pending',
-                sellerId,
-                orderData.buyer_id
-            ).catch(err => {
-                console.error('[Checkout] ❌ Failed to send order confirmation chat:', err);
-            });
-
-            // 🔔 Send bell notification to buyer about order placed
+            // � Send bell notification to buyer about order placed (only this one, no duplicate 'pending')
             notificationService.notifyBuyerOrderStatus({
                 buyerId: orderData.buyer_id,
                 orderId: orderData.id,
                 orderNumber: orderData.order_number,
                 status: 'placed',
-                message: `Your order #${orderData.order_number} has been placed successfully!`
+                message: `Your order #${orderData.order_number} has been placed! We'll notify you when the seller confirms.`
             }).catch(err => {
                 console.error('[Checkout] ❌ Failed to send order placed notification:', err);
             });

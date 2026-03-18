@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Popover,
@@ -100,44 +100,109 @@ export function NotificationsDropdown() {
   const [open, setOpen] = useState(false);
   const [dbNotifications, setDbNotifications] = useState<DbNotification[]>([]);
   const [dbLoading, setDbLoading] = useState(false);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
   // Fetch notifications
-  useEffect(() => {
-    let mounted = true;
-    async function loadNotifications() {
-      if (!isSupabaseConfigured() || !buyerId) return;
+  const loadNotifications = useCallback(async () => {
+    if (!isSupabaseConfigured() || !buyerId) return;
 
-      setDbLoading(true);
-      try {
-        const rows = await notificationService.getNotifications(buyerId, "buyer", 50);
-        if (mounted) setDbNotifications(rows);
-      } catch (e) {
-        console.error("Failed to load notifications:", e);
-      } finally {
-        if (mounted) setDbLoading(false);
+    try {
+      const rows = await notificationService.getNotifications(buyerId, "buyer", 50);
+      console.log('[NotificationsDropdown] Loaded notifications:', rows.length);
+      if (mountedRef.current) {
+        setDbNotifications(rows);
       }
+    } catch (e) {
+      console.error("Failed to load notifications:", e);
     }
+  }, [buyerId]);
 
-    loadNotifications();
+  // Direct add notification to state (instant UI update)
+  const addNotificationToState = useCallback((newNotification: DbNotification) => {
+    console.log('[NotificationsDropdown] Adding notification to state directly:', newNotification);
+    if (mountedRef.current) {
+      setDbNotifications(prev => {
+        // Prepend new notification and remove duplicates by ID
+        const filtered = prev.filter(n => n.id !== newNotification.id);
+        return [newNotification, ...filtered];
+      });
+    }
+  }, []);
 
-    // Real-time subscription — updates badge immediately without opening dropdown
-    const unsub = notificationService.subscribeToNotifications(
-      buyerId ?? '',
-      'buyer',
-      () => { loadNotifications(); }
-    );
-
-    // Refresh polling when dropdown is open
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
+  // When dropdown is opened, refresh notifications
+  useEffect(() => {
     if (open) {
-      pollInterval = setInterval(loadNotifications, 15000);
+      console.log('[NotificationsDropdown] Dropdown opened, refreshing notifications');
+      loadNotifications();
     }
-    return () => {
-      mounted = false;
-      unsub();
-      if (pollInterval) clearInterval(pollInterval);
+  }, [open, loadNotifications]);
+
+  // Set up real-time subscription and aggressive polling
+  useEffect(() => {
+    mountedRef.current = true;
+
+    // Load initial notifications
+    const initLoad = async () => {
+      await loadNotifications();
     };
-  }, [buyerId, open]);
+    initLoad();
+
+    // Clean up old subscription if it exists
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
+    // Real-time subscription — immediately add new notification to UI
+    if (buyerId) {
+      console.log('[NotificationsDropdown] Setting up real-time subscription for buyer:', buyerId);
+      unsubscribeRef.current = notificationService.subscribeToNotifications(
+        buyerId,
+        'buyer',
+        (newNotification) => { 
+          console.log('[NotificationsDropdown] New notification received via real-time:', newNotification);
+          // Instantly add to UI without waiting for full reload
+          addNotificationToState(newNotification);
+        }
+      );
+    }
+
+    // Clean up old polling interval
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    // Aggressive polling every 500ms to ensure real-time performance (safety net)
+    pollIntervalRef.current = setInterval(async () => {
+      if (buyerId && mountedRef.current) {
+        await loadNotifications();
+      }
+    }, 500);
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [buyerId, loadNotifications, addNotificationToState]);
+
+  // Cleanup subscription and polling on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (unsubscribeRef.current) {
+        console.log('[NotificationsDropdown] Cleaning up real-time subscription');
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        console.log('[NotificationsDropdown] Cleaning up polling interval');
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Combined counts
   const unreadCount = dbNotifications.filter(n => !n.is_read).length +
@@ -178,6 +243,20 @@ export function NotificationsDropdown() {
       return;
     }
 
+    // Order notifications (confirmed, shipped, delivered) — go directly to order details
+    const orderNotificationTypes = ['order_confirmed', 'order_shipped', 'order_delivered'];
+    if (orderNotificationTypes.includes(n.type)) {
+      const data = n.action_data as any;
+      if (data?.orderNumber) {
+        navigate(`/order/${data.orderNumber}`);
+        return;
+      } else if (data?.orderId) {
+        navigate(`/order/${data.orderId}`);
+        return;
+      }
+    }
+
+    // Fallback: use action_data to navigate to order details
     const data = n.action_data as any;
     if (data?.orderNumber) {
       navigate(`/order/${data.orderNumber}`);

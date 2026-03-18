@@ -7,6 +7,8 @@ import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Input } from '../components/ui/input';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { useProductStore } from '../stores/sellerStore';
+import { categoryService } from '../services/categoryService';
 
 // ── Types ────────────────────────────────────────────────────────────
 interface Category {
@@ -35,31 +37,32 @@ const CategoriesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Fetch categories from DB — all columns match the categories table
+  const { products: sellerProducts, fetchProducts } = useProductStore();
+
+  // Fetch categories and products
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchData = async () => {
       if (!isSupabaseConfigured()) {
         setLoading(false);
         return;
       }
       try {
-        const { data, error } = await supabase
-          .from('categories')
-          .select('id, name, description, image_url, slug, parent_id, sort_order, products:products(count)')
-          .order('sort_order', { ascending: true });
+        // Fetch categories
+        const catsData = await categoryService.getActiveCategories();
 
-        if (error) throw error;
+        // Fetch products (approved & active)
+        await fetchProducts({ isActive: true, approvalStatus: 'approved' });
 
-        const cats: Category[] = (data || []).map((row: any) => ({
+        setCategories(catsData.map((row: any) => ({
           id: row.id,
           name: row.name,
           description: row.description || '',
           image: row.image_url || '',
           slug: row.slug,
           parentId: row.parent_id || null,
-          productsCount: Array.isArray(row.products) ? row.products[0]?.count || 0 : 0,
-        }));
-        setCategories(cats);
+          productsCount: 0, // Will be updated by useMemo
+        })));
+
       } catch (err) {
         console.error('Failed to load categories:', err);
       } finally {
@@ -67,19 +70,68 @@ const CategoriesPage: React.FC = () => {
       }
     };
 
-    fetchCategories();
+    fetchData();
   }, []);
+
+  // Calculate accurate category counts
+  const categoryCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of sellerProducts || []) {
+      if (p.isActive && p.approvalStatus === 'approved') {
+        const cat = p.category || "Uncategorized";
+        map.set(cat, (map.get(cat) || 0) + 1);
+      }
+    }
+    return map;
+  }, [sellerProducts]);
+
+  const otherProductsCount = useMemo(() => {
+    const activeCategoryNames = new Set(categories.map(c => c.name.toLowerCase()));
+    let count = 0;
+    for (const [catName, catCount] of categoryCountMap.entries()) {
+      if (!activeCategoryNames.has(catName.toLowerCase()) || catName.toLowerCase() === 'others') {
+        count += catCount;
+      }
+    }
+    return count;
+  }, [categories, categoryCountMap]);
+
+  // Merge counts into categories
+  const categoriesWithCounts = useMemo(() => {
+    // Filter out db 'Others' to avoid duplicates with virtual 'Others' card
+    const filteredCats = categories.filter(c => c.name.toLowerCase() !== 'others');
+
+    const catsWithCounts = filteredCats.map(cat => ({
+      ...cat,
+      productsCount: categoryCountMap.get(cat.name) || 0
+    }));
+
+    // Add virtual 'Others' card if there are products in categories not listed above
+    if (otherProductsCount > 0) {
+      catsWithCounts.push({
+        id: 'virtual-others',
+        name: 'Others',
+        description: 'Other items across various categories',
+        image: '', // Gradient placeholder will be used
+        slug: 'Others',
+        parentId: null,
+        productsCount: otherProductsCount
+      });
+    }
+
+    return catsWithCounts;
+  }, [categories, categoryCountMap, otherProductsCount]);
 
   // Filter by search
   const filtered = useMemo(() => {
-    if (!searchTerm.trim()) return categories;
+    if (!searchTerm.trim()) return categoriesWithCounts;
     const q = searchTerm.toLowerCase();
-    return categories.filter(
+    return categoriesWithCounts.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.description.toLowerCase().includes(q)
     );
-  }, [categories, searchTerm]);
+  }, [categoriesWithCounts, searchTerm]);
 
   // Separate top-level and sub-categories
   const topLevel = useMemo(() => filtered.filter((c) => !c.parentId), [filtered]);

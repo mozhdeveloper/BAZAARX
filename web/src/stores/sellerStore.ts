@@ -2060,51 +2060,7 @@ export const useOrderStore = create<OrderStore>()(
                         `Database updated successfully with status: ${dbStatus}`,
                     );
 
-                    // Create notification for buyer if order has buyer_id
-                    console.log(`Order object:`, order);
-                    console.log(`Order buyer_id:`, order.buyer_id);
-
-                    if (order.buyer_id) {
-                        const statusMessages: Record<string, string> = {
-                            confirmed: `Your order #${order.orderNumber} has been confirmed and is being prepared.`,
-                            shipped: `Your order #${order.orderNumber} has been shipped and is on its way!`,
-                            delivered: `Your order #${order.orderNumber} has been delivered. Enjoy your purchase!`,
-                            cancelled: `Your order #${order.orderNumber} has been cancelled.`,
-                        };
-
-                        const message =
-                            statusMessages[status] ||
-                            `Order #${order.orderNumber} status updated to ${status}`;
-
-                        console.log(
-                            `🚀 Creating buyer notification for order ${id}`,
-                        );
-
-                        // Import notification service dynamically to avoid circular dependency
-                        import("../services/notificationService").then(
-                            ({ notificationService }) => {
-                                notificationService
-                                    .notifyBuyerOrderStatus({
-                                        buyerId: order.buyer_id!,
-                                        orderId: id,
-                                        orderNumber: id.slice(-8),
-                                        status,
-                                        message,
-                                    })
-                                    .catch((refreshError) => {
-                                        console.error(
-                                            "Failed to refresh orders after status update:",
-                                            refreshError,
-                                        );
-                                    });
-                            },
-                        );
-                    } else {
-                        console.warn(
-                            `⚠️ No buyer_id found for order ${id}, skipping buyer notification`,
-                        );
-                    }
-
+                    // Notification will be sent by orderService in orderMutationService.updateOrderStatus
                     // Local state already updated optimistically above
                     console.log(`✅ Order ${id} status updated to ${status}`);
                 } catch (error) {

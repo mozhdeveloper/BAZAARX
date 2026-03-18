@@ -93,7 +93,7 @@ export default function ShopPage() {
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
@@ -327,50 +327,65 @@ export default function ShopPage() {
     setSearchQuery(queryParam);
 
     if (categoryParam) {
-      setSelectedCategory(categoryParam);
+      // Resolve slug to name for proper filtering and sidebar highlighting
+      const matchedCategory = categories.find(
+        c => c.slug === categoryParam || c.name.toLowerCase() === categoryParam.toLowerCase()
+      );
+      
+      if (matchedCategory) {
+        setSelectedCategory(matchedCategory.name);
+      } else if (categoryParam.toLowerCase() === 'others') {
+        setSelectedCategory('Others');
+      } else {
+        setSelectedCategory(categoryParam);
+      }
     } else {
       setSelectedCategory("All Categories");
     }
 
-    // Scroll logic - handles both initial mount and updates
+  // Scroll logic - handles both initial mount and updates
 
-    // When "Clear filter" is clicked, scroll back to the featured section after it re-mounts
-    if ((location.state as any)?.scrollToFeatured) {
-      const featuredTimeoutId = window.setTimeout(() => {
-        const element = document.getElementById("featured-section");
-        if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
-        manualScrollRef.current = false;
-      }, 400);
-      timeouts.push(featuredTimeoutId);
-    } else {
-      const scrollTimeoutId = window.setTimeout(() => {
-        const isClean = !categoryParam && !queryParam && !filterParam &&
-          priceRange[0] === 0 && priceRange[1] === 100000 &&
-          minRating === 0 && selectedSort === "newest";
+  // When "Clear filter" is clicked, scroll back to the featured section after it re-mounts
+  if ((location.state as any)?.scrollToFeatured) {
+    const featuredTimeoutId = window.setTimeout(() => {
+      const element = document.getElementById("featured-section");
+      if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
+      manualScrollRef.current = false;
+    }, 400);
+    timeouts.push(featuredTimeoutId);
+  } else {
+    const scrollTimeoutId = window.setTimeout(() => {
+      const isClean =
+        !categoryParam &&
+        !queryParam &&
+        !filterParam &&
+        priceRange[0] === 0 &&
+        priceRange[1] === 100000 &&
+        minRating === 0 &&
+        selectedSort === "newest";
 
-        if (isClean && !manualScrollRef.current) {
-          // Landing on a clean Shop page (or reset via Shop tab), scroll to the very top
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        } else {
-          // Any filter change (URL or local state), or manual "All" selection, scroll to results
-          const element = document.getElementById("shop-results-header");
-          if (element) {
-            element.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
+      if (isClean && !manualScrollRef.current) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        const element = document.getElementById("shop-results-header");
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
         }
-        manualScrollRef.current = false;
-      // When filter=featured, the featured section exit animation takes 350ms — wait for it
-      // to fully collapse before scrolling so the layout is settled
-      }, filterParam === "featured" ? 420 : 100);
-      timeouts.push(scrollTimeoutId);
-    }
+      }
 
-    return () => {
-      timeouts.forEach((id) => {
-        clearTimeout(id);
-      });
-    };
-  }, [searchParams, location.key, priceRange, minRating, selectedSort]);
+      manualScrollRef.current = false;
+    }, filterParam === "featured" ? 420 : 100);
+
+    timeouts.push(scrollTimeoutId);
+  }
+
+  return () => {
+    timeouts.forEach((id) => {
+      clearTimeout(id);
+    });
+  };
+
+  }, [searchParams, location.key, priceRange, minRating, selectedSort, categories]);
 
   // Handle toolbar scroll visibility
   useEffect(() => {
