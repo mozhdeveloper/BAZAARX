@@ -289,15 +289,17 @@ export class ProductService {
     // Calculate rating from reviews and sold count from query result
     const primaryImage = product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0];
     const images = product.images?.map((img: ProductImage) => img.image_url).filter(Boolean) || [];
-    const totalStock = product.variants?.reduce((sum: number, v: ProductVariant) => sum + (v.stock || 0), 0) || product.stock || 0;
-
+    const totalStock = product.variants && product.variants.length > 0
+      ? product.variants.reduce((sum: number, v: any) => sum + Number(v.stock || 0), 0)
+      : Number(product.stock || 0);
+      
     // Extract colors and sizes from variants for legacy support
-    const colors = [...new Set(product.variants?.map((v: ProductVariant) => v.color).filter(Boolean) || [])] as string[];
-    const sizes = [...new Set(product.variants?.map((v: ProductVariant) => v.size).filter(Boolean) || [])] as string[];
+    const colors = [...new Set((product.variants || []).map((v: any) => v.color).filter(Boolean).concat(product.colors || []))] as string[];
+    const sizes = [...new Set((product.variants || []).map((v: any) => v.size).filter(Boolean).concat(product.sizes || []))] as string[];
 
     // Extract option_1 and option_2 values for dynamic variant support
-    const option1Values = [...new Set(product.variants?.map((v: ProductVariant) => (v as any).option_1_value).filter(Boolean) || [])] as string[];
-    const option2Values = [...new Set(product.variants?.map((v: ProductVariant) => (v as any).option_2_value).filter(Boolean) || [])] as string[];
+    const option1Values = [...new Set((product.variants || []).map((v: any) => v.option_1_value || v.color).filter(Boolean).concat(product.colors || []))] as string[];
+    const option2Values = [...new Set((product.variants || []).map((v: any) => v.option_2_value || v.size).filter(Boolean).concat(product.sizes || []))] as string[];
 
     // Calculate average rating from reviews
     const reviews = product.reviews || [];
@@ -337,6 +339,7 @@ export class ProductService {
       rating: averageRating,
       review_count: reviewCount,
       // Sold count from the campaign if active, otherwise lifetime sold count from completed orders
+      stock: totalStock,
       sold: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
       sales: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,
       sold_count: campaignSoldCount !== undefined ? campaignSoldCount : soldCount,

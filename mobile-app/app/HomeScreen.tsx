@@ -66,6 +66,42 @@ const HORIZONTAL_PADDING = 20;
 const GRID_GAP = 10;
 const STATIC_CATEGORY_ITEM_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4)) / 5;
 
+const PROMO_SLIDES = [
+  {
+    id: '1',
+    badge: 'LIMITED TIME OFFER',
+    title: 'Summer Sale',
+    highlight: 'Up to 50% Off',
+    buttonText: 'Shop Now',
+    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80',
+    gradient: ['rgba(15, 23, 42, 0.4)', 'rgba(15, 23, 42, 0.9)'] as [string, string],
+    screen: 'FlashSale',
+    params: undefined as any
+  },
+  {
+    id: '2',
+    badge: 'NEW ARRIVALS',
+    title: 'Premium Sound',
+    highlight: 'Experience More',
+    buttonText: 'View All',
+    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80',
+    gradient: ['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)'] as [string, string],
+    screen: 'Shop',
+    params: { category: 'electronics' }
+  },
+  {
+    id: '3',
+    badge: 'TRENDING NOW',
+    title: 'Ergonomic Chair',
+    highlight: 'Level Up Your Workspace',
+    buttonText: 'Shop Now',
+    image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800&q=80',
+    gradient: ['rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0.85)'] as [string, string],
+    screen: 'Shop',
+    params: { category: 'home-living' }
+  }
+];
+
 const CategoryItem = React.memo(({ label, iconValue, imageUrl, itemWidth }: { label: string; iconValue: string | null; imageUrl?: string | null; itemWidth: number }) => {
   const [imageError, setImageError] = useState(false);
   const isIconName = iconValue ? /^[a-z0-9-]+$/.test(iconValue) : false;
@@ -158,6 +194,9 @@ export default function HomeScreen({ navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   // Removed local notifications array state as we only need count here
   const [unreadCount, setUnreadCount] = useState(0);
+  const unsubRealtimeRef = useRef<(() => void) | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
   // LOCATION STATE — from shared store
   const { sessionAddress, setSessionAddress, loadSessionAddress } = useAddressStore();
@@ -176,8 +215,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
   const scrollRef = useRef<ScrollView>(null);
-  const scrollAnchor = useRef(0);
-  const [showLocationRow, setShowLocationRow] = useState(true);
+  const [showLocationRow, setShowLocationRow] = useState(true); // Keep for future use if needed
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
   const [dbCategories, setDbCategories] = useState<Category[]>([]); //
@@ -224,44 +262,7 @@ export default function HomeScreen({ navigation }: Props) {
     });
   }, []);
 
-  const promoSlides = [
-    {
-      id: '1',
-      badge: 'LIMITED TIME OFFER',
-      title: 'Summer Sale',
-      highlight: 'Up to 50% Off',
-      buttonText: 'Shop Now',
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80', // Premium watch image
-      gradient: ['rgba(15, 23, 42, 0.4)', 'rgba(15, 23, 42, 0.9)'], // Dark overlay gradient
-      screen: 'FlashSale',
-      params: undefined
-    },
-    {
-      id: '2',
-      badge: 'NEW ARRIVALS',
-      title: 'Premium Sound',
-      highlight: 'Experience More',
-      buttonText: 'View All',
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80', // Headphones
-      gradient: ['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)'],
-      screen: 'Shop',
-      params: { category: 'electronics' } // Note: Ideally these should be IDs from DB
-    },
-    {
-      id: '3',
-      badge: 'TRENDING NOW',
-      title: 'Ergonomic Chair',
-      highlight: 'Level Up Your Workspace',
-      buttonText: 'Shop Now',
-      image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800&q=80', // Working Office Chair link
-      gradient: ['rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0.85)'],
-      screen: 'Shop',
-      params: { category: 'home-living' } // Changed from 'home' to match likely slug/id
-    }
-  ];
-
   const { products: sellerProducts = [], seller } = useSellerStore();
-  const PLACEHOLDER_IMAGE = 'https://placehold.co/400x400/e5e7eb/6b7280?text=No+Image';
 
   // Display name logic
   const username = user?.name ? user.name.split(' ')[0] : 'Guest';
@@ -431,37 +432,76 @@ export default function HomeScreen({ navigation }: Props) {
     if (!user?.id || isGuest) return;
     try {
       const data = await notificationService.getNotifications(user.id, 'buyer', 20);
-      setUnreadCount(data.filter(n => !n.is_read).length);
+      if (mountedRef.current) {
+        setUnreadCount(data.filter(n => !n.is_read).length);
+      }
     } catch (error) {
       console.error('[HomeScreen] Error loading notifications:', error);
     }
   }, [user?.id, isGuest]);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     // Refresh count on focus
     const unsubFocus = navigation.addListener('focus', () => {
       loadNotifications();
     });
     loadNotifications();
 
-    // Real-time subscription for live badge updates
-    let unsubRealtime: (() => void) | undefined;
-    if (user?.id && !isGuest) {
-      unsubRealtime = notificationService.subscribeToNotifications(
+    // Set up persistent real-time subscription if not already set up
+    if (user?.id && !isGuest && !unsubRealtimeRef.current) {
+      console.log('[HomeScreen] Setting up real-time subscription for buyer:', user.id);
+      unsubRealtimeRef.current = notificationService.subscribeToNotifications(
         user.id,
         'buyer',
-        () => {
-          setUnreadCount((prev) => prev + 1);
-          loadNotifications();
+        (newNotification) => {
+          console.log('[HomeScreen] New notification received:', newNotification);
+          // Immediately increment badge and reload
+          if (mountedRef.current) {
+            setUnreadCount((prev) => prev + 1);
+            loadNotifications();
+          }
         }
       );
     }
 
+    // Clean up old polling interval if it exists
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    // Poll every 30 seconds as fallback — 2s was causing re-renders during scroll
+    if (user?.id && !isGuest) {
+      pollIntervalRef.current = setInterval(() => {
+        if (mountedRef.current && user?.id) {
+          loadNotifications();
+        }
+      }, 30000);
+    }
+
     return () => {
       unsubFocus();
-      unsubRealtime?.();
     };
   }, [navigation, loadNotifications, user?.id, isGuest]);
+
+  // Cleanup subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (unsubRealtimeRef.current) {
+        console.log('[HomeScreen] Cleaning up real-time subscription');
+        unsubRealtimeRef.current();
+        unsubRealtimeRef.current = null;
+      }
+      if (pollIntervalRef.current) {
+        console.log('[HomeScreen] Cleaning up polling interval');
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // ... (Location logic — now via addressStore) ...
   useEffect(() => {
@@ -474,15 +514,17 @@ export default function HomeScreen({ navigation }: Props) {
     await setSessionAddress(user?.id ?? null, address, coords, details);
   };
 
+  const activeSlideRef = useRef(activeSlide);
+  useEffect(() => { activeSlideRef.current = activeSlide; }, [activeSlide]);
+
   useEffect(() => {
     const interval = setInterval(() => {
-      let nextSlide = activeSlide + 1;
-      if (nextSlide >= promoSlides.length) nextSlide = 0;
+      const nextSlide = (activeSlideRef.current + 1) % PROMO_SLIDES.length;
       scrollRef.current?.scrollTo({ x: nextSlide * SCREEN_WIDTH, animated: true });
       setActiveSlide(nextSlide);
     }, 4000);
     return () => clearInterval(interval);
-  }, [activeSlide]);
+  }, []);
 
   const popularProducts = useMemo(() => {
     return [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8);
@@ -577,6 +619,12 @@ export default function HomeScreen({ navigation }: Props) {
 
   // flashCountdown state is declared above with other state (before the consolidated timer)
 
+  const handleCarouselScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x;
+    const index = Math.round(x / SCREEN_WIDTH);
+    if (index !== activeSlideRef.current) setActiveSlide(index);
+  }, []);
+
   const handleProductPress = useCallback((product: Product) => {
     if (searchQuery.trim()) {
       saveRecentSearch(searchQuery);
@@ -586,14 +634,15 @@ export default function HomeScreen({ navigation }: Props) {
 
   // Memoized scroll handler — avoids re-creating the function on every render
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = e.nativeEvent.contentOffset.y;
-    if (y > scrollAnchor.current + 15 && y > 50) {
-      setShowLocationRow(false);
-      scrollAnchor.current = y;
-    } else if (y < scrollAnchor.current - 15) {
-      setShowLocationRow(true);
-      scrollAnchor.current = y;
-    }
+    // Removed location row hide/show logic to prevent layout shifts during scrolling
+    // const y = e.nativeEvent.contentOffset.y;
+    // if (y > scrollAnchor.current + 15 && y > 50) {
+    //   if (showLocationRow) setShowLocationRow(false);
+    //   scrollAnchor.current = y;
+    // } else if (y < scrollAnchor.current - 15) {
+    //   if (!showLocationRow) setShowLocationRow(true);
+    //   scrollAnchor.current = y;
+    // }
   }, []);
 
   return (
@@ -607,25 +656,24 @@ export default function HomeScreen({ navigation }: Props) {
 
       {/* 1. BRANDED HEADER */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
-        {showLocationRow && (
-          <View style={styles.locationRow}>
-            <Pressable onPress={() => setShowLocationModal(true)}>
-              <Text style={styles.locationLabel}>Location</Text>
-              <View style={styles.locationSelector}>
-                <MapPin size={16} color={COLORS.primary} fill={COLORS.primary} />
-                <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: COLORS.textHeadline, fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
-                <ChevronDown size={16} color={COLORS.textHeadline} />
-              </View>
-            </Pressable>
+        <View style={styles.locationRow}>
+          <Pressable onPress={() => setShowLocationModal(true)}>
+            <Text style={styles.locationLabel}>Location</Text>
+            <View style={styles.locationSelector}>
+              <MapPin size={16} color={COLORS.primary} fill={COLORS.primary} />
+              <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: COLORS.textHeadline, fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
+              <ChevronDown size={16} color={COLORS.textHeadline} />
+            </View>
+          </Pressable>
 
-            {/* UPDATED NOTIFICATION BUTTON */}
-            <Pressable
-              onPress={() => {
-                if (isGuest) {
-                  setShowGuestModal(true);
-                } else {
-                  // Navigate to dedicated screen
-                  navigation.navigate('Notifications');
+          {/* UPDATED NOTIFICATION BUTTON */}
+          <Pressable
+            onPress={() => {
+              if (isGuest) {
+                setShowGuestModal(true);
+              } else {
+                // Navigate to dedicated screen
+                navigation.navigate('Notifications');
                 }
               }}
               style={styles.headerIconButton}
@@ -640,7 +688,6 @@ export default function HomeScreen({ navigation }: Props) {
               )}
             </Pressable>
           </View>
-        )}
 
         {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
@@ -789,14 +836,10 @@ export default function HomeScreen({ navigation }: Props) {
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
-                onScroll={(e) => {
-                  const x = e.nativeEvent.contentOffset.x;
-                  const index = Math.round(x / SCREEN_WIDTH);
-                  if (index !== activeSlide) setActiveSlide(index);
-                }}
+                onScroll={handleCarouselScroll}
                 scrollEventThrottle={16}
               >
-                {promoSlides.map((slide) => (
+                {PROMO_SLIDES.map((slide) => (
                   <Pressable
                     key={slide.id}
                     style={[styles.promoBox, { width: SCREEN_WIDTH - 40 }]}
@@ -831,7 +874,7 @@ export default function HomeScreen({ navigation }: Props) {
                 ))}
               </ScrollView>
               <View style={styles.paginationContainer}>
-                {promoSlides.map((_, i) => (
+                {PROMO_SLIDES.map((_, i) => (
                   <View
                     key={i}
                     style={[
@@ -963,8 +1006,8 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* FEATURED STORES SECTION */}
             {verifiedStores.length > 0 && (
-              <View style={{ marginTop: 20, marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
+              <View style={{ marginTop: 20, marginBottom: 5 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 20 }}>
                   <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Stores</Text>
                   <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Featured Stores' })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
@@ -1005,7 +1048,7 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* FEATURED PRODUCTS SECTION */}
             {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
-              <View style={{ marginTop: 20, marginBottom: 8 }}>
+              <View style={{ marginTop: 10, marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Products</Text>
@@ -1017,7 +1060,7 @@ export default function HomeScreen({ navigation }: Props) {
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, gap: 12 }}>
                   {mergedFeaturedProducts.map(({ key, mapped }) => (
                     <View key={key} style={{ width: 150 }}>
                       <ProductCard product={mapped as any} onPress={() => handleProductPress(mapped as any)} />
@@ -1230,7 +1273,7 @@ const styles = StyleSheet.create({
   resultsSection: { flex: 1 },
   categoryExpandedContent: { padding: 20 },
   categorySectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
-  storeCard: { width: 260, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
+  storeCard: { width: 260, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   storeLogo: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   storeInfo: { flex: 1 },

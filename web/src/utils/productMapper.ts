@@ -203,6 +203,7 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         sellerLocation: p.sellerLocation || p.seller?.business_profile?.city,
         variantLabel1: p.variant_label_1 || undefined,
         variantLabel2: p.variant_label_2 || undefined,
+        sizeGuideImage: p.size_guide_image || undefined,
         variants: variants,
         campaignBadge: p.campaignBadge || undefined,
         campaignBadgeColor: p.campaignBadgeColor || undefined,
@@ -264,6 +265,8 @@ export interface NormalizedProductDetail {
 
     // Extras
     features: string[];
+    sizeGuideImage?: string; // Size guide image URL for apparel products
+    has_warranty?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -389,6 +392,7 @@ export const mapDbProductToNormalized = (
         label1Options,
         label2Options,
         variants: rawVariants,
+        sizeGuideImage: p.size_guide_image || undefined,
 
         features: DEFAULT_FEATURES,
     };
@@ -430,6 +434,7 @@ export const mapDbProductToNormalizedLegacy = (
         variantLabel2:
             base.variantLabel2 ||
             (hasColorField ? "Color" : base.variantLabel2),
+        sizeGuideImage: p.size_guide_image || undefined,
     };
 };
 
@@ -490,6 +495,7 @@ export const mapSellerProductToNormalized = (
         label1Options,
         label2Options: finalLabel2Options,
         variants: rawVariants,
+        sizeGuideImage: (p as any).sizeGuideImage || undefined,
 
         features: DEFAULT_FEATURES,
     };
@@ -542,6 +548,7 @@ export const mapBuyerProductToNormalized = (
         label1Options: [],
         label2Options: [],
         variants: rawVariants,
+        sizeGuideImage: (p as any).sizeGuideImage || undefined,
 
         features: DEFAULT_FEATURES,
     };

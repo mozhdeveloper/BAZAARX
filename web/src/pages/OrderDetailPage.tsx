@@ -139,13 +139,22 @@ export default function OrderDetailPage() {
     void fetchOrder();
   }, [orderId, profile?.id, navigate]);
 
-  // Load receipt photos when order is received/reviewed
+  // Load receipt details when order is received/reviewed
   useEffect(() => {
     if (!dbOrder?.id) return;
     const s = (dbOrder as any).status ?? (dbOrder as any).shipmentStatus;
     if (s !== "received" && s !== "reviewed") return;
 
-    orderReadService.getReceiptPhotos(dbOrder.id).then(setReceiptPhotos).catch(console.error);
+    orderReadService.getReceivedDetails(dbOrder.id)
+      .then(details => {
+        if (!details) return;
+        setReceiptPhotos(details.photos);
+        // Only update if receivedAt is not already set to avoid loops
+        if (!dbOrder.receivedAt) {
+          setDbOrder(prev => prev ? { ...prev, receivedAt: details.receivedAt } : null);
+        }
+      })
+      .catch(console.error);
   }, [dbOrder?.id]);
 
   // Load chat messages when seller and profile are ready
@@ -399,7 +408,7 @@ export default function OrderDetailPage() {
           status: "received",
           label: "Received",
           completed: true,
-          date: null,
+          date: order.receivedAt || order.updatedAt || null,
         },
       ]
       : []),
@@ -883,10 +892,10 @@ export default function OrderDetailPage() {
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              <h1 className="text-3xl sm:text-3xl font-bold text-gray-900">
                 {order.orderNumber}
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-gray-500 text-sm">
                 {formatDate(order.createdAt)}
               </p>
             </div>
@@ -924,7 +933,7 @@ export default function OrderDetailPage() {
                   {/* Left Column: Delivery Information */}
                   <div className="lg:pr-10 pb-8 lg:pb-0">
                     <div className="flex items-center gap-3 text-gray-900 font-bold mb-6">
-                      <span className="text-lg">Delivery Information</span>
+                      <span>Delivery Information</span>
                     </div>
 
                     <div className="bg-[var(--brand-wash)]/30">
@@ -985,7 +994,7 @@ export default function OrderDetailPage() {
                   <div className="lg:col-span-2 lg:pl-10 space-y-2 mt-8 lg:mt-0">
                     <div className="relative pt-4">
                       {statusTimeline.map((item, index) => (
-                        <div key={item.status} className="flex items-start gap-6 group">
+                        <div key={item.status} className="flex items-stretch gap-6 group">
                           <div className="flex flex-col items-center">
                             <div
                               className={cn(
@@ -1012,7 +1021,7 @@ export default function OrderDetailPage() {
                             {index < statusTimeline.length - 1 && (
                               <div
                                 className={cn(
-                                  "w-0.5 h-14 my-1 transition-colors duration-500",
+                                  "w-0.5 flex-1 my-1 transition-colors duration-500",
                                   item.completed && statusTimeline[index + 1]?.status === "cancelled"
                                     ? "bg-red-400"
                                     : item.completed && statusTimeline[index + 1]?.status === "returned"
@@ -1055,6 +1064,18 @@ export default function OrderDetailPage() {
                                 </button>
                               </div>
                             )}
+                            {item.status === 'received' && item.completed && receiptPhotos.length > 0 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedPhoto(receiptPhotos[0]);
+                                }}
+                                className="mt-2 text-xs text-[var(--brand-primary)] hover:underline flex items-center gap-1"
+                              >
+                                <Camera className="w-3 h-3" />
+                                View proof of received order
+                              </button>
+                            )}
                             {!item.completed && !isCancelled && (
                               <p className="text-xs text-gray-300 mt-1">Pending update...</p>
                             )}
@@ -1067,56 +1088,9 @@ export default function OrderDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Receipt / Delivery Proof Photos */}
-            {receiptPhotos.length > 0 && (
-              <Card className="border-0 shadow-md">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Camera className="w-5 h-5 text-green-600" />
-                    Delivery Proof Photos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {receiptPhotos.map((url, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setSelectedPhoto(url)}
-                        className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-[var(--brand-primary)] transition-colors"
-                      >
-                        <img
-                          src={url}
-                          alt={`Receipt photo ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
-            {/* Photo lightbox */}
-            {selectedPhoto && (
-              <div
-                className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-                onClick={() => setSelectedPhoto(null)}
-              >
-                <button
-                  className="absolute top-4 right-4 text-white"
-                  onClick={() => setSelectedPhoto(null)}
-                >
-                  <X className="w-8 h-8" />
-                </button>
-                <img
-                  src={selectedPhoto}
-                  alt="Receipt photo"
-                  className="max-w-full max-h-[90vh] rounded-lg object-contain"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-            )}
+
+
 
 
             {/* Order-based Chat */}
@@ -1212,7 +1186,7 @@ export default function OrderDetailPage() {
                     onChange={(e) => setChatMessage(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && !isSendingMessage && handleSendMessage()}
                     placeholder="Type your message..."
-                    className="flex-1 focus-visible:ring-1 focus-visible:ring-[var(--brand-primary)]"
+                    className="flex-1 bg-white focus-visible:ring-1 focus-visible:ring-[var(--brand-primary)]"
                     disabled={!conversation || isSendingMessage}
                   />
                   <Button
@@ -1257,9 +1231,6 @@ export default function OrderDetailPage() {
                             className="w-16 h-16 object-cover transition-transform group-hover/item:scale-110"
                           />
                         </div>
-                        <div className="absolute -top-2 -right-2 w-5 h-5 bg-[var(--brand-accent)] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-sm z-10">
-                          {item.quantity}
-                        </div>
                       </div>
 
                       <div className="flex-1 min-w-0 py-0.5">
@@ -1283,7 +1254,7 @@ export default function OrderDetailPage() {
                         </div>
                         <div className="flex items-center justify-between mt-1">
                           <p className="text-xs text-[var(--text-muted)]">
-                            ₱{item.price.toLocaleString()}
+                            ₱{item.price.toLocaleString()} <span className="ml-1">x{item.quantity}</span>
                           </p>
                           <p className="text-sm font-bold text-gray-900">
                             ₱{(item.price * item.quantity).toLocaleString()}
@@ -1298,7 +1269,7 @@ export default function OrderDetailPage() {
                                   e.stopPropagation();
                                   setShowReviewModal(true);
                                 }}
-                                className="text-[10px] font-bold text-[var(--brand-primary)] flex items-center gap-1 ml-auto hover:underline"
+                                className="text-xs font-medium text-[var(--brand-primary)] flex items-center gap-1 ml-auto hover:underline"
                               >
                                 Rate & Review
                               </button>
@@ -1317,7 +1288,7 @@ export default function OrderDetailPage() {
                       <RotateCcw className="w-4 h-4 text-[var(--brand-accent)]" />
                       <span className="text-sm font-semibold text-gray-900">Your Review</span>
                       <div className="flex items-center gap-0.5 ml-auto">
-                        {[1,2,3,4,5].map(star => (
+                        {[1, 2, 3, 4, 5].map(star => (
                           <span key={star} className={`text-sm ${star <= order.review!.rating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
                         ))}
                         <span className="text-xs text-gray-500 ml-1">{order.review.rating}/5</span>
@@ -1408,9 +1379,32 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
 
-                  {/* Buy Again - shown for delivered/received/reviewed orders */}
-                  {(order.status === 'delivered' || order.status === 'received' || order.status === 'reviewed') && (
-                    <div className="pt-4 mt-2">
+                  {/* Action Buttons Row */}
+                  <div className="flex flex-row gap-2 pt-4 mt-2">
+                    {/* Confirm Received - shown for delivered orders (PH standard) */}
+                    {order.status === 'delivered' && (
+                      <Button
+                        onClick={() => navigate(`/orders?status=delivered`)}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        Confirm Received
+                      </Button>
+                    )}
+
+                    {/* Request Return / Refund - shown for received orders only (PH standard: must confirm receipt first) */}
+                    {order.status === 'received' && (
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
+                        className="flex-1 border-[var(--brand-accent)] text-[var(--brand-primary)] hover:bg-[var(--brand-accent)] hover:text-white"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2 hidden sm:inline" />
+                        Return/Refund
+                      </Button>
+                    )}
+
+                    {/* Buy Again - shown for delivered/received/reviewed orders */}
+                    {(order.status === 'delivered' || order.status === 'received' || order.status === 'reviewed') && (
                       <Button
                         onClick={async () => {
                           if (!order.items || order.items.length === 0) return;
@@ -1438,54 +1432,24 @@ export default function OrderDetailPage() {
                           // Navigate to enhanced cart so user can adjust variants/sizes/colors
                           navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
                         }}
-                        className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md shadow-orange-500/20"
+                        className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
                       >
-                        <ShoppingBag className="w-4 h-4 mr-2" />
                         Buy Again
                       </Button>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Cancel Order - shown for pending unpaid orders */}
-                  {order.status === 'pending' && !order.isPaid && (
-                    <div className="pt-4 mt-2">
+                    {/* Cancel Order - shown for pending unpaid orders */}
+                    {order.status === 'pending' && !order.isPaid && (
                       <Button
                         variant="outline"
                         onClick={() => setCancelModalOpen(true)}
-                        className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                        className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
                       >
                         <X className="w-4 h-4 mr-2" />
                         Cancel Order
                       </Button>
-                    </div>
-                  )}
-
-                  {/* Confirm Received - shown for delivered orders (PH standard) */}
-                  {order.status === 'delivered' && (
-                    <div className="pt-4 mt-2">
-                      <Button
-                        onClick={() => navigate(`/orders?status=delivered`)}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Confirm Received
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Request Return / Refund - shown for received orders only (PH standard: must confirm receipt first) */}
-                  {order.status === 'received' && (
-                    <div className="pt-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
-                        className="w-full border-orange-200 text-[var(--brand-primary)] hover:bg-orange-50"
-                      >
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Request Return / Refund
-                      </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1669,6 +1633,27 @@ export default function OrderDetailPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Photo lightbox */}
+      {selectedPhoto && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <button
+            className="absolute top-8 right-8 text-white/80 p-2 hover:text-white transition-colors"
+            onClick={() => setSelectedPhoto(null)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={selectedPhoto}
+            alt="Receipt photo"
+            className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       <BazaarFooter />
     </div >

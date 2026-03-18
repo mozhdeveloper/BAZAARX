@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Ruler } from "lucide-react";
 import { VariantManager } from "@/components/seller/products/VariantManager";
 import { VariantConfig } from "@/types";
 
@@ -7,17 +7,26 @@ interface AttributesTabProps {
     formData: {
         variantLabel1Values: string[];
         variantLabel2Values: string[];
+        sizesValues: string[];
         price: string;
         stock: string;
+        category: string;
     };
     variationInput: string;
     setVariationInput: (value: string) => void;
     colorInput: string;
     setColorInput: (value: string) => void;
+    sizeInput: string;
+    setSizeInput: (value: string) => void;
     addVariation: () => void;
     removeVariation: (variation: string) => void;
     addColor: () => void;
     removeColor: (color: string) => void;
+    addSize: () => void;
+    removeSize: (size: string) => void;
+    sizeGuideImageUrl: string;
+    onSizeGuideImageSelect: (file: File | null) => void;
+    errors: Record<string, string | undefined>;
 
     // Custom attribute names
     firstAttributeName: string;
@@ -34,7 +43,6 @@ interface AttributesTabProps {
     editingVariantId: string | null;
     showAddVariantForm: boolean;
     newVariant: Partial<VariantConfig>;
-    errors: Record<string, string | undefined>;
     getTotalVariantStock: () => number;
     updateVariantConfig: (
         id: string,
@@ -64,10 +72,17 @@ export function AttributesTab({
     setVariationInput,
     colorInput,
     setColorInput,
+    sizeInput,
+    setSizeInput,
     addVariation,
     removeVariation,
     addColor,
     removeColor,
+    addSize,
+    removeSize,
+    sizeGuideImageUrl,
+    onSizeGuideImageSelect,
+    errors,
     firstAttributeName,
     setFirstAttributeName,
     secondAttributeName,
@@ -80,7 +95,6 @@ export function AttributesTab({
     editingVariantId,
     showAddVariantForm,
     newVariant,
-    errors,
     getTotalVariantStock,
     updateVariantConfig,
     cancelEditVariant,
@@ -304,6 +318,83 @@ export function AttributesTab({
                         </div>
                     )}
                 </div>
+
+                {/* Size Guide Image Upload - Only show for apparel */}
+                {formData.category && (formData.category.toLowerCase().includes('apparel') || formData.category.toLowerCase().includes('fashion') || formData.category.toLowerCase().includes('clothing')) && (
+                    <div className="space-y-3">
+                        <label className="block text-sm font-semibold text-gray-800">
+                            Size Guide Image
+                        </label>
+                        <p className="text-xs text-gray-500 mb-2">
+                            Upload a size chart or guide image to help customers find their perfect fit
+                        </p>
+                        <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 hover:border-orange-400 transition-colors">
+                            {sizeGuideImageUrl ? (
+                                <div className="space-y-3">
+                                    <img
+                                        src={sizeGuideImageUrl}
+                                        alt="Size Guide Preview"
+                                        className="w-full h-48 object-cover rounded-lg"
+                                    />
+                                    <div className="flex gap-2">
+                                        <Button
+                                            type="button"
+                                            onClick={() => onSizeGuideImageSelect(null)}
+                                            variant="outline"
+                                            className="flex-1 rounded-xl"
+                                        >
+                                            Remove
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            asChild
+                                            className="flex-1 rounded-xl bg-orange-500 hover:bg-orange-600"
+                                        >
+                                            <label className="cursor-pointer">
+                                                Change Image
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) =>
+                                                        onSizeGuideImageSelect(
+                                                            e.target.files?.[0] || null,
+                                                        )
+                                                    }
+                                                    className="hidden"
+                                                />
+                                            </label>
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <label className="cursor-pointer block text-center">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Ruler className="text-gray-400 text-3xl" />
+                                        <p className="text-sm font-medium text-gray-600">
+                                            Click to upload or drag and drop
+                                        </p>
+                                        <p className="text-xs text-gray-400">
+                                            PNG, JPG up to 5MB
+                                        </p>
+                                    </div>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) =>
+                                            onSizeGuideImageSelect(
+                                                e.target.files?.[0] || null,
+                                            )
+                                        }
+                                        className="hidden"
+                                    />
+                                </label>
+                            )}
+                        </div>
+                        {errors.sizeGuide && (
+                            <p className="text-xs text-red-500">{errors.sizeGuide}</p>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Variant Manager Section */}
@@ -313,18 +404,12 @@ export function AttributesTab({
                 variantConfigs={variantConfigs}
                 formData={formData}
                 editingVariantId={editingVariantId}
-                showAddVariantForm={showAddVariantForm}
-                newVariant={newVariant}
                 errors={errors}
                 getTotalVariantStock={getTotalVariantStock}
                 updateVariantConfig={updateVariantConfig}
                 cancelEditVariant={cancelEditVariant}
                 startEditVariant={startEditVariant}
                 deleteVariant={deleteVariant}
-                setShowAddVariantForm={setShowAddVariantForm}
-                setNewVariant={setNewVariant}
-                setErrors={setErrors}
-                addVariant={addVariant}
             />
         </>
     );

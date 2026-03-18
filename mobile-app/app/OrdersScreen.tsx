@@ -199,7 +199,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
           ),
           return_requests:refund_return_periods (
             id, status, is_returnable, refund_date
-          )
+          ),
+          shipments:order_shipments(*),
+          history:order_status_history(status, created_at)
         `)
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false })
@@ -404,6 +406,11 @@ export default function OrdersScreen({ navigation, route }: Props) {
                     ? 'PayMongo'
                     : (order.payment_method as any)?.type || 'Cash on Delivery'),
           createdAt: order.created_at,
+          confirmedAt: (order.history || []).find((h: any) => h.status === 'processing' || h.status === 'confirmed')?.created_at || order.paid_at || null,
+          shippedAt: (order.history || []).find((h: any) => h.status === 'shipped')?.created_at || (order.shipments || []).find((s: any) => s.shipped_at)?.shipped_at || null,
+          deliveredAt: (order.history || []).find((h: any) => h.status === 'delivered')?.created_at || (order.shipments || []).find((s: any) => s.status === 'delivered' || s.status === 'received')?.delivered_at || null,
+          receivedAt: (order.history || []).find((h: any) => h.status === 'received')?.created_at || (order.shipment_status === 'received' ? order.updated_at : null),
+          updatedAt: order.updated_at,
           buyerUiStatus,
           isReviewed,
           returnRequestId,
@@ -613,20 +620,15 @@ export default function OrdersScreen({ navigation, route }: Props) {
     const order = cancellingOrder;
     setIsCancellingOrder(true);
     try {
-      // Optimistic update
-      setDbOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? { ...o, status: 'cancelled', buyerUiStatus: 'cancelled' } : o
-        )
-      );
-
       await orderMutationService.cancelOrder({
         orderId: (order as any).orderId || order.id,
         reason,
         cancelledBy: user?.id,
       });
 
-      updateOrderStatus(order.id, 'cancelled');
+      // Note: Don't call updateOrderStatus here - the database is already updated.
+      // loadOrders() will refresh from the database, and the real-time subscription will update badges.
+
       setShowCancelModal(false);
       setCancellingOrder(null);
       setActiveTab('cancelled');
@@ -634,8 +636,6 @@ export default function OrdersScreen({ navigation, route }: Props) {
       await loadOrders();
     } catch (e: any) {
       console.error('Error cancelling order:', e);
-      // Rollback optimistic update
-      await loadOrders();
       Alert.alert('Error', e?.message || 'Failed to cancel order. Please try again.');
     } finally {
       setIsCancellingOrder(false);
@@ -656,7 +656,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       onCancel={() => handleCancelOrder(order)}
       onReceive={order.buyerUiStatus === 'delivered' ? () => handleOrderReceived(order) : undefined}
       onReview={order.buyerUiStatus === 'received' ? () => handleReview(order) : undefined}
-      onReturn={order.buyerUiStatus === 'received' ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
+      onReturn={(order.buyerUiStatus === 'delivered') && (Date.now() - new Date(order.deliveredAt || order.updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000 ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
       onBuyAgain={handleBuyAgain}
       onShopPress={(shopId) => {
         const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;

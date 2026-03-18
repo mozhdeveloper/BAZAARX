@@ -50,11 +50,32 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
       setUnreadMessageCount(0);
       return;
     }
-    const fetchCount = () =>
-      chatService.getUnreadCount(profile.id, 'buyer').then(setUnreadMessageCount);
+    let active = true;
+    
+    // Initial fetch
+    const fetchCount = async () => {
+      const count = await chatService.getUnreadCount(profile.id, 'buyer');
+      if (active) {
+        setUnreadMessageCount(count);
+      }
+    };
     fetchCount();
-    const interval = setInterval(fetchCount, 30000);
-    return () => clearInterval(interval);
+    
+    // Real-time listener for new messages - reload count when messages arrive
+    const unsub = chatService.subscribeToConversations(
+      profile.id,
+      'buyer',
+      () => { void fetchCount(); } // Refresh count when activity detected
+    );
+    
+    // Fallback polling every 5 seconds to ensure we catch all messages
+    const interval = setInterval(() => { void fetchCount(); }, 5000);
+    
+    return () => { 
+      active = false;
+      unsub(); 
+      clearInterval(interval);
+    };
   }, [profile?.id, location.pathname]);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -117,7 +138,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
           </div>
 
           {!hideSearch && (
-            <div className={`hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className={`hidden md:flex flex-1 min-w-[200px] mx-auto items-center justify-center lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg
@@ -350,17 +371,6 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         >
                           <User className="h-3.5 w-3.5" />
                           My Profile
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            navigate("/my-reviews");
-                            setShowProfileMenu(false);
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
-                        >
-                          <Star className="h-3.5 w-3.5" />
-                          My Reviews
                         </button>
 
                         <button

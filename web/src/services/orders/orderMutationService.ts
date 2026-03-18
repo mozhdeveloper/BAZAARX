@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { orderService } from "@/services/orderService";
+import { notificationService } from "@/services/notificationService";
 
 interface UpdateOrderStatusInput {
   orderId: string;
@@ -119,6 +120,53 @@ class OrderMutationService {
     if (error) {
       console.error("Error cancelling order through RPC:", error);
       throw new Error("Failed to cancel order");
+    }
+
+    if (data && changedByRole === "buyer" && cancelledBy) {
+      const { data: orderRow, error: orderFetchError } = await supabase
+        .from("orders")
+        .select(
+          `
+          id,
+          order_number,
+          buyer_id,
+          order_items (
+            product:products!order_items_product_id_fkey (
+              seller_id
+            )
+          )
+        `,
+        )
+        .eq("id", orderId)
+        .single();
+
+      if (orderFetchError) {
+        console.error("Failed to fetch order after buyer cancellation:", orderFetchError);
+      } else {
+        const sellerId = orderRow.order_items?.find((item: any) => item.product?.seller_id)?.product?.seller_id;
+
+        if (sellerId) {
+          const { data: buyerProfile } = await supabase
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("id", cancelledBy)
+            .maybeSingle();
+
+          const buyerName = [buyerProfile?.first_name, buyerProfile?.last_name]
+            .filter(Boolean)
+            .join(" ");
+
+          void notificationService.notifySellerOrderCancelled({
+            sellerId,
+            orderId,
+            orderNumber: orderRow.order_number || orderId,
+            buyerName,
+            reason: reason?.trim() || null,
+          }).catch((notifyError) => {
+            console.error("Failed to notify seller after buyer cancellation:", notifyError);
+          });
+        }
+      }
     }
 
     return Boolean(data);
