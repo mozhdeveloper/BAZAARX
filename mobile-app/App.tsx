@@ -271,17 +271,25 @@ export default function App() {
   const appState = useRef(AppState.currentState);
 
   React.useEffect(() => {
-    // Suppress refresh token errors - they're handled automatically by auth service
+    // Suppress noisy warnings that are already handled in supabase.ts
     LogBox.ignoreLogs([
       'AuthApiError: Invalid Refresh Token',
       'Invalid Refresh Token',
-      'Refresh Token Not Found'
+      'Refresh Token Not Found',
+      '[Push] Token registration failed',
+      'expo-notifications: Android Push notifications',
+      '`expo-notifications` functionality is not fully supported in Expo Go',
+      'expo-notifications: Android Push notifications (remote notifications)',
+      'Use a development build instead of Expo Go',
     ]);
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         useAuthStore.getState().logout();
+      } else if (event === 'SIGNED_IN' && session) {
+        // Session restored/signed in — sync auth store
+        useAuthStore.getState().checkSession?.();
       }
     });
 

@@ -37,7 +37,7 @@ export default function AdminLoginScreen() {
   // Auto-fill demo credentials on mount
   useEffect(() => {
     setEmail('admin@bazaarph.com');
-    setPassword('admin123');
+    setPassword('Test@123456');
   }, []);
 
   useEffect(() => {
@@ -175,24 +175,32 @@ export default function AdminLoginScreen() {
               )}
             </Pressable>
 
-            {/* Demo Credentials */}
-            <Pressable 
-              style={styles.demoContainer}
-              onPress={() => {
-                setEmail('admin@bazaarph.com');
-                setPassword('admin123');
-                setFormError('');
-              }}
-            >
-              <Text style={styles.demoTitle}>✨ Demo Credentials (Auto-filled)</Text>
-              <Text style={styles.demoText}>
-                Email: <Text style={styles.demoBold}>admin@bazaarph.com</Text>
-              </Text>
-              <Text style={styles.demoText}>
-                Password: <Text style={styles.demoBold}>admin123</Text>
-              </Text>
-              <Text style={styles.demoHint}>Tap here to refresh credentials</Text>
-            </Pressable>
+            {/* Test Credentials Card */}
+            <View style={styles.testCredsContainer}>
+              <View style={styles.testCredsHeader}>
+                <Text style={styles.testCredsTitle}>🧪 TEST ADMIN ACCOUNT</Text>
+              </View>
+              <Pressable
+                style={styles.testCredButton}
+                onPress={() => {
+                  setEmail('admin@bazaarph.com');
+                  setPassword('Test@123456');
+                  setFormError('');
+                }}
+              >
+                <View style={styles.testCredAvatar}>
+                  <Text style={styles.testCredAvatarText}>🛡️</Text>
+                </View>
+                <View style={styles.testCredLeft}>
+                  <Text style={styles.testCredLabel}>Admin</Text>
+                  <Text style={styles.testCredEmail}>admin@bazaarph.com</Text>
+                </View>
+                <View style={styles.testCredPwBadge}>
+                  <Text style={styles.testCredPw}>Test@123456</Text>
+                </View>
+              </Pressable>
+              <Text style={styles.testCredsHint}>Auto-filled • Tap to re-fill</Text>
+            </View>
           </View>
 
           {/* Footer */}
@@ -356,34 +364,83 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
-  demoContainer: {
+  testCredsContainer: {
     marginTop: 24,
-    padding: 16,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
   },
-  demoTitle: {
+  testCredsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  testCredsTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#92400E',
+    letterSpacing: 0.8,
+  },
+  testCredButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  testCredAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  testCredAvatarText: {
+    fontSize: 18,
+  },
+  testCredLeft: {
+    flex: 1,
+  },
+  testCredLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#374151',
-    marginBottom: 8,
+    color: '#1F2937',
   },
-  demoText: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  demoBold: {
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  demoHint: {
+  testCredEmail: {
     fontSize: 11,
-    color: '#9CA3AF',
-    marginTop: 8,
+    color: '#6B7280',
+    marginTop: 1,
+  },
+  testCredPwBadge: {
+    backgroundColor: '#D1FAE5',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+  },
+  testCredPw: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  testCredsHint: {
+    fontSize: 11,
+    color: '#92400E',
+    textAlign: 'center',
+    marginTop: 4,
     fontStyle: 'italic',
   },
   footer: {

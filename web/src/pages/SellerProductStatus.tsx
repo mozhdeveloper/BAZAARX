@@ -252,15 +252,15 @@ const SellerProductStatus = () => {
                       Pending Admin Review
                     </Badge>
                   ) : product.status === 'PENDING_DIGITAL_REVIEW' ? (
-                    <Badge className="text-amber-600 bg-amber-50 hover:bg-amber-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                    <Badge className="text-[#D97706] bg-amber-50 hover:bg-amber-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
                       In Digital Review
                     </Badge>
                   ) : product.status === 'IN_QUALITY_REVIEW' ? (
-                    <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50 h-5 px-2 text-[10px] uppercase tracking-wide">
+                    <Badge variant="outline" className="text-[#D97706] border-[#FDE68A] bg-amber-50 h-5 px-2 text-[10px] uppercase tracking-wide">
                       In QA Review
                     </Badge>
                   ) : product.status === 'FOR_REVISION' ? (
-                    <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 h-5 px-2 text-[10px] uppercase tracking-wide">
+                    <Badge variant="outline" className="text-[#D97706] border-[#FDE68A] bg-amber-50 h-5 px-2 text-[10px] uppercase tracking-wide">
                       Needs Revision
                     </Badge>
                   ) : product.status === 'ACTIVE_VERIFIED' ? (
@@ -272,7 +272,7 @@ const SellerProductStatus = () => {
                       Rejected
                     </Badge>
                   ) : product.status === 'WAITING_FOR_SAMPLE' ? (
-                    <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 h-5 px-2 text-[10px] uppercase tracking-wide">
+                    <Badge variant="outline" className="text-[#D97706] border-[#FDE68A] bg-amber-50 h-5 px-2 text-[10px] uppercase tracking-wide">
                       Awaiting Sample
                     </Badge>
                   ) : null}
@@ -284,7 +284,7 @@ const SellerProductStatus = () => {
                       Approved
                     </Badge>
                   ) : product.approvalStatus === 'pending' ? (
-                    <Badge className="text-orange-600 bg-orange-50 hover:bg-orange-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                    <Badge className="text-[#D97706] bg-amber-50 hover:bg-amber-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
                       Pending
                     </Badge>
                   ) : product.approvalStatus === 'rejected' ? (
@@ -326,7 +326,7 @@ const SellerProductStatus = () => {
                   e.stopPropagation();
                   openSubmitModal(product.id, product.status, product.logistics);
                 }}
-                className="bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-full px-4"
+                className="bg-[#D97706] hover:bg-[#B45309] text-white rounded-full px-4"
               >
                 {product.logistics?.includes('Courier') 
                   ? 'Confirm Shipment' 
@@ -344,7 +344,7 @@ const SellerProductStatus = () => {
                   e.stopPropagation();
                   openSubmitModal(product.id, product.status);
                 }}
-                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-orange-200"
+                className="bg-[#D97706] hover:bg-[#B45309] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-amber-200"
               >
                 Submit for QA
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -359,7 +359,7 @@ const SellerProductStatus = () => {
                   e.stopPropagation();
                   openSubmitModal(product.id, 'accepted');
                 }}
-                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-orange-200"
+                className="bg-[#D97706] hover:bg-[#B45309] text-white rounded-full px-4 gap-1.5 shadow-sm shadow-amber-200"
               >
                 Submit for QA
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -814,8 +814,8 @@ const SellerProductStatus = () => {
                                 onClick={() => toggleBatchCollapse(product.batchId)}
                               >
                                 <div className="flex items-center gap-4">
-                                  <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center group-hover:bg-orange-200 transition-colors shadow-sm">
-                                    <Folder className="w-5 h-5 text-orange-600" />
+                                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center group-hover:bg-amber-200 transition-colors shadow-sm">
+                                    <Folder className="w-5 h-5 text-[#D97706]" />
                                   </div>
                                   <div>
                                     <span className="text-sm font-bold text-gray-800 tracking-tight">Bulk Shipment Folder</span>
@@ -831,7 +831,7 @@ const SellerProductStatus = () => {
                                           e.stopPropagation();
                                           openSubmitModal(batchProducts.map(p => p.id), batchProducts[0].status, batchProducts[0].logistics);
                                         }}
-                                        className="bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl px-4 h-8 text-xs font-bold shadow-sm"
+                                        className="bg-[#D97706] hover:bg-[#B45309] text-white rounded-xl px-4 h-8 text-xs font-bold shadow-sm"
                                       >
                                         {batchProducts[0].logistics?.includes('Courier') 
                                           ? 'Confirm Batch Shipment' 
@@ -853,7 +853,7 @@ const SellerProductStatus = () => {
                                         <ArrowRight className="w-3 h-3" />
                                       </Button>
                                     )}
-                                    <Badge variant="outline" className="bg-orange-50/50 text-orange-700 border-orange-100 font-bold h-7 px-4 rounded-xl">
+                                      <Badge variant="outline" className="bg-amber-50/50 text-[#D97706] border-amber-100 font-bold h-7 px-4 rounded-xl">
                                       {batchProducts.length} Items
                                     </Badge>
                                     {batchProducts[0]?.logistics && (
@@ -1005,7 +1005,7 @@ const SellerProductStatus = () => {
                       openSubmitModal(Array.from(selectedProducts), 'PENDING_DIGITAL_REVIEW');
                     }
                   }}
-                  className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl font-bold px-6 shadow-md transition-all active:scale-95"
+                  className="bg-gradient-to-r from-[#D97706] to-[#B45309] hover:shadow-lg hover:shadow-amber-500/30 text-white rounded-xl font-bold px-6 shadow-md transition-all active:scale-95"
                 >
                   {Array.from(selectedProducts).every(id => {
                     const p = allFilteredProducts.find(p => p.id === id);
@@ -1066,21 +1066,21 @@ const SellerProductStatus = () => {
               {/* Physical Sample option */}
               <button
                 onClick={() => setReviewStep('physical')}
-                className="w-full flex items-start gap-4 p-4 border-2 border-orange-100 rounded-xl hover:border-orange-400 hover:bg-orange-50/50 transition-all text-left group"
+                className="w-full flex items-start gap-4 p-4 border-2 border-amber-100 rounded-xl hover:border-[#D97706] hover:bg-amber-50/50 transition-all text-left group"
               >
-                <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-200 transition-colors">
-                  <Truck className="w-5 h-5 text-orange-600" />
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 group-hover:bg-amber-200 transition-colors">
+                  <Truck className="w-5 h-5 text-[#D97706]" />
                 </div>
                 <div className="flex-1">
                   <div className="font-semibold text-gray-900">Physical Sample</div>
                   <div className="text-sm text-gray-500 mt-0.5">Send a physical product sample to our QA facility for hands-on inspection.</div>
                   <div className="mt-2">
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
                       <Package className="w-3 h-3" /> Shipping required · 3–5 business days
                     </span>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-gray-400 self-center flex-shrink-0 group-hover:text-orange-500 transition-colors" />
+                <ArrowRight className="w-4 h-4 text-gray-400 self-center flex-shrink-0 group-hover:text-[#D97706] transition-colors" />
               </button>
             </div>
           ) : (
@@ -1117,10 +1117,10 @@ const SellerProductStatus = () => {
               </RadioGroup>
 
               {logisticsMethod === 'Drop-off by Courier' && (
-                <Alert className="bg-blue-50 border-blue-200">
-                  <Package className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800">
-                    <div className="font-medium mb-1">Send your product to:</div>
+                <Alert className="bg-amber-50 border-amber-200">
+                  <Package className="h-4 w-4 text-[#D97706]" />
+                  <AlertDescription className="text-amber-800">
+                    <div className="font-medium mb-1 text-amber-900">Send your product to:</div>
                     <div className="text-sm">
                       BazaarX QA Facility<br />
                       Unit 2B, Tech Hub Building<br />
@@ -1168,7 +1168,7 @@ const SellerProductStatus = () => {
               <Button
                 onClick={handleSubmitSample}
                 disabled={!logisticsMethod}
-                className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-xl transition-all"
+                className="bg-gradient-to-r from-[#D97706] to-[#B45309] hover:shadow-lg hover:shadow-amber-500/30 text-white rounded-xl transition-all"
               >
                 Submit Sample
               </Button>
@@ -1217,11 +1217,11 @@ const SellerProductStatus = () => {
               />
             </div>
 
-            <Alert className="bg-blue-50/50 border-blue-100 rounded-xl">
-              <AlertCircle className="h-5 w-5 text-blue-500" />
+            <Alert className="bg-amber-50/50 border-amber-100 rounded-xl">
+              <AlertCircle className="h-5 w-5 text-[#D97706]" />
               <div className="ml-2">
-                <div className="text-sm font-bold text-blue-900">QA Facility Address</div>
-                <div className="text-xs text-blue-700 mt-1">
+                <div className="text-sm font-bold text-amber-900">QA Facility Address</div>
+                <div className="text-xs text-amber-700 mt-1">
                   BazaarX Quality Assurance Center<br />
                   123 Commerce Ave, Makati City, Metro Manila 1234
                 </div>
@@ -1240,7 +1240,7 @@ const SellerProductStatus = () => {
             <Button
               onClick={handleConfirmShipment}
               disabled={!courierService || !trackingNumber}
-              className="bg-[#FFB17A] hover:bg-[#FF9B54] text-white rounded-xl font-bold px-8 shadow-md transition-all active:scale-95"
+              className="bg-[#D97706] hover:bg-[#B45309] text-white rounded-xl font-bold px-8 shadow-md transition-all active:scale-95 uppercase text-xs tracking-wider"
             >
               Confirm Shipment
             </Button>
@@ -1268,14 +1268,14 @@ const SellerProductStatus = () => {
               />
             </div>
 
-            <Alert className="bg-blue-50/50 border-blue-100 rounded-xl mt-6 w-full">
+            <Alert className="bg-amber-50/50 border-amber-100 rounded-xl mt-6 w-full">
               <div className="flex gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <Store className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <Store className="w-5 h-5 text-[#D97706]" />
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-blue-900">QA Facility Address</div>
-                  <div className="text-xs text-blue-700 mt-1">
+                  <div className="text-sm font-bold text-amber-900">QA Facility Address</div>
+                  <div className="text-xs text-amber-700 mt-1">
                     BazaarX Quality Assurance Center<br />
                     123 Commerce Ave, Makati City, Metro Manila 1234<br />
                     <span className="font-semibold">Operating Hours:</span> Mon-Fri, 9:00 AM - 5:00 PM
@@ -1296,7 +1296,7 @@ const SellerProductStatus = () => {
             <Button
               onClick={handleScheduleDropOff}
               disabled={!selectedDropOffDate}
-              className="bg-[#2B4C8C] hover:bg-[#1E3A6E] text-white rounded-xl font-bold px-8 shadow-md transition-all active:scale-95"
+              className="bg-[#D97706] hover:bg-[#B45309] text-white rounded-xl font-bold px-8 shadow-md transition-all active:scale-95 uppercase text-xs tracking-wider"
             >
               Confirm Schedule
             </Button>

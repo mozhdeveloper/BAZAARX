@@ -19,7 +19,6 @@ import {
   Loader2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { supabaseAdmin } from '@/lib/supabase';
 
 interface SellerRow {
   id: string;
@@ -48,27 +47,14 @@ const AdminTrustedBrands: React.FC = () => {
   const fetchSellers = async () => {
     setLoading(true);
     try {
-      // Fetch sellers with their tier info
-      const { data: sellersData, error: sellersError } = await supabaseAdmin
-        .from('sellers')
-        .select(`
-          id, store_name, avatar_url, approval_status, created_at
-        `)
-        .order('store_name');
+      // Use Edge Function for admin seller data (service-role operations)
+      const { data: fnResult, error: fnError } = await supabase.functions.invoke('admin-seller-tiers', {
+        body: { action: 'list-sellers' },
+      });
 
-      if (sellersError) throw sellersError;
+      if (fnError) throw fnError;
 
-      // Fetch tier info
-      const { data: tiersData } = await supabaseAdmin
-        .from('seller_tiers')
-        .select('seller_id, tier_level, bypasses_assessment');
-
-      // Fetch product counts
-      const { data: productCounts } = await supabaseAdmin
-        .from('products')
-        .select('seller_id')
-        .not('disabled_at', 'is', null)
-        .is('disabled_at', null);
+      const { sellers: sellersData, tiers: tiersData, productCounts } = fnResult;
 
       const tierMap = new Map<string, { tier_level: string; bypasses_assessment: boolean }>();
       (tiersData || []).forEach((t: any) => tierMap.set(t.seller_id, t));
@@ -107,35 +93,18 @@ const AdminTrustedBrands: React.FC = () => {
   const handleToggleTrusted = async (sellerId: string, currentlyTrusted: boolean) => {
     setTogglingId(sellerId);
     try {
+      // Use Edge Function for tier updates (service-role operation)
+      const { error: fnError } = await supabase.functions.invoke('admin-seller-tiers', {
+        body: { action: 'toggle-trusted', sellerId, trusted: !currentlyTrusted },
+      });
+
+      if (fnError) throw fnError;
+
       if (currentlyTrusted) {
-        // Remove trusted brand status — delete the tier row or set to standard
-        const { error } = await supabaseAdmin
-          .from('seller_tiers')
-          .upsert({
-            seller_id: sellerId,
-            tier_level: 'standard',
-            bypasses_assessment: false,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'seller_id' });
-
-        if (error) throw error;
-
         setSellers(prev => prev.map(s =>
           s.id === sellerId ? { ...s, tier_level: 'standard', bypasses_assessment: false } : s
         ));
       } else {
-        // Set as trusted brand
-        const { error } = await supabaseAdmin
-          .from('seller_tiers')
-          .upsert({
-            seller_id: sellerId,
-            tier_level: 'trusted_brand',
-            bypasses_assessment: true,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'seller_id' });
-
-        if (error) throw error;
-
         setSellers(prev => prev.map(s =>
           s.id === sellerId ? { ...s, tier_level: 'trusted_brand', bypasses_assessment: true } : s
         ));

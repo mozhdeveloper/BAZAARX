@@ -66,6 +66,60 @@ class ChatService {
   private subscriptions: Map<string, RealtimeChannel> = new Map();
 
   /**
+   * Lightweight version: returns only { id } with minimal queries.
+   * Use when you already have seller/buyer info and only need conversation ID.
+   */
+  async getOrCreateConversationLite(
+    buyerId: string,
+    sellerId: string,
+    orderId?: string
+  ): Promise<{ id: string } | null> {
+    // Fast path: direct lookup by orderId (single indexed query)
+    if (orderId) {
+      const { data: existing } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('buyer_id', buyerId)
+        .eq('order_id', orderId)
+        .maybeSingle();
+
+      if (existing) return existing;
+    }
+
+    // Fallback: find conversation with this seller via messages
+    const { data: convList } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('buyer_id', buyerId);
+
+    for (const conv of convList || []) {
+      const { data: sellerMsg } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('conversation_id', conv.id)
+        .eq('sender_id', sellerId)
+        .limit(1)
+        .maybeSingle();
+
+      if (sellerMsg) return conv;
+    }
+
+    // Create new conversation
+    const { data: newConv, error } = await supabase
+      .from('conversations')
+      .insert({ buyer_id: buyerId, order_id: orderId || null })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('[ChatService] Error creating conversation:', error);
+      return null;
+    }
+
+    return newConv;
+  }
+
+  /**
    * Helper: Get seller ID from order
    */
   private async getSellerIdFromOrder(orderId: string): Promise<string | null> {
@@ -294,8 +348,8 @@ class ChatService {
   }
 
   /**
-   * Get all conversations for a buyer
-   * New schema: conversations only have buyer_id, so we get all and enrich
+   * Get all conversations for a buyer — optimised bulk loading.
+   * Replaces N×8 individual queries with 5 parallel batched queries.
    */
   async getBuyerConversations(buyerId: string): Promise<Conversation[]> {
     const { data: conversations, error: convError } = await supabase
@@ -308,23 +362,104 @@ class ChatService {
       console.error('[ChatService] Error fetching buyer conversations:', convError);
       return [];
     }
+    if (!conversations || conversations.length === 0) return [];
 
-    if (!conversations || conversations.length === 0) {
-      return [];
+    const convIds = conversations.map((c) => c.id);
+
+    // --- 5 parallel bulk queries instead of N×8 sequential ones ---
+    const [
+      sellerMsgsResult,
+      recentMsgsResult,
+      unreadMsgsResult,
+    ] = await Promise.all([
+      // Q2: One seller-sender message per conversation (gives us seller IDs)
+      supabase
+        .from('messages')
+        .select('conversation_id, sender_id')
+        .in('conversation_id', convIds)
+        .eq('sender_type', 'seller')
+        .order('created_at', { ascending: false }),
+      // Q3: Recent messages for "last message" preview
+      supabase
+        .from('messages')
+        .select('conversation_id, content, created_at, sender_type')
+        .in('conversation_id', convIds)
+        .order('created_at', { ascending: false })
+        .limit(200),
+      // Q4: Unread seller messages per conversation (for badge counts)
+      supabase
+        .from('messages')
+        .select('conversation_id')
+        .in('conversation_id', convIds)
+        .eq('sender_type', 'seller')
+        .eq('is_read', false),
+    ]);
+
+    // Build convId → sellerId map (first seller msg per conv)
+    const sellerIdByConvId = new Map<string, string>();
+    for (const msg of sellerMsgsResult.data || []) {
+      if (!sellerIdByConvId.has(msg.conversation_id)) {
+        sellerIdByConvId.set(msg.conversation_id, msg.sender_id);
+      }
     }
 
-    // Enrich each conversation with stats and seller info
-    const enrichedConversations = await Promise.all(
-      conversations.map(async (conv) => {
-        return this.enrichConversation(conv);
-      })
-    );
+    // Build convId → last message map
+    const lastMsgByConvId = new Map<string, { content: string; created_at: string; sender_type: string }>();
+    for (const msg of recentMsgsResult.data || []) {
+      if (!lastMsgByConvId.has(msg.conversation_id)) {
+        lastMsgByConvId.set(msg.conversation_id, msg);
+      }
+    }
 
-    // Sort by last_message_at
-    return enrichedConversations.sort((a, b) => 
-      new Date(b.last_message_at || b.updated_at).getTime() - 
-      new Date(a.last_message_at || a.updated_at).getTime()
-    );
+    // Build convId → unread count map
+    const unreadByConvId = new Map<string, number>();
+    for (const msg of unreadMsgsResult.data || []) {
+      unreadByConvId.set(msg.conversation_id, (unreadByConvId.get(msg.conversation_id) || 0) + 1);
+    }
+
+    const sellerIds = [...new Set(sellerIdByConvId.values())];
+
+    // Q5 + Q6 in parallel: seller info & presence
+    const [sellersResult, presenceResult] = await Promise.all([
+      sellerIds.length > 0
+        ? supabase.from('sellers').select('id, store_name, avatar_url').in('id', sellerIds)
+        : Promise.resolve({ data: [] }),
+      sellerIds.length > 0
+        ? supabase.from('user_presence').select('user_id, is_online').in('user_id', sellerIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const sellerById = new Map<string, { store_name: string; avatar_url: string }>();
+    for (const s of (sellersResult as any).data || []) sellerById.set(s.id, s);
+
+    const presenceById = new Map<string, boolean>();
+    for (const p of (presenceResult as any).data || []) presenceById.set(p.user_id, p.is_online === true);
+
+    return conversations
+      .map((conv) => {
+        const sellerId = sellerIdByConvId.get(conv.id);
+        const seller = sellerId ? sellerById.get(sellerId) : null;
+        const lastMsg = lastMsgByConvId.get(conv.id);
+        const isOnline = sellerId ? (presenceById.get(sellerId) ?? false) : false;
+        return {
+          ...conv,
+          seller_id: sellerId,
+          seller_store_name: seller?.store_name,
+          seller_avatar: seller?.avatar_url,
+          last_message: lastMsg?.content || '',
+          last_message_at: lastMsg?.created_at || conv.updated_at,
+          last_sender_type: lastMsg?.sender_type,
+          buyer_unread_count: unreadByConvId.get(conv.id) || 0,
+          seller_unread_count: 0,
+          is_online: isOnline,
+          isOnline: isOnline,
+        } as Conversation;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.last_message_at || b.updated_at).getTime() -
+          new Date(a.last_message_at || a.updated_at).getTime()
+      );
   }
 
   /**

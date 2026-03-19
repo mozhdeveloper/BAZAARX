@@ -23,6 +23,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useBuyerStore } from "../stores/buyerStore";
+import { useCartStore } from "../stores/cartStore";
 import { orderReadService } from "../services/orders/orderReadService";
 import {
   returnService,
@@ -82,6 +83,7 @@ export default function BuyerReturnRequestPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useBuyerStore();
+  const { updateOrderWithReturnRequest } = useCartStore();
 
   // Order data
   const [order, setOrder] = useState<any>(null);
@@ -258,6 +260,19 @@ export default function BuyerReturnRequestPage() {
         evidenceUrls,
       });
 
+      // Optimistically update the order in the Zustand store so it immediately
+      // appears under the Return/Refund tab without waiting for a re-fetch.
+      if (orderId) {
+        updateOrderWithReturnRequest(orderId, {
+          reason: selectedReason,
+          solution: selectedType ?? "return_refund",
+          comments: description,
+          files: evidenceFiles,
+          refundAmount: isReplacement ? 0 : selectedItemsTotal,
+          submittedAt: new Date(),
+        });
+      }
+
       toast({
         title: "Return Request Submitted!",
         description:
@@ -265,7 +280,8 @@ export default function BuyerReturnRequestPage() {
             ? "Your refund has been auto-approved and will be processed shortly."
             : "Your request has been submitted. The seller has 48 hours to respond.",
       });
-      navigate("/returns");
+      // Navigate to My Orders → Return/Refund tab so the user sees the change immediately
+      navigate("/orders?status=returned");
     } catch (error: any) {
       console.error("Submit return error:", error);
       toast({

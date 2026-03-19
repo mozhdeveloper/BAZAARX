@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Switch, Alert, StatusBar } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Switch, Alert, StatusBar, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download, RefreshCw } from 'lucide-react-native';
+import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download, RefreshCw, Trash2 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
 import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
@@ -16,7 +17,61 @@ export default function SettingsScreen({ navigation }: Props) {
   const [darkMode, setDarkMode] = useState(false);
   const [soundEffects, setSoundEffects] = useState(true);
   const [autoDownload, setAutoDownload] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const insets = useSafeAreaInsets();
+
+  const promptDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all associated data. This action cannot be undone.\n\nUnder the Data Privacy Act (RA 10173), you have the right to erasure.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => promptDeletePassword(),
+        },
+      ],
+    );
+  };
+
+  const promptDeletePassword = () => {
+    Alert.prompt(
+      'Confirm Password',
+      'Enter your password to confirm account deletion.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: (password: string | undefined) => { if (password) deleteAccount(password); },
+        },
+      ],
+      'secure-text',
+    );
+  };
+
+  const deleteAccount = async (password: string) => {
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        body: { password, confirm: true },
+      });
+      if (error || data?.error) {
+        const msg = data?.message || data?.error || error?.message || 'Failed to delete account';
+        Alert.alert('Error', msg);
+        return;
+      }
+      await supabase.auth.signOut();
+      Alert.alert('Account Deleted', 'Your account has been permanently deleted.', [
+        { text: 'OK', onPress: () => navigation.navigate('Onboarding') },
+      ]);
+    } catch (err: unknown) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleResetOnboarding = () => {
     Alert.alert(
@@ -181,6 +236,35 @@ export default function SettingsScreen({ navigation }: Props) {
           </View>
         </View>
 
+        {/* Account — Danger Zone */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>Account</Text>
+
+          <View style={[styles.settingCard, styles.dangerCard]}>
+            <Pressable
+              style={styles.settingItem}
+              onPress={promptDeleteAccount}
+              disabled={isDeleting}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FEE2E2' }]}>
+                  {isDeleting ? (
+                    <ActivityIndicator size="small" color="#EF4444" />
+                  ) : (
+                    <Trash2 size={20} color="#EF4444" />
+                  )}
+                </View>
+                <View style={styles.settingTextContainer}>
+                  <Text style={[styles.settingTitle, { color: '#EF4444' }]}>Delete Account</Text>
+                  <Text style={styles.settingSubtitle}>
+                    Permanently remove your account and all data
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+
         {/* App Info */}
         <View style={styles.appInfo}>
           <Text style={styles.appInfoText}>BazaarX Mobile</Text>
@@ -296,5 +380,9 @@ const styles = StyleSheet.create({
   copyrightText: {
     fontSize: 12,
     color: COLORS.textMuted,
+  },
+  dangerCard: {
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
 });

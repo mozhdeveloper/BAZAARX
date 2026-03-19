@@ -10,7 +10,8 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Order, OrderItem, PaymentStatus, ShipmentStatus, Database } from '@/types/database.types';
+import type { Order, OrderItem, PaymentStatus, ShipmentStatus } from '@/types/database.types';
+import type { Database } from '@/types/supabase-generated.types';
 import type { OrderTrackingSnapshot } from '@/types/orders';
 import { reviewService } from './reviewService';
 import { orderNotificationService } from './orderNotificationService';
@@ -281,11 +282,11 @@ export class OrderService {
     if (buyerEmail && isSupabaseConfigured()) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, user_type')
+        .select('id')
         .eq('email', buyerEmail.toLowerCase().trim())
         .single();
       
-      if (profile?.user_type === 'buyer') {
+      if (profile) {
         buyerId = profile.id;
         buyerLinked = true;
       }
@@ -511,15 +512,15 @@ export class OrderService {
 
     try {
       // Call database function to create order with items atomically
-      const { data, error } = await supabase.rpc('create_order_with_items', {
+      const { data, error } = await supabase.rpc('create_order_with_items' as any, {
         p_buyer_id: orderData.buyer_id,
-        p_seller_id: orderData.seller_id,
+        p_seller_id: (orderData as any).seller_id,
         p_order_data: orderData,
         p_items: items,
       });
 
       if (error) throw error;
-      return data;
+      return data as unknown as Order;
     } catch (error) {
       console.error('Error creating order:', error);
       throw new Error('Failed to create order. Please try again.');
@@ -548,7 +549,7 @@ export class OrderService {
       if (error) throw error;
       const result = data || [];
       setCache(cacheKey, result);
-      return result;
+      return result as unknown as Order[];
     } catch (error) {
       console.error('Error fetching buyer orders:', error);
       throw new Error('Failed to fetch orders');
@@ -654,7 +655,7 @@ export class OrderService {
           voucherInfo: voucherInfo,
           status: statusMap[order.shipment_status || 'pending'] || 'pending',
           isPaid: order.payment_status === 'paid',
-          scheduledDate: order.estimated_delivery_date || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          scheduledDate: (order as any).estimated_delivery_date || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
           shippingAddress: {
             name: '',
             email: '',
@@ -664,7 +665,7 @@ export class OrderService {
             region: '',
             postalCode: '',
           },
-          paymentMethod: order.payment_method || 'Cash on Delivery',
+          paymentMethod: (order as any).payment_method || 'Cash on Delivery',
           createdAt: order.created_at,
           confirmedAt: (order.order_status_history || []).find((h: any) => h.status === 'processing' || h.status === 'confirmed')?.created_at || order.paid_at || null,
           shippedAt: (order.order_status_history || []).find((h: any) => h.status === 'shipped')?.created_at || latestShipment?.shipped_at || null,
@@ -992,8 +993,8 @@ export class OrderService {
         order_id: data.id,
         order_number: data.order_number,
         buyer_id: data.buyer_id || null,
-        payment_status: data.payment_status,
-        shipment_status: data.shipment_status,
+        payment_status: data.payment_status as PaymentStatus,
+        shipment_status: data.shipment_status as ShipmentStatus,
         created_at: data.created_at,
         tracking_number: latestShipment?.tracking_number || null,
         shipped_at: latestShipment?.shipped_at || null,
@@ -1177,7 +1178,7 @@ export class OrderService {
           .select('seller_id')
           .eq('id', order.items[0].product_id)
           .single();
-        sellerId = product?.seller_id;
+        sellerId = product?.seller_id ?? undefined;
       }
 
       // Send notification to buyer if seller made the update
@@ -1641,7 +1642,7 @@ export class OrderService {
 
           // Get unique seller IDs
           const sellerIds = Array.from(
-            new Set(orderItems
+            new Set((orderItems ?? [])
               .map((item: any) => item.products?.seller_id)
               .filter(Boolean))
           );
@@ -1649,7 +1650,7 @@ export class OrderService {
           // Fetch buyer name
           const { data: buyer } = await supabase
             .from('buyers')
-            .select('name')
+            .select('full_name')
             .eq('id', buyerId)
             .single();
 
@@ -1659,7 +1660,7 @@ export class OrderService {
               sellerId: sellerId as string,
               orderId,
               orderNumber: order.order_number,
-              buyerName: buyer?.name,
+              buyerName: (buyer as any)?.full_name,
             });
           });
         } catch (notifyError) {
@@ -1969,7 +1970,7 @@ export class OrderService {
             seller_reply: null,
             is_hidden: false,
             is_edited: false,
-          })
+          } as any)
           .select('id')
           .single();
 
@@ -2026,7 +2027,7 @@ export class OrderService {
     }
 
     try {
-      const { data, error } = await supabase.rpc('get_seller_order_stats', {
+      const { data, error } = await supabase.rpc('get_seller_order_stats' as any, {
         p_seller_id: sellerId,
       });
 

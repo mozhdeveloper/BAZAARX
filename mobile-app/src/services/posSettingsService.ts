@@ -104,30 +104,30 @@ export async function getPOSSettings(sellerId: string): Promise<POSSettings> {
     
     if (data) {
       const settings: POSSettings = {
-        storeName: data.store_name || DEFAULT_POS_SETTINGS.storeName,
-        storeAddress: data.store_address || DEFAULT_POS_SETTINGS.storeAddress,
-        storePhone: data.store_phone || DEFAULT_POS_SETTINGS.storePhone,
-        storeEmail: data.store_email,
-        taxId: data.tax_id,
+        storeName: DEFAULT_POS_SETTINGS.storeName,
+        storeAddress: DEFAULT_POS_SETTINGS.storeAddress,
+        storePhone: DEFAULT_POS_SETTINGS.storePhone,
+        storeEmail: DEFAULT_POS_SETTINGS.storeEmail,
+        taxId: DEFAULT_POS_SETTINGS.taxId,
         
-        enableTax: data.enable_tax ?? DEFAULT_POS_SETTINGS.enableTax,
+        enableTax: data.tax_enabled ?? DEFAULT_POS_SETTINGS.enableTax,
         taxRate: data.tax_rate ?? DEFAULT_POS_SETTINGS.taxRate,
-        taxIncludedInPrice: data.tax_included_in_price ?? DEFAULT_POS_SETTINGS.taxIncludedInPrice,
-        taxLabel: data.tax_label || DEFAULT_POS_SETTINGS.taxLabel,
+        taxIncludedInPrice: data.tax_inclusive ?? DEFAULT_POS_SETTINGS.taxIncludedInPrice,
+        taxLabel: data.tax_name || DEFAULT_POS_SETTINGS.taxLabel,
         
-        receiptHeader: data.receipt_header,
+        receiptHeader: data.receipt_header ?? undefined,
         receiptFooter: data.receipt_footer || DEFAULT_POS_SETTINGS.receiptFooter,
-        showTaxBreakdown: data.show_tax_breakdown ?? DEFAULT_POS_SETTINGS.showTaxBreakdown,
-        showBarcode: data.show_barcode ?? DEFAULT_POS_SETTINGS.showBarcode,
+        showTaxBreakdown: DEFAULT_POS_SETTINGS.showTaxBreakdown,
+        showBarcode: DEFAULT_POS_SETTINGS.showBarcode,
         
-        enableBarcodeScanner: data.enable_barcode_scanner ?? DEFAULT_POS_SETTINGS.enableBarcodeScanner,
+        enableBarcodeScanner: data.barcode_scanner_enabled ?? DEFAULT_POS_SETTINGS.enableBarcodeScanner,
         autoAddOnScan: data.auto_add_on_scan ?? DEFAULT_POS_SETTINGS.autoAddOnScan,
-        enableSoundEffects: data.enable_sound_effects ?? DEFAULT_POS_SETTINGS.enableSoundEffects,
+        enableSoundEffects: data.sound_enabled ?? DEFAULT_POS_SETTINGS.enableSoundEffects,
         
-        enableCash: data.enable_cash ?? DEFAULT_POS_SETTINGS.enableCash,
-        enableCard: data.enable_card ?? DEFAULT_POS_SETTINGS.enableCard,
-        enableEwallet: data.enable_ewallet ?? DEFAULT_POS_SETTINGS.enableEwallet,
-        enableBankTransfer: data.enable_bank_transfer ?? DEFAULT_POS_SETTINGS.enableBankTransfer,
+        enableCash: data.accept_cash ?? DEFAULT_POS_SETTINGS.enableCash,
+        enableCard: data.accept_card ?? DEFAULT_POS_SETTINGS.enableCard,
+        enableEwallet: (data.accept_gcash || data.accept_maya) ?? DEFAULT_POS_SETTINGS.enableEwallet,
+        enableBankTransfer: DEFAULT_POS_SETTINGS.enableBankTransfer,
       };
       
       // Cache in local storage
@@ -156,30 +156,23 @@ export async function savePOSSettings(sellerId: string, settings: POSSettings): 
       .from('pos_settings')
       .upsert({
         seller_id: sellerId,
-        store_name: settings.storeName,
-        store_address: settings.storeAddress,
-        store_phone: settings.storePhone,
-        store_email: settings.storeEmail,
-        tax_id: settings.taxId,
         
-        enable_tax: settings.enableTax,
+        tax_enabled: settings.enableTax,
         tax_rate: settings.taxRate,
-        tax_included_in_price: settings.taxIncludedInPrice,
-        tax_label: settings.taxLabel,
+        tax_inclusive: settings.taxIncludedInPrice,
+        tax_name: settings.taxLabel,
         
         receipt_header: settings.receiptHeader,
         receipt_footer: settings.receiptFooter,
-        show_tax_breakdown: settings.showTaxBreakdown,
-        show_barcode: settings.showBarcode,
         
-        enable_barcode_scanner: settings.enableBarcodeScanner,
+        barcode_scanner_enabled: settings.enableBarcodeScanner,
         auto_add_on_scan: settings.autoAddOnScan,
-        enable_sound_effects: settings.enableSoundEffects,
+        sound_enabled: settings.enableSoundEffects,
         
-        enable_cash: settings.enableCash,
-        enable_card: settings.enableCard,
-        enable_ewallet: settings.enableEwallet,
-        enable_bank_transfer: settings.enableBankTransfer,
+        accept_cash: settings.enableCash,
+        accept_card: settings.enableCard,
+        accept_gcash: settings.enableEwallet,
+        accept_maya: settings.enableEwallet,
         
         updated_at: new Date().toISOString(),
       }, { onConflict: 'seller_id' });

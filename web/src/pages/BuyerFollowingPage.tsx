@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
@@ -7,6 +7,8 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
+import { supabase } from '@/lib/supabase';
+import { useBuyerStore } from '../stores/buyerStore';
 import {
   Heart,
   Star,
@@ -17,90 +19,92 @@ import {
   Store,
   ChevronRight,
   ChevronLeft,
-  Users
+  Users,
+  Loader2
 } from 'lucide-react';
 
-// Mock followed shops data
-const mockFollowedShops = [
-  {
-    id: '1',
-    name: 'TechHub Manila',
-    logo: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=100',
-    banner: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800',
-    description: 'Your one-stop shop for premium electronics and gadgets',
-    category: 'Electronics',
-    location: 'Makati, Metro Manila',
-    rating: 4.8,
-    reviewCount: 2341,
-    productCount: 156,
-    followerCount: 12500,
-    isVerified: true,
-    lastActive: '2 hours ago',
-    tags: ['Fast Shipping', 'Verified', 'Top Rated']
-  },
-  {
-    id: '2',
-    name: 'Manila Leather Co.',
-    logo: 'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=100',
-    banner: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800',
-    description: 'Handcrafted leather goods made by Filipino artisans',
-    category: 'Fashion',
-    location: 'Pasig, Metro Manila',
-    rating: 4.9,
-    reviewCount: 856,
-    productCount: 89,
-    followerCount: 8200,
-    isVerified: true,
-    lastActive: '1 day ago',
-    tags: ['Handmade', 'Local Artisan', 'Eco-Friendly']
-  },
-  {
-    id: '3',
-    name: 'BayanBrew Coffee',
-    logo: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=100',
-    banner: 'https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=800',
-    description: 'Premium organic coffee beans from Philippine highlands',
-    category: 'Food & Beverages',
-    location: 'Benguet',
-    rating: 4.7,
-    reviewCount: 1234,
-    productCount: 45,
-    followerCount: 15600,
-    isVerified: true,
-    lastActive: '3 hours ago',
-    tags: ['Organic', 'Local Source', 'Sustainable']
-  },
-  {
-    id: '4',
-    name: 'Home & Garden PH',
-    logo: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=100',
-    banner: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=800',
-    description: 'Beautiful plants and garden accessories for your home',
-    category: 'Home & Garden',
-    location: 'Quezon City',
-    rating: 4.6,
-    reviewCount: 678,
-    productCount: 234,
-    followerCount: 6800,
-    isVerified: false,
-    lastActive: '5 hours ago',
-    tags: ['Plants', 'Home Decor', 'Garden']
-  }
-];
+interface FollowedShop {
+  id: string;
+  name: string;
+  logo: string;
+  description: string;
+  location: string;
+  productCount: number;
+  followerCount: number;
+  isVerified: boolean;
+}
 
 export default function BuyerFollowingPage() {
   const navigate = useNavigate();
+  const { unfollowShop, loadFollowedShops, followedShops } = useBuyerStore();
   const [searchQuery, setSearchQuery] = useState('');
-  const [unfollowedShops, setUnfollowedShops] = useState<Set<string>>(new Set());
+  const [shops, setShops] = useState<FollowedShop[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredShops = mockFollowedShops.filter(shop =>
-    !unfollowedShops.has(shop.id) &&
-    (shop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      shop.category.toLowerCase().includes(searchQuery.toLowerCase()))
+  useEffect(() => {
+    loadFollowedShops();
+  }, []);
+
+  useEffect(() => {
+    const fetchShopDetails = async () => {
+      if (followedShops.length === 0) {
+        setShops([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const { data: sellers } = await supabase
+          .from('sellers')
+          .select('id, store_name, store_description, avatar_url, approval_status')
+          .in('id', followedShops);
+
+        if (!sellers) {
+          setShops([]);
+          setLoading(false);
+          return;
+        }
+
+        // Get product counts and follower counts in parallel
+        const shopList: FollowedShop[] = await Promise.all(
+          sellers.map(async (seller) => {
+            const [productRes, followerRes] = await Promise.all([
+              supabase.from('products').select('id', { count: 'exact', head: true }).eq('seller_id', seller.id).is('deleted_at', null),
+              supabase.from('store_followers').select('id', { count: 'exact', head: true }).eq('seller_id', seller.id),
+            ]);
+
+            return {
+              id: seller.id,
+              name: seller.store_name || 'Unnamed Shop',
+              logo: seller.avatar_url || '',
+              description: seller.store_description || '',
+              location: '',
+              productCount: productRes.count || 0,
+              followerCount: followerRes.count || 0,
+              isVerified: seller.approval_status === 'verified',
+            };
+          })
+        );
+
+        setShops(shopList);
+      } catch (err) {
+        console.error('Failed to load followed shops:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchShopDetails();
+  }, [followedShops]);
+
+  const filteredShops = shops.filter(shop =>
+    shop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    shop.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleUnfollow = (shopId: string) => {
-    setUnfollowedShops(prev => new Set(prev).add(shopId));
+  const handleUnfollow = async (shopId: string) => {
+    await unfollowShop(shopId);
   };
 
   const handleVisitShop = (shopId: string) => {
@@ -167,7 +171,11 @@ export default function BuyerFollowingPage() {
 
         {/* Shops Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredShops.length === 0 ? (
+          {loading ? (
+            <div className="col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-4 flex justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-[var(--brand-primary)]" />
+            </div>
+          ) : filteredShops.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -200,25 +208,28 @@ export default function BuyerFollowingPage() {
                 transition={{ delay: index * 0.05 }}
               >
                 <Card className="relative overflow-hidden hover:shadow-lg transition-all duration-300 group h-full flex flex-col">
-                  {/* Banner */}
-                  <div className="relative h-32 overflow-hidden">
-                    <img
-                      src={shop.banner}
-                      alt={shop.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-
+                  {/* Header gradient */}
+                  <div className="relative h-24 bg-gradient-to-br from-[var(--brand-primary)]/20 to-[var(--brand-accent-light)]/30 overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                    {shop.isVerified && (
+                      <Badge className="absolute top-2 right-2 bg-green-500/90 text-white text-[10px]">Verified</Badge>
+                    )}
                   </div>
 
                   <CardContent className="p-5 flex-1 flex flex-col">
                     {/* Shop Brand Area */}
                     <div className="flex items-center gap-3 mb-3">
-                      <img
-                        src={shop.logo}
-                        alt={shop.name}
-                        className="w-12 h-12 rounded-full object-cover border-2 border-orange-50 shadow-sm shrink-0"
-                      />
+                      {shop.logo ? (
+                        <img
+                          src={shop.logo}
+                          alt={shop.name}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-orange-50 shadow-sm shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-[var(--brand-primary)]/10 border-2 border-orange-50 flex items-center justify-center shrink-0">
+                          <Store className="h-5 w-5 text-[var(--brand-primary)]" />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
                           <h3 className="font-bold text-base text-[var(--text-headline)] leading-tight truncate">
@@ -232,20 +243,20 @@ export default function BuyerFollowingPage() {
                           </button>
                         </div>
                         <p className="text-xs text-[var(--text-muted)] line-clamp-1">
-                          {shop.location}
+                          {shop.productCount} products
                         </p>
                       </div>
                     </div>
 
                     <p className="text-sm text-[var(--text-muted)] line-clamp-3 mb-4 flex-1">
-                      {shop.description}
+                      {shop.description || 'No description available'}
                     </p>
 
                     <div className="pt-4 border-t border-gray-50 mt-auto flex items-center justify-between gap-2">
                       <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
-                          <span className="text-[11px] font-bold text-[var(--brand-primary)]">{shop.rating}</span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                          <Package className="h-3.5 w-3.5 text-gray-400" />
+                          <span>{shop.productCount} Products</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
                           <Users className="h-3.5 w-3.5 text-gray-400" />

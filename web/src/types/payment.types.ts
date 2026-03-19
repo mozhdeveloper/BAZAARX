@@ -95,6 +95,13 @@ export interface PaymentSource {
 }
 
 // ============================================================================
+// Escrow Types
+// ============================================================================
+
+/** Escrow hold status on a payment transaction */
+export type EscrowStatus = 'none' | 'held' | 'released' | 'refunded';
+
+// ============================================================================
 // Application Payment Types
 // ============================================================================
 
@@ -154,6 +161,11 @@ export interface PaymentTransaction {
   failureReason: string | null;
   paidAt: string | null;
   refundedAt: string | null;
+  // Escrow fields
+  escrowStatus: EscrowStatus;
+  escrowHeldAt: string | null;
+  escrowReleaseAt: string | null;
+  escrowReleasedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -193,6 +205,9 @@ export interface SellerPayout {
   status: PayoutStatus;
   processedAt: string | null;
   failureReason: string | null;
+  // Escrow fields
+  escrowTransactionId: string | null;
+  releaseAfter: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -18,6 +18,7 @@ import {
     Ruler,
     X,
     Flame,
+    Shield
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import {
@@ -34,6 +35,7 @@ import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "../lib/utils";
 import { productService } from "../services/productService";
 import { discountService } from "@/services/discountService";
+import { warrantyService, type WarrantyInfo } from "@/services/warrantyService";
 import { ProductWithSeller } from "../types/database.types";
 import type { ActiveDiscount } from "@/types/discount";
 // Lazily loaded — these are only needed on interaction or scroll, not initial render
@@ -83,6 +85,47 @@ interface EnhancedReview {
     replies: any[];
 }
 
+// Helper to get warranty type icon
+const getWarrantyTypeIcon = (warrantyType: string) => {
+    switch (warrantyType) {
+        case 'local_manufacturer':
+            return ShieldCheck;
+        case 'international_manufacturer':
+            return Shield;
+        case 'shop_warranty':
+            return StoreIcon;
+        default:
+            return ShieldCheck;
+    }
+};
+
+// Helper to get warranty type label
+const getWarrantyTypeLabel = (warrantyType: string) => {
+    switch (warrantyType) {
+        case 'local_manufacturer':
+            return 'Local Manufacturer Warranty';
+        case 'international_manufacturer':
+            return 'International Manufacturer Warranty';
+        case 'shop_warranty':
+            return 'Shop Warranty';
+        case 'no_warranty':
+            return 'No Warranty';
+        default:
+            return warrantyType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+};
+
+// Simple Store icon component
+const StoreIcon = ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
+        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+        <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
+        <path d="M2 7h20" />
+        <path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7" />
+    </svg>
+);
+
 export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -107,6 +150,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [showRegistryModal, setShowRegistryModal] = useState(false);
     const [isCreateRegistryModalOpen, setIsCreateRegistryModalOpen] =
         useState(false);
+    const [showSizeGuide, setShowSizeGuide] = useState(false);
+    const [isSizeGuideImageLoading, setIsSizeGuideImageLoading] = useState(false);
 
     // Load followed shops from DB on mount
     useEffect(() => { loadFollowedShops(); }, []);
@@ -118,6 +163,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [activeTab, setActiveTab] = useState("Description");
     const [dbProduct, setDbProduct] = useState<ProductWithSeller | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [warrantyInfo, setWarrantyInfo] = useState<WarrantyInfo | null>(null);
+    const [isWarrantyLoading, setIsWarrantyLoading] = useState(false);
 
     // Seed campaign discount instantly if we already have it cached
     const [activeCampaignDiscount, setActiveCampaignDiscount] = useState<ActiveDiscount | null>(
@@ -213,6 +260,27 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         return () => {
             isMounted = false;
         };
+    }, [normalizedProduct?.id]);
+
+    // Fetch warranty information when product is loaded
+    useEffect(() => {
+        const fetchWarranty = async () => {
+            if (!normalizedProduct?.id) return;
+
+            setIsWarrantyLoading(true);
+            try {
+                const warranty = await warrantyService.getProductWarranty(normalizedProduct.id);
+                if (warranty) {
+                    setWarrantyInfo(warranty);
+                }
+            } catch (error) {
+                console.error("Error fetching warranty information:", error);
+            } finally {
+                setIsWarrantyLoading(false);
+            }
+        };
+
+        fetchWarranty();
     }, [normalizedProduct?.id]);
 
     // ── Variant helpers (operate on normalizedProduct directly) ─────────────
@@ -385,6 +453,12 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             </div>
         );
     }
+
+    useEffect(() => {
+        if (showSizeGuide && normalizedProduct?.sizeGuideImage) {
+            setIsSizeGuideImageLoading(true);
+        }
+    }, [showSizeGuide, normalizedProduct?.sizeGuideImage]);
 
     const handleAddToCart = () => {
         // Check if user is logged in
@@ -859,6 +933,16 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             </div>
                             <span className="text-[var(--border)] font-light">|</span>
                             <span className="text-[var(--text-muted)] text-sm">Trusted Quality</span>
+
+                            {productData.has_warranty && (
+                                <>
+                                    <span className="text-[var(--border)] font-light">|</span>
+                                    <span className="flex items-center gap-1 text-[var(--text-muted)] text-sm">
+                                        <Shield className="w-4 h-4 text-[var(--brand-primary)]" />
+                                        1 Year Warranty
+                                    </span>
+                                </>
+                            )}
                         </div>
 
                         {/* Variant Label 2 Selection */}
@@ -932,7 +1016,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         {/* If variantLabel1 is "Size", show size guide */}
                                         {productData.variantLabel1 ===
                                             "Size" && (
-                                                <button className="text-xs text-[var(--text-muted)] hover:text-[var(--brand-primary)] hover:underline flex items-center gap-1 font-bold">
+                                                <button
+                                                    onClick={() => setShowSizeGuide(true)}
+                                                    className="text-xs text-[var(--text-muted)] hover:text-[var(--brand-primary)] hover:underline flex items-center gap-1 font-bold">
                                                     <Ruler className="w-3 h-3" />{" "}
                                                     Size Guide
                                                 </button>
@@ -1046,6 +1132,11 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         {/* Action Buttons */}
                         <div className="flex flex-row items-center gap-4 mb-10">
                             <button
+                                disabled={(() => {
+                                    const currentVariant = getSelectedVariant();
+                                    const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
+                                    return stockQty === 0;
+                                })()}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (isInRegistry) {
@@ -1067,7 +1158,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         }
                                     }
                                 }}
-                                className="p-3 text-[var(--brand-primary)] hover:scale-110 transition-transform active:scale-95"
+                                className="p-3 text-[var(--brand-primary)] transition-transform active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none hover:scale-110 disabled:hover:scale-100"
                                 title={isInRegistry ? "In Registry" : "Add to Registry"}
                             >
                                 <Heart
@@ -1119,7 +1210,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                     {/* Tab Navigation - Sticky Container */}
                     <div className="sticky top-16 sm:top-18 z-50 py-4 mb-2 flex justify-center">
                         <nav className="inline-flex items-center bg-white p-1 rounded-full border border-gray-100 shadow-md">
-                            {["Description", "Reviews", "Support"].map(
+                            {["Description", "Reviews", "Warranty"].map(
                                 (tab) => (
                                     <button
                                         key={tab}
@@ -1161,19 +1252,160 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             </Suspense>
                         )}
 
-                        {activeTab === "Support" && (
-                            <div className="max-w-2xl mx-auto py-0 text-center sm:text-left">
-                                <div className="bg-[var(--brand-wash)]/40 rounded-3xl p-8 border border-[var(--border)]/50 shadow-sm">
-                                    <p className="text-[var(--text-primary)] leading-relaxed mb-6 font-medium">
-                                        We offer a 7-day return policy for
-                                        defective items. Please contact our
-                                        support team for assistance.
-                                    </p>
-                                    <div className="flex items-center justify-center sm:justify-start gap-3 text-[var(--text-headline)] font-black bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-[var(--border)]/40 inline-flex shadow-sm">
-                                        <ShieldCheck className="w-5 h-5 text-[var(--brand-primary)]" />
-                                        Warranty: 1 Year Manufacturer Warranty
+                        {activeTab === "Warranty" && (
+                            <div className="max-w-3xl mx-auto py-0">
+                                {isWarrantyLoading ? (
+                                    <div className="bg-white rounded-3xl p-12 border border-[var(--border)]/40 shadow-sm text-center">
+                                        <div className="w-10 h-10 rounded-full border-4 border-gray-200 border-t-[var(--brand-primary)] animate-spin mx-auto mb-4" />
+                                        <p className="text-[var(--text-muted)] font-medium">Loading warranty information...</p>
                                     </div>
-                                </div>
+                                ) : warrantyInfo?.hasWarranty ? (
+                                    <div className="space-y-6">
+                                        {/* Warranty Header Card */}
+                                        <div className="bg-gradient-to-br from-[var(--brand-wash)]/60 to-white rounded-3xl p-8 border border-[var(--border)]/40 shadow-sm">
+                                            <div className="flex items-start gap-4 mb-6">
+                                                <div className="w-14 h-14 rounded-2xl bg-[var(--brand-primary)]/10 flex items-center justify-center shrink-0">
+                                                    {(() => {
+                                                        const WarrantyIcon = getWarrantyTypeIcon(warrantyInfo.warrantyType);
+                                                        return <WarrantyIcon className="w-7 h-7 text-[var(--brand-primary)]" />;
+                                                    })()}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className="text-xl font-black text-[var(--text-headline)] mb-1">
+                                                        {getWarrantyTypeLabel(warrantyInfo.warrantyType)}
+                                                    </h3>
+                                                    <p className="text-sm text-[var(--text-muted)] font-medium">
+                                                        {warrantyInfo.warrantyDurationMonths} months from delivery date
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Warranty Duration Badge */}
+                                            <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-[var(--border)]/30 inline-flex shadow-sm">
+                                                <ShieldCheck className="w-4 h-4 text-[var(--brand-primary)]" />
+                                                <span className="text-sm font-black text-[var(--text-headline)]">
+                                                    {warrantyInfo.warrantyDurationMonths} Month Coverage
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Warranty Provider Info */}
+                                        {(warrantyInfo.warrantyProviderName || warrantyInfo.warrantyProviderContact || warrantyInfo.warrantyProviderEmail) && (
+                                            <div className="bg-white rounded-3xl p-8 border border-[var(--border)]/40 shadow-sm">
+                                                <h4 className="text-lg font-black text-[var(--text-headline)] mb-4 flex items-center gap-2">
+                                                    <StoreIcon className="w-5 h-5 text-[var(--brand-primary)]" />
+                                                    Warranty Provider
+                                                </h4>
+                                                <div className="space-y-3">
+                                                    {warrantyInfo.warrantyProviderName && (
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-[var(--brand-wash)] flex items-center justify-center shrink-0 mt-0.5">
+                                                                <svg className="w-4 h-4 text-[var(--brand-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                                                                    <circle cx="12" cy="7" r="4" />
+                                                                </svg>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wide">Provider Name</p>
+                                                                <p className="text-sm font-medium text-[var(--text-primary)]">{warrantyInfo.warrantyProviderName}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {warrantyInfo.warrantyProviderContact && (
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-[var(--brand-wash)] flex items-center justify-center shrink-0 mt-0.5">
+                                                                <svg className="w-4 h-4 text-[var(--brand-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                                                                    <path d="M14.05 2a9 9 0 0 1 8 7.94" />
+                                                                    <path d="M14.05 6A5 5 0 0 1 18 9.91" />
+                                                                </svg>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wide">Contact Number</p>
+                                                                <p className="text-sm font-medium text-[var(--text-primary)]">{warrantyInfo.warrantyProviderContact}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {warrantyInfo.warrantyProviderEmail && (
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-[var(--brand-wash)] flex items-center justify-center shrink-0 mt-0.5">
+                                                                <svg className="w-4 h-4 text-[var(--brand-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <rect width="20" height="16" x="2" y="4" rx="2" />
+                                                                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                                                                </svg>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wide">Email Address</p>
+                                                                <p className="text-sm font-medium text-[var(--text-primary)]">{warrantyInfo.warrantyProviderEmail}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Warranty Terms Link */}
+                                        {warrantyInfo.warrantyTermsUrl && (
+                                            <div className="bg-white rounded-3xl p-8 border border-[var(--border)]/40 shadow-sm">
+                                                <h4 className="text-lg font-black text-[var(--text-headline)] mb-4 flex items-center gap-2">
+                                                    <svg className="w-5 h-5 text-[var(--brand-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                                        <polyline points="14 2 14 8 20 8" />
+                                                        <line x1="16" x2="8" y1="13" y2="13" />
+                                                        <line x1="16" x2="8" y1="17" y2="17" />
+                                                        <line x1="10" x2="8" y1="9" y2="9" />
+                                                    </svg>
+                                                    Warranty Terms
+                                                </h4>
+                                                <a
+                                                    href={warrantyInfo.warrantyTermsUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-3 p-4 rounded-xl bg-[var(--brand-wash)]/40 border border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/40 hover:bg-[var(--brand-wash)] transition-all group"
+                                                >
+                                                    <div className="w-10 h-10 rounded-lg bg-[var(--brand-primary)] flex items-center justify-center shrink-0">
+                                                        <svg className="w-5 h-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                                            <polyline points="15 3 21 3 21 9" />
+                                                            <line x1="10" x2="21" y1="14" y2="3" />
+                                                        </svg>
+                                                    </div>
+                                                    <span className="text-sm font-bold text-[var(--brand-primary)] group-hover:underline flex-1">
+                                                        View Full Warranty Terms & Conditions
+                                                    </span>
+                                                </a>
+                                            </div>
+                                        )}
+
+                                        {/* Warranty Policy Text */}
+                                        {warrantyInfo.warrantyPolicy && (
+                                            <div className="bg-white rounded-3xl p-8 border border-[var(--border)]/40 shadow-sm">
+                                                <h4 className="text-lg font-black text-[var(--text-headline)] mb-4 flex items-center gap-2">
+                                                    <svg className="w-5 h-5 text-[var(--brand-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+                                                        <path d="m9 12 2 2 4-4" />
+                                                    </svg>
+                                                    Warranty Policy
+                                                </h4>
+                                                <div className="prose prose-sm max-w-none">
+                                                    <p className="text-sm text-[var(--text-primary)] leading-relaxed whitespace-pre-line">
+                                                        {warrantyInfo.warrantyPolicy}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="bg-white rounded-3xl p-12 border border-[var(--border)]/40 shadow-sm text-center">
+                                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                                            <Shield className="w-8 h-8 text-gray-400" />
+                                        </div>
+                                        <h3 className="text-lg font-black text-[var(--text-headline)] mb-2">No Warranty Information</h3>
+                                        <p className="text-sm text-[var(--text-muted)] font-medium">
+                                            This product does not have warranty coverage. Please contact the seller for more details.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1181,6 +1413,63 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             </main>
 
             <BazaarFooter />
+
+            {/* Size Guide Modal */}
+            {showSizeGuide && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2rem] w-full max-w-2xl p-8 shadow-2xl animate-in zoom-in-95 duration-200 border border-[var(--border)]/40 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-[var(--brand-wash)] flex items-center justify-center">
+                                    <Ruler className="w-5 h-5 text-[var(--brand-primary)]" />
+                                </div>
+                                <h2 className="text-2xl font-black text-[var(--text-headline)] font-heading uppercase tracking-tight">Size Guide</h2>
+                            </div>
+                            <button
+                                onClick={() => setShowSizeGuide(false)}
+                                className="p-2 hover:bg-[var(--brand-wash)] rounded-full transition-colors text-[var(--text-muted)] hover:text-[var(--brand-primary)]"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Size Table */}
+                        <div className="overflow-x-auto rounded-2xl border border-[var(--border)]/40 mb-6">
+                            {productData.sizeGuideImage ? (
+                                <div className="relative min-h-[220px] flex items-center justify-center bg-white">
+                                    {isSizeGuideImageLoading && (
+                                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90">
+                                            <div className="w-10 h-10 rounded-full border-4 border-gray-200 border-t-[var(--brand-primary)] animate-spin" />
+                                            <p className="mt-3 text-sm text-[var(--text-muted)] font-medium animate-pulse">
+                                                Loading size guide...
+                                            </p>
+                                        </div>
+                                    )}
+                                    <img
+                                        src={productData.sizeGuideImage}
+                                        alt="Size Guide"
+                                        className={cn(
+                                            "max-w-full h-auto object-contain transition-opacity duration-300",
+                                            isSizeGuideImageLoading ? "opacity-0" : "opacity-100",
+                                        )}
+                                        onLoad={() => setIsSizeGuideImageLoading(false)}
+                                        onError={() => setIsSizeGuideImageLoading(false)}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="py-20 text-center text-gray-400">
+                                    <Ruler className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                                    <p>No size guide image available for this product.</p>
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-xs text-[var(--text-muted)] mt-4 text-center">
+                            Sizes may vary slightly by style. When in doubt, size up.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Registry Selection Modal */}
             {showRegistryModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">

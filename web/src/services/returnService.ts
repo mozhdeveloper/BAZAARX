@@ -215,22 +215,13 @@ class ReturnService {
   /** Transform a DB row into a ReturnRequest. */
   private transform(row: any, orderObj?: any): ReturnRequest {
     const order = orderObj || row.order;
-    let parsedItems: ReturnItem[] | null = null;
-    if (row.items_json) {
-      try {
-        parsedItems = typeof row.items_json === "string" ? JSON.parse(row.items_json) : row.items_json;
-      } catch {
-        parsedItems = null;
-      }
-    }
     const parseNum = (v: any) => (v != null ? parseFloat(String(v)) : null);
 
-    // Derive status: prefer the new column, fall back to old-style inference
+    // Derive status: use the status column directly
     let status: ReturnStatus = (row.status as ReturnStatus) || "pending";
     if (!row.status) {
       if (row.refund_date) status = "refunded";
-      else if (row.payment_status === "refunded" || order?.payment_status === "refunded") status = "refunded";
-      else if (!row.is_returnable) status = "rejected";
+      else if (order?.payment_status === "refunded") status = "refunded";
       else status = "pending";
     }
 
@@ -238,11 +229,11 @@ class ReturnService {
       id: row.id,
       orderId: row.order_id,
       orderNumber: order?.order_number,
-      buyerId: order?.buyer_id,
+      buyerId: row.buyer_id || order?.buyer_id,
       buyerName: undefined,
       buyerEmail: undefined,
-      isReturnable: row.is_returnable,
-      returnWindowDays: row.return_window_days,
+      isReturnable: row.is_returnable ?? true,
+      returnWindowDays: row.return_window_days ?? RETURN_WINDOW_DAYS,
       returnReason: row.return_reason,
       refundAmount: parseNum(row.refund_amount),
       refundDate: row.refund_date,
@@ -259,7 +250,7 @@ class ReturnService {
       status,
       returnType: row.return_type || null,
       resolutionPath: row.resolution_path || null,
-      itemsJson: parsedItems,
+      itemsJson: row.items_json || null,
       evidenceUrls: row.evidence_urls || null,
       description: row.description || null,
       sellerNote: row.seller_note || null,
@@ -349,23 +340,20 @@ class ReturnService {
 
       const insertPayload: Record<string, any> = {
         order_id: orderDbId,
-        is_returnable: true,
-        return_window_days: RETURN_WINDOW_DAYS,
         return_reason: params.reason + (params.description ? ` - ${params.description}` : ""),
+        description: params.description || null,
         refund_amount: isReplacement ? null : (params.refundAmount || null),
         status: isInstant ? "approved" : "seller_review",
         return_type: params.returnType || "return_refund",
         resolution_path: resolutionPath,
-        description: params.description || null,
-        items_json: params.items ? JSON.stringify(params.items) : null,
         evidence_urls: params.evidenceUrls || null,
+        items_json: params.items ? JSON.stringify(params.items) : null,
         seller_deadline: isInstant ? null : sellerDeadline.toISOString(),
       };
 
       if (isInstant) {
         insertPayload.refund_date = new Date().toISOString();
         insertPayload.resolved_at = new Date().toISOString();
-        insertPayload.resolved_by = "system";
       }
 
       const { data: returnData, error: returnError } = await supabase

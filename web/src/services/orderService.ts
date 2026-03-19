@@ -494,8 +494,8 @@ export class OrderService {
         orderNumber: string;
         buyerLinked?: boolean;
     } | null> {
-        // Generate order number
-        const orderNumber = `POS-${Date.now().toString().slice(-8)}`;
+        // Generate order number (fallback — DB trigger will override if deployed)
+        const orderNumber = `POS-${Date.now().toString(36).toUpperCase()}`;
         const orderId = crypto.randomUUID();
 
         // Try to find buyer by email if provided (for BazCoins points)
@@ -688,13 +688,13 @@ export class OrderService {
             }[paymentMethodValue] || 'Cash';
 
             const { error: paymentError } = await supabase
-                .from("order_payments")
+                .from("payment_transactions")
                 .insert({
                     order_id: orderId,
-                    payment_method: { type: paymentMethodValue, label: paymentMethodLabel },
+                    payment_method: paymentMethodValue,
                     amount: total,
                     status: 'completed',
-                    payment_date: new Date().toISOString(),
+                    processed_at: new Date().toISOString(),
                 });
 
             if (paymentError) {
@@ -1126,6 +1126,13 @@ export class OrderService {
                         delivered_at,
                         created_at
                     ),
+                    cancellations:order_cancellations (
+                        id,
+                        reason,
+                        cancelled_at,
+                        cancelled_by,
+                        created_at
+                    ),
                     reviews (
                         id,
                         product_id,
@@ -1171,6 +1178,7 @@ export class OrderService {
                     productIds.includes(item.product_id),
                 );
                 const latestShipment = getLatestShipment(order.shipments || []);
+                const latestCancellation = getLatestCancellation(order.cancellations || []);
                 const orderReviews = normalizeReviewRows(order.reviews || []);
                 const sellerReviews = orderReviews.filter((review: any) => {
                     const productRef = Array.isArray(review.product)
@@ -1271,6 +1279,8 @@ export class OrderService {
                     shipping_instructions:
                         shippingAddr?.delivery_instructions || "",
                     shipping_country: "Philippines",
+                    cancellation_reason: latestCancellation?.reason || null,
+                    cancelled_at: latestCancellation?.cancelled_at || latestCancellation?.created_at || null,
                 };
             });
             _setOrderCache(sellerCacheKey, sellerResult);

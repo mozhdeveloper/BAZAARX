@@ -48,13 +48,13 @@ export interface CheckoutResult {
 }
 
 /**
- * Generate a unique order number with format: ORD-(YEAR)029283
- * Example: ORD-2026029283
+ * Generate a fallback order number (only used if DB trigger is not deployed).
+ * Prefer server-side generation via the trg_set_order_number trigger.
  */
 const generateOrderNumber = (): string => {
     const year = new Date().getFullYear();
-    const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 digits
-    return `ORD-${year}${randomNum}`;
+    const seq = Date.now().toString(36).toUpperCase();
+    return `ORD-${year}${seq}`;
 };
 
 /**
@@ -90,6 +90,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         
         let allVariants: { id: string; product_id: string; stock: number }[] = [];
         let allProducts: { id: string; stock: number }[] = [];
+        // Note: 'stock' doesn't exist on products table; derived from variants below
         
         if (productIdsForStock.length > 0) {
             // Fetch variants
@@ -104,17 +105,12 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 allVariants = variantsData || [];
             }
 
-            // Also fetch base product stock for products without variants
-            const { data: productsData, error: productError } = await supabase
-                .from('products')
-                .select('id, stock')
-                .in('id', productIdsForStock);
-
-            if (productError) {
-                console.warn('[Checkout] Batch product stock check error:', productError.message);
-            } else {
-                allProducts = productsData || [];
+            // Derive base product stock from variants for products without specific variant selection
+            const productStockMap = new Map<string, number>();
+            for (const v of allVariants) {
+                productStockMap.set(v.product_id, (productStockMap.get(v.product_id) || 0) + (v.stock || 0));
             }
+            allProducts = productIdsForStock.map(id => ({ id, stock: productStockMap.get(id) || 0 }));
         }
 
         // Validate stock per item using the batched result
@@ -271,16 +267,16 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     p_notes: `Order from ${shippingAddress.fullName}`
                 });
 
-            if (!rpcError && rpcResult && rpcResult.success) {
+            if (!rpcError && rpcResult && (rpcResult as any).success) {
                 // RPC function worked
                 console.log('[Checkout] ✅ Order created via safe RPC:', orderNumber);
-                if (rpcResult.warning) {
-                    console.warn('[Checkout] ⚠️ RPC warning:', rpcResult.warning);
+                if ((rpcResult as any).warning) {
+                    console.warn('[Checkout] ⚠️ RPC warning:', (rpcResult as any).warning);
                 }
                 orderData = {
-                    id: rpcResult.order_id,
-                    order_number: rpcResult.order_number,
-                    buyer_id: rpcResult.buyer_id
+                    id: (rpcResult as any).order_id,
+                    order_number: (rpcResult as any).order_number,
+                    buyer_id: (rpcResult as any).buyer_id
                 };
             } else {
                 // Strategy 2: Fall back to direct insert (RPC might not exist yet)
@@ -327,7 +323,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                             
                             if (existingOrder) {
                                 console.log('[Checkout] ✅ Order found on retry', retryCount + 1, ':', orderNumber);
-                                orderData = existingOrder;
+                                orderData = existingOrder as { id: string; order_number: string; buyer_id: string };
                             } else {
                                 retryCount++;
                                 if (retryCount < maxRetries) {
@@ -349,7 +345,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         throw orderError;
                     }
                 } else {
-                    orderData = insertedOrder;
+                    orderData = insertedOrder as { id: string; order_number: string; buyer_id: string };
                 }
             }
             
@@ -457,7 +453,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             const { error: itemsError } = await supabase
                 .from('order_items')
-                .insert(orderItemsData);
+                .insert(orderItemsData as any);
 
             // Handle materialized view error on order_items - the insert might have succeeded
             if (itemsError) {
@@ -485,7 +481,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                         
                         const { error: retryError } = await supabase
                             .from('order_items')
-                            .insert(orderItemsData);
+                            .insert(orderItemsData as any);
                         
                         if (retryError && !retryError.message?.includes('materialized view')) {
                             throw retryError; // Real error

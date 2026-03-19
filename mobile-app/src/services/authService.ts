@@ -351,14 +351,14 @@ export class AuthService {
   ): Promise<{ url: string } | null> {
     if (!isSupabaseConfigured()) {
       console.warn(`Supabase not configured - cannot use OAuth`);
-      return { url: window.location.origin };
+      return { url: 'bazaarx://' };
     }
 
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: 'bazaarx://auth/callback',
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -457,7 +457,7 @@ export class AuthService {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as unknown as Buyer;
     } catch (error) {
       console.error('Error fetching buyer profile:', error);
       throw new Error('Failed to load buyer profile.');
@@ -482,7 +482,7 @@ export class AuthService {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as unknown as Seller;
     } catch (error) {
       console.error('Error fetching seller profile:', error);
       throw new Error('Failed to load seller profile.');
@@ -553,7 +553,7 @@ export class AuthService {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: 'bazaarx://reset-password',
       });
 
       if (error) throw error;

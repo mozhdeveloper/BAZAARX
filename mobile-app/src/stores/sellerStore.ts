@@ -7,7 +7,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { authService } from '@/services/authService';
 import { productService } from '@/services/productService';
 import { orderService } from '@/services/orderService';
-import type { Seller as DBSeller, Database, Order, OrderItem } from '@/types/database.types';
+import type { Seller as DBSeller, Order, OrderItem } from '@/types/database.types';
+import type { Database } from '@/types/supabase-generated.types';
 
 // Types - Matches normalized database schema (February 2026)
 interface Seller {
@@ -180,7 +181,7 @@ interface AuthStore {
   login: (email: string, password: string) => Promise<boolean>;
   register: (sellerData: Partial<Seller> & { email: string; password: string }) => Promise<boolean>;
   logout: () => void;
-  updateProfile: (updates: Partial<Seller>) => void;
+  updateProfile: (updates: Partial<Seller>) => Promise<void>;
   updateSellerDetails: (details: Partial<Seller>) => void;
   updateSellerInfo: (info: Partial<Seller>) => void;
   authenticateSeller: () => void;
@@ -302,12 +303,18 @@ const mapDbSellerToSeller = (s: any): Seller => {
   const bp = s.business_profile || s.seller_business_profiles || {};
   const pa = s.payout_account || s.seller_payout_accounts || {};
   const vd = s.verification_documents || s.seller_verification_documents || {};
+  const profile = s.profile || {};
+  
+  const profileFullName = [profile.first_name, profile.last_name]
+    .filter((part: string | null | undefined) => Boolean(part?.trim()))
+    .join(' ')
+    .trim();
 
   return {
     id: s.id,
-    store_name: s.store_name || '',
+    store_name: s.store_name === 'My Store' ? '' : (s.store_name || ''),
     store_description: s.store_description || '',
-    owner_name: s.owner_name || '',
+    owner_name: s.owner_name || profileFullName || '',
     avatar_url: s.avatar_url,
     approval_status: (s.approval_status as Seller['approval_status']) || 'pending',
     verified_at: s.verified_at,
@@ -724,7 +731,7 @@ export const useAuthStore = create<AuthStore>()(
           // Mock flow with new Seller interface structure
           const newSeller: Seller = {
             id: `seller-${Date.now()}`,
-            store_name: (sellerData as any).storeName || (sellerData as any).store_name || 'My Store',
+            store_name: (sellerData as any).storeName || (sellerData as any).store_name || '',
             store_description: (sellerData as any).storeDescription || (sellerData as any).store_description || '',
             owner_name: (sellerData as any).ownerName || (sellerData as any).owner_name || '',
             approval_status: 'pending',
@@ -775,12 +782,12 @@ export const useAuthStore = create<AuthStore>()(
 
               // Check if they're already a seller
               const { data: existingProfile } = await supabase
-                .from('profiles')
-                .select('user_type')
+                .from('sellers')
+                .select('id')
                 .eq('id', user.id)
-                .single();
+                .maybeSingle();
 
-              if (existingProfile && existingProfile.user_type === 'seller') {
+              if (existingProfile) {
                 console.error('User is already registered as a seller');
                 return false;
               }
@@ -822,12 +829,12 @@ export const useAuthStore = create<AuthStore>()(
 
                   // Check if they're already a seller
                   const { data: existingProfile } = await supabase
-                    .from('profiles')
-                    .select('user_type')
+                    .from('sellers')
+                    .select('id')
                     .eq('id', user.id)
-                    .single();
+                    .maybeSingle();
 
-                  if (existingProfile && existingProfile.user_type === 'seller') {
+                  if (existingProfile) {
                     console.error('User is already registered as a seller');
                     return false;
                   }
@@ -856,7 +863,7 @@ export const useAuthStore = create<AuthStore>()(
           const legacyData = sellerData as any;
           const sellerInsertData = {
             id: user.id,
-            store_name: sellerData.store_name || legacyData.storeName || 'My Store',
+            store_name: sellerData.store_name || legacyData.storeName || null,
             store_description: sellerData.store_description || legacyData.storeDescription || '',
             owner_name: sellerData.owner_name || legacyData.ownerName || '',
             approval_status: 'pending' as const,
@@ -897,10 +904,93 @@ export const useAuthStore = create<AuthStore>()(
       logout: () => {
         set({ seller: null, isAuthenticated: false });
       },
-      updateProfile: (updates) => {
-        const { seller } = get();
-        if (seller) {
-          set({ seller: { ...seller, ...updates } });
+      updateProfile: async (updates) => {
+        const { seller, user } = get();
+        if (!seller) return;
+
+        try {
+          const currentUserId = user?.id || seller.id;
+          if (!currentUserId) {
+            throw new Error('Missing user ID for profile update');
+          }
+
+          const incoming = updates as any;
+
+          const hasOwnerNameUpdate = incoming.ownerName !== undefined || incoming.owner_name !== undefined;
+          if (hasOwnerNameUpdate) {
+            const ownerName = String(incoming.ownerName ?? incoming.owner_name ?? '').trim();
+            const nameParts = ownerName.length > 0 ? ownerName.split(/\s+/) : [];
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+            const { error: profileUpdateError } = await supabase
+              .from('profiles')
+              .update({ first_name: firstName, last_name: lastName })
+              .eq('id', currentUserId);
+
+            if (profileUpdateError) throw profileUpdateError;
+          }
+
+          // Standard seller fields belong to sellers table.
+          const sellerUpdates: Record<string, any> = {};
+          if (incoming.store_description !== undefined || incoming.storeDescription !== undefined) {
+            sellerUpdates.store_description = incoming.store_description ?? incoming.storeDescription ?? '';
+          }
+          if (incoming.store_category !== undefined || incoming.storeCategory !== undefined) {
+            sellerUpdates.store_category = incoming.store_category ?? incoming.storeCategory ?? [];
+          }
+          if (incoming.join_date !== undefined || incoming.joinDate !== undefined) {
+            sellerUpdates.join_date = incoming.join_date ?? incoming.joinDate ?? null;
+          }
+
+          if (Object.keys(sellerUpdates).length > 0) {
+            const { error: sellerUpdateError } = await supabase
+              .from('sellers')
+              .update(sellerUpdates)
+              .eq('id', currentUserId);
+
+            if (sellerUpdateError) throw sellerUpdateError;
+          }
+
+          // Banking fields belong to seller_payout_accounts table.
+          let hasPayoutField = false;
+          const payoutUpdates: Record<string, any> = {
+            seller_id: currentUserId,
+          };
+
+          if (incoming.accountName !== undefined || incoming.payout_account?.account_name !== undefined) {
+            payoutUpdates.account_name = incoming.accountName ?? incoming.payout_account?.account_name ?? '';
+            hasPayoutField = true;
+          }
+          if (incoming.accountNumber !== undefined || incoming.payout_account?.account_number !== undefined) {
+            payoutUpdates.account_number = incoming.accountNumber ?? incoming.payout_account?.account_number ?? '';
+            hasPayoutField = true;
+          }
+          if (incoming.bankName !== undefined || incoming.payout_account?.bank_name !== undefined) {
+            payoutUpdates.bank_name = incoming.bankName ?? incoming.payout_account?.bank_name ?? '';
+            hasPayoutField = true;
+          }
+
+          if (hasPayoutField) {
+            const { error: payoutUpdateError } = await supabase
+              .from('seller_payout_accounts')
+              .upsert(payoutUpdates as any, { onConflict: 'seller_id' });
+
+            if (payoutUpdateError) throw payoutUpdateError;
+          }
+
+          // Keep local state in sync only after both DB updates succeed.
+          const refreshedSeller = await authService.getSellerProfile(currentUserId);
+          if (refreshedSeller) {
+            const mappedSeller = mapDbSellerToSeller(refreshedSeller);
+            mappedSeller.email = seller.email || mappedSeller.email;
+            set({ seller: mappedSeller });
+          } else {
+            set({ seller: { ...seller, ...updates } });
+          }
+        } catch (error) {
+          console.error('Failed to update profile:', error);
+          throw error;
         }
       },
       updateSellerDetails: (details) => {

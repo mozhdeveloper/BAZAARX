@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../components/ui/button';
@@ -11,6 +11,9 @@ import {
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useBuyerStore, demoSellers, Conversation } from '../stores/buyerStore';
+import Header from '../components/Header';
+
+const quickReplies = ["Is this available?", "Can I see real photos?", "Do you offer COD?", "Is this authentic?"];
 import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
 
 export default function MessagesPage() {
@@ -30,6 +33,38 @@ export default function MessagesPage() {
 
   const useRealData = dbConversations.length > 0;
 
+  // Guard: only treat IDs that look like real UUIDs as DB-backed
+  const isValidUUID = (id: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+  const filteredConversations = useMemo(() => {
+    if (useRealData) {
+      return dbConversations.filter(conv =>
+        (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        conv.last_message.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    return conversations
+      .filter(conv =>
+        conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .sort((a, b) => (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0) - (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0));
+  }, [useRealData, dbConversations, conversations, searchQuery]);
+
+  const activeConversation = useMemo(() =>
+    useRealData
+      ? dbConversations.find(c => c.id === selectedConversation)
+      : conversations.find(c => c.id === selectedConversation),
+    [useRealData, dbConversations, conversations, selectedConversation]
+  );
+
+  const reversedDbMessages = useMemo(() => [...dbMessages].reverse(), [dbMessages]);
+  const reversedLocalMessages = useMemo(() =>
+    activeConversation && !useRealData ? [...((activeConversation as Conversation).messages || [])].reverse() : [],
+    [activeConversation, useRealData]
+  );
+
   const loadConversations = useCallback(async () => {
     if (!profile?.id) return setLoading(false);
     try {
@@ -45,7 +80,7 @@ export default function MessagesPage() {
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
   useEffect(() => {
-    if (!selectedConversation || !useRealData) return;
+    if (!selectedConversation || !useRealData || !isValidUUID(selectedConversation)) return;
     const loadMessages = async () => {
       const msgs = await chatService.getMessages(selectedConversation);
       setDbMessages(msgs);
@@ -55,7 +90,7 @@ export default function MessagesPage() {
   }, [selectedConversation, useRealData, profile?.id]);
 
   useEffect(() => {
-    if (!selectedConversation || !useRealData) return;
+    if (!selectedConversation || !useRealData || !isValidUUID(selectedConversation)) return;
     const unsubscribe = chatService.subscribeToMessages(
       selectedConversation,
       (newMsg) => {
@@ -107,13 +142,7 @@ export default function MessagesPage() {
     initConversation();
   }, [initialSellerId, profile?.id, dbConversations, conversations, demoSellers, viewedSellers, addConversation, loadConversations]);
 
-  useEffect(() => {
-    if (useRealData) {
-      if (!selectedConversation && dbConversations.length > 0) setSelectedConversation(dbConversations[0].id);
-    } else {
-      if (!selectedConversation && conversations.length > 0 && !initialSellerId) setSelectedConversation(conversations[0].id);
-    }
-  }, [conversations.length, dbConversations.length, selectedConversation, initialSellerId, useRealData]);
+  // *** NO auto-selection: users must click a conversation ***
 
   // ---------------------------------------------------------
   // THE X-RAY PRESENCE LISTENER
@@ -121,21 +150,8 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!useRealData) return;
     
-    console.log("🟢 Buyer UI: Now actively listening to Supabase Realtime...");
-
     const unsubscribe = chatService.subscribeToPresenceUpdates((incomingUserId, isNowOnline) => {
-      console.log(`\n🚨 SUPABASE BROADCAST: User ID [${incomingUserId}] just went ${isNowOnline ? 'ONLINE' : 'OFFLINE'}`);
-
       setDbConversations(prevConversations => {
-        const matchingConv = prevConversations.find(conv => conv.seller_id === incomingUserId);
-        
-        if (matchingConv) {
-           console.log(`✅ MATCH FOUND! Lighting up dot for Store: ${matchingConv.seller_store_name}`);
-        } else {
-           console.log(`❌ NO MATCH! Supabase sent ID [${incomingUserId}], but Angela has no conversation with this seller_id.`);
-           console.log("🔍 Here are the Seller IDs Angela currently has in her list:", prevConversations.map(c => ({ store: c.seller_store_name, seller_id: c.seller_id })));
-        }
-
         return prevConversations.map(conv => {
           if (conv.seller_id === incomingUserId) {
             return { ...conv, is_online: isNowOnline, isOnline: isNowOnline };
@@ -169,9 +185,7 @@ export default function MessagesPage() {
     return unsubscribe;
   }, [profile?.id]);
 
-  const activeConversation = useRealData
-    ? dbConversations.find(c => c.id === selectedConversation)
-    : conversations.find(c => c.id === selectedConversation);
+
 
   const handleSendMessage = async (e?: React.FormEvent, textOverride?: string, imageUrls?: string[]) => {
     e?.preventDefault();
@@ -221,17 +235,9 @@ export default function MessagesPage() {
     }
   };
 
-  const filteredConversations = useRealData
-    ? dbConversations.filter(conv =>
-        (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conv.last_message.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : conversations.filter(conv =>
-        conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
-      ).sort((a, b) => (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0) - (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0));
 
-  const quickReplies = ["Is this available?", "Can I see real photos?", "Do you offer COD?", "Is this authentic?"];
+
+
 
   const handleDeleteConversation = () => {
     if (selectedConversation) {
@@ -248,12 +254,18 @@ export default function MessagesPage() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[var(--brand-wash)] overflow-hidden">
-      <div className="flex flex-1 overflow-hidden w-full h-full gap-0">
+      <Header />
+      <div className="flex flex-1 overflow-hidden w-full gap-0">
         
         {/* Sidebar */}
-        <div className="w-full md:w-80 lg:w-96 flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--brand-wash-gold)]/30 overflow-hidden hidden md:flex">
+        <div className={`w-full md:w-80 lg:w-96 flex-col bg-[var(--bg-secondary)] border-r border-[var(--brand-wash-gold)]/30 overflow-hidden ${selectedConversation ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-4 border-b border-[var(--brand-wash-gold)]/20">
-            <h2 className="text-xl font-bold text-[var(--text-headline)] mb-4">Messages</h2>
+            <div className="flex items-center gap-3 mb-4">
+              <Button variant="ghost" size="icon" className="md:hidden text-[var(--text-primary)] -ml-2 hover:bg-[var(--brand-wash)]" onClick={() => navigate(-1)}>
+                <ChevronLeft className="h-6 w-6" />
+              </Button>
+              <h2 className="text-xl font-bold text-[var(--text-headline)]">Messages</h2>
+            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] h-4 w-4" />
               <Input
@@ -360,11 +372,11 @@ export default function MessagesPage() {
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-[var(--bg-secondary)] overflow-hidden relative">
+        <div className={`flex-1 flex-col bg-[var(--bg-secondary)] overflow-hidden relative ${!selectedConversation ? 'hidden md:flex' : 'flex'}`}>
           {activeConversation ? (
             <>
               <div className="bg-[var(--brand-primary)] p-4 flex items-center gap-4 text-white shadow-md relative z-10">
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => navigate(-1)}>
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => { setSelectedConversation(null); }}>
                   <ChevronLeft className="h-6 w-6" />
                 </Button>
                 <div className="relative">
@@ -412,7 +424,7 @@ export default function MessagesPage() {
                   reversed flex axis, keeping gaps visually between messages. */}
               <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 space-y-reverse bg-gray-50/50 flex flex-col-reverse">
                 {useRealData ? (
-                  [...dbMessages].reverse().map((msg) => {
+                  reversedDbMessages.map((msg) => {
                     if (msg.message_type === 'system') {
                       return (
                         <div key={msg.id} className="flex justify-center items-center my-6 w-full opacity-90 pointer-events-none">
@@ -424,10 +436,9 @@ export default function MessagesPage() {
                         </div>
                       );
                     }
-
                     const isBuyer = msg.sender_type === 'buyer';
                     return (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={msg.id} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
                           <div className={`px-4 py-3 rounded-2xl shadow-sm ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-sm' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-tl-sm border border-[var(--brand-wash-gold)]/20'}`}>
                             <p className="text-sm leading-relaxed">{msg.content}</p>
@@ -436,14 +447,14 @@ export default function MessagesPage() {
                             {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                      </motion.div>
+                      </div>
                     );
                   })
                 ) : (
-                  [...((activeConversation as Conversation).messages)].reverse().map((msg) => {
+                  reversedLocalMessages.map((msg) => {
                     const isBuyer = msg.senderId === 'buyer';
                     return (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={msg.id} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
                           <div className={`px-4 py-3 rounded-2xl shadow-sm ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-none' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--brand-wash-gold)]/20 rounded-tl-none'}`}>
                             {msg.images && msg.images.length > 0 && (
@@ -461,7 +472,7 @@ export default function MessagesPage() {
                             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                      </motion.div>
+                      </div>
                     );
                   })
                 )}

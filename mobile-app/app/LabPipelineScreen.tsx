@@ -77,7 +77,7 @@ export default function LabPipelineScreen({ navigation }: Props) {
       .neq('status', 'rejected')
       .order('votes', { ascending: false });
 
-    if (!error && data) setRequests(data);
+    if (!error && data) setRequests(data as unknown as ProductRequest[]);
     setLoading(false);
     setRefreshing(false);
   }, []);

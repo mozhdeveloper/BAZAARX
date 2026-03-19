@@ -1,6 +1,7 @@
 /**
  * Order Notification Service
- * Sends chat messages to buyers when order status changes
+ * Sends chat messages to buyers when order status changes,
+ * and fires push notifications via Edge Function.
  */
 
 import { supabase } from '../lib/supabase';
@@ -103,6 +104,13 @@ class OrderNotificationService {
       // Also store in order notification log for tracking
       await this.logNotification(orderId, newStatus, messageContent);
 
+      // Fire push notification to the buyer
+      await this.sendPushNotification(buyerId, {
+        title: 'Order Update',
+        body: statusConfig.systemMessage,
+        data: { type: 'order_status', orderId, status: newStatus },
+      });
+
       return true;
     } catch (error) {
       console.error('[OrderNotification] Error sending notification:', error);
@@ -177,6 +185,30 @@ class OrderNotificationService {
    */
   getStatusMessage(status: string): StatusMessage | null {
     return ORDER_STATUS_MESSAGES[status] || null;
+  }
+
+  /**
+   * Fire a push notification via the send-push-notification Edge Function.
+   */
+  private async sendPushNotification(
+    userId: string,
+    payload: { title: string; body: string; data?: Record<string, unknown> }
+  ): Promise<void> {
+    try {
+      const { error } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId,
+          title: payload.title,
+          body: payload.body,
+          data: payload.data ?? {},
+        },
+      });
+      if (error) {
+        console.warn('[OrderNotification] Push notification error:', error.message);
+      }
+    } catch (err) {
+      console.warn('[OrderNotification] Push notification failed:', err);
+    }
   }
 }
 

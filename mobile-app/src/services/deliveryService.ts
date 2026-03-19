@@ -224,7 +224,7 @@ export class DeliveryService {
         status: 'booked',
         booked_at: new Date().toISOString(),
         estimated_delivery: booking.estimatedDelivery,
-      })
+      } as any)
       .select('id')
       .single();
 
@@ -290,7 +290,7 @@ export class DeliveryService {
     return {
       booking: this.transformBooking(booking),
       events: (events || []).map(this.transformEvent),
-      currentStatus: booking.status,
+      currentStatus: booking.status as DeliveryBookingStatus,
       estimatedDelivery: booking.estimated_delivery,
       courierTrackingUrl: trackingUrl,
     };
@@ -443,14 +443,14 @@ export class DeliveryService {
 
     if (!booking) throw new Error('Booking not found');
 
-    const pickup = booking.pickup_address as DeliveryAddress;
-    const delivery = booking.delivery_address as DeliveryAddress;
+    const pickup = booking.pickup_address as unknown as DeliveryAddress;
+    const delivery = booking.delivery_address as unknown as DeliveryAddress;
 
     const statusFlow: DeliveryBookingStatus[] = [
       'booked', 'pickup_scheduled', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered',
     ];
 
-    const currentIdx = statusFlow.indexOf(booking.status);
+    const currentIdx = statusFlow.indexOf(booking.status as DeliveryBookingStatus);
     if (currentIdx === -1 || currentIdx >= statusFlow.length - 1) {
       throw new Error(`Cannot advance from status: ${booking.status}`);
     }

@@ -215,7 +215,7 @@ export async function logBarcodeScan(params: {
   scannerType: ScannerType;
 }): Promise<void> {
   try {
-    await supabase.from('barcode_scans').insert({
+    await (supabase as any).from('barcode_scans').insert({
       vendor_id: params.sellerId,
       barcode_value: params.barcodeValue,
       product_id: params.productId,
@@ -224,7 +224,7 @@ export async function logBarcodeScan(params: {
       scan_source: params.scanSource,
       scanner_type: params.scannerType,
       scan_timestamp: new Date().toISOString(),
-    });
+    } as any);
   } catch (error) {
     // Don't throw - logging failures shouldn't break POS
     console.warn('[BarcodeService] Failed to log scan:', error);

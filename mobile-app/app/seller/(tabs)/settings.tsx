@@ -10,6 +10,8 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -28,7 +30,10 @@ import {
   Clock,
   Menu,
   Edit3,
+  AlertTriangle,
+  Trash2,
 } from 'lucide-react-native';
+import { supabase } from '../../../src/lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useAuthStore } from '../../../src/stores/authStore';
@@ -72,6 +77,37 @@ export default function SellerSettingsScreen() {
   const [accountName, setAccountName] = useState(seller?.payout_account?.account_name || '');
   const [accountNumber, setAccountNumber] = useState(seller?.payout_account?.account_number || '');
   const [gcashNumber, setGcashNumber] = useState(''); // Assuming distinct from phone
+
+  // Delete account state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE' || !deletePassword) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        body: { password: deletePassword, confirm: true },
+      });
+      if (error || data?.error) {
+        const msg = data?.message || data?.error || error?.message || 'Failed to delete account';
+        setDeleteError(msg);
+        return;
+      }
+      const { logout } = useAuthStore.getState();
+      logout();
+      await supabase.auth.signOut();
+      navigation.navigate('Login' as never);
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const [notifications, setNotifications] = useState({
     newOrders: true,
@@ -565,6 +601,27 @@ export default function SellerSettingsScreen() {
                 <Text style={styles.enableButtonText}>Enable 2FA</Text>
               </Pressable>
             </View>
+
+            {/* Danger Zone */}
+            <View style={[styles.formSection, { marginBottom: 0 }]}>
+              <View style={styles.dangerZoneCard}>
+                <View style={styles.dangerZoneHeader}>
+                  <AlertTriangle size={18} color="#DC2626" strokeWidth={2.5} />
+                  <Text style={styles.dangerZoneTitle}>Danger Zone</Text>
+                </View>
+                <Text style={styles.dangerZoneDescription}>
+                  Permanently delete your seller account, store, products, and all associated data.
+                  Active payouts must be settled first. This complies with RA 10173.
+                </Text>
+                <Pressable
+                  style={styles.deleteAccountButton}
+                  onPress={() => { setDeleteError(''); setShowDeleteModal(true); }}
+                >
+                  <Trash2 size={16} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
         );
 
@@ -656,6 +713,89 @@ export default function SellerSettingsScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!isDeleting) { setShowDeleteModal(false); setDeletePassword(''); setDeleteConfirmText(''); setDeleteError(''); } }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <AlertTriangle size={20} color="#DC2626" strokeWidth={2.5} />
+              <Text style={styles.modalTitle}>Delete Seller Account</Text>
+            </View>
+            <Text style={styles.modalDescription}>
+              This will permanently delete your store, all products, and seller data.
+              Ensure all pending orders and payouts are settled. This action cannot be undone (RA 10173).
+            </Text>
+
+            {!!deleteError && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{deleteError}</Text>
+              </View>
+            )}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Confirm your password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Your current password"
+                placeholderTextColor="#9CA3AF"
+                secureTextEntry
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                editable={!isDeleting}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>
+                Type <Text style={{ fontWeight: '800', color: '#DC2626' }}>DELETE</Text> to confirm
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="DELETE"
+                placeholderTextColor="#9CA3AF"
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                editable={!isDeleting}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalCancelButton, isDeleting && styles.buttonDisabled]}
+                onPress={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteConfirmText(''); setDeleteError(''); }}
+                disabled={isDeleting}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalDeleteButton,
+                  (isDeleting || deleteConfirmText !== 'DELETE' || !deletePassword) && styles.buttonDisabled,
+                ]}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting || deleteConfirmText !== 'DELETE' || !deletePassword}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Trash2 size={16} color="#FFFFFF" strokeWidth={2.5} />
+                )}
+                <Text style={styles.modalDeleteText}>
+                  {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Seller Drawer */}
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
 
@@ -1230,5 +1370,127 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#EF4444',
+  },
+  // Danger Zone
+  dangerZoneCard: {
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    borderRadius: 12,
+    backgroundColor: '#FFF5F5',
+    padding: 16,
+    gap: 10,
+  },
+  dangerZoneHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dangerZoneTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  dangerZoneDescription: {
+    fontSize: 13,
+    color: '#B91C1C',
+    lineHeight: 19,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#DC2626',
+    borderRadius: 10,
+    paddingVertical: 11,
+    marginTop: 4,
+  },
+  deleteAccountButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // Delete Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 420,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  modalDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 19,
+  },
+  errorBox: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#DC2626',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  modalDeleteButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: 10,
+    backgroundColor: '#DC2626',
+  },
+  modalDeleteText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  buttonDisabled: {
+    opacity: 0.45,
   },
 });

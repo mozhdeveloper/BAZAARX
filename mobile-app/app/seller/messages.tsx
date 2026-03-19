@@ -36,7 +36,7 @@ export default function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { seller } = useSellerStore();
-  
+
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -82,7 +82,7 @@ export default function MessagesScreen() {
     const loadMessages = async () => {
       const msgs = await chatService.getMessages(selectedConversation);
       setMessages(msgs);
-      
+
       // Mark as read
       if (seller?.id) {
         await chatService.markAsRead(selectedConversation, seller.id, 'seller');
@@ -105,7 +105,7 @@ export default function MessagesScreen() {
           if (exists) return prev;
           return [...prev, newMsg];
         });
-        
+
         if (newMsg.sender_type === 'buyer' && seller?.id) {
           chatService.markAsRead(selectedConversation, seller.id, 'seller');
         }
@@ -138,30 +138,30 @@ export default function MessagesScreen() {
     if (!activeConversation) return;
 
     Alert.alert(
-        'Escalate to Support',
-        'Do you want to report this buyer or create a support ticket from this conversation?',
-        [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-                text: 'Escalate', 
-                style: 'destructive',
-                onPress: () => {
-                    const buyerName = activeConversation.buyer_name || 'Buyer';
-                    const transcript = messages
-                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                      .map(m => `[${new Date(m.created_at).toLocaleString()}] ${m.sender_type === 'seller' ? 'Me' : buyerName}: ${m.content}`)
-                      .join('\n');
+      'Escalate to Support',
+      'Do you want to report this buyer or create a support ticket from this conversation?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Escalate',
+          style: 'destructive',
+          onPress: () => {
+            const buyerName = activeConversation.buyer_name || 'Buyer';
+            const transcript = messages
+              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+              .map(m => `[${new Date(m.created_at).toLocaleString()}] ${m.sender_type === 'seller' ? 'Me' : buyerName}: ${m.content}`)
+              .join('\n');
 
-                    (navigation as any).navigate('CreateTicket', {
-                        initialSubject: `Report Buyer: ${buyerName}`,
-                        initialDescription: `I would like to report an issue with this buyer.\n\nConversation Transcript:\n${transcript}`
-                    });
-                }
-            }
-        ]
+            (navigation as any).navigate('CreateTicket', {
+              initialSubject: `Report Buyer: ${buyerName}`,
+              initialDescription: `I would like to report an issue with this buyer.\n\nConversation Transcript:\n${transcript}`
+            });
+          }
+        }
+      ]
     );
   };
-  
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || !seller?.id) return;
 
@@ -211,10 +211,10 @@ export default function MessagesScreen() {
         <View style={styles.headerContainer}>
           <View style={[styles.headerTop, { marginTop: insets.top }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                    <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
-                </Pressable>
-                <Text style={styles.headerTitle}>Messages</Text>
+              <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+              </Pressable>
+              <Text style={styles.headerTitle}>Messages</Text>
             </View>
           </View>
 
@@ -236,8 +236,8 @@ export default function MessagesScreen() {
           </View>
         </View>
 
-        <ScrollView 
-          style={styles.conversationsList} 
+        <ScrollView
+          style={styles.conversationsList}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />
@@ -329,7 +329,7 @@ export default function MessagesScreen() {
             </View>
           </View>
           <View style={styles.chatHeaderActions}>
-            <Pressable 
+            <Pressable
               style={styles.iconButton}
               onPress={handleEscalate}
             >
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF4EC',
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 20,
+    borderBottomRightRadius: 20,
     paddingBottom: 20,
     marginBottom: 10,
     elevation: 3,
@@ -430,9 +430,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     zIndex: 10,
   },
-  headerTop: { 
-      marginBottom: 10,
-      justifyContent: 'center',
+  headerTop: {
+    marginBottom: 10,
+    justifyContent: 'center',
   },
   headerIconButton: { padding: 4 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 20,
+    borderBottomRightRadius: 20,
     elevation: 3,
   },
   chatHeaderContent: {
