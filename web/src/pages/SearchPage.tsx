@@ -307,7 +307,7 @@ const SearchPage: React.FC = () => {
     if (sellerProducts.length > 0) {
       handleSearch(searchQuery);
     }
-  }, [searchQuery, sellerProducts, handleSearch]);
+  }, [searchQuery, sellerProducts]);
 
   // Scroll to results when category or other filters change
   useEffect(() => {

@@ -119,12 +119,14 @@ const StoresPage: React.FC = () => {
         badges: store.is_verified ? ['Verified Seller'] : featured?.badges || []
       };
     })
-    : featuredStores;
+    : featuredStores.map(f => ({ ...f, products: f.products || 0, rating: f.rating || 0, followers: f.followers || 0, totalReviews: f.totalReviews || 0 }));
 
   // Filter by category (client-side since we have all stores)
   const filteredStores = displayStores.filter(store => {
     const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      store.description.toLowerCase().includes(searchQuery.toLowerCase());
+      store.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (Array.isArray(store.categories) ? store.categories.join(' ').toLowerCase().includes(searchQuery.toLowerCase()) : String(store.categories).toLowerCase().includes(searchQuery.toLowerCase()));
+    
     const matchesCategory = selectedCategory === 'All' ||
       (Array.isArray(store.categories)
         ? store.categories.includes(selectedCategory)
