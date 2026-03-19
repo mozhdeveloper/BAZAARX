@@ -54,32 +54,18 @@ import { bestSellerProducts } from "../data/products";
 
 const sortOptions = [
   { value: "newest", label: "Newest Arrivals" },
+  { value: "featured", label: "Featured" },
   { value: "price-low", label: "Price: Low to High" },
   { value: "price-high", label: "Price: High to Low" },
   { value: "rating", label: "Rating" },
   { value: "bestseller", label: "Best Sellers" },
 ];
 
-const brandOptions = [
-  { name: "The North Face", count: 24 },
-  { name: "Zara Basic", count: 68 },
-  { name: "Moschino", count: 35 },
-  { name: "Supreme", count: 15 },
-  { name: "Ecko Unltd", count: 68 },
-];
+const brandOptions: { name: string; count: number }[] = [];
 
-const sizeOptions = ["S", "M", "L", "XL", "XXL"];
+const sizeOptions: string[] = [];
 
-const colorOptions = [
-  { name: "Pink", hex: "#fbcfe8" },
-  { name: "Orange", hex: "#fb923c" },
-  { name: "Beige", hex: "#fef3c7" },
-  { name: "Light Yellow", hex: "#fef9c3" },
-  { name: "Light Green", hex: "#dcfce7" },
-  { name: "Light Blue", hex: "#dbeafe" },
-  { name: "Purple", hex: "#ede9fe" },
-  { name: "Lavender", hex: "#f5f3ff" },
-];
+const colorOptions: { name: string; hex: string }[] = [];
 
 const popularTags = [
   "Bag", "Backpack", "Chair", "Clock", "Interior", "Indoor", "Gift", "Accessories", "Fashion", "Simple"
@@ -90,11 +76,10 @@ export default function ShopPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const manualScrollRef = useRef(false);
-  const suppressNextAutoScrollRef = useRef(false);
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
-  const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
@@ -125,28 +110,7 @@ export default function ShopPage() {
   // Featured products
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
-
-  const isFeaturedView = searchParams.get("view") === "featured";
-  const setIsFeaturedView = (active: boolean) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (active) {
-        next.set("view", "featured");
-      } else {
-        next.delete("view");
-      }
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    if (isFeaturedView) {
-      setTimeout(() => {
-        const el = document.getElementById("shop-results-header");
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    }
-  }, [isFeaturedView]);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
 
   // Fetch real flash sale products (global admin events from global_flash_sale_slots)
   useEffect(() => {
@@ -159,14 +123,16 @@ export default function ShopPage() {
       .catch((e) => console.error('Failed to load flash sales:', e));
 
     // Fetch featured products
-    featuredProductService.getFeaturedProducts(12).then(data => {
+    const featuredPromise = featuredProductService.getFeaturedProducts(12).then(data => {
       setFeaturedProducts(data);
     }).catch(e => console.error('Failed to load featured products:', e));
 
     // Fetch boosted products (ad boosts)
-    adBoostService.getActiveBoostedProducts('featured', 12).then(data => {
+    const boostedPromise = adBoostService.getActiveBoostedProducts('featured', 12).then(data => {
       setBoostedProducts(data);
     }).catch(e => console.error('Failed to load boosted products:', e));
+
+    Promise.all([featuredPromise, boostedPromise]).finally(() => setFeaturedLoading(false));
   }, []);
 
   // 2. Fetch categories on mount
@@ -305,6 +271,35 @@ export default function ShopPage() {
     return map;
   }, [allProducts]);
 
+  // Dynamic filter options derived from actual products
+  const dynamicBrandOptions = useMemo(() => {
+    const brandMap = new Map<string, number>();
+    for (const p of allProducts) {
+      const brand = p.seller || 'Unknown';
+      brandMap.set(brand, (brandMap.get(brand) || 0) + 1);
+    }
+    return Array.from(brandMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [allProducts]);
+
+  const dynamicSizeOptions = useMemo(() => {
+    const sizes = new Set<string>();
+    for (const p of allProducts) {
+      (p.variantLabel1Values || []).forEach(v => sizes.add(v));
+    }
+    return Array.from(sizes).slice(0, 10);
+  }, [allProducts]);
+
+  const dynamicColorOptions = useMemo(() => {
+    const colors = new Set<string>();
+    for (const p of allProducts) {
+      (p.variantLabel2Values || []).forEach(v => colors.add(v));
+    }
+    return Array.from(colors).slice(0, 10);
+  }, [allProducts]);
+
   const otherProductsCount = useMemo(() => {
     const activeCategoryNames = new Set(categories.map(c => c.name.toLowerCase()));
     let count = 0;
@@ -342,91 +337,44 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => {
-    const timeouts: number[] = [];
     const queryParam = searchParams.get("q") || "";
     const categoryParam = searchParams.get("category");
-<<<<<<< Updated upstream
-    const filterParam = searchParams.get("filter");
-
-    // Sorting should not move the viewport; skip one auto-scroll cycle.
-    if (suppressNextAutoScrollRef.current) {
-      suppressNextAutoScrollRef.current = false;
-      return;
-    }
-=======
-    const viewParam = searchParams.get("view");
->>>>>>> Stashed changes
+    const sortParam = searchParams.get("sort");
 
     setSearchQuery(queryParam);
 
     if (categoryParam) {
-      // Resolve slug to name for proper filtering and sidebar highlighting
-      const matchedCategory = categories.find(
-        c => c.slug === categoryParam || c.name.toLowerCase() === categoryParam.toLowerCase()
-      );
-      
-      if (matchedCategory) {
-        setSelectedCategory(matchedCategory.name);
-      } else if (categoryParam.toLowerCase() === 'others') {
-        setSelectedCategory('Others');
-      } else {
-        setSelectedCategory(categoryParam);
-      }
+      setSelectedCategory(categoryParam);
     } else {
       setSelectedCategory("All Categories");
     }
 
-<<<<<<< Updated upstream
-  // Scroll logic - handles both initial mount and updates
+    // Set sort from URL parameter
+    if (sortParam && sortOptions.some(option => option.value === sortParam)) {
+      setSelectedSort(sortParam);
+    } else if (!sortParam) {
+      setSelectedSort("newest");
+    }
 
-  // When "Clear filter" is clicked, scroll back to the featured section after it re-mounts
-  if ((location.state as any)?.scrollToFeatured) {
-    const featuredTimeoutId = window.setTimeout(() => {
-      const element = document.getElementById("featured-section");
-      if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
-      manualScrollRef.current = false;
-    }, 400);
-    timeouts.push(featuredTimeoutId);
-  } else {
-    const scrollTimeoutId = window.setTimeout(() => {
-      const isClean =
-        !categoryParam &&
-        !queryParam &&
-        !filterParam &&
-        priceRange[0] === 0 &&
-        priceRange[1] === 100000 &&
-        minRating === 0 &&
-        selectedSort === "newest";
-=======
     // Scroll logic - handles both initial mount and updates
     setTimeout(() => {
-      const isClean = !categoryParam && !queryParam && !viewParam &&
+      const isClean = !categoryParam && !queryParam && !sortParam &&
         priceRange[0] === 0 && priceRange[1] === 100000 &&
-        minRating === 0 && selectedSort === "newest";
->>>>>>> Stashed changes
+        minRating === 0;
 
       if (isClean && !manualScrollRef.current) {
+        // Landing on a clean Shop page (or reset via Shop tab), scroll to the very top
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
+        // Any filter change (URL or local state), or manual "All" selection, scroll to results
         const element = document.getElementById("shop-results-header");
         if (element) {
           element.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       }
-
       manualScrollRef.current = false;
-    }, filterParam === "featured" ? 420 : 100);
-
-    timeouts.push(scrollTimeoutId);
-  }
-
-  return () => {
-    timeouts.forEach((id) => {
-      clearTimeout(id);
-    });
-  };
-
-  }, [searchParams, location.key, priceRange, minRating, selectedSort, categories]);
+    }, 100);
+  }, [searchParams, location.key, priceRange, minRating]);
 
   // Handle toolbar scroll visibility
   useEffect(() => {
@@ -452,37 +400,10 @@ export default function ShopPage() {
 
   // flashSaleProducts comes from the real discount campaigns (state above)
 
-  const featuredProductIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const bp of boostedProducts) {
-      if (bp.product?.id) ids.add(bp.product.id);
-    }
-    for (const fp of featuredProducts) {
-      const p = (fp as any).product;
-      if (p?.id) ids.add(p.id);
-    }
-    return ids;
-  }, [boostedProducts, featuredProducts]);
-
   const filteredProducts = useMemo<ShopProduct[]>(() => {
-<<<<<<< Updated upstream
-    const filterParam = searchParams.get("filter");
-=======
-    const featuredProductIds = new Set<string>();
-    if (isFeaturedView) {
-      for (const bp of boostedProducts) {
-        if (bp.product?.id) featuredProductIds.add(bp.product.id);
-      }
-      for (const fp of featuredProducts) {
-        const p = (fp as any).product;
-        if (p?.id) featuredProductIds.add(p.id);
-      }
-    }
+    let productsToFilter = pricedProducts;
 
->>>>>>> Stashed changes
-    const filtered = pricedProducts.filter((product) => {
-      if (isFeaturedView && !featuredProductIds.has(product.id)) return false;
-
+    const filtered = productsToFilter.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -503,38 +424,35 @@ export default function ShopPage() {
       return matchesSearch && matchesCategory && matchesPrice && matchesRating;
     });
 
-    // When filter=featured is active, show ONLY featured/boosted products
-    let result = filtered;
-    if (filterParam === "featured" && featuredProductIds.size > 0) {
-      result = filtered.filter(product => featuredProductIds.has(product.id));
-    }
-
-    // Apply sorting
+    // Apply sorting / filtering
     switch (selectedSort) {
+      case "featured": {
+        // Filter to show only featured/boosted products
+        const featuredProductIds = new Set([
+          ...featuredProducts.map(fp => fp.product_id),
+          ...boostedProducts.map(bp => bp.product_id)
+        ]);
+        return filtered.filter(p => featuredProductIds.has(p.id));
+      }
       case "price-low":
-        result.sort((a, b) => a.price - b.price);
+        filtered.sort((a, b) => a.price - b.price);
         break;
       case "price-high":
-        result.sort((a, b) => b.price - a.price);
+        filtered.sort((a, b) => b.price - a.price);
         break;
       case "rating":
-        result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
       case "bestseller":
-        result.sort((a, b) => (b.sold || 0) - (a.sold || 0));
+        filtered.sort((a, b) => (b.sold || 0) - (a.sold || 0));
         break;
       default:
         // Keep original order for relevance and newest
         break;
     }
 
-<<<<<<< Updated upstream
-    return result;
-  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, searchParams, featuredProductIds]);
-=======
     return filtered;
-  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, isFeaturedView, featuredProducts, boostedProducts]);
->>>>>>> Stashed changes
+  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, featuredProducts, boostedProducts]);
 
 
 
@@ -543,7 +461,11 @@ export default function ShopPage() {
     setSelectedSort("newest");
     setPriceRange([0, 100000]);
     setMinRating(0);
-    setIsFeaturedView(false);
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev);
+      params.delete("sort");
+      return params;
+    });
   };
 
   return (
@@ -699,22 +621,8 @@ export default function ShopPage() {
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
-<<<<<<< Updated upstream
-          <AnimatePresence>
-          {(featuredProducts.length > 0 || boostedProducts.length > 0) && searchParams.get("filter") !== "featured" && (
-            <motion.div
-              id="featured-section"
-              key="featured-section"
-              className="mb-10 scroll-mt-24"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-              transition={{ duration: 0.35, ease: "easeInOut" }}
-            >
-=======
-          {!isFeaturedView && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
+          {selectedSort !== 'featured' && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
             <div className="mb-10">
->>>>>>> Stashed changes
               {/* Section Header */}
               <div className="flex items-center justify-between mb-5 px-1">
                 <div className="flex items-center gap-2.5">
@@ -727,20 +635,55 @@ export default function ShopPage() {
                   </span>
                 </div>
                 <button
-<<<<<<< Updated upstream
-                  onClick={() => navigate('/shop?filter=featured')}
                   className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1"
-=======
-                  onClick={() => setIsFeaturedView(true)}
-                  className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1"
-                  aria-label="See all featured products in the main grid"
->>>>>>> Stashed changes
+                  onClick={() => {
+                    manualScrollRef.current = true;
+                    setSelectedSort("featured");
+                    setSearchParams(prev => {
+                      const params = new URLSearchParams(prev);
+                      params.set("sort", "featured");
+                      return params;
+                    });
+                    setTimeout(() => {
+                      const element = document.getElementById("shop-results-header");
+                      if (element) {
+                        element.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }, 100);
+                  }}
                 >
                   See All <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
 
+              {/* Skeleton Loading State */}
+              {featuredLoading && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={`skel-${i}`} className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm flex flex-col animate-pulse">
+                      <div className="aspect-square bg-gray-200" />
+                      <div className="p-3 flex flex-col gap-2">
+                        <div className="h-4 bg-gray-200 rounded w-full" />
+                        <div className="h-3 bg-gray-200 rounded w-3/4" />
+                        <div className="flex gap-0.5 mt-1">
+                          {[...Array(5)].map((_, j) => (
+                            <div key={j} className="h-3 w-3 bg-gray-200 rounded-full" />
+                          ))}
+                        </div>
+                        <div className="h-5 bg-gray-200 rounded w-1/2 mt-1" />
+                        <div className="flex justify-between mt-1">
+                          <div className="h-3 bg-gray-200 rounded w-1/3" />
+                          <div className="h-3 bg-gray-200 rounded w-1/4" />
+                        </div>
+                        <div className="h-3 bg-gray-100 rounded w-2/3 mt-2 pt-2 border-t border-gray-50" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Sponsored Products Grid */}
+              {!featuredLoading && (featuredProducts.length > 0 || boostedProducts.length > 0) && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {(() => {
                   const seenIds = new Set<string>();
@@ -852,9 +795,9 @@ export default function ShopPage() {
                   });
                 })()}
               </div>
-            </motion.div>
+              )}
+            </div>
           )}
-          </AnimatePresence>
 
           {/* Main Content */}
           <div className="w-full" id="shop-content">
@@ -890,11 +833,14 @@ export default function ShopPage() {
                           onClick={() => {
                             manualScrollRef.current = true;
                             setSelectedCategory(category);
-                            setIsFeaturedView(false);
+                            if (category === "All Categories") {
+                              setIsFeaturedView(false);
+                            }
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               if (category === "All Categories") {
                                 next.delete("category");
+                                next.delete("view");
                               } else {
                                 next.set("category", category);
                               }
@@ -934,6 +880,7 @@ export default function ShopPage() {
                           setSearchParams((prev) => {
                             const next = new URLSearchParams(prev);
                             next.delete("category");
+                            next.delete("view");
                             return next;
                           });
                         }}
@@ -951,7 +898,6 @@ export default function ShopPage() {
                           onClick={() => {
                             manualScrollRef.current = true;
                             setSelectedCategory(cat.name);
-                            setIsFeaturedView(false);
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               next.set("category", cat.name);
@@ -973,7 +919,6 @@ export default function ShopPage() {
                           onClick={() => {
                             manualScrollRef.current = true;
                             setSelectedCategory("Others");
-                            setIsFeaturedView(false);
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               next.set("category", "Others");
@@ -1046,10 +991,11 @@ export default function ShopPage() {
                       </div>
 
                       {/* Size Section */}
+                      {dynamicSizeOptions.length > 0 && (
                       <div className="space-y-3">
                         <h3 className="font-bold text-[var(--text-headline)] text-sm">Size</h3>
                         <div className="flex flex-wrap gap-2">
-                          {sizeOptions.map((size) => (
+                          {dynamicSizeOptions.map((size) => (
                             <button
                               key={size}
                               className="w-9 h-9 rounded-full border border-[var(--border)] bg-white flex items-center justify-center text-xs font-bold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-all active:scale-95 shadow-sm"
@@ -1059,46 +1005,51 @@ export default function ShopPage() {
                           ))}
                         </div>
                       </div>
+                      )}
 
                       {/* Color Section */}
+                      {dynamicColorOptions.length > 0 && (
                       <div className="space-y-3">
                         <h3 className="font-bold text-[var(--text-headline)] text-sm">Color</h3>
                         <div className="flex flex-wrap gap-2.5">
-                          {colorOptions.map((color) => (
+                          {dynamicColorOptions.map((color) => (
                             <button
-                              key={color.name}
-                              className={`w-5 h-5 rounded-full border border-[var(--border)] shadow-sm hover:scale-110 transition-transform ${color.name === "Orange" ? "ring-2 ring-offset-2 ring-[var(--brand-primary)]" : ""}`}
-                              style={{ backgroundColor: color.hex }}
-                              title={color.name}
-                              aria-label={`Filter by color: ${color.name}`}
-                            />
+                              key={color}
+                              className="px-2.5 py-1 rounded-full border border-[var(--border)] shadow-sm hover:border-[var(--brand-primary)] transition-all text-xs font-medium text-[var(--text-primary)]"
+                              aria-label={`Filter by color: ${color}`}
+                            >
+                              {color}
+                            </button>
                           ))}
                         </div>
                       </div>
+                      )}
 
 
 
                       {/* Brands Section */}
+                      {dynamicBrandOptions.length > 0 && (
                       <div className="space-y-3">
-                        <h3 className="font-bold text-gray-900 text-sm">Brands</h3>
+                        <h3 className="font-bold text-gray-900 text-sm">Sellers</h3>
                         <div className="space-y-3">
-                          {brandOptions.map((brand) => (
+                          {dynamicBrandOptions.map((brand) => (
                             <button
                               key={brand.name}
                               className="w-full flex justify-between items-center group cursor-pointer hover:text-gray-900"
                             >
                               <div className="flex items-center gap-2">
-                                <span className={`text-sm transition-colors ${brand.name === "The North Face" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium"}`}>
+                                <span className="text-sm transition-colors text-[var(--text-primary)] font-medium">
                                   {brand.name}
                                 </span>
                               </div>
-                              <span className={`text-[11px] transition-colors ${brand.name === "The North Face" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)]"}`}>
+                              <span className="text-[11px] transition-colors text-[var(--text-muted)] group-hover:text-[var(--text-primary)]">
                                 {brand.count}
                               </span>
                             </button>
                           ))}
                         </div>
                       </div>
+                      )}
 
                       {/* Popular Tags */}
                       <div className="space-y-3">
@@ -1121,36 +1072,6 @@ export default function ShopPage() {
 
               {/* Products Area */}
               <div className="flex-1 min-w-0">
-                {/* Featured filter banner */}
-                <AnimatePresence>
-                {searchParams.get("filter") === "featured" && (
-                  <motion.div
-                    key="featured-banner"
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25 }}
-                    className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-1.5 rounded-lg shadow-sm">
-                        <Star className="h-3.5 w-3.5 text-white fill-white" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-amber-900">Featured &amp; Sponsored Products</p>
-                        <p className="text-xs text-amber-700">Showing all featured and boosted listings</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => navigate('/shop', { state: { scrollToFeatured: true } })}
-                      className="text-xs text-amber-700 hover:text-amber-900 font-semibold underline underline-offset-2 transition-colors whitespace-nowrap"
-                    >
-                      Clear filter
-                    </button>
-                  </motion.div>
-                )}
-                </AnimatePresence>
-
                 {/* Toolbar - Now inside Product Area */}
                 <motion.div
                   id="shop-results-header"
@@ -1161,7 +1082,7 @@ export default function ShopPage() {
                   }}
                   className="mb-4 flex items-center justify-between gap-4 scroll-mt-24"
                 >
-                  <div className="flex items-center gap-4 h-10 flex-wrap">
+                  <div className="flex items-center gap-4 h-10">
                     <button
                       onClick={() => setShowFilters(!showFilters)}
                       className="lg:hidden flex items-center gap-2 px-4 py-2 bg-white hover:bg-[var(--brand-wash)] rounded-xl text-xs font-bold text-[var(--text-primary)] transition-all border border-[var(--border)] shadow-sm"
@@ -1173,29 +1094,44 @@ export default function ShopPage() {
                       Categories
                     </button>
 
-                    <p className="text-[var(--text-muted)] text-sm font-medium leading-none">
-                      Showing <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> results
-                    </p>
-
-                    {isFeaturedView && (
-                      <button
-                        onClick={() => setIsFeaturedView(false)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
-                        title="Clear featured filter"
-                        aria-label="Exit featured products view"
-                      >
-                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                        Featured
-                        <span className="ml-0.5 text-amber-400">✕</span>
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <p className="text-[var(--text-muted)] text-sm font-medium leading-none">
+                        Showing <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> results
+                      </p>
+                      {selectedSort === 'featured' && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 cursor-pointer text-[10px] font-semibold px-2 py-0.5"
+                          onClick={() => {
+                            setSelectedSort("newest");
+                            setSearchParams(prev => {
+                              const params = new URLSearchParams(prev);
+                              params.delete("sort");
+                              return params;
+                            });
+                          }}
+                        >
+                          <Star className="h-2.5 w-2.5 mr-1 fill-current" />
+                          Featured ×
+                        </Badge>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 h-10">
                     <span className="text-sm font-medium text-[var(--text-muted)] whitespace-nowrap">Sort by:</span>
                     <Select value={selectedSort} onValueChange={(val) => {
-                      suppressNextAutoScrollRef.current = true;
+                      manualScrollRef.current = true;
                       setSelectedSort(val);
+                      setSearchParams(prev => {
+                        const params = new URLSearchParams(prev);
+                        if (val === "newest") {
+                          params.delete("sort");
+                        } else {
+                          params.set("sort", val);
+                        }
+                        return params;
+                      });
                     }}>
                       <SelectTrigger className="w-[120px] md:w-[160px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
                         <SelectValue placeholder="Sort by" />

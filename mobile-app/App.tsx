@@ -41,7 +41,7 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 export type TabParamList = {
   Home: undefined;
-  Shop: { category?: string; searchQuery?: string; customResults?: Product[] };
+  Shop: { category?: string; searchQuery?: string; view?: 'featured' };
   Cart: { selectedCartItemIds?: string[] } | undefined;
   Messages: undefined;
   Profile: undefined;
