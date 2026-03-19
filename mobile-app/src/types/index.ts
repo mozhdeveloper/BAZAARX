@@ -25,6 +25,7 @@ export interface Product {
   // Media
   images?: string[];
   primary_image?: string | null;
+  size_guide_image?: string | null;
   // Variants & Options
   sizes?: string[];
   colors?: string[];
