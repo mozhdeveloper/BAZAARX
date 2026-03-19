@@ -1520,9 +1520,9 @@ export default function OrderDetailPage() {
                   {isPaymongoPay ? 'Cancel Order & Request Refund' : 'Cancel Order'}
                 </h3>
 
-                {/* PayMongo Refund Disclaimer */}
-                {isPaymongoPay && (
-                  <div className="space-y-3 mb-4">
+                <div className="space-y-3 mb-4">
+                  {/* Refund info — PayMongo only */}
+                  {isPaymongoPay && (
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
                       <p className="text-blue-800 font-semibold text-xs mb-1.5">Refund Information ({payLabel})</p>
                       <ul className="text-blue-700 text-xs space-y-1 leading-relaxed">
@@ -1531,32 +1531,38 @@ export default function OrderDetailPage() {
                         <li>• The refund will be returned to your {payLabel} account.</li>
                       </ul>
                     </div>
+                  )}
 
-                    <div className="bg-orange-50 border border-orange-200 rounded-xl p-3.5">
-                      <p className="text-orange-800 font-semibold text-xs mb-1.5">Next Steps After Cancellation</p>
-                      <ol className="text-orange-700 text-xs space-y-1 leading-relaxed list-none">
-                        <li>1. Your cancellation request is sent to the seller.</li>
-                        <li>2. Bazaar notifies the seller to halt fulfillment.</li>
-                        <li>3. A refund is initiated via PayMongo to your {payLabel}.</li>
-                        <li>4. You will receive an email confirmation once the refund is processed.</li>
-                        <li>5. Check your {payLabel} balance after {refundDays}.</li>
-                      </ol>
-                    </div>
-
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-[10px] text-gray-500 leading-relaxed">
-                      In accordance with the Philippine Consumer Act (RA 7394) and BSP Circular 1048, you are entitled to cancel your order and receive a full refund for unshipped items paid via electronic means. Do <span className="font-semibold">not</span> contact the seller directly for the refund — it is processed automatically through PayMongo.
-                    </div>
+                  {/* Next Steps — shown for all payment types */}
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-3.5">
+                    <p className="text-orange-800 font-semibold text-xs mb-1.5">Next Steps After Cancellation</p>
+                    <ol className="text-orange-700 text-xs space-y-1 leading-relaxed list-none">
+                      <li>1. Your cancellation request is sent to the seller.</li>
+                      <li>2. Bazaar notifies the seller to halt fulfillment.</li>
+                      {isPaymongoPay ? (
+                        <>
+                          <li>3. A refund is initiated via PayMongo to your {payLabel}.</li>
+                          <li>4. You will receive an email confirmation once the refund is processed.</li>
+                          <li>5. Check your {payLabel} balance after {refundDays}.</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>3. Since this is a Cash on Delivery order, no payment was collected — no refund is needed.</li>
+                          <li>4. Your order will be marked as cancelled and no items will be shipped.</li>
+                          <li>5. You may re-order the same items at any time.</li>
+                        </>
+                      )}
+                    </ol>
                   </div>
-                )}
 
-                {/* COD simple notice */}
-                {!isPaymongoPay && (
-                  <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-3 mb-4">
-                    <p className="text-[var(--brand-primary)] text-xs leading-relaxed">
-                      Please select a reason. This will cancel all items in the order and cannot be undone.
-                    </p>
+                  {/* Regulatory note */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-[10px] text-gray-500 leading-relaxed">
+                    {isPaymongoPay
+                      ? <>In accordance with the Philippine Consumer Act (RA 7394) and BSP Circular 1048, you are entitled to cancel your order and receive a full refund for unshipped items paid via electronic means. Do <span className="font-semibold">not</span> contact the seller directly for the refund — it is processed automatically through PayMongo.</>
+                      : <>Under the Philippine Consumer Act (RA 7394), you have the right to cancel an order before it is shipped. Cancellation is final and cannot be undone once confirmed.</>
+                    }
                   </div>
-                )}
+                </div>
               </div>
               <div className="px-6 py-4">
                 <div className="space-y-1 mb-4">
