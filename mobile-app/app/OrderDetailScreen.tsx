@@ -883,6 +883,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         {order.buyerUiStatus === 'received' && (
           <>
             <Pressable
+              onPress={() => setShowReviewModal(true)}
+              style={[styles.outlineButton, { flex: 1, borderColor: '#D97706' }]}
+            >
+              <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Write Review</Text>
+            </Pressable>
+            <Pressable
               onPress={() => {
                 if (order.items.length > 0) {
                   const addItem = useCartStore.getState().addItem;
@@ -895,15 +901,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                   });
                 }
               }}
-              style={[styles.outlineButton, { flex: 1, borderColor: '#D97706' }]}
-            >
-              <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Buy Again</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setShowReviewModal(true)}
               style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
             >
-              <Text style={styles.solidButtonText}>Write Review</Text>
+              <Text style={styles.solidButtonText}>Buy Again</Text>
             </Pressable>
           </>
         )}

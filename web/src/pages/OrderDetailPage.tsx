@@ -1377,8 +1377,7 @@ export default function OrderDetailPage() {
                         onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
                         className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
                       >
-                        <RotateCcw className="w-4 h-4 mr-2 hidden sm:inline" />
-                        Return/Refund
+                        Write Review
                       </Button>
                     )}
 
