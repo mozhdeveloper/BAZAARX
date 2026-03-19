@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Search, Send, MoreVertical, Phone, Video, Image as ImageIcon,
-  ChevronLeft, MessageCircle, Loader2,
+  ChevronLeft, MessageCircle,
 } from 'lucide-react';
 import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
 
@@ -42,6 +42,7 @@ export default function SellerMessages() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,6 +125,12 @@ export default function SellerMessages() {
     return unsubscribe;
   }, [selectedConversation, useRealData, seller?.id]);
 
+  // Debounce search: update debouncedQuery 200 ms after the user stops typing
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   const normalizedDbConversations = useMemo(() => {
     return dbConversations.map(conv => {
       const convMessages = dbMessages.filter(msg => msg.conversation_id === conv.id);
@@ -200,9 +207,12 @@ export default function SellerMessages() {
     }
   };
 
-  const filteredConversations = normalizedDbConversations.filter(conv =>
-    conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredConversations = useMemo(
+    () => normalizedDbConversations.filter(conv =>
+      conv.buyerName.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+      conv.lastMessage.toLowerCase().includes(debouncedQuery.toLowerCase())
+    ),
+    [normalizedDbConversations, debouncedQuery]
   );
 
   return (
@@ -225,9 +235,21 @@ export default function SellerMessages() {
             </div>
             <div className="flex-1 overflow-y-auto">
               {loading ? (
-                <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                  <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                  <p className="text-sm">Loading conversations...</p>
+                <div className="flex flex-col">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="p-4 mx-2 my-1 rounded-xl animate-pulse">
+                      <div className="flex gap-4">
+                        <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0" />
+                        <div className="flex-1 py-0.5 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <div className="h-3.5 w-28 rounded-full bg-gray-200" />
+                            <div className="h-2.5 w-10 rounded-full bg-gray-100" />
+                          </div>
+                          <div className="h-3 w-44 rounded-full bg-gray-100" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 text-gray-400">

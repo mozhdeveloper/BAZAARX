@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   Pressable,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -31,6 +32,78 @@ import { chatService, Conversation as ChatConversation, Message as ChatMessage }
 import { useAuthStore } from '../../src/stores/authStore';
 import { useSellerStore } from '../../src/stores/sellerStore';
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+const ROW_HEIGHT = 80;
+const SKELETON_COUNT = 7;
+
+// ---------------------------------------------------------------------------
+// Skeleton shimmer row — shown while conversations load
+// ---------------------------------------------------------------------------
+const SkeletonRow = memo(({ shimmer }: { shimmer: Animated.Value }) => {
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.85] });
+  return (
+    <View style={[styles.conversationItem, { height: ROW_HEIGHT }]}>
+      <Animated.View style={[styles.avatar, { opacity }]} />
+      <View style={styles.conversationContent}>
+        <View style={styles.conversationHeader}>
+          <Animated.View style={{ height: 14, width: '45%', borderRadius: 7, backgroundColor: '#E5E7EB', opacity }} />
+          <Animated.View style={{ height: 10, width: 40, borderRadius: 5, backgroundColor: '#E5E7EB', opacity }} />
+        </View>
+        <Animated.View style={{ height: 12, width: '70%', borderRadius: 6, backgroundColor: '#F3F4F6', opacity, marginTop: 6 }} />
+      </View>
+    </View>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Memoized conversation row — prevents re-renders on unrelated state changes
+// ---------------------------------------------------------------------------
+type SellerConvRowProps = {
+  conv: ChatConversation;
+  onPress: (id: string) => void;
+  formatTime: (d: string) => string;
+};
+
+const SellerConversationRow = memo(({ conv, onPress, formatTime }: SellerConvRowProps) => (
+  <Pressable
+    style={({ pressed }) => [styles.conversationItem, pressed && { opacity: 0.7 }]}
+    onPress={() => onPress(conv.id)}
+  >
+    <View style={styles.avatar}>
+      <Text style={styles.avatarText}>
+        {(conv.buyer?.full_name || conv.buyer_name || 'B').charAt(0).toUpperCase()}
+      </Text>
+    </View>
+    <View style={styles.conversationContent}>
+      <View style={styles.conversationHeader}>
+        <Text style={styles.buyerName} numberOfLines={1}>
+          {conv.buyer?.full_name || conv.buyer_name || 'Buyer'}
+        </Text>
+        <Text style={styles.conversationTime}>
+          {formatTime(conv.last_message_at || new Date().toISOString())}
+        </Text>
+      </View>
+      <View style={styles.conversationFooter}>
+        <Text style={styles.lastMessage} numberOfLines={1}>
+          {conv.last_message || 'No messages yet'}
+        </Text>
+        {(conv.seller_unread_count || 0) > 0 && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadText}>
+              {(conv.seller_unread_count || 0) > 99 ? '99+' : conv.seller_unread_count}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  </Pressable>
+));
+
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
 export default function MessagesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
@@ -48,20 +121,43 @@ export default function MessagesScreen() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
-  // Load real conversations from database
-  const loadConversations = useCallback(async () => {
+  // Shimmer animation for loading skeleton
+  const shimmer = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shimmer]);
+
+  // Debounced search — updates 200ms after user stops typing
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const filteredConversations = useMemo(() => {
+    if (!debouncedQuery) return conversations;
+    const q = debouncedQuery.toLowerCase();
+    return conversations.filter(c =>
+      (c.buyer?.full_name || c.buyer_name || '').toLowerCase().includes(q) ||
+      (c.last_message || '').toLowerCase().includes(q)
+    );
+  }, [conversations, debouncedQuery]);
     // Use seller.id from sellerStore (the seller's UUID), not user.id from authStore
     const sellerId = seller?.id;
     if (!sellerId) {
-      console.log('[SellerMessages] No seller ID available');
       setLoading(false);
       return;
     }
 
-    console.log('[SellerMessages] Loading conversations for seller:', sellerId);
     try {
       const convs = await chatService.getSellerConversations(sellerId);
-      console.log('[SellerMessages] Loaded conversations:', convs.length);
       setConversations(convs);
     } catch (error) {
       console.error('[SellerMessages] Error loading conversations:', error);
@@ -178,14 +274,13 @@ export default function MessagesScreen() {
         // Message will be added via realtime subscription
       }
     } catch (error) {
-      console.error('[SellerMessages] Error sending message:', error);
       Alert.alert('Error', 'Failed to send message');
     } finally {
       setSending(false);
     }
   };
 
-  const formatTime = (dateString: string) => {
+  const formatTime = useCallback((dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
@@ -197,7 +292,7 @@ export default function MessagesScreen() {
     if (hours < 24) return `${hours}h ago`;
     if (days === 1) return 'Yesterday';
     return date.toLocaleDateString();
-  };
+  }, []);
 
   const getInitials = (name: string) => {
     return name.charAt(0).toUpperCase();
@@ -236,62 +331,44 @@ export default function MessagesScreen() {
           </View>
         </View>
 
-        <ScrollView 
-          style={styles.conversationsList} 
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />
-          }
-        >
-          {loading && !refreshing ? (
-            <View style={{ padding: 40, alignItems: 'center' }}>
-              <ActivityIndicator size="large" color="#2563EB" />
-              <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading conversations...</Text>
-            </View>
-          ) : conversations.length === 0 ? (
-            <View style={{ padding: 40, alignItems: 'center' }}>
-              <MessageSquare size={48} color="#D1D5DB" />
-              <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16 }}>No messages yet</Text>
-              <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>
-                Messages from buyers will appear here
-              </Text>
-            </View>
-          ) : (
-            conversations.map((conv: any) => (
-              <Pressable
-                key={conv.id}
-                style={styles.conversationItem}
-                onPress={() => setSelectedConversation(conv.id)}
-              >
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {getInitials(conv.buyer?.full_name || conv.buyer_name || 'B')}
-                  </Text>
-                </View>
-                <View style={styles.conversationContent}>
-                  <View style={styles.conversationHeader}>
-                    <Text style={styles.buyerName}>
-                      {conv.buyer?.full_name || conv.buyer_name || 'Buyer'}
-                    </Text>
-                    <Text style={styles.conversationTime}>
-                      {formatTime(conv.last_message_at)}
-                    </Text>
-                  </View>
-                  <View style={styles.conversationFooter}>
-                    <Text style={styles.lastMessage} numberOfLines={1}>
-                      {conv.last_message || 'No messages yet'}
-                    </Text>
-                    {conv.seller_unread_count > 0 && (
-                      <View style={styles.unreadBadge}>
-                        <Text style={styles.unreadText}>{conv.seller_unread_count}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </Pressable>
-            ))
-          )}
-        </ScrollView>
+        {loading && !refreshing ? (
+          <>
+            {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+              <SkeletonRow key={i} shimmer={shimmer} />
+            ))}
+          </>
+        ) : (
+          <FlatList
+            style={styles.conversationsList}
+            data={filteredConversations}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <SellerConversationRow
+                conv={item}
+                onPress={setSelectedConversation}
+                formatTime={formatTime}
+              />
+            )}
+            getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
+            removeClippedSubviews
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            initialNumToRender={12}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D97706']} />
+            }
+            ListEmptyComponent={
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <MessageSquare size={48} color="#D1D5DB" />
+                <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16 }}>No messages yet</Text>
+                <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>
+                  Messages from buyers will appear here
+                </Text>
+              </View>
+            }
+            showsVerticalScrollIndicator={false}
+          />
+        )}
       </View>
     );
   }
@@ -340,44 +417,47 @@ export default function MessagesScreen() {
       </View>
 
       {/* Messages */}
-      <ScrollView
+      <FlatList
         style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesContent}
+        contentContainerStyle={[styles.messagesContent, { flexGrow: 1 }]}
+        data={[...messages].reverse()}
+        keyExtractor={(item) => item.id}
+        inverted
+        removeClippedSubviews
+        maxToRenderPerBatch={10}
+        initialNumToRender={20}
         showsVerticalScrollIndicator={false}
-      >
-        {messages.length === 0 ? (
+        ListEmptyComponent={
           <View style={{ padding: 40, alignItems: 'center' }}>
             <Text style={{ color: '#9CA3AF' }}>No messages in this conversation</Text>
           </View>
-        ) : (
-          messages.map((msg) => (
-            <View
-              key={msg.id}
+        }
+        renderItem={({ item: msg }) => (
+          <View
+            style={[
+              styles.messageBubble,
+              msg.sender_type === 'seller' ? styles.messageSeller : styles.messageBuyer,
+            ]}
+          >
+            <Text
               style={[
-                styles.messageBubble,
-                msg.sender_type === 'seller' ? styles.messageSeller : styles.messageBuyer,
+                styles.messageText,
+                msg.sender_type === 'seller' ? styles.messageTextSeller : styles.messageTextBuyer,
               ]}
             >
-              <Text
-                style={[
-                  styles.messageText,
-                  msg.sender_type === 'seller' ? styles.messageTextSeller : styles.messageTextBuyer,
-                ]}
-              >
-                {msg.content}
-              </Text>
-              <Text
-                style={[
-                  styles.messageTime,
-                  msg.sender_type === 'seller' ? styles.messageTimeSeller : styles.messageTimeBuyer,
-                ]}
-              >
-                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            </View>
-          ))
+              {msg.content}
+            </Text>
+            <Text
+              style={[
+                styles.messageTime,
+                msg.sender_type === 'seller' ? styles.messageTimeSeller : styles.messageTimeBuyer,
+              ]}
+            >
+              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
         )}
-      </ScrollView>
+      />
 
       {/* Input Area */}
       <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}>
