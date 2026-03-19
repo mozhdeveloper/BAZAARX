@@ -939,13 +939,38 @@ export function OrderDetailsModal({
                                                         <div className="p-2 bg-red-50 border border-red-100 rounded-lg text-red-600 mt-0.5 shadow-sm">
                                                             <XCircle className="w-4 h-4" />
                                                         </div>
-                                                        <div className="flex-1">
-                                                            <span className="block text-sm font-semibold text-red-700">
-                                                                Shipment Cancelled
-                                                            </span>
-                                                            <p className="text-sm text-red-600/80 leading-relaxed mt-0.5">
-                                                                The order has been cancelled and will not be shipped.
-                                                            </p>
+                                                        <div className="flex-1 space-y-3">
+                                                            <div>
+                                                                <span className="block text-sm font-semibold text-red-700">
+                                                                    Order Cancelled {(order as any).cancelledByRole === 'buyer' ? 'by Buyer' : ''}
+                                                                </span>
+                                                                <p className="text-sm text-red-600/80 leading-relaxed mt-0.5">
+                                                                    This order has been cancelled and will not be fulfilled.
+                                                                </p>
+                                                            </div>
+
+                                                            {/* Cancellation Reason */}
+                                                            {(order as any).cancellationReason && (
+                                                                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                                                    <p className="text-xs font-semibold text-red-700 mb-1">Buyer's Reason</p>
+                                                                    <p className="text-sm text-red-700">{(order as any).cancellationReason}</p>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Next Steps for Seller */}
+                                                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                                                <p className="text-xs font-semibold text-amber-800 mb-1.5">What to do next</p>
+                                                                <ol className="text-xs text-amber-700 space-y-1 leading-relaxed list-none">
+                                                                    <li>1. Stop preparing or packing this order immediately.</li>
+                                                                    <li>2. If items were already set aside, return them back to your inventory.</li>
+                                                                    {order.paymentStatus === 'paid' || order.paymentStatus === 'refunded' ? (
+                                                                        <li>3. The buyer's payment will be refunded automatically via PayMongo — no action needed from you.</li>
+                                                                    ) : (
+                                                                        <li>3. No payment was collected — no refund action needed.</li>
+                                                                    )}
+                                                                    <li>4. You may contact the buyer via chat if you need clarification.</li>
+                                                                </ol>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ) : (

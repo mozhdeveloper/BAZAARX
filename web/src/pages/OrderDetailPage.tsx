@@ -1417,14 +1417,15 @@ export default function OrderDetailPage() {
                       </Button>
                     )}
 
-                    {/* Cancel Order - shown for pending unpaid orders */}
-                    {order.status === 'pending' && !order.isPaid && (
+                    {/* Cancel Order - shown for pending/confirmed orders (COD unpaid or PayMongo paid) */}
+                    {((order.status === 'pending' && !order.isPaid) ||
+                      (order.isPaid && (order.status === 'pending' || order.status === 'confirmed'))) && (
                       <Button
                         variant="outline"
                         onClick={() => setCancelModalOpen(true)}
                         className="flex-1 border-red-600 text-red-600 hover:bg-red-50 hover:text-red-600"
                       >
-                        Cancel Order
+                        {order.isPaid ? 'Cancel & Request Refund' : 'Cancel Order'}
                       </Button>
                     )}
                   </div>
@@ -1488,7 +1489,18 @@ export default function OrderDetailPage() {
 
       {/* Cancel Order Modal */}
       <AnimatePresence>
-        {cancelModalOpen && (
+        {cancelModalOpen && order && (() => {
+          const isPaymongoPay = order.paymentMethod?.type !== 'cod';
+          const payType = order.paymentMethod?.type;
+          const refundDays = payType === 'card' ? '5–7 business days'
+            : payType === 'grab_pay' ? '3–5 business days'
+            : '1–3 business days'; // gcash, maya, paymaya
+          const payLabel = payType === 'card' ? 'Credit/Debit Card'
+            : payType === 'gcash' ? 'GCash'
+            : payType === 'maya' || payType === 'paymaya' ? 'Maya'
+            : payType === 'grab_pay' ? 'GrabPay'
+            : 'your payment method';
+          return (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1500,16 +1512,51 @@ export default function OrderDetailPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-6 pt-6 pb-1">
-                <h3 className="text-xl font-bold text-gray-900 mb-3">Cancel Order</h3>
-                <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-3 flex gap-3 items-start -mb-4">
-                  <p className="text-[var(--brand-primary)] text-xs leading-relaxed">
-                    Please select a reason. This will cancel all items in the order and cannot be undone.
-                  </p>
-                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                  {isPaymongoPay ? 'Cancel Order & Request Refund' : 'Cancel Order'}
+                </h3>
+
+                {/* PayMongo Refund Disclaimer */}
+                {isPaymongoPay && (
+                  <div className="space-y-3 mb-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
+                      <p className="text-blue-800 font-semibold text-xs mb-1.5">Refund Information ({payLabel})</p>
+                      <ul className="text-blue-700 text-xs space-y-1 leading-relaxed">
+                        <li>• Your payment of <span className="font-semibold">₱{order.total?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span> will be refunded.</li>
+                        <li>• Refund processing time: <span className="font-semibold">{refundDays}</span> after cancellation is confirmed.</li>
+                        <li>• The refund will be returned to your {payLabel} account.</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-orange-50 border border-orange-200 rounded-xl p-3.5">
+                      <p className="text-orange-800 font-semibold text-xs mb-1.5">Next Steps After Cancellation</p>
+                      <ol className="text-orange-700 text-xs space-y-1 leading-relaxed list-none">
+                        <li>1. Your cancellation request is sent to the seller.</li>
+                        <li>2. Bazaar notifies the seller to halt fulfillment.</li>
+                        <li>3. A refund is initiated via PayMongo to your {payLabel}.</li>
+                        <li>4. You will receive an email confirmation once the refund is processed.</li>
+                        <li>5. Check your {payLabel} balance after {refundDays}.</li>
+                      </ol>
+                    </div>
+
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-[10px] text-gray-500 leading-relaxed">
+                      In accordance with the Philippine Consumer Act (RA 7394) and BSP Circular 1048, you are entitled to cancel your order and receive a full refund for unshipped items paid via electronic means. Do <span className="font-semibold">not</span> contact the seller directly for the refund — it is processed automatically through PayMongo.
+                    </div>
+                  </div>
+                )}
+
+                {/* COD simple notice */}
+                {!isPaymongoPay && (
+                  <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-3 mb-4">
+                    <p className="text-[var(--brand-primary)] text-xs leading-relaxed">
+                      Please select a reason. This will cancel all items in the order and cannot be undone.
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="px-6 py-4">
                 <div className="space-y-1 mb-4">
@@ -1609,7 +1656,8 @@ export default function OrderDetailPage() {
               </div>
             </motion.div>
           </motion.div>
-        )}
+          );
+        })()}
       </AnimatePresence>
 
       {/* Confirm Received Modal */}
