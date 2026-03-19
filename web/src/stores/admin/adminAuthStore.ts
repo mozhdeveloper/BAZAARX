@@ -61,31 +61,38 @@ export const useAdminAuth = create<AdminAuthState>()(
             }
 
             // Verify user is an admin or QA team member
+            // Priority: admins table → qa_team_members table → auth user_metadata fallback
             let userRole: 'admin' | 'qa_team' = 'admin';
-            const { data: adminRecord, error: adminError } = await supabase
+            const { data: adminRecord } = await supabase
               .from('admins')
-              .select('*')
+              .select('id')
               .eq('id', authData.user.id)
-              .single();
+              .maybeSingle();
 
-            if (adminError || !adminRecord) {
-              // Not an admin — check if QA team member
-              const { data: qaRecord, error: qaError } = await supabase
+            if (!adminRecord) {
+              // Check QA team members table
+              const { data: qaRecord } = await supabase
                 .from('qa_team_members')
-                .select('*')
+                .select('id')
                 .eq('id', authData.user.id)
-                .single();
+                .maybeSingle();
 
-              if (qaError || !qaRecord) {
-                console.error('Admin/QA record not found:', adminError, qaError);
-                await supabase.auth.signOut();
-                set({
-                  error: 'Access denied. Admin or QA account required.',
-                  isLoading: false
-                });
-                return false;
+              if (qaRecord) {
+                userRole = 'qa_team';
+              } else {
+                // Final fallback: check auth user_metadata set during account creation
+                const metaUserType = authData.user.user_metadata?.user_type;
+                if (metaUserType === 'admin' || metaUserType === 'qa_team') {
+                  userRole = metaUserType === 'qa_team' ? 'qa_team' : 'admin';
+                } else {
+                  await supabase.auth.signOut();
+                  set({
+                    error: 'Access denied. Admin or QA account required.',
+                    isLoading: false
+                  });
+                  return false;
+                }
               }
-              userRole = 'qa_team';
             }
 
             // Create admin user object

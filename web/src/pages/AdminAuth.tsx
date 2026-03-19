@@ -208,8 +208,34 @@ const AdminAuth: React.FC = () => {
                 </Button>
               </form>
 
+              {/* Quick Fill — Demo Credentials */}
+              <div className="mt-5 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide mb-2">
+                  Demo Credentials
+                </p>
+                <div className="space-y-1.5">
+                  {[
+                    { label: 'Super Admin', email: 'admin@bazaarph.com', password: 'Test@123456' },
+                    { label: 'QA Reviewer', email: 'qa.admin@bazaarph.com', password: 'Test@123456' },
+                  ].map((cred) => (
+                    <button
+                      key={cred.label}
+                      type="button"
+                      onClick={() => {
+                        setFormData({ email: cred.email, password: cred.password });
+                        if (error) clearError();
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-amber-200 hover:border-orange-400 hover:bg-orange-50 transition-all duration-150 text-left group"
+                    >
+                      <span className="text-xs font-bold text-gray-700 group-hover:text-orange-600">{cred.label}</span>
+                      <span className="text-[11px] text-gray-400 font-mono group-hover:text-orange-500">{cred.email}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Footer Links */}
-              <div className="mt-6 pt-4 border-t border-gray-200">
+              <div className="mt-4 pt-4 border-t border-gray-200">
                 <p className="text-xs text-gray-500 text-center">
                   Secured by BazaarPH Admin System
                 </p>
