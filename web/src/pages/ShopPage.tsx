@@ -175,6 +175,7 @@ export default function ShopPage() {
         stock: p.stock || 99,
         variants: p.variants || [],
         lifetimeSold: (p as any).lifetimeSold || p.sales || 0,
+        isVacationMode: (p as any).isVacationMode || false,
       }));
 
     return dbProducts;
@@ -1204,6 +1205,15 @@ export default function ShopPage() {
                                 return;
                               }
 
+                              if ((product as any).isVacationMode) {
+                                toast({
+                                  title: "Store on Vacation",
+                                  description: "This store is temporarily unavailable.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+
                               const hasVariants = (product as any).variants && (product as any).variants.length > 0;
                               const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
                               const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
@@ -1252,6 +1262,15 @@ export default function ShopPage() {
                                   variant: "destructive",
                                 });
                                 navigate("/login");
+                                return;
+                              }
+
+                              if ((product as any).isVacationMode) {
+                                toast({
+                                  title: "Store on Vacation",
+                                  description: "This store is temporarily unavailable.",
+                                  variant: "destructive",
+                                });
                                 return;
                               }
 

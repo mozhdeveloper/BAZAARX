@@ -39,6 +39,10 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
             return;
         }
 
+        if (product.isVacationMode || product.is_vacation_mode) {
+            return;
+        }
+
         if (hasVariants) {
             onVariantSelect(product, false);
             return;
@@ -51,6 +55,10 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
         e.stopPropagation();
         if (!profile) {
             onLoginRequired();
+            return;
+        }
+
+        if (product.isVacationMode || product.is_vacation_mode) {
             return;
         }
 

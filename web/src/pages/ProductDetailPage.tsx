@@ -18,7 +18,8 @@ import {
     Ruler,
     X,
     Flame,
-    Shield
+    Shield,
+    Palmtree
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import {
@@ -473,6 +474,16 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             return;
         }
 
+        // Check if seller is on vacation mode
+        if (normalizedProduct?.isVacationMode) {
+            toast({
+                title: "Store on Vacation",
+                description: "This store is temporarily unavailable. You cannot add items to cart.",
+                variant: "destructive",
+            });
+            return;
+        }
+
         if (!normalizedProduct) return;
 
         // Stock validation - prevent adding out of stock items
@@ -645,6 +656,16 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 variant: "destructive",
             });
             navigate("/login");
+            return;
+        }
+
+        // Check if seller is on vacation mode
+        if (normalizedProduct?.isVacationMode) {
+            toast({
+                title: "Store on Vacation",
+                description: "This store is temporarily unavailable. You cannot purchase this item.",
+                variant: "destructive",
+            });
             return;
         }
 
@@ -857,6 +878,17 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         <h1 className="text-3xl lg:text-4xl font-black text-[var(--text-headline)] mb-3 tracking-tight leading-tight font-heading">
                             {productData.name}
                         </h1>
+
+                        {/* Vacation Mode Banner */}
+                        {normalizedProduct?.isVacationMode && (
+                            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3">
+                                <Palmtree className="w-5 h-5 text-orange-500 flex-shrink-0" />
+                                <div>
+                                    <p className="text-sm font-bold text-orange-700">Store Temporarily Unavailable</p>
+                                    <p className="text-xs text-orange-600">This seller is currently on vacation. You can view this product but cannot purchase it at this time.</p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Price Section */}
                         <div className="flex items-center gap-4 mb-2">
@@ -1159,9 +1191,10 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 disabled={(() => {
                                     const currentVariant = getSelectedVariant();
                                     const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
-                                    return stockQty === 0;
+                                    return stockQty === 0 || (normalizedProduct?.isVacationMode ?? false);
                                 })()}
                                 className="flex-1 h-14 rounded-2xl bg-white hover:bg-[var(--brand-wash)] text-[var(--brand-primary)] border border-[var(--brand-primary)] text-base font-bold transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={normalizedProduct?.isVacationMode ? "This store is temporarily unavailable" : undefined}
                             >
                                 <ShoppingCart className="w-5 h-5" />
                                 Add to Cart
@@ -1172,9 +1205,10 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 disabled={(() => {
                                     const currentVariant = getSelectedVariant();
                                     const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
-                                    return stockQty === 0;
+                                    return stockQty === 0 || (normalizedProduct?.isVacationMode ?? false);
                                 })()}
                                 className="flex-1 h-14 rounded-2xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white text-base font-bold transition-all active:scale-[0.98] shadow-lg shadow-[var(--brand-primary)]/30 border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={normalizedProduct?.isVacationMode ? "This store is temporarily unavailable" : undefined}
                             >
                                 Buy Now
                             </Button>
@@ -1589,6 +1623,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             variantLabel1Values: productData.label1Options || [],
                             variants: productData.variants || [],
                             stock: normalizedProduct.stock || 100,
+                            is_vacation_mode: normalizedProduct.isVacationMode || false,
                         }}
                         onConfirm={(qty, variant) => {
                             proceedToCheckout(qty, variant);

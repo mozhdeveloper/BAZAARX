@@ -19,6 +19,7 @@ interface BuyNowModalProps {
     stock?: number;
     variantLabel2Values?: string[];
     variantLabel1Values?: string[];
+    is_vacation_mode?: boolean;
   };
   onConfirm: (quantity: number, variant?: ProductVariant) => void;
 }
@@ -38,6 +39,7 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
   const hasVariants = product.variants && product.variants.length > 0;
   const hasVariantLabel1Values = product.variantLabel2Values && product.variantLabel2Values.length > 0;
   const hasVariantLabel2Values = product.variantLabel1Values && product.variantLabel1Values.length > 0;
+  const isVacationMode = product.is_vacation_mode || false;
 
   const currentPrice = selectedVariant?.price || product.price;
   const maxStock = selectedVariant ? (selectedVariant.stock ?? 0) : (product.stock || 99);
@@ -215,10 +217,15 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
             </div>
             <Button
               onClick={handleConfirm}
-              className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition-all"
+              disabled={isVacationMode}
+              className={`w-full h-12 font-semibold rounded-xl transition-all ${
+                isVacationMode
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : "bg-orange-500 hover:bg-orange-600 text-white"
+              }`}
             >
               <ShoppingBag className="w-5 h-5 mr-2" />
-              Proceed to Checkout
+              {isVacationMode ? "Store on Vacation" : "Proceed to Checkout"}
             </Button>
           </div>
         </div>
