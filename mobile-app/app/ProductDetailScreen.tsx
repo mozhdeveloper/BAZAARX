@@ -153,6 +153,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           if (fullProduct) {
             setProduct(fullProduct as any);
           }
+
         } catch (error) {
           console.error('[ProductDetail] Error fetching full product:', error);
         }
@@ -213,9 +214,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Structured variants from product_variants table
   const productVariants = product.variants || [];
   const hasStructuredVariants = productVariants.length > 0;
-  
+
   // ─── Refined Variant Logic (Align with Web) ───
-  
+
   const dedupe = (opts: any) => {
     if (!Array.isArray(opts)) return [];
     const seen = new Set();
@@ -344,6 +345,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const setModalSelectedSize = setModalSelectedOption2;
   const [modalQuantity, setModalQuantity] = useState(1);
   const [showVariantFilterModal, setShowVariantFilterModal] = useState(false); // Filter dropdown state
+  const [showSizeGuideModal, setShowSizeGuideModal] = useState(false); // Size guide modal state
 
   // Whether axes were swapped (color was in option_2 in DB)
   const axesSwapped = !dbLabel1 && !dbLabel2 && !looksLikeColor(deduped1) && looksLikeColor(deduped2) && deduped2.length > 0;
@@ -357,9 +359,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     // Our op1 = color axis, op2 = size axis
     // If swapped: our op1 maps to DB axis2, our op2 maps to DB axis1
     const colorAxisVal = axesSwapped ? dbAxis2 : dbAxis1;
-    const sizeAxisVal  = axesSwapped ? dbAxis1 : dbAxis2;
+    const sizeAxisVal = axesSwapped ? dbAxis1 : dbAxis2;
     const op1Match = !op1 || colorAxisVal === n(op1);
-    const op2Match = !op2 || sizeAxisVal  === n(op2);
+    const op2Match = !op2 || sizeAxisVal === n(op2);
     return op1Match && op2Match;
   };
 
@@ -434,7 +436,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     activeVariantFilter
       ? productVariants.find((v: any) => v.id === activeVariantFilter)?.variant_name || 'Selected Variant'
       : null
-  , [activeVariantFilter, productVariants]);
+    , [activeVariantFilter, productVariants]);
 
   const toggleImageFilter = () => {
     const newWithImages = !activeImageFilter;
@@ -503,10 +505,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const baseImages = (!raw || !Array.isArray(raw) || raw.length === 0)
       ? (product.image ? [product.image] : [])
       : [...raw].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          .map((img: any) => {
-            if (typeof img === 'string') return img;
-            return img.image_url || img.url || img.uri || product.image || '';
-          }).filter(Boolean) as string[];
+        .map((img: any) => {
+          if (typeof img === 'string') return img;
+          return img.image_url || img.url || img.uri || product.image || '';
+        }).filter(Boolean) as string[];
 
     // Include variant-specific images at the end if they aren't already in baseImages
     const variantImages = (productVariants || [])
@@ -1132,8 +1134,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   const isColor = finalVariantLabel1.toLowerCase() === 'color';
                   const variantImg = isColor
                     ? productVariants.find((v: any) =>
-                        (axesSwapped ? v.option_2_value : v.option_1_value) === value
-                      )?.thumbnail_url || null
+                      (axesSwapped ? v.option_2_value : v.option_1_value) === value
+                    )?.thumbnail_url || null
                     : null;
                   const isSelected = selectedOption1 === value;
                   if (isColor) {
@@ -1204,6 +1206,20 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
+          {/* Size Guide Button — shown if variantLabel1 is "Size" (matches web pattern) */}
+          {product.size_guide_image && (
+            <View style={{ marginTop: 16 }}>
+              <Pressable
+                style={styles.sizeGuideButton}
+                onPress={() => setShowSizeGuideModal(true)}
+              >
+                <Ionicons name="shirt-outline" size={20} color={BRAND_COLOR} />
+                <Text style={styles.sizeGuideButtonText}>Size Guide</Text>
+                <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
+              </Pressable>
+            </View>
+          )}
+
           <Text style={{ fontSize: 15, color: '#4B5563', lineHeight: 24, marginBottom: 15, marginTop: 20 }}>
             {product.description || "High-quality wireless earbuds with touch controls and a charging case. Great sound and long battery life."}
           </Text>
@@ -1238,7 +1254,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 </View>
               </View>
             </Pressable>
-            
+
             <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
               <Pressable
                 style={[styles.followBtn, isFollowingSeller && styles.followBtnActive]}
@@ -1434,16 +1450,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </Pressable>
 
         <View style={styles.actionButtonsContainer}>
-          <Pressable 
-            style={[styles.addToCartBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]} 
+          <Pressable
+            style={[styles.addToCartBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]}
             onPress={handleAddToCart}
             disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
           >
             <ShoppingCart size={20} color={(Number(selectedVariantInfo.stock ?? 0) > 0) ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
-          <Pressable 
-            style={[styles.buyNowBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]} 
+          <Pressable
+            style={[styles.buyNowBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]}
             onPress={handleBuyNow}
             disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
           >
@@ -1568,6 +1584,53 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             >
               <Text style={{ color: '#9CA3AF', fontSize: 15 }}>Close</Text>
             </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Size Guide Modal */}
+      <Modal
+        visible={showSizeGuideModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSizeGuideModal(false)}
+        statusBarTranslucent={true}
+      >
+        <Pressable
+          style={styles.sizeGuideModalOverlay}
+          onPress={() => setShowSizeGuideModal(false)}
+        >
+          <Pressable
+            style={styles.sizeGuideModalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.sizeGuideModalHeader}>
+              <Text style={styles.sizeGuideModalTitle}>Size Guider</Text>
+              <Pressable onPress={() => setShowSizeGuideModal(false)} style={styles.sizeGuideCloseBtn}>
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+            {/* <ScrollView
+              style={styles.sizeGuideImageContainer}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.sizeGuideImageContent}
+            > */}
+            {product.size_guide_image ? (
+              <>
+                <Image
+                  source={{ uri: product.size_guide_image }}
+                  style={styles.sizeGuideImage}
+                  contentFit="contain"
+                />
+              </>
+            ) : (
+              <View style={styles.sizeGuidePlaceholder}>
+                <Ionicons name="shirt-outline" size={64} color="#D1D5DB" />
+                <Text style={styles.sizeGuidePlaceholderText}>No size guide available</Text>
+              </View>
+            )}
+
+            {/* </ScrollView> */}
           </Pressable>
         </Pressable>
       </Modal>
@@ -2051,6 +2114,84 @@ const styles = StyleSheet.create({
   sizeOptionTextSelected: {
     color: BRAND_COLOR,
     fontWeight: '700',
+  },
+
+  // Size Guide Button
+  sizeGuideButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  sizeGuideButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: BRAND_COLOR,
+    flex: 1,
+  },
+
+  // Size Guide Modal
+  sizeGuideModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sizeGuideModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    width: '90%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    overflow: 'hidden',
+  },
+  sizeGuideModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sizeGuideModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textHeadline,
+  },
+  sizeGuideCloseBtn: {
+    padding: 4,
+  },
+  sizeGuideImageContainer: {
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  sizeGuideImageContent: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 50,
+    flexGrow: 1,
+  },
+  sizeGuideImage: {
+    backgroundColor: '#F3F4F6',
+    width: '100%',
+    height: 400,
+    borderRadius: 12,
+  },
+  sizeGuidePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  sizeGuidePlaceholderText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    marginTop: 16,
   },
 
   // Variant Modal Styles

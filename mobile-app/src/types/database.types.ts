@@ -313,6 +313,7 @@ export interface Product {
   created_at: string;
   updated_at: string;
   image_embedding: number[] | null;
+  size_guide_image: string | null;
   // Joined fields (not in DB directly)
   seller_id?: string;
   images?: ProductImage[];

@@ -422,7 +422,7 @@ export default function SellerProductsScreen() {
         console.error('Failed to load variants for editing:', variantError);
         setEditVariants([]);
       });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const validateEditForm = () => {

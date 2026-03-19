@@ -249,17 +249,17 @@ export default function HomeScreen({ navigation }: Props) {
   const saveRecentSearch = useCallback(async (term: string) => {
     if (!term.trim()) return;
     const cleanTerm = term.trim();
-    
+
     setRecentSearches(prev => {
       // Remove term if it already exists, then add to front
       const filtered = prev.filter(t => t.toLowerCase() !== cleanTerm.toLowerCase());
       const updated = [cleanTerm, ...filtered].slice(0, 10);
-      
+
       // Persist to AsyncStorage
       AsyncStorage.setItem('recentSearches', JSON.stringify(updated)).catch(e => {
         console.error('[HomeScreen] Failed to save recent searches:', e);
       });
-      
+
       return updated;
     });
   }, []);
@@ -674,20 +674,20 @@ export default function HomeScreen({ navigation }: Props) {
               } else {
                 // Navigate to dedicated screen
                 navigation.navigate('Notifications');
-                }
-              }}
-              style={styles.headerIconButton}
-            >
-              <Bell size={24} color={COLORS.primary} />
-              {!isGuest && unreadCount > 0 && (
-                <View style={styles.notifBadge}>
-                  <Text style={styles.notifBadgeText}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
+              }
+            }}
+            style={styles.headerIconButton}
+          >
+            <Bell size={24} color={COLORS.primary} />
+            {!isGuest && unreadCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
 
         {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
@@ -701,19 +701,19 @@ export default function HomeScreen({ navigation }: Props) {
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
               onSubmitEditing={() => {
-                // onSubmitEditing is now only for UI feedback, 
+                // onSubmitEditing is now only for UI feedback,
                 // search history is saved when clicking items
               }}
             />
             <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color={COLORS.primary} /></Pressable>
           </View>
           {isSearchFocused && (
-            <Pressable 
-              onPress={() => { 
-                setIsSearchFocused(false); 
-                setSearchQuery(''); 
-                Keyboard.dismiss(); 
-              }} 
+            <Pressable
+              onPress={() => {
+                setIsSearchFocused(false);
+                setSearchQuery('');
+                Keyboard.dismiss();
+              }}
               style={{ paddingLeft: 10 }}
             >
               <Text style={{ color: '#FFF', fontWeight: '600' }}>Cancel</Text>
@@ -728,11 +728,11 @@ export default function HomeScreen({ navigation }: Props) {
         contentContainerStyle={{ paddingBottom: 100 }}
         scrollEventThrottle={16}
         onScroll={handleScroll}
-        keyboardShouldPersistTaps="handled" 
+        keyboardShouldPersistTaps="handled"
       >
         {isSearchFocused ? (
-          <Pressable 
-            style={styles.searchDiscovery} 
+          <Pressable
+            style={styles.searchDiscovery}
             onPress={() => {
               setIsSearchFocused(false);
               Keyboard.dismiss();
@@ -749,9 +749,9 @@ export default function HomeScreen({ navigation }: Props) {
                   )}
                 </View>
                 {recentSearches.map((term, i) => (
-                  <Pressable 
-                    key={i} 
-                    style={styles.searchRecentItem} 
+                  <Pressable
+                    key={i}
+                    style={styles.searchRecentItem}
                     onPress={(e) => {
                       e.stopPropagation();
                       setSearchQuery(term);
@@ -759,7 +759,7 @@ export default function HomeScreen({ navigation }: Props) {
                   >
                     <Clock size={16} color="#9CA3AF" />
                     <Text style={styles.searchRecentText}>{term}</Text>
-                    <Pressable 
+                    <Pressable
                       onPress={(e) => {
                         e.stopPropagation();
                         const updated = recentSearches.filter((_, idx) => idx !== i);
@@ -833,9 +833,9 @@ export default function HomeScreen({ navigation }: Props) {
                         >
                           <View style={styles.storeSearchIcon}>
                             {s.avatar_url || (s as any).logo || (s as any).avatar ? (
-                              <Image 
-                                source={{ uri: s.avatar_url || (s as any).logo || (s as any).avatar }} 
-                                style={{ width: '100%', height: '100%', borderRadius: 22 }} 
+                              <Image
+                                source={{ uri: s.avatar_url || (s as any).logo || (s as any).avatar }}
+                                style={{ width: '100%', height: '100%', borderRadius: 22 }}
                               />
                             ) : (
                               <Text style={{ fontSize: 18, color: COLORS.primary, fontWeight: 'bold' }}>
@@ -896,10 +896,10 @@ export default function HomeScreen({ navigation }: Props) {
                       }
                     }}
                   >
-                    <ExpoImage 
-                      source={{ uri: slide.image }} 
-                      style={StyleSheet.absoluteFill} 
-                      contentFit="cover" 
+                    <ExpoImage
+                      source={{ uri: slide.image }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
                     />
                     <LinearGradient
                       colors={slide.gradient as [string, string]}
@@ -1267,25 +1267,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700'
   },
-  promoTextPart: { 
+  promoTextPart: {
     zIndex: 10,
     width: '100%'
   },
-  promoBadge: { 
-    fontSize: 11, 
-    fontWeight: '800', 
+  promoBadge: {
+    fontSize: 11,
+    fontWeight: '800',
     letterSpacing: 1.5,
-    marginBottom: 8 
+    marginBottom: 8
   },
-  promoHeadline: { 
-    fontSize: 28, 
-    fontWeight: '900', 
+  promoHeadline: {
+    fontSize: 28,
+    fontWeight: '900',
     letterSpacing: -0.5,
     marginBottom: 0
   },
-  promoHighlight: { 
+  promoHighlight: {
     fontSize: 24, // Slightly smaller to fit button
-    fontWeight: '800', 
+    fontWeight: '800',
     letterSpacing: -0.5,
     flexShrink: 1, // Allow text to shrink if needed
     paddingRight: 10
@@ -1341,12 +1341,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F3F4F6'
   },
-  storeSearchIcon: { 
-    width: 44, 
-    height: 44, 
-    borderRadius: 22, 
-    backgroundColor: '#F3F4F6', 
-    alignItems: 'center', 
+  storeSearchIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 1,

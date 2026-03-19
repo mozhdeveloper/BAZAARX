@@ -149,6 +149,9 @@ export default function MessagesScreen() {
       (c.last_message || '').toLowerCase().includes(q)
     );
   }, [conversations, debouncedQuery]);
+
+  const loadConversations = useCallback(async () => {
+    setLoading(true);
     // Use seller.id from sellerStore (the seller's UUID), not user.id from authStore
     const sellerId = seller?.id;
     if (!sellerId) {

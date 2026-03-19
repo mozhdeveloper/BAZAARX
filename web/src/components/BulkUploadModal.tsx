@@ -365,14 +365,6 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
             <DialogTitle className="text-2xl font-bold">
               Bulk Upload Products
             </DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              disabled={isUploading}
-            >
-              <X className="h-5 w-5" />
-            </Button>
           </div>
         </DialogHeader>
 

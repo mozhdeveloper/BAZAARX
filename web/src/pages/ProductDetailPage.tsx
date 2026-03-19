@@ -1462,38 +1462,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                     <p>No size guide image available for this product.</p>
                                 </div>
                             )}
-
-                            {/* <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-[var(--brand-primary)] text-white">
-                                        <th className="text-left px-5 py-3 font-black text-xs uppercase tracking-wider rounded-tl-2xl">Size</th>
-                                        <th className="text-center px-5 py-3 font-black text-xs uppercase tracking-wider">Chest (cm)</th>
-                                        <th className="text-center px-5 py-3 font-black text-xs uppercase tracking-wider">Waist (cm)</th>
-                                        <th className="text-center px-5 py-3 font-black text-xs uppercase tracking-wider">Hips (cm)</th>
-                                        <th className="text-center px-5 py-3 font-black text-xs uppercase tracking-wider rounded-tr-2xl">Height (cm)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[var(--border)]/30">
-                                    {[
-                                        { size: "XS", chest: "76–81", waist: "61–66", hips: "84–89", height: "155–160" },
-                                        { size: "S", chest: "84–89", waist: "69–74", hips: "91–96", height: "160–165" },
-                                        { size: "M", chest: "91–96", waist: "76–81", hips: "99–104", height: "165–170" },
-                                        { size: "L", chest: "99–104", waist: "84–89", hips: "107–112", height: "170–175" },
-                                        { size: "XL", chest: "107–112", waist: "91–96", hips: "114–119", height: "175–180" },
-                                        { size: "XXL", chest: "114–119", waist: "99–104", hips: "122–127", height: "180–185" },
-                                    ].map((row, i) => (
-                                        <tr key={row.size} className={i % 2 === 0 ? "bg-white" : "bg-[var(--brand-wash)]/30"}>
-                                            <td className="px-5 py-3 font-black text-[var(--brand-primary)]">{row.size}</td>
-                                            <td className="px-5 py-3 text-center text-[var(--text-primary)] font-medium">{row.chest}</td>
-                                            <td className="px-5 py-3 text-center text-[var(--text-primary)] font-medium">{row.waist}</td>
-                                            <td className="px-5 py-3 text-center text-[var(--text-primary)] font-medium">{row.hips}</td>
-                                            <td className="px-5 py-3 text-center text-[var(--text-primary)] font-medium">{row.height}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table> */}
                         </div>
-
                         <p className="text-xs text-[var(--text-muted)] mt-4 text-center">
                             Sizes may vary slightly by style. When in doubt, size up.
                         </p>
