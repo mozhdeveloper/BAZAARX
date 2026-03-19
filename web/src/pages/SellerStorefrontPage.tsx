@@ -421,7 +421,7 @@ export default function SellerStorefrontPage() {
       discountBadgeTooltip: (p as any).discountBadgeTooltip,
       image: (p.images && p.images.length > 0 && p.images[0].image_url) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
       rating: p.rating || 5.0,
-      review_count: p.review_count || 0,
+      review_count: (p as any).reviewCount || p.review_count || 0,
       sold: (p as any).sold || (p as any).lifetimeSold || p.sales_count || 0,
       category: (p.category && (typeof p.category === 'string' ? p.category : (p.category as any).name)) || 'General',
       isFreeShipping: p.is_free_shipping || false,
@@ -618,9 +618,9 @@ export default function SellerStorefrontPage() {
                   )}
                 >
                   {isFollowing(seller.id) ? (
-                    <><Heart className="w-4 h-4 mr-2 fill-current" /> Following</>
+                    "Following"
                   ) : (
-                    <><Heart className="w-4 h-4 mr-2" /> Follow</>
+                    "Follow"
                   )}
                 </Button>
 

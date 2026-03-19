@@ -23,6 +23,7 @@ export interface ProductCardProduct {
   lifetimeSold?: number;
   campaignSold?: number;
   campaignStock?: number;
+  reviewsCount?: number;
 }
 
 interface ProductCardProps {
@@ -118,7 +119,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
               ))}
             </div>
             <span className="text-[12px] text-gray-500 font-medium">
-              ({product.rating || 5.0})
+              {product.rating || 5.0} ({product.reviewsCount || 0})
             </span>
           </div>
 

@@ -810,7 +810,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 {/* Info Container */}
                                 <div className="flex flex-col gap-0.5">
                                     <div className="flex items-center gap-1.5">
-                                        <h3 className="font-black text-[var(--text-headline)] text-lg leading-tight font-heading group-hover:text-[var(--brand-primary)] transition-colors">
+                                        <h3 className="font-black text-[var(--text-headline)] text-lg leading-tight font-heading group-hover:text-[var(--brand-primary)] transition-colors whitespace-nowrap">
                                             {normalizedProduct?.seller &&
                                                 normalizedProduct.seller !==
                                                 "Verified Seller"
@@ -827,15 +827,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                             <span>{normalizedProduct?.location || "Metro Manila"}</span>
                                         </div>
                                         <div className="flex items-center gap-1 text-[var(--brand-primary)]">
-                                            <Star className="w-3.5 h-3.5 fill-current" />
+                                            <Star className="w-3 h-3 fill-current" />
                                             <span>{currentSeller.rating}</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Follow & Chat Buttons */}
-                            <div className="flex items-center gap-2">
+                            {/* Follow Button */}
+                            <div>
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -843,40 +843,13 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                         isFollowing(sid) ? unfollowShop(sid) : followShop(sid);
                                     }}
                                     className={cn(
-                                        "flex items-center gap-2 px-5 py-2 rounded-full text-sm font-black transition-all active:scale-95",
+                                        "px-3 py-1.5 rounded-full text-sm font-bold",
                                         isFollowing(normalizedProduct?.sellerId || "seller-001")
                                             ? "border border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary)]/90"
-                                            : "border border-[var(--brand-primary)]/20 bg-[var(--brand-wash)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 hover:shadow-sm"
+                                            : "border border-[var(--brand-primary)] bg-[var(--brand-wash)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
                                     )}
                                 >
-                                    <Heart className={cn("w-4 h-4", isFollowing(normalizedProduct?.sellerId || "seller-001") && "fill-current")} />
                                     {isFollowing(normalizedProduct?.sellerId || "seller-001") ? "Following" : "Follow"}
-                                </button>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        useChatStore.getState().openChat({
-                                            sellerId:
-                                                normalizedProduct?.sellerId ||
-                                                "seller-001",
-                                            sellerName:
-                                                normalizedProduct?.seller ||
-                                                "Official Store",
-                                            sellerAvatar: currentSeller.avatar,
-                                            productId: normalizedProduct?.id,
-                                            productName: productData.name,
-                                            productImage:
-                                                productData.images?.[0] ||
-                                                normalizedProduct?.image,
-                                        });
-                                        useChatStore
-                                            .getState()
-                                            .setMiniMode(false);
-                                    }}
-                                    className="flex items-center gap-2 px-5 py-2 rounded-full border border-[var(--brand-primary)]/20 bg-[var(--brand-wash)] text-[var(--brand-primary)] text-sm font-black transition-all hover:bg-[var(--brand-primary)]/10 hover:shadow-sm active:scale-95"
-                                >
-                                    <MessageCircle className="w-4 h-4" />
-                                    Chat
                                 </button>
                             </div>
                         </div>
@@ -886,7 +859,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         </h1>
 
                         {/* Price Section */}
-                        <div className="flex items-center gap-4 mb-4">
+                        <div className="flex items-center gap-4 mb-2">
                             <div className="flex flex-col">
                                 <div className="flex items-center gap-4">
                                     {(() => {
@@ -923,16 +896,17 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             </div>
                         </div>
 
-                        {/* Rating Section (Sold removed) */}
-                        <div className="flex items-center gap-3 mb-6 mt-2 border-b border-[var(--border)]/30 pb-4">
-                            <div className="flex items-center gap-1">
+                        {/* Rating and Sold Section */}
+                        <div className="flex items-center gap-4 mb-6 mt-2">
+                            <div className="flex items-center gap-1 border-r pr-4">
                                 <Star className="w-3.5 h-3.5 fill-[var(--brand-primary)] text-[var(--brand-primary)]" />
-                                <span className="font-black text-[var(--text-headline)] text-sm">
-                                    {productData.rating}
+                                <span className="text-[var(--text-headline)] text-sm font-medium">
+                                    {productData.rating} ({productData.reviewCount})
                                 </span>
                             </div>
-                            <span className="text-[var(--border)] font-light">|</span>
-                            <span className="text-[var(--text-muted)] text-sm">Trusted Quality</span>
+                            <span className="text-[var(--text-headline)] text-sm font-medium">
+                                {productData.sold > 0 ? `${productData.sold.toLocaleString()} sold` : "0 sold"}
+                            </span>
 
                             {productData.has_warranty && (
                                 <>
@@ -1018,7 +992,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                             "Size" && (
                                                 <button
                                                     onClick={() => setShowSizeGuide(true)}
-                                                    className="text-xs text-[var(--text-muted)] hover:text-[var(--brand-primary)] hover:underline flex items-center gap-1 font-bold">
+                                                    className="text-xs text-[var(--text-muted)] hover:text-[var(--brand-primary)] hover:underline flex items-center gap-1">
                                                     <Ruler className="w-3 h-3" />{" "}
                                                     Size Guide
                                                 </button>
@@ -1061,40 +1035,51 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         </div>
 
                         {/* Quantity and Stock */}
-                        <div className="flex items-center gap-6 mb-8 -mt-4">
-                            <div className="flex items-center border border-[var(--border)]/60 bg-white shadow-sm rounded-full p-1 w-32 justify-between">
-                                <button
-                                    onClick={() =>
-                                        setQuantity(Math.max(1, quantity - 1))
-                                    }
-                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--brand-wash)] text-[var(--text-primary)] transition-colors"
-                                >
-                                    <Minus className="w-3.5 h-3.5" />
-                                </button>
-                                <input
-                                    type="number"
-                                    value={quantity}
-                                    onChange={handleQuantityInput}
-                                    onBlur={handleQuantityBlur}
-                                    className="w-12 text-center font-black text-[var(--text-headline)] text-lg bg-transparent border-none focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <button
-                                    onClick={() => {
-                                        const currentVariant =
-                                            getSelectedVariant();
-                                        const maxStock =
-                                            currentVariant?.stock ||
-                                            normalizedProduct?.stock ||
-                                            100;
-                                        setQuantity(
-                                            Math.min(maxStock, quantity + 1),
-                                        );
-                                    }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--brand-wash)] text-[var(--text-primary)] transition-colors"
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
+                        <div className="flex items-center gap-6 mb-6 -mt-4">
+                            {(() => {
+                                const currentVariant = getSelectedVariant();
+                                const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
+                                const isOutOfStock = stockQty === 0;
+                                return (
+                                    <div className={cn(
+                                        "flex items-center border border-[var(--border)]/60 bg-white shadow-sm rounded-xl p-1 w-32 justify-between",
+                                        isOutOfStock && "opacity-40 grayscale-[0.2]"
+                                    )}>
+                                        <button
+                                            disabled={isOutOfStock}
+                                            onClick={() =>
+                                                setQuantity(Math.max(1, quantity - 1))
+                                            }
+                                            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[var(--brand-wash)] text-[var(--text-primary)] transition-colors"
+                                        >
+                                            <Minus className="w-3.5 h-3.5" />
+                                        </button>
+                                        <input
+                                            type="number"
+                                            disabled={isOutOfStock}
+                                            value={quantity}
+                                            onChange={handleQuantityInput}
+                                            onBlur={handleQuantityBlur}
+                                            className="w-12 text-center font-medium text-[var(--text-headline)] text-md bg-transparent border-none focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        />
+                                        <button
+                                            disabled={isOutOfStock}
+                                            onClick={() => {
+                                                const maxStock =
+                                                    currentVariant?.stock ||
+                                                    normalizedProduct?.stock ||
+                                                    100;
+                                                setQuantity(
+                                                    Math.min(maxStock, quantity + 1),
+                                                );
+                                            }}
+                                            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[var(--brand-wash)] text-[var(--text-primary)] transition-colors"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                );
+                            })()}
                             {/* Stock Display */}
                             {(() => {
                                 const currentVariant = getSelectedVariant();
@@ -1179,11 +1164,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 className="flex-1 h-14 rounded-2xl bg-white hover:bg-[var(--brand-wash)] text-[var(--brand-primary)] border border-[var(--brand-primary)] text-base font-bold transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <ShoppingCart className="w-5 h-5" />
-                                {(() => {
-                                    const currentVariant = getSelectedVariant();
-                                    const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
-                                    return stockQty > 0 ? "Add to Cart" : "Out of Stock";
-                                })()}
+                                Add to Cart
                             </Button>
 
                             <Button
@@ -1195,11 +1176,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 })()}
                                 className="flex-1 h-14 rounded-2xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white text-base font-bold transition-all active:scale-[0.98] shadow-lg shadow-[var(--brand-primary)]/30 border-0 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {(() => {
-                                    const currentVariant = getSelectedVariant();
-                                    const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
-                                    return stockQty > 0 ? "Buy Now" : "Out of Stock";
-                                })()}
+                                Buy Now
                             </Button>
                         </div>
                     </div>
@@ -1472,15 +1449,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
             {/* Registry Selection Modal */}
             {showRegistryModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200 border border-[var(--border)]/40">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2rem] w-full max-w-md p-6 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200 border border-[var(--border)]/40">
                         <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-2xl font-black text-[var(--text-headline)] font-heading uppercase tracking-tight">Add to Registry</h2>
+                            <h2 className="text-xl font-black text-[var(--text-headline)] font-heading">Add to Registry</h2>
                             <button
                                 onClick={() => setShowRegistryModal(false)}
-                                className="p-2 hover:bg-[var(--brand-wash)] rounded-full transition-colors text-[var(--text-muted)] hover:text-[var(--brand-primary)]"
+                                className="text-gray-500 hover:text-gray-700"
                             >
-                                <X className="w-6 h-6" />
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
 

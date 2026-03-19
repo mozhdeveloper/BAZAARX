@@ -903,7 +903,9 @@ export class DiscountService {
             images:product_images (image_url, is_primary, sort_order),
             variants:product_variants (stock, price),
             seller:sellers!products_seller_id_fkey (id, store_name),
-            category:categories!products_category_id_fkey (name)
+            category:categories!products_category_id_fkey (name),
+            rating,
+            reviews(rating)
           )
         `)
         .in('slot_id', slotIds)
@@ -941,6 +943,8 @@ export class DiscountService {
           campaignBadgeColor: '#FF6A00',
           campaignEndsAt: slot?.end_time,
           discountBadgePercent: discountPct > 0 ? discountPct : undefined,
+          rating: p?.rating || 0,
+          reviewsCount: p?.reviews?.length || 0,
         };
       });
     } catch (error) {

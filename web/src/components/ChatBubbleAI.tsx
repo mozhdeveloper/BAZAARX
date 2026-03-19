@@ -96,7 +96,7 @@ export function ChatBubble() {
           .from('products')
           .select('id, name, price, brand, is_free_shipping, description, category:categories!products_category_id_fkey(name), variants:product_variants(size, color, stock, price)')
           .eq('id', chatTarget.productId)
-          .single();
+          .single() as any;
 
         if (data) {
           const totalStock = data.variants?.reduce((s: number, v: any) => s + (v.stock || 0), 0) || 0;
@@ -120,7 +120,7 @@ export function ChatBubble() {
           .from('sellers')
           .select('id, store_name, store_description, owner_name, approval_status')
           .eq('id', chatTarget.sellerId)
-          .single();
+          .single() as any;
 
         if (data) {
           setStoreContext({
@@ -574,22 +574,11 @@ export function ChatBubble() {
                   <RefreshCw className="w-4 h-4" />
                 </Button>
               )}
+
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setMiniMode(true)}
-                className="text-white hover:bg-white/20 h-8 w-8"
-              >
-                <Minimize2 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  closeChat();
-                  clearChatTarget();
-                  handleResetChat();
-                }}
                 className="text-white hover:bg-white/20 h-8 w-8"
               >
                 <X className="w-4 h-4" />

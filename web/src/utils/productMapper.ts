@@ -344,7 +344,7 @@ export const mapDbProductToNormalized = (
 
     // Rating / review count may already be computed by transformProduct
     const rating = (p as any).rating ?? 0;
-    const reviewCount = (p as any).reviewCount ?? 0;
+    const reviewCount = (p as any).reviewCount ?? (p as any).reviews ?? 0;
 
     const label2Options = buildLabel2Options(rawVariants, primaryImage);
     const label1Options = buildLabel1Options(rawVariants);
@@ -370,7 +370,7 @@ export const mapDbProductToNormalized = (
 
         rating,
         reviewCount,
-        sold: (p as any).sales_count ?? 0,
+        sold: (p as any).sold ?? (p as any).sales ?? (p as any).sold_count ?? (p as any).sales_count ?? 0,
         stock: totalStock || (p as any).stock || 0,
 
         sellerId: p.seller_id || "",
