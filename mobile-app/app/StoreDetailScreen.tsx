@@ -43,6 +43,7 @@ export default function StoreDetailScreen() {
     const [storeData, setStoreData] = useState<any>(store);
     const [followerCount, setFollowerCount] = useState(0);
     const [isFollowing, setIsFollowing] = useState(false);
+    const [storeCategories, setStoreCategories] = useState<string[]>([]);
 
     const [activeTab, setActiveTab] = useState('Shop');
     const [searchVisible, setSearchVisible] = useState(false);
@@ -71,11 +72,20 @@ export default function StoreDetailScreen() {
                 const seller = await sellerService.getSellerById(store.id);
                 if (seller) {
                     const logoUrl = seller.avatar_url || (seller as any).avatar || (seller as any).logo || store.logo;
+                    
+                    // Construct consistent address
+                    const fullAddress = [
+                        seller.business_profile?.address_line_1,
+                        seller.city || seller.business_profile?.city,
+                        seller.province || seller.business_profile?.province
+                    ].filter(Boolean).join(', ') || store.location || "Address not available";
+
                     setStoreData({
                         ...store,
                         ...seller,
                         name: seller.store_name || seller.business_name || store.name,
-                        location: seller.city ? `${seller.city}, ${seller.province}` : (seller.business_profile?.address_line_1 || store.location),
+                        location: fullAddress,
+                        address: fullAddress, // Add explicit address field
                         description: seller.store_description || "",
                         rating: seller.rating || store.rating || 0,
                         logo: logoUrl
@@ -160,19 +170,25 @@ export default function StoreDetailScreen() {
                         };
                     });
                     setRealProducts(mappedProducts);
+
+                    // Extract unique categories from products
+                    const categories = Array.from(new Set(mappedProducts.map(p => p.category))).filter((c): c is string => !!c);
+                    setStoreCategories(categories);
                 } else {
                     setRealProducts([]);
+                    setStoreCategories([]);
                 }
             } catch (error) {
                 console.error('Error fetching store products:', error);
                 setRealProducts([]); // Set empty on error instead of leaving stale data
+                setStoreCategories([]);
             } finally {
                 setProductsLoading(false);
             }
         };
 
         fetchProducts();
-    }, [store?.id, storeData.name]);
+    }, [store?.id, storeData.name, storeData.location]);
 
     // Use real products if available, otherwise fallback to trending products (only if disabled)
     // Actually for store detail we should probably only show real products or empty
@@ -307,18 +323,21 @@ export default function StoreDetailScreen() {
                     <View style={styles.sectionContainer}>
                         <Text style={styles.sectionTitle}>Store Categories</Text>
                         <View style={styles.categoriesList}>
-                            {(store.categories || []).map((cat: string, index: number) => (
-                                <Pressable key={index} style={styles.categoryRow}>
-                                    <Text style={styles.categoryName}>{cat}</Text>
-                                    <Grid size={20} color={COLORS.textMuted} />
-                                </Pressable>
-                            ))}
-                            {['Sale', 'New Arrivals', 'Bundles'].map((cat, index) => (
-                                <Pressable key={`extra-${index}`} style={styles.categoryRow}>
-                                    <Text style={styles.categoryName}>{cat}</Text>
-                                    <Grid size={20} color={COLORS.textMuted} />
-                                </Pressable>
-                            ))}
+                            {storeCategories.length > 0 ? (
+                                storeCategories.map((cat, index) => (
+                                    <Pressable key={`cat-${index}`} style={styles.categoryRow}>
+                                        <Text style={styles.categoryName}>{cat}</Text>
+                                        <Grid size={20} color={COLORS.textMuted} />
+                                    </Pressable>
+                                ))
+                            ) : (
+                                ['Sale', 'New Arrivals', 'Bundles'].map((cat, index) => (
+                                    <Pressable key={`fallback-${index}`} style={styles.categoryRow}>
+                                        <Text style={styles.categoryName}>{cat}</Text>
+                                        <Grid size={20} color={COLORS.textMuted} />
+                                    </Pressable>
+                                ))
+                            )}
                         </View>
                     </View>
                 );
@@ -334,11 +353,7 @@ export default function StoreDetailScreen() {
                             <View style={styles.infoRow}>
                                 <MapPin size={18} color={COLORS.textMuted} />
                                 <Text style={styles.infoText}>
-                                    {[
-                                        storeData.business_profile?.address_line_1,
-                                        storeData.city || storeData.business_profile?.city,
-                                        storeData.province || storeData.business_profile?.province
-                                    ].filter(Boolean).join(', ') || storeData.location || "Address not available"}
+                                    {storeData.location || "Address not available"}
                                 </Text>
                             </View>
                             <View style={styles.infoRow}>
@@ -351,7 +366,9 @@ export default function StoreDetailScreen() {
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Joined:</Text>
-                                <Text style={styles.infoText}>January 2023</Text>
+                                <Text style={styles.infoText}>
+                                    {storeData.created_at ? new Date(storeData.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'January 2023'}
+                                </Text>
                             </View>
                         </View>
                     </View>
@@ -434,11 +451,7 @@ export default function StoreDetailScreen() {
                                 <View style={styles.locationRow}>
                                     <MapPin size={12} color="#FFF" />
                                     <Text style={styles.locationText} numberOfLines={1}>
-                                        {[
-                                            storeData.business_profile?.address_line_1,
-                                            storeData.city || storeData.business_profile?.city,
-                                            storeData.province || storeData.business_profile?.province
-                                        ].filter(Boolean).join(', ') || storeData.location || "Address not available"}
+                                        {storeData.location || "Address not available"}
                                     </Text>
                                 </View>
                                 <View style={styles.metricsRow}>
