@@ -469,6 +469,14 @@ export default function SellerStorefrontPage() {
     });
 
   const handleAddToCart = (product: any) => {
+    if (product.isVacationMode || product.is_vacation_mode) {
+      toast({
+        title: "Store on Vacation",
+        description: "This store is temporarily unavailable.",
+        variant: "destructive",
+      });
+      return;
+    }
     const cartProduct = {
       ...product,
       sellerId: seller.id,
@@ -490,6 +498,14 @@ export default function SellerStorefrontPage() {
   };
 
   const onBuyNow = (product: any) => {
+    if (product.isVacationMode || product.is_vacation_mode) {
+      toast({
+        title: "Store on Vacation",
+        description: "This store is temporarily unavailable.",
+        variant: "destructive",
+      });
+      return;
+    }
     setBuyNowProduct({
       ...product,
       quantity: 1,

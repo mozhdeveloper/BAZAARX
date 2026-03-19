@@ -348,7 +348,7 @@ class AdBoostService {
             id, name, price, approval_status, disabled_at,
             images:product_images(id, image_url, is_primary),
             category:categories(id, name),
-            seller:sellers(id, store_name, avatar_url),
+            seller:sellers(id, store_name, avatar_url, is_vacation_mode),
             reviews(rating),
             variants:product_variants(stock)
           )
@@ -415,7 +415,7 @@ class AdBoostService {
             id, name, price, approval_status, disabled_at,
             images:product_images(id, image_url, is_primary),
             category:categories(id, name),
-            seller:sellers(id, store_name, avatar_url),
+            seller:sellers(id, store_name, avatar_url, is_vacation_mode),
             reviews(rating),
             variants:product_variants(stock)
           )

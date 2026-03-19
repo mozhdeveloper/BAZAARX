@@ -211,6 +211,7 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         discountBadgePercent: p.discountBadgePercent || undefined,
         discountBadgeTooltip: p.discountBadgeTooltip || undefined,
         campaignDiscount: p.campaignDiscount || undefined,
+        isVacationMode: (p.seller as any)?.is_vacation_mode === true || false,
     } as any;
 };
 
@@ -255,6 +256,7 @@ export interface NormalizedProductDetail {
     location: string;
     isFreeShipping: boolean;
     isVerified: boolean;
+    isVacationMode?: boolean;
 
     // Variant system
     variantLabel1?: string; // e.g. "Size"
@@ -386,6 +388,7 @@ export const mapDbProductToNormalized = (
             "Metro Manila",
         isFreeShipping: p.is_free_shipping ?? false,
         isVerified: true,
+        isVacationMode: (p.seller as any)?.is_vacation_mode === true || false,
 
         variantLabel1: p.variant_label_1 || undefined,
         variantLabel2: p.variant_label_2 || undefined,
@@ -489,6 +492,7 @@ export const mapSellerProductToNormalized = (
         location: p.sellerLocation || "Metro Manila",
         isFreeShipping: true,
         isVerified: true,
+        isVacationMode: p.isVacationMode || false,
 
         variantLabel1: p.variantLabel1,
         variantLabel2: p.variantLabel2,
@@ -542,6 +546,7 @@ export const mapBuyerProductToNormalized = (
         location: p.location || p.seller?.location || "Metro Manila",
         isFreeShipping: p.isFreeShipping ?? true,
         isVerified: p.seller?.isVerified ?? true,
+        isVacationMode: (p as any).isVacationMode || false,
 
         variantLabel1: undefined,
         variantLabel2: undefined,

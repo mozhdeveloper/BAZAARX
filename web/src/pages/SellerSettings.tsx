@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   User,
@@ -15,6 +15,7 @@ import {
   Store,
   AlertTriangle,
   Trash2,
+  Palmtree,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { SellerWorkspaceLayout } from "@/components/seller/SellerWorkspaceLayout";
@@ -37,12 +38,63 @@ import {
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import type { VacationReason } from "@/types/database.types";
 
 export function SellerSettings() {
-  const { seller, logout } = useAuthStore();
+  const { seller, logout, setVacationMode, disableVacationMode } = useAuthStore();
+  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const navigate = useNavigate();
+
+  // Vacation mode state
+  const [vacationReason, setVacationReason] = useState<VacationReason | ''>('');
+  const [isSavingReason, setIsSavingReason] = useState(false);
+
+  useEffect(() => {
+    if (seller?.vacationReason) {
+      setVacationReason(seller.vacationReason as VacationReason);
+    } else {
+      setVacationReason('');
+    }
+  }, [seller?.vacationReason]);
+
+  const handleVacationToggle = async (enabled: boolean) => {
+    if (enabled) {
+      const success = await setVacationMode(vacationReason || undefined);
+      if (success) {
+        toast({
+          title: "Vacation Mode Enabled",
+          description: "Your store is now on vacation. Buyers cannot purchase your products.",
+        });
+      }
+    } else {
+      const success = await disableVacationMode();
+      if (success) {
+        toast({
+          title: "Vacation Mode Disabled",
+          description: "Your store is now open for business.",
+        });
+      }
+    }
+  };
+
+  const handleSaveVacationReason = async () => {
+    if (!seller?.isVacationMode) return;
+    setIsSavingReason(true);
+    try {
+      const success = await setVacationMode(vacationReason || undefined);
+      if (success) {
+        toast({
+          title: "Reason Saved",
+          description: "Vacation reason has been updated.",
+        });
+      }
+    } finally {
+      setIsSavingReason(false);
+    }
+  };
 
   // Account deletion state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -144,6 +196,9 @@ export function SellerSettings() {
                     </TabsTrigger>
                     <TabsTrigger value="payment" className="rounded-full px-4 py-2 text-xs transition-all duration-300 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-orange-500/20 text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50 gap-2">
                       Payment
+                    </TabsTrigger>
+                    <TabsTrigger value="store-status" className="rounded-full px-4 py-2 text-xs transition-all duration-300 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-orange-500/20 text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50 gap-2">
+                      Store Status
                     </TabsTrigger>
                   </TabsList>
 
@@ -493,6 +548,66 @@ export function SellerSettings() {
                           </label>
                         </div>
                       </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Store Status */}
+                <TabsContent value="store-status">
+                  <Card className="border-0 shadow-md rounded-xl bg-white overflow-hidden">
+                    <CardHeader className="bg-white p-8 pb-2">
+                      <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
+                        <Palmtree className="h-6 w-6 text-orange-500" />
+                        Store Status
+                      </CardTitle>
+                      <CardDescription className="text-[var(--text-muted)]">
+                        Manage your store's availability for buyers
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 px-8 pb-8 space-y-6">
+                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                        <div>
+                          <p className="font-semibold text-gray-900">Vacation Mode</p>
+                          <p className="text-sm text-gray-500">
+                            When enabled, buyers can still see your products but cannot purchase them.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={seller?.isVacationMode || false}
+                          onCheckedChange={handleVacationToggle}
+                          className="data-[state=checked]:bg-orange-500"
+                        />
+                      </div>
+
+                      {seller?.isVacationMode && (
+                        <div className="space-y-4 p-4 bg-orange-50 rounded-xl border border-orange-200">
+                          <div className="space-y-2">
+                            <Label htmlFor="vacation-reason">Vacation Reason</Label>
+                            <select
+                              id="vacation-reason"
+                              value={vacationReason}
+                              onChange={(e) => setVacationReason(e.target.value as VacationReason | '')}
+                              className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            >
+                              <option value="">Select a reason...</option>
+                              <option value="vacation">Vacation</option>
+                              <option value="personal">Personal</option>
+                              <option value="maintenance">Maintenance</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </div>
+                          <Button
+                            onClick={handleSaveVacationReason}
+                            disabled={isSavingReason}
+                            className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg"
+                          >
+                            {isSavingReason ? (
+                              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                            ) : null}
+                            Save Reason
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>

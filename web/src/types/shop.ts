@@ -36,4 +36,5 @@ export type ShopProduct = {
         discountValue: number;
         maxDiscountAmount?: number;
     };
+    isVacationMode?: boolean;
 };

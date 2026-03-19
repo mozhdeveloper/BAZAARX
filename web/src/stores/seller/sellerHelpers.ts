@@ -63,6 +63,9 @@ export const mapDbSellerToSeller = (s: any): Seller => {
             new Date().toISOString().split("T")[0],
         avatar: getSafeImageUrl(s.avatar_url),
         banner: s.store_banner_url || undefined,
+        // Vacation mode
+        isVacationMode: s.is_vacation_mode === true,
+        vacationReason: s.vacation_reason || null,
     };
 };
 

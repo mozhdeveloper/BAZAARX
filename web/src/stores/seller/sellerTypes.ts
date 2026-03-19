@@ -2,7 +2,7 @@
  * Seller Store Types
  * Shared type definitions for all seller domain stores.
  */
-import type { PaymentStatus, ShipmentStatus } from '@/types/database.types';
+import type { PaymentStatus, ShipmentStatus, VacationReason } from '@/types/database.types';
 
 // Types
 export interface Seller {
@@ -56,6 +56,10 @@ export interface Seller {
     joinDate: string;
     avatar?: string;
     banner?: string;
+
+    // Vacation Mode
+    isVacationMode?: boolean;
+    vacationReason?: VacationReason | null;
 
     latestRejection?: {
         description?: string;

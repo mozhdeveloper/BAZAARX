@@ -290,6 +290,7 @@ const SearchPage: React.FC = () => {
           campaignBadgeColor: product.campaignBadgeColor,
           discountBadgePercent: product.discountBadgePercent,
           discountBadgeTooltip: product.discountBadgeTooltip,
+          isVacationMode: product.isVacationMode || false,
         };
       });
 
@@ -784,6 +785,15 @@ const SearchPage: React.FC = () => {
                             return;
                           }
 
+                          if ((product as any).isVacationMode) {
+                            toast({
+                              title: "Store on Vacation",
+                              description: "This store is temporarily unavailable.",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+
                           const hasVariants = (product as any).variants && (product as any).variants.length > 0;
                           const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
                           const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
@@ -821,6 +831,15 @@ const SearchPage: React.FC = () => {
                               variant: "destructive",
                             });
                             navigate("/login");
+                            return;
+                          }
+
+                          if ((product as any).isVacationMode) {
+                            toast({
+                              title: "Store on Vacation",
+                              description: "This store is temporarily unavailable.",
+                              variant: "destructive",
+                            });
                             return;
                           }
 
