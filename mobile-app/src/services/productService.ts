@@ -354,6 +354,8 @@ export class ProductService {
       campaignEndsAt,
       campaignDiscountValue,
       campaignDiscountType,
+      // Seller vacation mode status
+      is_vacation_mode: product.seller?.is_vacation_mode === true,
     };
   }
 
@@ -425,6 +427,7 @@ export class ProductService {
             owner_name,
             approval_status,
             verified_at,
+            is_vacation_mode,
             business_profile:seller_business_profiles (
               business_type,
               city,
