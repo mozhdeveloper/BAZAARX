@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  Image,
   Alert,
   StyleSheet,
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -314,7 +314,7 @@ export default function SellerProductQAScreen() {
       PENDING_ADMIN_REVIEW: '#6B7280',
       PENDING_DIGITAL_REVIEW: '#D97706',
       WAITING_FOR_SAMPLE: '#D97706',
-      IN_QUALITY_REVIEW: '#8B5CF6',
+      IN_QUALITY_REVIEW: '#D97706',
       ACTIVE_VERIFIED: '#10B981',
       FOR_REVISION: '#D97706',
       REJECTED: '#EF4444',
@@ -540,10 +540,10 @@ export default function SellerProductQAScreen() {
                         // Normal tracking/scheduled display
                         return (
                           <View style={styles.logisticsBadge}>
-                            {info.title === 'Courier' ? <Truck size={12} color="#1D4ED8" /> : <Calendar size={12} color="#1E40AF" />}
+                            {info.title === 'Onsite Drop-off' ? <Calendar size={12} color="#D97706" /> : <Truck size={12} color="#D97706" />}
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.logisticsBadgeTitle} numberOfLines={1}>{info.title}</Text>
-                              {info.subtitle && <Text style={styles.logisticsBadgeSub} numberOfLines={1}>{info.subtitle}</Text>}
+                              <Text style={[styles.logisticsBadgeTitle, { color: '#D97706' }]} numberOfLines={1}>{info.title}</Text>
+                              {info.subtitle && <Text style={[styles.logisticsBadgeSub, { color: '#B45309' }]} numberOfLines={1}>{info.subtitle}</Text>}
                             </View>
                           </View>
                         );
@@ -574,7 +574,7 @@ export default function SellerProductQAScreen() {
                         <Text style={styles.submitBtnText}>Ship</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.submitBtn, { backgroundColor: '#2B4C8C' }]}
+                        style={[styles.submitBtn, { backgroundColor: '#374151' }]}
                         onPress={() => {
                           setDropOffProductId(product.productId);
                           setDropOffModalOpen(true);
@@ -689,17 +689,17 @@ export default function SellerProductQAScreen() {
                 ))}
 
                 {selectedLogistics === 'Drop-off by Courier' && (
-                  <View style={[styles.addressBox, { borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }]}>
-                    <Text style={styles.addressTitle}>Send your product to:</Text>
-                    <Text style={styles.addressText}>
+                  <View style={[styles.addressBox, { borderColor: '#FDE68A', backgroundColor: '#FFF4EC' }]}>
+                    <Text style={[styles.addressTitle, { color: '#B45309' }]}>Send your product to:</Text>
+                    <Text style={[styles.addressText, { color: '#B45309' }]}>
                       {'BazaarX QA Facility\nUnit 2B, Tech Hub Building\n1234 Innovation Drive, BGC, Taguig City\nMetro Manila, 1630'}
                     </Text>
                   </View>
                 )}
                 {selectedLogistics === 'Onsite Visit' && (
-                  <View style={[styles.addressBox, { borderColor: '#FCD34D', backgroundColor: '#FFFBEB' }]}>
-                    <Text style={[styles.addressTitle, { color: '#92400E' }]}>Visit us at:</Text>
-                    <Text style={[styles.addressText, { color: '#92400E' }]}>
+                  <View style={[styles.addressBox, { borderColor: '#FDE68A', backgroundColor: '#FFF4EC' }]}>
+                    <Text style={[styles.addressTitle, { color: '#B45309' }]}>Visit us at:</Text>
+                    <Text style={[styles.addressText, { color: '#B45309' }]}>
                       {'BazaarX QA Facility\nUnit 2B, Tech Hub Building\n1234 Innovation Drive, BGC, Taguig City\nOperating Hours: Mon-Fri, 9AM-5PM\nProcessing Fee: ₱200'}
                     </Text>
                   </View>
@@ -782,14 +782,14 @@ export default function SellerProductQAScreen() {
                 <Text style={styles.inputLabel}>Tracking Number</Text>
                 <TextInput style={styles.textInput} placeholder="Enter tracking number" placeholderTextColor="#9CA3AF" value={trackingNumber} onChangeText={setTrackingNumber} />
               </View>
-              <View style={[styles.addressBox, { borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }]}>
-                <Text style={styles.addressTitle}>QA Facility Address</Text>
-                <Text style={styles.addressText}>{'BazaarX Quality Assurance Center\n123 Commerce Ave, Makati City, Metro Manila 1234'}</Text>
+              <View style={[styles.addressBox, { borderColor: '#FDE68A', backgroundColor: '#FFF4EC' }]}>
+                <Text style={[styles.addressTitle, { color: '#B45309' }]}>QA Facility Address</Text>
+                <Text style={[styles.addressText, { color: '#B45309' }]}>{'BazaarX Quality Assurance Center\n123 Commerce Ave, Makati City, Metro Manila 1234'}</Text>
               </View>
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setShipmentModalOpen(false)}><Text style={styles.modalCancelText}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: '#FFB17A' }, (!courierName || !trackingNumber || isSubmitting) && styles.modalSubmitDisabled]} onPress={handleConfirmShipment} disabled={!courierName || !trackingNumber || isSubmitting}>
+              <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: '#D97706' }, (!courierName || !trackingNumber || isSubmitting) && styles.modalSubmitDisabled]} onPress={handleConfirmShipment} disabled={!courierName || !trackingNumber || isSubmitting}>
                 {isSubmitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.modalSubmitText}>Confirm Shipment</Text>}
               </TouchableOpacity>
             </View>
@@ -818,21 +818,21 @@ export default function SellerProductQAScreen() {
               {showDatePicker && (
                 <DateTimePicker value={dropOffDate || new Date()} mode="date" display="default" minimumDate={new Date()} onChange={(event, selectedDate) => { setShowDatePicker(false); if (selectedDate) setDropOffDate(selectedDate); }} />
               )}
-              <View style={[styles.addressBox, { borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }]}>
+              <View style={[styles.addressBox, { borderColor: '#FDE68A', backgroundColor: '#FFF4EC' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center' }}>
-                    <Package size={16} color="#2563EB" />
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center' }}>
+                    <Package size={16} color="#D97706" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.addressTitle, { marginBottom: 2 }]}>QA Facility Address</Text>
-                    <Text style={styles.addressText}>{'BazaarX Quality Assurance Center\n123 Commerce Ave, Makati City\nMon-Fri, 9:00 AM - 5:00 PM'}</Text>
+                    <Text style={[styles.addressTitle, { marginBottom: 2, color: '#B45309' }]}>QA Facility Address</Text>
+                    <Text style={[styles.addressText, { color: '#B45309' }]}>{'BazaarX Quality Assurance Center\n123 Commerce Ave, Makati City\nMon-Fri, 9:00 AM - 5:00 PM'}</Text>
                   </View>
                 </View>
               </View>
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setDropOffModalOpen(false)}><Text style={styles.modalCancelText}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: '#2B4C8C' }, (!dropOffDate || isSubmitting) && styles.modalSubmitDisabled]} onPress={handleScheduleDropOff} disabled={!dropOffDate || isSubmitting}>
+              <TouchableOpacity style={[styles.modalSubmit, { backgroundColor: '#D97706' }, (!dropOffDate || isSubmitting) && styles.modalSubmitDisabled]} onPress={handleScheduleDropOff} disabled={!dropOffDate || isSubmitting}>
                 {isSubmitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.modalSubmitText}>Confirm Schedule</Text>}
               </TouchableOpacity>
             </View>
@@ -974,7 +974,7 @@ const styles = StyleSheet.create({
   dateSelector: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#FCD34D',
+    borderColor: '#D97706',
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 52,
@@ -988,15 +988,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#DBEAFE',
-    borderColor: '#BFDBFE',
+    backgroundColor: '#FFF4EC',
+    borderColor: '#FDE68A',
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
-  logisticsBadgeTitle: { fontSize: 12, fontWeight: '700', color: '#1E40AF', flex: 1 },
-  logisticsBadgeSub: { fontSize: 11, color: '#1E3A8A', marginTop: 1 },
+  logisticsBadgeTitle: { fontSize: 12, fontWeight: '700', color: '#B45309', flex: 1 },
+  logisticsBadgeSub: { fontSize: 11, color: '#D97706', marginTop: 1 },
   courierChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1045,8 +1045,8 @@ const styles = StyleSheet.create({
   },
   modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   modalCancel: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  modalCancelText: { fontSize: 15, fontWeight: '600', color: '#374151' },
+  modalCancelText: { fontSize: 13, fontWeight: '700', color: '#374151', textTransform: 'uppercase' },
   modalSubmit: { flex: 1, backgroundColor: '#D97706', borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
   modalSubmitDisabled: { backgroundColor: '#D1D5DB' },
-  modalSubmitText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  modalSubmitText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13, textTransform: 'uppercase' },
 });

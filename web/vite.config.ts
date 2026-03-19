@@ -16,7 +16,7 @@ function trackingProxyPlugin() {
     },
     configureServer(server: any) {
       return () => {
-        server.middlewares.use('/api/track', async (req: any, res: any, next: any) => {
+        server.middlewares.use('/api/track', async (req: any, res: any) => {
           // Set CORS headers
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -106,6 +106,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    strictPort: true, // Fail if 5173 is in use, avoiding port drift to 5174
     host: true, // Enable network access for mobile testing
   },
 })

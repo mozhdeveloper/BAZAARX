@@ -9,6 +9,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   ChevronLeft,
+  ChevronRight,
   Users,
   Star,
   Heart,
@@ -331,7 +332,7 @@ export default function SellerStorefrontPage() {
     followers: followersCount,
     isVerified: realSeller.is_verified || false,
     tierLevel: (realSeller as any).tier_level || 'standard',
-    description: realSeller.store_description || 'Welcome to our store!',
+    description: realSeller.store_description || '',
     location: [realSeller.city, realSeller.province].filter(Boolean).join(', ') || 'Philippines',
     established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
     badges: realSeller.is_verified ? ['Verified Seller'] : [],
@@ -347,7 +348,7 @@ export default function SellerStorefrontPage() {
     followers: 5,
     isVerified: true,
     tierLevel: (dbSellerProduct as any).sellerTierLevel || 'standard',
-    description: 'Welcome to our store!',
+    description: '',
     location: dbSellerProduct.sellerLocation || 'Metro Manila',
     established: '2024',
     badges: ['Verified Seller'],

@@ -863,6 +863,34 @@ export class NotificationService {
       // silent — push is best-effort
     }
   }
+
+  /**
+   * Notify seller when a buyer cancels an order
+   */
+  async notifySellerOrderCancelled(params: {
+    sellerId: string;
+    orderId: string;
+    orderNumber: string;
+    buyerName: string;
+    reason?: string | null;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    const reasonText = params.reason ? `\nReason: ${params.reason}` : '';
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_order_cancelled',
+      title: 'Order Cancelled by Buyer',
+      message: `${params.buyerName} cancelled order #${params.orderNumber}.${reasonText}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: `/seller/order/${params.orderId}`,
+      actionData: { orderId: params.orderId },
+      priority: 'high'
+    });
+  }
 }
 
 export const notificationService = NotificationService.getInstance();

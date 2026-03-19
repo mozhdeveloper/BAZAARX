@@ -76,7 +76,7 @@ export default function StoreDetailScreen() {
                         ...seller,
                         name: seller.store_name || seller.business_name || store.name,
                         location: seller.city ? `${seller.city}, ${seller.province}` : (seller.business_profile?.address_line_1 || store.location),
-                        description: seller.store_description || store.description,
+                        description: seller.store_description || "",
                         rating: seller.rating || store.rating || 0,
                         logo: logoUrl
                     });
@@ -325,9 +325,9 @@ export default function StoreDetailScreen() {
             case 'About':
                 return (
                     <View style={styles.sectionContainer}>
-                        <Text style={styles.sectionTitle}>About {store.name}</Text>
+                        <Text style={styles.sectionTitle}>About {storeData.name || store.name}</Text>
                         <View style={styles.aboutCard}>
-                            <Text style={styles.aboutDescription}>{store.description}</Text>
+                            {storeData.description ? <Text style={styles.aboutDescription}>{storeData.description}</Text> : null}
 
                             <View style={styles.divider} />
 

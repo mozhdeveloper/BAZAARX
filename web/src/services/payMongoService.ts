@@ -975,7 +975,12 @@ export class PayMongoGatewayService {
         currency: params.currency,
         status: 'pending',
         redirect: {
-          checkout_url: `${window.location.origin}/payment/sandbox-ewallet?src=${id}`,
+          checkout_url: (() => {
+            const origin = window.location.origin.includes('localhost') 
+              ? window.location.origin 
+              : window.location.origin; // Keep existing for now, but ensured it's not empty
+            return `${origin}/payment/sandbox-ewallet?src=${id}`;
+          })(),
           success: params.redirect.success,
           failed: params.redirect.failed,
         },

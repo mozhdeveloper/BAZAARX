@@ -115,30 +115,30 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black bg-opacity-50 p-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto scrollbar-hide"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 border-b border-gray-100">
+        <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Track Your Order</h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <h2 className="text-lg font-semibold text-gray-900">Track Your Order</h2>
+              <p className="text-xs text-gray-500 mt-1">
                 Order #{order.orderNumber || trackingSnapshot?.order_number || order.id} • {formatDate(createdAt)}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              className="-mt-6"
             >
-              <X className="w-5 h-5 text-gray-500" />
+              <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
             </button>
           </div>
         </div>
@@ -160,28 +160,27 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
           <ShippingAddressCard address={normalizedAddress} className="mt-8" />
 
           {/* Estimated Delivery */}
-          <div className="mt-4 p-4 bg-orange-50 rounded-xl">
+          <div className="mt-4 p-4 bg-[var(--brand-wash)] rounded-lg">
             <div className="flex items-center gap-3 mb-2">
-              <Clock className="w-5 h-5 text-orange-600" />
-              <span className="font-medium text-orange-900">
+              <span className="text-sm font-medium text-[var(--brand-primary-dark)]">
                 {deliveryLabel}
               </span>
             </div>
-            <div className="text-sm text-orange-800">
+            <div className="text-xs text-[var(--brand-primary-dark)]">
               {formatDate(displayDeliveryDate)}
               {trackingNumber && shipmentStatus !== 'delivered' && shipmentStatus !== 'received' && (
-                <span className="text-orange-600"> • Tracking {trackingNumber}</span>
+                <span className="text-[var(--brand-primary-dark)]"> • Tracking {trackingNumber}</span>
               )}
               {!trackingNumber && shipmentStatus !== 'delivered' && shipmentStatus !== 'received' && (
-                <span className="text-orange-600"> • Usually arrives by 6:00 PM</span>
+                <span className="text-[var(--brand-primary-dark)]"> • Usually arrives by 6:00 PM</span>
               )}
             </div>
           </div>
 
           {/* Contact Support */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500 mb-2">Need help with your order?</p>
-            <button className="text-sm text-[var(--brand-primary)] hover:text-[var(--brand-secondary)] font-medium">
+            <p className="text-xs text-gray-500 mb-2">Need help with your order?</p>
+            <button className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] font-medium">
               Contact Customer Support
             </button>
           </div>

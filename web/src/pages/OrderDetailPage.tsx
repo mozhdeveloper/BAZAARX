@@ -12,15 +12,13 @@ import {
   Send,
   Download,
   Share2,
-  AlertCircle,
-  Store,
-  X,
   RotateCcw,
-  ShoppingBag,
+  X,
   Camera,
 } from "lucide-react";
+import { ConfirmReceivedModal } from "../components/ConfirmReceivedModal";
 import { Order } from "../stores/cartStore";
-import { useBuyerStore, CartItem } from "../stores/buyerStore";
+import { useBuyerStore } from "../stores/buyerStore";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import {
@@ -38,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { ReviewModal } from "../components/ReviewModal";
 import { useToast } from "../hooks/use-toast";
 import { AnimatePresence, motion } from "framer-motion";
+import { ORDER_STATUS_MESSAGES } from "../services/orderNotificationService";
 
 interface ChatMessage {
   id: string;
@@ -89,6 +88,9 @@ export default function OrderDetailPage() {
   // Receipt photos state
   const [receiptPhotos, setReceiptPhotos] = useState<string[]>([]);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+
+  // Confirm received state
+  const [confirmReceivedModalOpen, setConfirmReceivedModalOpen] = useState(false);
 
   const CANCEL_REASONS = [
     "Changed my mind",
@@ -207,7 +209,7 @@ export default function OrderDetailPage() {
           setChatMessages(formattedMessages);
 
           // Mark messages as read — fire and forget, don't block rendering
-          chatService.markConversationAsRead(conv.id, 'buyer').catch(() => {});
+          chatService.markConversationAsRead(conv.id, 'buyer').catch(() => { });
         }
       } catch (error) {
         console.error('Error loading chat:', error);
@@ -274,22 +276,29 @@ export default function OrderDetailPage() {
   }, [dbOrder, navigate, isLoading]);
 
   useEffect(() => {
-    if (chatContainerRef.current) {
-      const isInitial = isFirstLoad.current && chatMessages.length > 0;
+    if (!chatContainerRef.current) return;
 
-      if (isInitial) {
-        // Instant scroll for first load
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-        isFirstLoad.current = false;
-      } else if (!isFirstLoad.current) {
-        // Smooth scroll for subsequent messages
+    const scrollBottom = (behavior: ScrollBehavior = "auto") => {
+      if (chatContainerRef.current) {
         chatContainerRef.current.scrollTo({
           top: chatContainerRef.current.scrollHeight,
-          behavior: "smooth"
+          behavior
         });
       }
+    };
+
+    if (isFirstLoad.current && chatMessages.length > 0 && !isLoadingChat) {
+      // Small delay on first load to ensure DOM is fully ready
+      const timer = setTimeout(() => {
+        scrollBottom("auto");
+        isFirstLoad.current = false;
+      }, 100);
+      return () => clearTimeout(timer);
+    } else if (!isFirstLoad.current) {
+      // Smooth scroll for new messages
+      scrollBottom("smooth");
     }
-  }, [chatMessages]);
+  }, [chatMessages, isLoadingChat]);
 
   if (isLoading) {
     return (
@@ -448,7 +457,7 @@ export default function OrderDetailPage() {
       return sum + Math.max(0, baseUnitPrice - effectiveUnitPrice) * item.quantity;
     }, 0);
   const voucherDiscountAmount = order.pricing?.voucherDiscount ?? 0;
-  const taxAmount = order.pricing?.tax ?? 0;
+  const taxAmount = Math.round(subtotalAmount * 0.12);
   const bazcoinDiscountAmount = order.pricing?.bazcoinDiscount ?? 0;
   const shippingAmount = order.pricing?.shipping ?? Number(dbOrder?.shipping_cost || 0);
   const totalAmount =
@@ -947,13 +956,13 @@ export default function OrderDetailPage() {
 
                         {/* Contact/Phone Number */}
                         <div className="flex items-center gap-2.5 text-gray-600">
-                          <p className="text-xs text-[var(--text-muted)]">{order.shippingAddress.phone}</p>
+                          <p className="text-xs text-gray-700">{order.shippingAddress.phone}</p>
                         </div>
 
                         {/* Full Address */}
                         <div>
                           <div className="flex items-start gap-2.5">
-                            <div className="text-[var(--text-muted)] text-xs">
+                            <div className="text-gray-700 text-xs">
                               <p>{order.shippingAddress.street}</p>
                               <p>{order.shippingAddress.city}, {order.shippingAddress.province} {order.shippingAddress.postalCode}</p>
                             </div>
@@ -963,23 +972,20 @@ export default function OrderDetailPage() {
                     </div>
 
                     {order.status === "shipped" && (
-                      <div className="mt-8 p-5 bg-gradient-to-br from-blue-50 to-[var(--brand-wash)] rounded-2xl">
+                      <div className="mt-8 py-4 px-6 bg-gray-50 rounded-lg">
                         <div className="flex items-start gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                            <Truck className="w-5 h-5 text-blue-600" />
-                          </div>
                           <div className="flex-1">
-                            <h4 className="font-bold text-blue-900 text-sm">
+                            <h4 className="font-bold text-gray-700 text-sm">
                               Package En Route
                             </h4>
-                            <p className="text-xs text-blue-700/80 mt-1 leading-relaxed">
-                              Estimated Arrival: <span className="font-bold text-blue-900">{formatDate(order.estimatedDelivery)}</span>
+                            <p className="text-xs text-gray-700 mt-1 leading-relaxed">
+                              Estimated Arrival: <span className="font-bold text-gray-700">{formatDate(order.estimatedDelivery)}</span>
                             </p>
                             <Button
                               onClick={() =>
                                 navigate(`/delivery-tracking/${order.orderNumber}`)
                               }
-                              className="mt-4 bg-blue-600 hover:bg-blue-700 text-white w-full rounded-xl shadow-md shadow-blue-200"
+                              className="mt-4 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white w-full rounded-lg"
                               size="sm"
                             >
                               Track in Real-time
@@ -1000,11 +1006,11 @@ export default function OrderDetailPage() {
                               className={cn(
                                 "w-6 h-6 rounded-full flex items-center justify-center transition-all duration-500",
                                 item.status === "cancelled" && item.completed
-                                  ? "bg-red-500 border-red-500 text-white shadow-lg shadow-red-100 scale-100"
+                                  ? "bg-red-500 border-red-500 text-white scale-100"
                                   : item.status === "returned" && item.completed
-                                    ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-100 scale-100"
+                                    ? "bg-amber-500 border-amber-500 text-white scale-100"
                                     : item.completed
-                                      ? "bg-green-500 border-green-500 text-white shadow-lg shadow-green-100 scale-100"
+                                      ? "bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white scale-100"
                                       : "bg-white border-gray-200 text-gray-300 scale-90",
                               )}
                             >
@@ -1026,7 +1032,7 @@ export default function OrderDetailPage() {
                                     ? "bg-red-400"
                                     : item.completed && statusTimeline[index + 1]?.status === "returned"
                                       ? "bg-amber-400"
-                                      : item.completed ? "bg-green-500" : "bg-gray-100",
+                                      : item.completed ? "bg-[var(--brand-primary)]" : "bg-gray-100",
                                 )}
                               />
                             )}
@@ -1088,21 +1094,15 @@ export default function OrderDetailPage() {
               </CardContent>
             </Card>
 
-
-
-
-
-
             {/* Order-based Chat */}
             <Card className="border-0 shadow-md">
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
+                <CardTitle className="flex items-center justify-between -mb-4">
                   <div className="flex items-center gap-2">
                     Chat with Seller
                   </div>
                   <div className="flex items-center gap-2">
-                    <Store className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm font-medium text-gray-600">{storeName}</span>
+                    <span className="text-sm font-bold text-[var(--text-muted)]">{storeName}</span>
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -1125,56 +1125,56 @@ export default function OrderDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    chatMessages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={cn(
-                          "flex",
-                          msg.sender === "buyer"
-                            ? "justify-end"
-                            : "justify-start",
-                        )}
-                      >
+                    chatMessages.map((msg) => {
+                      // Dynamically identify if a message is an automated status update
+                      const isAutomated = msg.sender === "system" || (msg.sender === "seller" && (
+                        Object.values(ORDER_STATUS_MESSAGES).some(m =>
+                          (m.sellerMessage && msg.message.startsWith(m.sellerMessage)) ||
+                          (m.systemMessage && msg.message.startsWith(m.systemMessage))
+                        ) ||
+                        msg.message.includes("📦 Tracking Number:") ||
+                        msg.message.includes("📋 System:")
+                      ));
+
+                      return (
                         <div
+                          key={msg.id}
                           className={cn(
-                            "max-w-[70%] rounded-lg px-4 py-2",
+                            "flex",
                             msg.sender === "buyer"
-                              ? "bg-[var(--brand-primary)] text-white"
-                              : msg.sender === "seller"
-                                ? "bg-white border border-gray-200 text-gray-900"
-                                : "bg-blue-50 border border-blue-200 text-blue-900 text-sm",
+                              ? "justify-end"
+                              : "justify-start",
                           )}
                         >
-                          {msg.sender === "seller" && (
-                            <div className="flex items-center gap-2 mb-1">
-                              <Store className="w-3 h-3" />
-                              <span className="text-xs font-semibold">
-                                {storeName}
-                              </span>
-                            </div>
-                          )}
-                          {msg.sender === "system" && (
-                            <div className="flex items-center gap-2 mb-1">
-                              <AlertCircle className="w-3 h-3" />
-                              <span className="text-xs font-semibold">
-                                System
-                              </span>
-                            </div>
-                          )}
-                          <p className="text-sm">{msg.message}</p>
-                          <p
+                          <div
                             className={cn(
-                              "text-xs mt-1",
+                              "max-w-[70%] rounded-lg px-4 py-2 transition-all duration-300",
                               msg.sender === "buyer"
-                                ? "text-white/70"
-                                : "text-gray-500",
+                                ? "bg-[var(--brand-primary)] text-white"
+                                : isAutomated
+                                  ? "bg-white border border-gray-100 text-[var(--brand-accent)]"
+                                  : msg.sender === "seller"
+                                    ? "bg-white border border-gray-100 text-gray-900"
+                                    : "bg-white border border-gray-100 text-[var(--brand-primary-dark)] text-sm",
                             )}
                           >
-                            {formatTime(msg.timestamp)}
-                          </p>
+                            <p className="text-sm">{msg.message}</p>
+                            <p
+                              className={cn(
+                                "text-xs mt-1",
+                                msg.sender === "buyer"
+                                  ? "text-white/70"
+                                  : isAutomated
+                                    ? "text-[var(--text-muted)]"
+                                    : "text-[var(--text-muted)]",
+                              )}
+                            >
+                              {formatTime(msg.timestamp)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                   <div ref={chatEndRef} />
                 </div>
@@ -1186,13 +1186,13 @@ export default function OrderDetailPage() {
                     onChange={(e) => setChatMessage(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && !isSendingMessage && handleSendMessage()}
                     placeholder="Type your message..."
-                    className="flex-1 bg-white focus-visible:ring-1 focus-visible:ring-[var(--brand-primary)]"
+                    className="flex-1 bg-white focus:ring-0 focus:border-[var(--brand-primary)]"
                     disabled={!conversation || isSendingMessage}
                   />
                   <Button
                     onClick={handleSendMessage}
                     disabled={!chatMessage.trim() || !conversation || isSendingMessage}
-                    className="bg-[var(--brand-primary)] hover:opacity-90 text-white"
+                    className="bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
                   >
                     {isSendingMessage ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1217,96 +1217,75 @@ export default function OrderDetailPage() {
               <CardContent className="space-y-4">
                 {/* Items List */}
                 <div className="space-y-3 mb-6">
-                  {order.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-start gap-3 cursor-pointer hover:bg-gray-50/50 p-1.5 -m-1.5 rounded-xl transition-colors group/item"
-                      onClick={() => navigate(`/product/${item.id}`)}
-                    >
-                      <div className="relative group flex-shrink-0">
-                        <div className="w-16 h-16 overflow-hidden border border-gray-100 bg-gray-50">
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-16 h-16 object-cover transition-transform group-hover/item:scale-110"
-                          />
-                        </div>
-                      </div>
+                  {order.items.map((item) => {
+                    const itemReview = (order as any).reviews?.find((r: any) => r.productId === ((item as any).productId || item.id)) ||
+                      (!(order as any).reviews?.some((r: any) => r.productId) ? order.review : null);
 
-                      <div className="flex-1 min-w-0 py-0.5">
-                        <h4 className="text-sm font-bold text-gray-900 line-clamp-1 group-hover/item:text-[var(--brand-primary)] transition-colors">
-                          {item.name}
-                        </h4>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
-                          {item.variant?.size && (
-                            <span className="text-xs text-[var(--text-muted)]">
-                              {item.variant.size}
-                            </span>
-                          )}
-                          {item.variant?.size && item.variant?.color && (
-                            <span className="text-[10px] text-gray-300">|</span>
-                          )}
-                          {item.variant?.color && (
-                            <span className="text-xs text-[var(--text-muted)]">
-                              {item.variant.color}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between mt-1">
-                          <p className="text-xs text-[var(--text-muted)]">
-                            ₱{item.price.toLocaleString()} <span className="ml-1">x{item.quantity}</span>
-                          </p>
-                          <p className="text-sm font-bold text-gray-900">
-                            ₱{(item.price * item.quantity).toLocaleString()}
-                          </p>
-                        </div>
+                    return (
+                      <div key={item.id} className="flex flex-col mb-4 last:mb-0">
+                        <div
+                          className="flex items-start gap-3 cursor-pointer hover:bg-gray-50/50 p-1.5 -m-1.5 rounded-xl transition-colors group/item"
+                          onClick={() => navigate(`/product/${item.id}`)}
+                        >
+                          <div className="relative group flex-shrink-0">
+                            <div className="w-16 h-16 overflow-hidden border border-gray-100 bg-gray-50">
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-16 h-16 object-cover transition-transform group-hover/item:scale-110"
+                              />
+                            </div>
+                          </div>
 
-                        {(order.status === "delivered" || order.status === "reviewed") && (
-                          <div className="mt-2 text-right">
-                            {!dbOrder?.is_reviewed && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowReviewModal(true);
-                                }}
-                                className="text-xs font-medium text-[var(--brand-primary)] flex items-center gap-1 ml-auto hover:underline"
-                              >
-                                Rate & Review
-                              </button>
+                          <div className="flex-1 min-w-0 py-0.5">
+                            <h4 className="text-sm font-bold text-gray-900 line-clamp-1 group-hover/item:text-[var(--brand-primary)] transition-colors">
+                              {item.name}
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
+                              {item.variant?.size && (
+                                <span className="text-xs text-[var(--text-muted)]">
+                                  {item.variant.size}
+                                </span>
+                              )}
+                              {item.variant?.size && item.variant?.color && (
+                                <span className="text-[10px] text-gray-300">|</span>
+                              )}
+                              {item.variant?.color && (
+                                <span className="text-xs text-[var(--text-muted)]">
+                                  {item.variant.color}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between mt-1">
+                              <p className="text-xs text-[var(--text-muted)]">
+                                ₱{item.price.toLocaleString()} <span className="ml-1">x{item.quantity}</span>
+                              </p>
+                              <p className="text-sm font-bold text-gray-900">
+                                ₱{(item.price * item.quantity).toLocaleString()}
+                              </p>
+                            </div>
+
+                            {(order.status === "delivered" || order.status === "received" || order.status === "reviewed") && !itemReview && (
+                              <div className="mt-1 text-right">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowReviewModal(true);
+                                  }}
+                                  className="text-xs font-medium text-[var(--brand-primary)] hover:underline"
+                                >
+                                  Rate & Review
+                                </button>
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
-                {/* Your Review — shown when order is reviewed */}
-                {dbOrder?.is_reviewed && order.review && (
-                  <div className="pt-4 border-t border-dashed border-[var(--btn-border)] space-y-2">
-                    <div className="flex items-center gap-2">
-                      <RotateCcw className="w-4 h-4 text-[var(--brand-accent)]" />
-                      <span className="text-sm font-semibold text-gray-900">Your Review</span>
-                      <div className="flex items-center gap-0.5 ml-auto">
-                        {[1, 2, 3, 4, 5].map(star => (
-                          <span key={star} className={`text-sm ${star <= order.review!.rating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
-                        ))}
-                        <span className="text-xs text-gray-500 ml-1">{order.review.rating}/5</span>
-                      </div>
-                    </div>
-                    {order.review.comment && (
-                      <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100">
-                        "{order.review.comment}"
-                      </p>
-                    )}
-                    {order.review.sellerReply && (
-                      <div className="border-l-2 border-[var(--brand-primary)] pl-3">
-                        <p className="text-xs font-semibold text-[var(--brand-primary)] mb-0.5">Seller's Reply</p>
-                        <p className="text-sm text-gray-600 italic">{order.review.sellerReply.message}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+
 
                 <div className="pt-4 border-t border-dashed border-[var(--btn-border)] space-y-3">
                   <div className="flex justify-between text-sm">
@@ -1381,22 +1360,22 @@ export default function OrderDetailPage() {
 
                   {/* Action Buttons Row */}
                   <div className="flex flex-row gap-2 pt-4 mt-2">
-                    {/* Confirm Received - shown for delivered orders (PH standard) */}
+                    {/* Confirm Received  */}
                     {order.status === 'delivered' && (
                       <Button
-                        onClick={() => navigate(`/orders?status=delivered`)}
+                        onClick={() => setConfirmReceivedModalOpen(true)}
                         className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                       >
                         Confirm Received
                       </Button>
                     )}
 
-                    {/* Request Return / Refund - shown for received orders only (PH standard: must confirm receipt first) */}
+                    {/* Request Return / Refund */}
                     {order.status === 'received' && (
                       <Button
                         variant="outline"
                         onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
-                        className="flex-1 border-[var(--brand-accent)] text-[var(--brand-primary)] hover:bg-[var(--brand-accent)] hover:text-white"
+                        className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
                       >
                         <RotateCcw className="w-4 h-4 mr-2 hidden sm:inline" />
                         Return/Refund
@@ -1443,9 +1422,8 @@ export default function OrderDetailPage() {
                       <Button
                         variant="outline"
                         onClick={() => setCancelModalOpen(true)}
-                        className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                        className="flex-1 border-red-600 text-red-600 hover:bg-red-50 hover:text-red-600"
                       >
-                        <X className="w-4 h-4 mr-2" />
                         Cancel Order
                       </Button>
                     )}
@@ -1453,9 +1431,6 @@ export default function OrderDetailPage() {
                 </div>
               </CardContent>
             </Card>
-
-
-
 
           </div>
         </div>
@@ -1466,15 +1441,9 @@ export default function OrderDetailPage() {
         showReviewModal && order && (
           <ReviewModal
             isOpen={showReviewModal}
-            onClose={() => setShowReviewModal(false)}
-            onSubmitted={async () => {
-              toast({
-                title: "Review Submitted",
-                description: "Thank you for your feedback!",
-                duration: 5000,
-              });
-
-              // Refresh order data to show is_reviewed status
+            onClose={async () => {
+              setShowReviewModal(false);
+              // Refresh order data in background to show new individual reviews under items
               if (orderId) {
                 const detail = await orderReadService.getOrderDetail({
                   orderIdOrNumber: orderId,
@@ -1491,14 +1460,23 @@ export default function OrderDetailPage() {
                   setDbOrder(refreshedOrder);
                 }
               }
-              setShowReviewModal(false);
+            }}
+            onSubmitted={() => {
+              toast({
+                title: "Review Submitted",
+                description: "Thank you for your feedback!",
+                duration: 5000,
+              });
             }}
             orderId={order.dbId || order.id}
             displayOrderId={order.orderNumber || order.id}
             sellerName={storeName}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            items={order.items.map((item: any) => ({
-              id: item.id,
+            items={order.items.filter((item: any) => {
+              const itemReview = (order as any).reviews?.find((r: any) => r.productId === ((item as any).productId || item.id)) ||
+                (!(order as any).reviews?.some((r: any) => r.productId) ? (order as any).review : null);
+              return !itemReview;
+            }).map((item: any) => ({
+              id: item.productId || item.id,
               name: item.name,
               image: item.image,
               variant: item.variant,
@@ -1515,7 +1493,7 @@ export default function OrderDetailPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4"
             onClick={() => { setCancelModalOpen(false); setCancelReason(""); setOtherReason(""); }}
           >
             <motion.div
@@ -1623,7 +1601,7 @@ export default function OrderDetailPage() {
                       }
                     }}
                     disabled={!cancelReason || (cancelReason === "Other" && !otherReason.trim()) || isCancelling}
-                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:opacity-50 shadow-lg shadow-orange-100 h-11 rounded-xl font-bold"
+                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:opacity-50 h-11 rounded-xl font-bold"
                   >
                     {isCancelling ? "Cancelling..." : "Confirm"}
                   </Button>
@@ -1634,10 +1612,25 @@ export default function OrderDetailPage() {
         )}
       </AnimatePresence>
 
+      {/* Confirm Received Modal */}
+      {dbOrder && profile?.id && (
+        <ConfirmReceivedModal
+          isOpen={confirmReceivedModalOpen}
+          onClose={() => setConfirmReceivedModalOpen(false)}
+          order={{
+            dbId: dbOrder.dbId || dbOrder.id,
+            id: dbOrder.id,
+            orderNumber: dbOrder.orderNumber
+          }}
+          buyerId={profile.id}
+          onSuccess={() => window.location.reload()}
+        />
+      )}
+
       {/* Photo lightbox */}
       {selectedPhoto && (
         <div
-          className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4"
           onClick={() => setSelectedPhoto(null)}
         >
           <button

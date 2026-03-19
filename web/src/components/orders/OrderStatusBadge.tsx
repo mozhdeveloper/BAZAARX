@@ -16,6 +16,54 @@ const getStatusConfig = (status: string) => {
         label: "Pending",
         className: "text-yellow-700 bg-yellow-100 border-yellow-200",
       };
+    case "seller_review":
+      return {
+        icon: Clock,
+        label: "Pending Seller Review",
+        className: "text-blue-700 bg-blue-100 border-blue-200",
+      };
+    case "counter_offered":
+      return {
+        icon: RotateCcw,
+        label: "Counter Offer Received",
+        className: "text-purple-700 bg-purple-100 border-purple-200",
+      };
+    case "approved":
+      return {
+        icon: CheckCircle,
+        label: "Approved",
+        className: "text-green-700 bg-green-100 border-green-200",
+      };
+    case "rejected":
+      return {
+        icon: XCircle,
+        label: "Rejected",
+        className: "text-red-700 bg-red-100 border-red-200",
+      };
+    case "escalated":
+      return {
+        icon: Clock,
+        label: "Escalated to Support",
+        className: "text-orange-700 bg-orange-100 border-orange-200",
+      };
+    case "return_in_transit":
+      return {
+        icon: Truck,
+        label: "Return in Transit",
+        className: "text-indigo-700 bg-indigo-100 border-indigo-200",
+      };
+    case "return_received":
+      return {
+        icon: PackageCheck,
+        label: "Return Received",
+        className: "text-teal-700 bg-teal-100 border-teal-200",
+      };
+    case "refunded":
+      return {
+        icon: CheckCircle,
+        label: "Refunded",
+        className: "text-green-700 bg-green-100 border-green-200",
+      };
     case "confirmed":
       return {
         icon: Package,
