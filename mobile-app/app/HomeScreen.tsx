@@ -12,6 +12,8 @@ import {
   StatusBar,
   Alert,
   TouchableOpacity,
+  Image,
+  Keyboard,
   NativeSyntheticEvent,
   NativeScrollEvent,
   useWindowDimensions,
@@ -626,11 +628,9 @@ export default function HomeScreen({ navigation }: Props) {
   }, []);
 
   const handleProductPress = useCallback((product: Product) => {
-    if (searchQuery.trim()) {
-      saveRecentSearch(searchQuery);
-    }
+    saveRecentSearch(product.name || 'Product');
     navigation.navigate('ProductDetail', { product });
-  }, [navigation, searchQuery, saveRecentSearch]);
+  }, [navigation, saveRecentSearch]);
 
   // Memoized scroll handler — avoids re-creating the function on every render
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -701,15 +701,21 @@ export default function HomeScreen({ navigation }: Props) {
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
               onSubmitEditing={() => {
-                if (searchQuery.trim()) {
-                  saveRecentSearch(searchQuery);
-                }
+                // onSubmitEditing is now only for UI feedback, 
+                // search history is saved when clicking items
               }}
             />
             <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color={COLORS.primary} /></Pressable>
           </View>
           {isSearchFocused && (
-            <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
+            <Pressable 
+              onPress={() => { 
+                setIsSearchFocused(false); 
+                setSearchQuery(''); 
+                Keyboard.dismiss(); 
+              }} 
+              style={{ paddingLeft: 10 }}
+            >
               <Text style={{ color: '#FFF', fontWeight: '600' }}>Cancel</Text>
             </Pressable>
           )}
@@ -722,31 +728,58 @@ export default function HomeScreen({ navigation }: Props) {
         contentContainerStyle={{ paddingBottom: 100 }}
         scrollEventThrottle={16}
         onScroll={handleScroll}
+        keyboardShouldPersistTaps="handled" 
       >
         {isSearchFocused ? (
-          <View style={styles.searchDiscovery}>
+          <Pressable 
+            style={styles.searchDiscovery} 
+            onPress={() => {
+              setIsSearchFocused(false);
+              Keyboard.dismiss();
+            }}
+          >
             {searchQuery.trim() === '' ? (
               <View style={styles.recentSection}>
-                <Text style={styles.discoveryTitle}>Recent Searches</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <Text style={styles.discoveryTitle}>Recent Searches</Text>
+                  {recentSearches.length > 0 && (
+                    <Pressable onPress={() => { setRecentSearches([]); AsyncStorage.removeItem('recentSearches'); }}>
+                      <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '600' }}>Clear All</Text>
+                    </Pressable>
+                  )}
+                </View>
                 {recentSearches.map((term, i) => (
                   <Pressable 
                     key={i} 
                     style={styles.searchRecentItem} 
-                    onPress={() => {
+                    onPress={(e) => {
+                      e.stopPropagation();
                       setSearchQuery(term);
-                      saveRecentSearch(term); // Move to top
                     }}
                   >
                     <Clock size={16} color="#9CA3AF" />
                     <Text style={styles.searchRecentText}>{term}</Text>
+                    <Pressable 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        const updated = recentSearches.filter((_, idx) => idx !== i);
+                        setRecentSearches(updated);
+                        AsyncStorage.setItem('recentSearches', JSON.stringify(updated));
+                      }}
+                      style={{ marginLeft: 'auto', padding: 4 }}
+                    >
+                      <X size={14} color="#9CA3AF" />
+                    </Pressable>
                   </Pressable>
                 ))}
                 {recentSearches.length === 0 && (
                   <Text style={{ color: '#9CA3AF', fontSize: 14, fontStyle: 'italic', marginTop: 10 }}>No recent searches</Text>
                 )}
+                {/* Filler to catch taps below the content */}
+                <View style={{ flex: 1, minHeight: 400 }} />
               </View>
             ) : (
-              <View style={styles.resultsSection}>
+              <Pressable style={styles.resultsSection} onPress={(e) => e.stopPropagation()}>
                 <Text style={styles.discoveryTitle}>{filteredProducts.length + filteredStores.length} results found</Text>
                 {filteredProducts.length === 0 && filteredStores.length === 0 && (
                   <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
@@ -760,7 +793,7 @@ export default function HomeScreen({ navigation }: Props) {
                       Can't find what you're looking for? Request it and we'll notify you when a seller offers it!
                     </Text>
                     <Pressable
-                      onPress={() => setShowProductRequest(true)}
+                      onPress={(e) => { e.stopPropagation(); setShowProductRequest(true); }}
                       style={({ pressed }) => [
                         {
                           backgroundColor: '#FF6A00',
@@ -792,20 +825,32 @@ export default function HomeScreen({ navigation }: Props) {
                         <Pressable
                           key={s.id}
                           style={styles.storeSearchResultCard}
-                          onPress={() => {
-                            if (searchQuery.trim()) {
-                              saveRecentSearch(searchQuery);
-                            }
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            saveRecentSearch(s.store_name || s.business_name);
                             navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } });
                           }}
                         >
-                          <View style={styles.storeSearchIcon}><Text style={{ fontSize: 20 }}>🏬</Text></View>
+                          <View style={styles.storeSearchIcon}>
+                            {s.avatar_url || (s as any).logo || (s as any).avatar ? (
+                              <Image 
+                                source={{ uri: s.avatar_url || (s as any).logo || (s as any).avatar }} 
+                                style={{ width: '100%', height: '100%', borderRadius: 22 }} 
+                              />
+                            ) : (
+                              <Text style={{ fontSize: 18, color: COLORS.primary, fontWeight: 'bold' }}>
+                                {(s.store_name || 'S').charAt(0).toUpperCase()}
+                              </Text>
+                            )}
+                          </View>
                           <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                               <Text style={styles.storeSearchName} numberOfLines={1}>{s.store_name}</Text>
                               {s.is_verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
                             </View>
-                            <Text style={styles.storeSearchLocation}>{s.city}, {s.province}</Text>
+                            <Text style={styles.storeSearchLocation} numberOfLines={1}>
+                              {s.city ? `${s.city}, ${s.province || ''}` : 'Location hidden'}
+                            </Text>
                           </View>
                         </Pressable>
                       ))}
@@ -824,9 +869,11 @@ export default function HomeScreen({ navigation }: Props) {
                     </View>
                   </View>
                 )}
-              </View>
+                {/* Filler for results section to allow tapping outside */}
+                <View style={{ flex: 1, minHeight: 300 }} />
+              </Pressable>
             )}
-          </View>
+          </Pressable>
         ) : activeTab === 'Home' ? (
           <>
             {/* CAROUSEL */}
@@ -1265,7 +1312,7 @@ const styles = StyleSheet.create({
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#D97706' },
   gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  searchDiscovery: { padding: 20 },
+  searchDiscovery: { flex: 1, minHeight: 600, padding: 20 },
   discoveryTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
   recentSection: { marginBottom: 20 },
   searchRecentItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
@@ -1294,7 +1341,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F3F4F6'
   },
-  storeSearchIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' },
+  storeSearchIcon: { 
+    width: 44, 
+    height: 44, 
+    borderRadius: 22, 
+    backgroundColor: '#F3F4F6', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB'
+  },
   storeSearchName: { fontSize: 14, fontWeight: '700', color: COLORS.textHeadline },
   storeSearchLocation: { fontSize: 12, color: COLORS.textMuted },
   paginationContainer: {
