@@ -37,7 +37,6 @@ import type { Product, Order } from './src/types';
 import { supabase } from './src/lib/supabase';
 import { useAuthStore } from './src/stores/authStore';
 import { chatService } from './src/services/chatService';
-import { pushNotificationService } from './src/services/pushNotificationService';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 export type TabParamList = {
@@ -280,6 +279,8 @@ export default function App() {
       '[Push] Token registration failed',
       'expo-notifications: Android Push notifications',
       '`expo-notifications` functionality is not fully supported in Expo Go',
+      'expo-notifications: Android Push notifications (remote notifications)',
+      'Use a development build instead of Expo Go',
     ]);
 
     // Listen for auth state changes
@@ -315,27 +316,6 @@ export default function App() {
     return () => {
       subscription.remove();
       chatService.updateUserPresence(user.id, 'offline', 'mobile');
-    };
-  }, [user?.id]);
-
-  // Push Notification Registration
-  React.useEffect(() => {
-    if (!user?.id) return;
-
-    // Register device for push notifications and store token in DB
-    pushNotificationService.register(user.id).catch((err) => {
-      console.warn('[App] Push registration error:', err);
-    });
-
-    // Set up notification tap handler — navigate to the relevant screen
-    pushNotificationService.setupHandlers((data) => {
-      console.log('[App] Push notification tapped:', data);
-      // Deep-link routing based on notification type can be added here
-      // e.g. if (data.type === 'order_shipped') navigate to OrderDetail
-    });
-
-    return () => {
-      pushNotificationService.teardownHandlers();
     };
   }, [user?.id]);
 
