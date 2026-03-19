@@ -1383,15 +1383,14 @@ export default function OrderDetailPage() {
                       </Button>
                     )}
 
-                    {/* Request Return / Refund - shown for received orders only (PH standard: must confirm receipt first) */}
+                    {/* Write Review */}
                     {order.status === 'received' && (
                       <Button
                         variant="outline"
-                        onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
-                        className="flex-1 border-[var(--brand-accent)] text-[var(--brand-primary)] hover:bg-[var(--brand-accent)] hover:text-white"
+                        onClick={() => setShowReviewModal(true)}
+                        className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
                       >
-                        <RotateCcw className="w-4 h-4 mr-2 hidden sm:inline" />
-                        Return/Refund
+                        Write Review
                       </Button>
                     )}
 

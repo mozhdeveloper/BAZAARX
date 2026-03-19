@@ -799,8 +799,8 @@ export default function OrdersPage() {
                     {/* Order Footer */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 border-t border-gray-100/50">
                       <div>
-                        {/* Return/Refund - only for RECEIVED orders within the 7-day return window (PH standard: buyer must confirm receipt first) */}
-                        {order.status === "received" && isWithinReturnWindow(order) && !(order as any).returnRequest && (
+                        {/* Return/Refund - only for Delivered orders within the 7-day return window (PH standard: buyer must confirm receipt first) */}
+                        {order.status === "delivered" && isWithinReturnWindow(order) && !(order as any).returnRequest && (
                           <Button
                             onClick={() => {
                               setOrderToReturn(order);
