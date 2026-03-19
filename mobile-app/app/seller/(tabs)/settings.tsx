@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ import {
   Edit3,
   AlertTriangle,
   Trash2,
+  Palmtree,
 } from 'lucide-react-native';
 import { supabase } from '../../../src/lib/supabase';
 import { useNavigation } from '@react-navigation/native';
@@ -39,11 +40,11 @@ import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useAuthStore } from '../../../src/stores/authStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
-type SettingTab = 'profile' | 'store' | 'documents' | 'notifications' | 'security' | 'payments';
+type SettingTab = 'profile' | 'store' | 'documents' | 'notifications' | 'security' | 'payments' | 'store-status';
 
 export default function SellerSettingsScreen() {
   const navigation = useNavigation();
-  const { seller, updateSellerInfo } = useSellerStore();
+  const { seller, updateSellerInfo, setVacationMode, disableVacationMode } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<SettingTab>('profile');
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -52,6 +53,31 @@ export default function SellerSettingsScreen() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingStore, setIsEditingStore] = useState(false);
   const [isEditingPayments, setIsEditingPayments] = useState(false);
+
+  // Vacation mode state
+  const [vacationReason, setVacationReason] = useState('');
+
+  useEffect(() => {
+    if (seller?.vacation_reason) {
+      setVacationReason(seller.vacation_reason);
+    } else {
+      setVacationReason('');
+    }
+  }, [seller?.vacation_reason]);
+
+  const handleVacationToggle = async (enabled: boolean) => {
+    if (enabled) {
+      const success = await setVacationMode(vacationReason || undefined);
+      if (success) {
+        Alert.alert('Success', 'Vacation mode enabled. Buyers cannot purchase your products.');
+      }
+    } else {
+      const success = await disableVacationMode();
+      if (success) {
+        Alert.alert('Success', 'Vacation mode disabled. Your store is now open for business.');
+      }
+    }
+  };
 
   // Profile - matches database schema (sellers table)
   const [ownerName, setOwnerName] = useState(seller?.owner_name || '');
@@ -127,7 +153,12 @@ export default function SellerSettingsScreen() {
     );
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // If on store-status tab and vacation mode is enabled, save the reason
+    if (selectedTab === 'store-status' && seller?.is_vacation_mode) {
+      await setVacationMode(vacationReason || undefined);
+    }
+
     updateSellerInfo({
       owner_name: ownerName,
       email,
@@ -695,6 +726,66 @@ export default function SellerSettingsScreen() {
             </View>
           </View>
         );
+
+      case 'store-status':
+        return (
+          <View style={styles.formCard}>
+            <View style={styles.formSection}>
+              <View style={styles.sectionHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Palmtree size={20} color="#EA580C" strokeWidth={2.5} />
+                  <Text style={styles.sectionTitle}>Store Status</Text>
+                </View>
+              </View>
+
+              <View style={[styles.switchRow, { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 16 }]}>
+                <View style={{ flex: 1, marginRight: 16 }}>
+                  <Text style={styles.switchLabel}>Vacation Mode</Text>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                    When enabled, buyers can still see your products but cannot purchase them.
+                  </Text>
+                </View>
+                <Switch
+                  value={seller?.is_vacation_mode || false}
+                  onValueChange={handleVacationToggle}
+                  trackColor={{ false: '#E5E7EB', true: '#FDBA74' }}
+                  thumbColor={seller?.is_vacation_mode ? '#EA580C' : '#F3F4F6'}
+                />
+              </View>
+
+              {seller?.is_vacation_mode && (
+                <View style={[styles.inputGroup, { backgroundColor: '#FFF7ED', borderRadius: 12, padding: 16, marginTop: 12, borderWidth: 1, borderColor: '#FFEDD5' }]}>
+                  <Text style={styles.inputLabel}>Vacation Reason</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    {['vacation', 'personal', 'maintenance', 'other'].map((reason) => (
+                      <Pressable
+                        key={reason}
+                        onPress={() => setVacationReason(reason)}
+                        style={{
+                          paddingHorizontal: 16,
+                          paddingVertical: 8,
+                          borderRadius: 20,
+                          backgroundColor: vacationReason === reason ? '#EA580C' : '#FFFFFF',
+                          borderWidth: 1,
+                          borderColor: vacationReason === reason ? '#EA580C' : '#E5E7EB',
+                        }}
+                      >
+                        <Text style={{
+                          fontSize: 13,
+                          fontWeight: '600',
+                          color: vacationReason === reason ? '#FFFFFF' : '#6B7280',
+                          textTransform: 'capitalize',
+                        }}>
+                          {reason}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        );
     }
   };
 
@@ -959,6 +1050,22 @@ export default function SellerSettingsScreen() {
               ]}
             >
               Payments
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.pillTab,
+              selectedTab === 'store-status' && styles.pillTabActive,
+            ]}
+            onPress={() => setSelectedTab('store-status')}
+          >
+            <Text
+              style={[
+                styles.pillTabText,
+                selectedTab === 'store-status' && styles.pillTabTextActive,
+              ]}
+            >
+              Store Status
             </Text>
           </Pressable>
         </ScrollView>
@@ -1492,5 +1599,16 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.45,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  switchLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
   },
 });

@@ -776,6 +776,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    // Check if seller is on vacation mode
+    if ((product as any).is_vacation_mode) {
+      Alert.alert('Store Unavailable', 'This store is temporarily unavailable. You cannot add this item to cart.');
+      return;
+    }
+
     // Build variant info
     const selectedVariant = buildSelectedVariant();
 
@@ -817,6 +823,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     if (isGuest) {
       setGuestModalMessage("Sign up to buy items.");
       setShowGuestModal(true);
+      return;
+    }
+
+    // Check if seller is on vacation mode
+    if ((product as any).is_vacation_mode) {
+      Alert.alert('Store Unavailable', 'This store is temporarily unavailable. You cannot purchase this product.');
       return;
     }
 
@@ -1451,20 +1463,20 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.actionButtonsContainer}>
           <Pressable
-            style={[styles.addToCartBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]}
+            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
             onPress={handleAddToCart}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
+            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode}
           >
-            <ShoppingCart size={20} color={(Number(selectedVariantInfo.stock ?? 0) > 0) ? COLORS.primary : COLORS.gray400} />
+            <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !(product as any).is_vacation_mode) ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
           <Pressable
-            style={[styles.buyNowBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]}
+            style={[styles.buyNowBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
             onPress={handleBuyNow}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
+            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode}
           >
-            <Text style={[styles.buyNowText, (Number(selectedVariantInfo.stock ?? 0) <= 0) && { color: COLORS.gray400 }]}>
-              {(Number(selectedVariantInfo.stock ?? 0) > 0) ? 'Buy Now' : 'Out of Stock'}
+            <Text style={[styles.buyNowText, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && { color: COLORS.gray400 }]}>
+              {((product as any).is_vacation_mode ? 'Store Unavailable' : (Number(selectedVariantInfo.stock ?? 0) > 0 ? 'Buy Now' : 'Out of Stock'))}
             </Text>
           </Pressable>
         </View>

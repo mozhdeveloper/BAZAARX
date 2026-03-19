@@ -42,6 +42,7 @@ export interface Product {
   rejection_reason?: string | null;
   vendor_submitted_category?: string | null;
   admin_reclassified_category?: string | null;
+  is_vacation_mode?: boolean;
   // Metrics
   rating?: number;
   review_count?: number;

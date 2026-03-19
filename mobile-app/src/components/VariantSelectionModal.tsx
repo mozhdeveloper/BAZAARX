@@ -238,6 +238,11 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
   }, [hasStructuredVariants, variants, selectedOption1, selectedOption2, product]);
 
   const handleConfirm = () => {
+    // Block if seller is on vacation
+    if ((product as any).is_vacation_mode) {
+      return;
+    }
+
     // Validation
     if ((hasOption1 && !selectedOption1) || (hasOption2 && !selectedOption2)) {
       return;
@@ -535,9 +540,10 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
 
           {/* ACTION BTN */}
           {(() => {
+            const isVacationMode = (product as any).is_vacation_mode;
             const isSelectionValid = (hasOption1 ? !!selectedOption1 : true) && (hasOption2 ? !!selectedOption2 : true);
             const isOutOfStock = Number(activeVariantInfo.stock || 0) <= 0;
-            const canConfirm = isSelectionValid && !isOutOfStock;
+            const canConfirm = !isVacationMode && isSelectionValid && !isOutOfStock;
             return (
               <Pressable
                 style={[
@@ -553,7 +559,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                   styles.confirmText,
                   canConfirm ? { color: '#FFF' } : { color: COLORS.gray400 }
                 ]}>
-                  {isOutOfStock ? 'Out of Stock' : confirmLabel}
+                  {isVacationMode ? 'Store on Vacation' : isOutOfStock ? 'Out of Stock' : confirmLabel}
                 </Text>
               </Pressable>
             );

@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp } from 'lucide-react-native';
+import { ChevronLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp, Palmtree } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -205,6 +205,31 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const checkoutItems = useMemo(() => {
     return quickOrder ? [quickOrder] : selectedItemsFromCart;
   }, [quickOrder, selectedItemsFromCart]);
+
+  // Check for vacation sellers
+  const [vacationSellers, setVacationSellers] = useState<string[]>([]);
+  const hasVacationSeller = vacationSellers.length > 0;
+
+  useEffect(() => {
+    const checkVacationSellers = async () => {
+      const sellerIds = [...new Set(checkoutItems.map((item: any) => item.sellerId || item.seller_id).filter(Boolean))];
+      if (sellerIds.length === 0) {
+        setVacationSellers([]);
+        return;
+      }
+
+      const { data } = await (supabase as any)
+        .from('sellers')
+        .select('id, store_name, is_vacation_mode')
+        .in('id', sellerIds)
+        .eq('is_vacation_mode', true);
+
+      const vacationSellerNames = (data || []).map((s: any) => s.store_name || 'Unknown Seller');
+      setVacationSellers(vacationSellerNames);
+    };
+
+    checkVacationSellers();
+  }, [checkoutItems]);
 
   // Pre-fetch addresses + seller metadata via Edge Function on mount.
   // The Edge Function uses Promise.all internally so both queries run concurrently.
@@ -1269,6 +1294,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   };
 
   const handlePlaceOrder = useCallback(async () => {
+    // Check for vacation sellers
+    if (hasVacationSeller) {
+      Alert.alert(
+        'Cannot Complete Order',
+        `Some items in your cart are from sellers currently on vacation: ${vacationSellers.join(', ')}. Please remove these items to proceed.`
+      );
+      return;
+    }
+
     // Validate address
     if (!selectedAddress) {
       Alert.alert('Error', 'Please select a delivery address');
@@ -1420,7 +1454,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher]);
+  }, [hasVacationSeller, vacationSellers, selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder, campaignDiscountTotal, appliedVoucher]);
 
   if (isCheckoutContextLoading) {
     return (
@@ -1858,33 +1892,45 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <Text style={styles.totalAmountLarge}>₱{total.toLocaleString()}</Text>
               </View>
 
-              <View style={{ marginTop: 16, backgroundColor: '#FEFCE8', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FEF08A', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>B</Text>
-                </View>
-                <View>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#854D0E' }}>You will earn {earnedBazcoins} Bazcoins</Text>
-                  <Text style={{ fontSize: 11, color: '#A16207' }}>Receive coins upons successful delivery</Text>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
+               <View style={{ marginTop: 16, backgroundColor: '#FEFCE8', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FEF08A', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                 <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
+                   <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>B</Text>
+                 </View>
+                 <View>
+                   <Text style={{ fontSize: 13, fontWeight: '600', color: '#854D0E' }}>You will earn {earnedBazcoins} Bazcoins</Text>
+                   <Text style={{ fontSize: 11, color: '#A16207' }}>Receive coins upons successful delivery</Text>
+                 </View>
+               </View>
 
-          {/* Bottom Action Bar */}
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
-            <View style={styles.totalContainer}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalAmount}>₱{total.toLocaleString()}</Text>
-            </View>
-            <Pressable
-              onPress={handlePlaceOrder}
-              disabled={isProcessing || !selectedAddress}
-              style={({ pressed }) => [
-                styles.checkoutButton,
-                pressed && styles.checkoutButtonPressed,
-                (isProcessing || !selectedAddress) && { opacity: 0.5 }
-              ]}
-            >
+               {hasVacationSeller && (
+                 <View style={{ marginTop: 12, backgroundColor: '#FFF7ED', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FFEDD5', flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                   <Palmtree size={20} color="#EA580C" style={{ marginTop: 2 }} />
+                   <View style={{ flex: 1 }}>
+                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#C2410C' }}>Some sellers are currently unavailable</Text>
+                     <Text style={{ fontSize: 11, color: '#EA580C', marginTop: 4 }}>
+                       The following seller(s) are on vacation: <Text style={{ fontWeight: '700' }}>{vacationSellers.join(', ')}</Text>. Please remove their items from your cart to proceed.
+                     </Text>
+                   </View>
+                 </View>
+               )}
+             </View>
+           </ScrollView>
+
+           {/* Bottom Action Bar */}
+           <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
+             <View style={styles.totalContainer}>
+               <Text style={styles.totalLabel}>Total</Text>
+               <Text style={styles.totalAmount}>₱{total.toLocaleString()}</Text>
+             </View>
+             <Pressable
+               onPress={handlePlaceOrder}
+               disabled={isProcessing || !selectedAddress || hasVacationSeller}
+               style={({ pressed }) => [
+                 styles.checkoutButton,
+                 pressed && styles.checkoutButtonPressed,
+                 (isProcessing || !selectedAddress || hasVacationSeller) && { opacity: 0.5 }
+               ]}
+             >
               {isProcessing ? (
                 <ActivityIndicator color="#FFF" />
               ) : (

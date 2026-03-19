@@ -7,6 +7,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { authService } from '@/services/authService';
 import { productService } from '@/services/productService';
 import { orderService } from '@/services/orderService';
+import { sellerService } from '@/services/sellerService';
 import type { Seller as DBSeller, Order, OrderItem } from '@/types/database.types';
 import type { Database } from '@/types/supabase-generated.types';
 
@@ -56,6 +57,10 @@ interface Seller {
     dti_registration_url?: string;
     tax_id_url?: string;
   };
+
+  // Vacation mode
+  is_vacation_mode?: boolean;
+  vacation_reason?: string | null;
 }
 
 export interface SellerProduct {
@@ -189,6 +194,8 @@ interface AuthStore {
   addRole: (role: string) => void;
   switchRole: (role: 'buyer' | 'seller') => void;
   setUser: (user: any) => void;
+  setVacationMode: (reason?: string) => Promise<boolean>;
+  disableVacationMode: () => Promise<boolean>;
 }
 
 interface ProductStore {
@@ -354,6 +361,10 @@ const mapDbSellerToSeller = (s: any): Seller => {
       dti_registration_url: vd.dti_registration_url || '',
       tax_id_url: vd.tax_id_url || '',
     } : undefined,
+
+    // Vacation mode
+    is_vacation_mode: s.is_vacation_mode === true,
+    vacation_reason: s.vacation_reason || null,
   };
 };
 
@@ -1064,6 +1075,26 @@ export const useAuthStore = create<AuthStore>()(
 
       setUser: (user: any) => {
         set({ user });
+      },
+      setVacationMode: async (reason?: string) => {
+        const { seller } = get();
+        if (!seller) return false;
+
+        const result = await sellerService.enableVacationMode(seller.id, reason);
+        if (result.success) {
+          set({ seller: { ...seller, is_vacation_mode: true, vacation_reason: reason || null } });
+        }
+        return result.success;
+      },
+      disableVacationMode: async () => {
+        const { seller } = get();
+        if (!seller) return false;
+
+        const result = await sellerService.disableVacationMode(seller.id);
+        if (result.success) {
+          set({ seller: { ...seller, is_vacation_mode: false, vacation_reason: null } });
+        }
+        return result.success;
       },
     }),
     {
@@ -2572,6 +2603,8 @@ export const useSellerStore = () => {
     switchRole: auth.switchRole,
     setUser: auth.setUser,
     user: auth.user,
+    setVacationMode: auth.setVacationMode,
+    disableVacationMode: auth.disableVacationMode,
 
     // Product store (with fallback to empty array)
     products: products.products || [],
