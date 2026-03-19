@@ -126,6 +126,28 @@ export default function ShopPage() {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
 
+  const isFeaturedView = searchParams.get("view") === "featured";
+  const setIsFeaturedView = (active: boolean) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (active) {
+        next.set("view", "featured");
+      } else {
+        next.delete("view");
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (isFeaturedView) {
+      setTimeout(() => {
+        const el = document.getElementById("shop-results-header");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [isFeaturedView]);
+
   // Fetch real flash sale products (global admin events from global_flash_sale_slots)
   useEffect(() => {
     discountService.getGlobalFlashSaleProducts()
@@ -323,6 +345,7 @@ export default function ShopPage() {
     const timeouts: number[] = [];
     const queryParam = searchParams.get("q") || "";
     const categoryParam = searchParams.get("category");
+<<<<<<< Updated upstream
     const filterParam = searchParams.get("filter");
 
     // Sorting should not move the viewport; skip one auto-scroll cycle.
@@ -330,6 +353,9 @@ export default function ShopPage() {
       suppressNextAutoScrollRef.current = false;
       return;
     }
+=======
+    const viewParam = searchParams.get("view");
+>>>>>>> Stashed changes
 
     setSearchQuery(queryParam);
 
@@ -350,6 +376,7 @@ export default function ShopPage() {
       setSelectedCategory("All Categories");
     }
 
+<<<<<<< Updated upstream
   // Scroll logic - handles both initial mount and updates
 
   // When "Clear filter" is clicked, scroll back to the featured section after it re-mounts
@@ -370,6 +397,13 @@ export default function ShopPage() {
         priceRange[1] === 100000 &&
         minRating === 0 &&
         selectedSort === "newest";
+=======
+    // Scroll logic - handles both initial mount and updates
+    setTimeout(() => {
+      const isClean = !categoryParam && !queryParam && !viewParam &&
+        priceRange[0] === 0 && priceRange[1] === 100000 &&
+        minRating === 0 && selectedSort === "newest";
+>>>>>>> Stashed changes
 
       if (isClean && !manualScrollRef.current) {
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -431,8 +465,24 @@ export default function ShopPage() {
   }, [boostedProducts, featuredProducts]);
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
+<<<<<<< Updated upstream
     const filterParam = searchParams.get("filter");
+=======
+    const featuredProductIds = new Set<string>();
+    if (isFeaturedView) {
+      for (const bp of boostedProducts) {
+        if (bp.product?.id) featuredProductIds.add(bp.product.id);
+      }
+      for (const fp of featuredProducts) {
+        const p = (fp as any).product;
+        if (p?.id) featuredProductIds.add(p.id);
+      }
+    }
+
+>>>>>>> Stashed changes
     const filtered = pricedProducts.filter((product) => {
+      if (isFeaturedView && !featuredProductIds.has(product.id)) return false;
+
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -478,8 +528,13 @@ export default function ShopPage() {
         break;
     }
 
+<<<<<<< Updated upstream
     return result;
   }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, searchParams, featuredProductIds]);
+=======
+    return filtered;
+  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, isFeaturedView, featuredProducts, boostedProducts]);
+>>>>>>> Stashed changes
 
 
 
@@ -488,6 +543,7 @@ export default function ShopPage() {
     setSelectedSort("newest");
     setPriceRange([0, 100000]);
     setMinRating(0);
+    setIsFeaturedView(false);
   };
 
   return (
@@ -643,6 +699,7 @@ export default function ShopPage() {
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
+<<<<<<< Updated upstream
           <AnimatePresence>
           {(featuredProducts.length > 0 || boostedProducts.length > 0) && searchParams.get("filter") !== "featured" && (
             <motion.div
@@ -654,6 +711,10 @@ export default function ShopPage() {
               exit={{ opacity: 0, height: 0, marginBottom: 0 }}
               transition={{ duration: 0.35, ease: "easeInOut" }}
             >
+=======
+          {!isFeaturedView && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
+            <div className="mb-10">
+>>>>>>> Stashed changes
               {/* Section Header */}
               <div className="flex items-center justify-between mb-5 px-1">
                 <div className="flex items-center gap-2.5">
@@ -666,8 +727,14 @@ export default function ShopPage() {
                   </span>
                 </div>
                 <button
+<<<<<<< Updated upstream
                   onClick={() => navigate('/shop?filter=featured')}
                   className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1"
+=======
+                  onClick={() => setIsFeaturedView(true)}
+                  className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1"
+                  aria-label="See all featured products in the main grid"
+>>>>>>> Stashed changes
                 >
                   See All <ChevronRight className="h-3.5 w-3.5" />
                 </button>
@@ -823,6 +890,7 @@ export default function ShopPage() {
                           onClick={() => {
                             manualScrollRef.current = true;
                             setSelectedCategory(category);
+                            setIsFeaturedView(false);
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               if (category === "All Categories") {
@@ -862,6 +930,7 @@ export default function ShopPage() {
                         onClick={() => {
                           manualScrollRef.current = true;
                           setSelectedCategory("All Categories");
+                          setIsFeaturedView(false);
                           setSearchParams((prev) => {
                             const next = new URLSearchParams(prev);
                             next.delete("category");
@@ -882,6 +951,7 @@ export default function ShopPage() {
                           onClick={() => {
                             manualScrollRef.current = true;
                             setSelectedCategory(cat.name);
+                            setIsFeaturedView(false);
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               next.set("category", cat.name);
@@ -903,6 +973,7 @@ export default function ShopPage() {
                           onClick={() => {
                             manualScrollRef.current = true;
                             setSelectedCategory("Others");
+                            setIsFeaturedView(false);
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               next.set("category", "Others");
@@ -1090,7 +1161,7 @@ export default function ShopPage() {
                   }}
                   className="mb-4 flex items-center justify-between gap-4 scroll-mt-24"
                 >
-                  <div className="flex items-center gap-4 h-10">
+                  <div className="flex items-center gap-4 h-10 flex-wrap">
                     <button
                       onClick={() => setShowFilters(!showFilters)}
                       className="lg:hidden flex items-center gap-2 px-4 py-2 bg-white hover:bg-[var(--brand-wash)] rounded-xl text-xs font-bold text-[var(--text-primary)] transition-all border border-[var(--border)] shadow-sm"
@@ -1105,6 +1176,19 @@ export default function ShopPage() {
                     <p className="text-[var(--text-muted)] text-sm font-medium leading-none">
                       Showing <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> results
                     </p>
+
+                    {isFeaturedView && (
+                      <button
+                        onClick={() => setIsFeaturedView(false)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
+                        title="Clear featured filter"
+                        aria-label="Exit featured products view"
+                      >
+                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                        Featured
+                        <span className="ml-0.5 text-amber-400">✕</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 h-10">

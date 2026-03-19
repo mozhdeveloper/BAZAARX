@@ -161,7 +161,7 @@ const normalizeProductForShop = (row: any): Product => {
 
   const categoryName = typeof row.category === 'string' ? row.category : (row.category?.name || '');
   const categoryId = row.category_id || (row.category && typeof row.category === 'object' ? row.category.id : undefined);
-  
+
   // Note: if ProductService already transformed it, category is a string.
   // We want to ensure category_id is always available from the source row.
 
@@ -423,8 +423,8 @@ export default function ShopScreen({ navigation, route }: Props) {
       // 2. Exact UUID ID match
       // 3. Exact name match (case-insensitive)
       // 4. Slugified name match
-      const categoryMatch = 
-        selectedCategory === 'all' || 
+      const categoryMatch =
+        selectedCategory === 'all' ||
         product.category_id === selectedCategory ||
         (typeof product.category === 'string' && (
           product.category.toLowerCase() === selectedCategory.toLowerCase() ||
