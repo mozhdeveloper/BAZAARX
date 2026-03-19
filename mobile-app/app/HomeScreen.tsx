@@ -725,7 +725,7 @@ export default function HomeScreen({ navigation }: Props) {
       <ScrollView
         style={styles.contentScroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
         scrollEventThrottle={16}
         onScroll={handleScroll}
         keyboardShouldPersistTaps="handled"

@@ -242,6 +242,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 8,
+        marginBottom: 25,
     },
     buttonSubtitleGrey: {
         fontSize: 13,
