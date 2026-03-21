@@ -6,6 +6,7 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Profile, Buyer, Seller, UserRole, UserRoleRecord, FullProfile } from '@/types/database.types';
+import { sendWelcomeEmail } from '@/services/transactionalEmails';
 
 // Service-specific types
 export interface SignUpData {
@@ -113,6 +114,10 @@ export class AuthService {
 
         // Create user-type specific record
         await this.createUserTypeRecord(authData.user.id, userData.user_type);
+
+        // Welcome email (fire-and-forget)
+        const buyerName = `${first_name || ''} ${last_name || ''}`.trim() || 'Valued Customer';
+        sendWelcomeEmail({ buyerEmail: email, buyerId: authData.user.id, buyerName }).catch(console.error);
       }
 
       return { user: authData.user, session: authData.session };

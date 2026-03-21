@@ -5,6 +5,8 @@
  */
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { notificationService } from "./notificationService";
+import { sendRefundProcessedEmail, sendPartialRefundEmail } from "@/services/transactionalEmails";
+import { fetchOrderEmailData } from "@/services/receiptService";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -604,6 +606,11 @@ class ReturnService {
             note: "Return approved and refund processed",
             changed_by_role: "seller",
           });
+
+          // Refund processed email (fire-and-forget)
+          fetchOrderEmailData(orderId).then(ed => {
+            if (ed) sendRefundProcessedEmail({ buyerEmail: ed.buyerEmail, buyerId: ed.buyerId, orderNumber: ed.orderNumber, buyerName: ed.buyerName, refundAmount: ed.total, refundMethod: ed.paymentMethod }).catch(console.error);
+          }).catch(console.error);
         }
 
         // Notify Buyer
@@ -729,6 +736,21 @@ class ReturnService {
         .from("orders")
         .update({ payment_status: "partially_refunded", updated_at: now })
         .eq("id", ret.order_id);
+
+      // Partial refund email (fire-and-forget)
+      fetchOrderEmailData(ret.order_id).then(ed => {
+        if (ed) {
+          const refundAmt = Number(ret.counter_offer_amount || 0);
+          const totalAmt = parseFloat(ed.total.replace(/[₱,]/g, '')) || 0;
+          sendPartialRefundEmail({
+            buyerEmail: ed.buyerEmail, buyerId: ed.buyerId, orderNumber: ed.orderNumber, buyerName: ed.buyerName,
+            refundAmount: `₱${refundAmt.toLocaleString()}`,
+            remainingTotal: `₱${(totalAmt - refundAmt).toLocaleString()}`,
+            refundMethod: ed.paymentMethod,
+            trackUrl: `https://bazaar.ph/order/${ed.orderNumber}`,
+          }).catch(console.error);
+        }
+      }).catch(console.error);
     }
   }
 
@@ -873,6 +895,11 @@ class ReturnService {
           note: "Return received, refund processed",
           changed_by_role: "seller",
         });
+
+        // Refund processed email (fire-and-forget)
+        fetchOrderEmailData(ret.order_id).then(ed => {
+          if (ed) sendRefundProcessedEmail({ buyerEmail: ed.buyerEmail, buyerId: ed.buyerId, orderNumber: ed.orderNumber, buyerName: ed.buyerName, refundAmount: ed.total, refundMethod: ed.paymentMethod }).catch(console.error);
+        }).catch(console.error);
       }
 
       // Notify Buyer

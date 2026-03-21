@@ -385,7 +385,7 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
     buyer_id: order.buyer_id,
     orderNumber: order.order_number,
     buyerName: recipientName,
-    buyerEmail: recipient?.email || order.buyer_email || "unknown@example.com",
+    buyerEmail: recipient?.email || order.buyer_email || "",
     items,
     total: Number.isFinite(parsedTotal) && parsedTotal > 0 ? parsedTotal : computedTotal,
     status: mapNormalizedToSellerUiStatus(order.payment_status, order.shipment_status),

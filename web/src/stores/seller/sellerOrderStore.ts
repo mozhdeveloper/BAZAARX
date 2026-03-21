@@ -231,6 +231,38 @@ export const useOrderStore = create<OrderStore>()(
                                     });
                             },
                         );
+
+                        // Fire transactional email using data already in the order (non-blocking)
+                        if (order.buyerEmail) {
+                            console.log(`[SellerOrderStore] ▶ Sending ${dbStatus} email to ${order.buyerEmail}`);
+                            import("@/services/transactionalEmails").then(
+                                (emails) => {
+                                    const base = {
+                                        buyerEmail: order.buyerEmail,
+                                        buyerId: order.buyer_id!,
+                                        orderNumber: order.orderNumber || id,
+                                        buyerName: order.buyerName || 'Valued Customer',
+                                    };
+                                    const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
+                                    const trackUrl = `${BASE_URL}/orders/${id}`;
+                                    (
+                                        dbStatus === 'processing' ? emails.sendOrderConfirmedEmail({ ...base, estimatedDelivery: '3–7 business days' }) :
+                                        dbStatus === 'shipped' ? emails.sendOrderShippedEmail({ ...base, trackingNumber: order.trackingNumber || 'N/A', courierName: 'courier', trackingUrl: trackUrl }) :
+                                        dbStatus === 'delivered' ? emails.sendOrderDeliveredEmail(base) :
+                                        dbStatus === 'cancelled' ? emails.sendOrderCancelledEmail({ ...base, cancelReason: 'Order cancelled' }) :
+                                        Promise.resolve()
+                                    ).then((result) => {
+                                        console.log(`[SellerOrderStore] ${dbStatus} email result:`, result);
+                                    }).catch((emailErr: unknown) => {
+                                        console.error("[SellerOrderStore] ✖ Email error:", emailErr);
+                                    });
+                                }
+                            ).catch((importErr: unknown) => {
+                                console.warn("[SellerOrderStore] Failed to import transactionalEmails:", importErr);
+                            });
+                        } else {
+                            console.warn(`[SellerOrderStore] ⚠ No buyerEmail — skipping ${dbStatus} email for order ${id}`);
+                        }
                     } else {
                         console.warn(
                             `⚠️ No buyer_id found for order ${id}, skipping buyer notification`,
@@ -359,6 +391,28 @@ export const useOrderStore = create<OrderStore>()(
                     if (!success) {
                         throw new Error("Database update failed");
                     }
+
+                    // Fire transactional email using data already in the order (non-blocking)
+                    if (order.buyerEmail) {
+                        import("@/services/transactionalEmails").then(
+                            ({ sendOrderShippedEmail }) => {
+                                const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
+                                sendOrderShippedEmail({
+                                    buyerEmail: order.buyerEmail,
+                                    buyerId: order.buyer_id!,
+                                    orderNumber: order.orderNumber || id,
+                                    buyerName: order.buyerName || 'Valued Customer',
+                                    trackingNumber: sanitizedTrackingNumber,
+                                    courierName: 'courier',
+                                    trackingUrl: `${BASE_URL}/orders/${id}`,
+                                }).catch((emailErr: unknown) => {
+                                    console.warn("[SellerOrderStore] Shipped email error:", emailErr);
+                                });
+                            }
+                        ).catch((importErr: unknown) => {
+                            console.warn("[SellerOrderStore] Failed to import transactionalEmails:", importErr);
+                        });
+                    }
                 } catch (error) {
                     // ROLLBACK on error
                     console.error("Failed to mark order as shipped, rolling back:", error);
@@ -420,6 +474,48 @@ export const useOrderStore = create<OrderStore>()(
                     });
                     if (!success) {
                         throw new Error("Database update failed");
+                    }
+
+                    // Fire transactional email using data already in the order (non-blocking)
+                    // Send in-app notification + push to buyer
+                    if (order.buyer_id) {
+                        import("@/services/notificationService").then(
+                            ({ notificationService }) => {
+                                notificationService.notifyBuyerOrderStatus({
+                                    buyerId: order.buyer_id!,
+                                    orderId: id,
+                                    orderNumber: order.orderNumber || id,
+                                    status: 'delivered',
+                                    message: `Your order #${order.orderNumber || id} has been delivered. Enjoy your purchase!`,
+                                }).catch((err: unknown) => {
+                                    console.error('[SellerOrderStore] ✖ Delivered notification error:', err);
+                                });
+                            }
+                        ).catch((importErr: unknown) => {
+                            console.warn('[SellerOrderStore] Failed to import notificationService:', importErr);
+                        });
+                    }
+
+                    if (order.buyerEmail) {
+                        import("@/services/transactionalEmails").then(
+                            ({ sendOrderDeliveredEmail }) => {
+                                console.log('[SellerOrderStore] ▶ Sending delivered email to', order.buyerEmail);
+                                sendOrderDeliveredEmail({
+                                    buyerEmail: order.buyerEmail,
+                                    buyerId: order.buyer_id!,
+                                    orderNumber: order.orderNumber || id,
+                                    buyerName: order.buyerName || 'Valued Customer',
+                                }).then((result) => {
+                                    console.log('[SellerOrderStore] Delivered email result:', result);
+                                }).catch((emailErr: unknown) => {
+                                    console.error("[SellerOrderStore] ✖ Delivered email error:", emailErr);
+                                });
+                            }
+                        ).catch((importErr: unknown) => {
+                            console.warn("[SellerOrderStore] Failed to import transactionalEmails:", importErr);
+                        });
+                    } else {
+                        console.warn('[SellerOrderStore] ⚠ No buyerEmail on order — skipping delivered email', { orderId: id, hasEmail: !!order.buyerEmail });
                     }
                 } catch (error) {
                     // ROLLBACK on error

@@ -125,7 +125,7 @@ export const warrantyService = {
    * Get warranty information for a product
    */
   async getProductWarranty(productId: string): Promise<WarrantyInfo | null> {
-    const supabase = createClient();
+
 
     const { data, error } = await supabase
       .from('products')
@@ -163,7 +163,7 @@ export const warrantyService = {
    * Get warranty information for multiple products
    */
   async getProductsWarranty(productIds: string[]): Promise<Map<string, WarrantyInfo>> {
-    const supabase = createClient();
+
     const warrantyMap = new Map<string, WarrantyInfo>();
 
     if (productIds.length === 0) return warrantyMap;
@@ -212,7 +212,7 @@ export const warrantyService = {
    * Calculate warranty status for an order item
    */
   async getOrderItemWarrantyStatus(orderItemId: string): Promise<WarrantyStatus | null> {
-    const supabase = createClient();
+
 
     const { data, error } = await supabase
       .from('order_items')
@@ -274,7 +274,7 @@ export const warrantyService = {
    * Get warranty status for multiple order items
    */
   async getOrderItemsWarrantyStatus(orderItemIds: string[]): Promise<Map<string, WarrantyStatus>> {
-    const supabase = createClient();
+
     const statusMap = new Map<string, WarrantyStatus>();
 
     if (orderItemIds.length === 0) return statusMap;
@@ -347,7 +347,7 @@ export const warrantyService = {
     input: CreateWarrantyClaimInput,
     buyerId: string
   ): Promise<{ success: boolean; claim?: WarrantyClaim; error?: string }> {
-    const supabase = createClient();
+
 
     try {
       // Get order item details to fetch seller_id
@@ -453,7 +453,7 @@ export const warrantyService = {
    * Get warranty claim by ID
    */
   async getWarrantyClaim(claimId: string): Promise<WarrantyClaim | null> {
-    const supabase = createClient();
+
 
     const { data, error } = await supabase
       .from('warranty_claims')
@@ -480,7 +480,7 @@ export const warrantyService = {
   async getWarrantyClaims(
     filter: WarrantyClaimFilter
   ): Promise<{ claims: WarrantyClaim[]; total: number }> {
-    const supabase = createClient();
+
     let query = supabase.from('warranty_claims').select(`
       *,
       order_item:order_items(*),
@@ -534,7 +534,7 @@ export const warrantyService = {
     updaterId: string,
     updaterRole: 'seller' | 'admin'
   ): Promise<{ success: boolean; claim?: WarrantyClaim; error?: string }> {
-    const supabase = createClient();
+
 
     try {
       const updateData: Partial<WarrantyClaim> = {};
@@ -612,7 +612,7 @@ export const warrantyService = {
     claimId: string,
     buyerId: string
   ): Promise<{ success: boolean; error?: string }> {
-    const supabase = createClient();
+
 
     // Verify the claim belongs to the buyer
     const { data: claim, error: fetchError } = await supabase
@@ -677,7 +677,7 @@ export const warrantyService = {
    * Log a warranty action
    */
   async logWarrantyAction(input: WarrantyActionInput): Promise<{ success: boolean; error?: string }> {
-    const supabase = createClient();
+
 
     const { error } = await supabase.from('warranty_actions_log').insert({
       warranty_claim_id: input.warrantyClaimId,
@@ -703,7 +703,7 @@ export const warrantyService = {
   async getWarrantyActions(
     warrantyClaimId: string
   ): Promise<{ actions: WarrantyActionLog[]; error?: string }> {
-    const supabase = createClient();
+
 
     const { data, error } = await supabase
       .from('warranty_actions_log')
@@ -734,7 +734,7 @@ export const warrantyService = {
     resolvedClaims: number;
     avgResolutionDays: number | null;
   }> {
-    const supabase = createClient();
+
 
     // Get total claims
     const { count: totalClaims } = await supabase
@@ -821,7 +821,7 @@ export const warrantyService = {
       daysRemaining: number;
     }>;
   }> {
-    const supabase = createClient();
+
     const now = new Date();
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() + daysThreshold);

@@ -162,22 +162,22 @@ export default function OrderDetailPage() {
   // Load chat messages when seller and profile are ready
   useEffect(() => {
     const loadChat = async () => {
-      if (!sellerId || !profile?.id) {
+      if (!sellerId || !profile?.id || !dbOrder?.id) {
         setIsLoadingChat(false);
         return;
       }
 
       setIsLoadingChat(true);
       try {
-        // Use lightweight lookup — pass orderId for fast indexed query
-        const conv = await chatService.getOrCreateConversationLite(profile.id, sellerId, orderId);
+        // Use the actual order UUID (dbOrder.id), NOT the URL param (order number)
+        const conv = await chatService.getOrCreateConversationLite(profile.id, sellerId, dbOrder.id);
 
         if (conv) {
           // Only need conv.id for messages + subscriptions; cast minimal object
           setConversation({
             id: conv.id,
             buyer_id: profile.id,
-            order_id: orderId || null,
+            order_id: dbOrder.id || null,
             seller_id: sellerId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -219,7 +219,7 @@ export default function OrderDetailPage() {
     };
 
     loadChat();
-  }, [sellerId, profile?.id, orderId]);
+  }, [sellerId, profile?.id, dbOrder?.id]);
 
   // Subscribe to real-time chat updates
   useEffect(() => {

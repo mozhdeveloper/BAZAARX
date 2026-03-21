@@ -576,6 +576,29 @@ export const useOrderStore = create<OrderStore>()(
             actorRole: 'seller',
           });
 
+          // Fire transactional email to buyer (non-blocking)
+          if (target.buyerEmail) {
+            import('../services/transactionalEmails').then((emails) => {
+              const base = {
+                buyerEmail: target.buyerEmail!,
+                buyerId: target.buyer_id || '',
+                orderNumber: target.orderNumber || actualOrderId,
+                buyerName: target.buyerName || 'Valued Customer',
+              };
+              const BASE_URL = 'https://bazaar.ph';
+              const trackUrl = `${BASE_URL}/orders/${actualOrderId}`;
+              (
+                nextStatus === 'processing' ? emails.sendOrderConfirmedEmail({ ...base, estimatedDelivery: '3\u20137 business days' }) :
+                nextStatus === 'shipped' ? emails.sendOrderShippedEmail({ ...base, trackingNumber: target.trackingNumber || 'N/A', courierName: 'courier', trackingUrl: trackUrl }) :
+                nextStatus === 'delivered' ? emails.sendOrderDeliveredEmail(base) :
+                nextStatus === 'cancelled' ? emails.sendOrderCancelledEmail({ ...base, cancelReason: 'Order cancelled' }) :
+                Promise.resolve()
+              ).catch((emailErr: unknown) => {
+                console.warn('[OrderStore] Email dispatch error:', emailErr);
+              });
+            }).catch(() => {});
+          }
+
           const buyerStatus =
             status === 'pending'
               ? 'pending'
@@ -704,7 +727,23 @@ export const useOrderStore = create<OrderStore>()(
             trackingNumber: nextTracking,
             sellerId,
           });
-          console.log(`[OrderStore] Order marked as shipped: ${orderId} with tracking ${trackingNumber}`);
+
+          // Fire shipped email to buyer (non-blocking)
+          if (target.buyerEmail) {
+            import('../services/transactionalEmails').then(({ sendOrderShippedEmail }) => {
+              sendOrderShippedEmail({
+                buyerEmail: target.buyerEmail!,
+                buyerId: target.buyer_id || '',
+                orderNumber: target.orderNumber || actualOrderId,
+                buyerName: target.buyerName || 'Valued Customer',
+                trackingNumber: nextTracking,
+                courierName: 'courier',
+                trackingUrl: `https://bazaar.ph/orders/${actualOrderId}`,
+              }).catch((emailErr: unknown) => {
+                console.warn('[OrderStore] Shipped email error:', emailErr);
+              });
+            }).catch(() => {});
+          }
         } catch (error) {
           console.error('[OrderStore] Failed to mark as shipped:', error);
           set((state) => ({
@@ -787,6 +826,20 @@ export const useOrderStore = create<OrderStore>()(
             orderId: actualOrderId,
             sellerId,
           });
+
+          // Fire delivered email to buyer (non-blocking)
+          if (target.buyerEmail) {
+            import('../services/transactionalEmails').then(({ sendOrderDeliveredEmail }) => {
+              sendOrderDeliveredEmail({
+                buyerEmail: target.buyerEmail!,
+                buyerId: target.buyer_id || '',
+                orderNumber: target.orderNumber || actualOrderId,
+                buyerName: target.buyerName || 'Valued Customer',
+              }).catch((emailErr: unknown) => {
+                console.warn('[OrderStore] Delivered email error:', emailErr);
+              });
+            }).catch(() => {});
+          }
         } catch (error) {
           console.error('[OrderStore] Failed to mark as delivered:', error);
           set((state) => ({

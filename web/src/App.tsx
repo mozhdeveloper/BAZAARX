@@ -96,6 +96,7 @@ const SellerHelpCenter = lazy(() => import("./pages/SellerHelpCenter"));
 const SellerMyTickets = lazy(() => import("./pages/SellerMyTickets"));
 const SellerBuyerReports = lazy(() => import("./pages/SellerBuyerReports"));
 const SellerAnnouncementsPage = lazy(() => import("./pages/SellerAnnouncementsPage"));
+const SellerMarketing = lazy(() => import("./pages/SellerMarketing"));
 const BuyerAnnouncementsPage = lazy(() => import("./pages/BuyerAnnouncementsPage"));
 
 // Admin pages (default exports)
@@ -118,6 +119,8 @@ const AdminProfile = lazy(() => import("./pages/AdminProfile"));
 const AdminTickets = lazy(() => import("./pages/AdminTickets"));
 const AdminTrustedBrands = lazy(() => import("./pages/AdminTrustedBrands"));
 const AdminAnnouncementsPage = lazy(() => import("./pages/AdminAnnouncementsPage"));
+const AdminCRM = lazy(() => import("./pages/AdminCRM"));
+const AdminNotificationSettings = lazy(() => import("./pages/AdminNotificationSettings"));
 
 // QA Team pages
 const QADashboard = lazy(() => import("./pages/QADashboard"));
@@ -534,6 +537,14 @@ function App() {
               }
             />
             <Route
+              path="/seller/marketing"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerMarketing />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
               path="/seller/announcements"
               element={
                 <ProtectedSellerRoute>
@@ -560,6 +571,8 @@ function App() {
             <Route path="/admin/tickets" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'moderator']}><AdminTickets /></ProtectedAdminRoute>} />
             <Route path="/admin/trusted-brands" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminTrustedBrands /></ProtectedAdminRoute>} />
             <Route path="/admin/announcements" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminAnnouncementsPage /></ProtectedAdminRoute>} />
+            <Route path="/admin/crm" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminCRM /></ProtectedAdminRoute>} />
+            <Route path="/admin/notifications" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminNotificationSettings /></ProtectedAdminRoute>} />
             <Route path="/admin/product-approvals" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><QADashboard /></ProtectedAdminRoute>} />
             <Route path="/admin/qa-dashboard" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><AdminQADashboard /></ProtectedAdminRoute>} />
             <Route path="/admin/returns" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminReturns /></ProtectedAdminRoute>} />

@@ -22,7 +22,9 @@ import {
   ShieldCheck,
   Megaphone,
   Shield,
-  RotateCcw
+  RotateCcw,
+  Mail,
+  Bell
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -136,6 +138,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
       label: 'Announcements',
       href: '/admin/announcements',
       icon: <Megaphone className="h-5 w-5 flex-shrink-0" />,
+      qaVisible: false,
+    },
+    {
+      label: 'CRM & Marketing',
+      href: '/admin/crm',
+      icon: <Mail className="h-5 w-5 flex-shrink-0" />,
+      qaVisible: false,
+    },
+    {
+      label: 'Notifications',
+      href: '/admin/notifications',
+      icon: <Bell className="h-5 w-5 flex-shrink-0" />,
       qaVisible: false,
     },
     {

@@ -380,6 +380,38 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 console.error('[Checkout] ❌ Failed to send seller notification:', err);
             });
 
+            // 📧 Send order receipt email to buyer (fire-and-forget)
+            const sellerCount = Object.keys(itemsBySeller).length;
+            const perSellerShipping = sellerCount > 0 ? shippingFee / sellerCount : shippingFee;
+            const perSellerDiscount = sellerCount > 0 ? discount / sellerCount : discount;
+            const orderTotal = orderSubtotal + perSellerShipping - perSellerDiscount;
+            const itemsHtml = sellerItems.map(item =>
+                `<tr><td style="padding:8px;border-bottom:1px solid #f0f0f0">${item.name || 'Product'} (x${item.quantity})</td>` +
+                `<td style="padding:8px;border-bottom:1px solid #f0f0f0;text-align:right">₱${(item.price * item.quantity).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td></tr>`
+            ).join('');
+            supabase.functions.invoke('send-email', {
+                body: {
+                    to: email,
+                    templateSlug: 'order_receipt',
+                    recipientId: userId,
+                    category: 'transactional',
+                    variables: {
+                        buyer_name: shippingAddress.fullName,
+                        order_number: orderData.order_number,
+                        order_date: new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }),
+                        items_html: itemsHtml,
+                        subtotal: orderSubtotal.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+                        shipping_fee: perSellerShipping.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+                        discount: perSellerDiscount.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+                        total_amount: orderTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+                        payment_method: paymentMethod,
+                        shipping_address: [shippingAddress.street, shippingAddress.barangay, shippingAddress.city, shippingAddress.province].filter(Boolean).join(', '),
+                    },
+                },
+            }).catch(err => {
+                console.error('[Checkout] ❌ Failed to send receipt email:', err);
+            });
+
             // Create order items
             const orderItemsData = sellerItems.map(item => {
                 // Build personalized options with dynamic labels and legacy support

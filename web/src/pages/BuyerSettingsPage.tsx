@@ -319,6 +319,40 @@ export default function BuyerSettingsPage() {
     newsletter: true
   });
 
+  // Load notification consent from DB on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from('user_consent')
+        .select('channel, consent_type, is_consented')
+        .eq('user_id', user.id)
+        .then(({ data: rows }) => {
+          if (!rows?.length) return;
+          const get = (channel: string, type: string) =>
+            rows.find(r => r.channel === channel && r.consent_type === type)?.is_consented ?? true;
+          setNotifications({
+            email: get('email', 'transactional'),
+            sms: get('sms', 'transactional'),
+            push: get('push', 'transactional'),
+            orderUpdates: get('email', 'transactional'),
+            promotions: get('email', 'marketing'),
+            newsletter: get('email', 'newsletter'),
+          });
+        });
+    });
+  }, []);
+
+  const saveConsent = (channel: string, consentType: string, isConsented: boolean) => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from('user_consent').upsert(
+        { user_id: user.id, channel, consent_type: consentType, is_consented: isConsented, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,channel,consent_type' }
+      ).catch(console.error);
+    });
+  };
+
   const [privacy, setPrivacy] = useState({
     showProfile: true,
     showPurchases: false,
@@ -611,7 +645,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.email}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, email: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, email: checked }); saveConsent('email', 'transactional', checked); }}
                     />
                   </div>
 
@@ -625,7 +659,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.sms}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, sms: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, sms: checked }); saveConsent('sms', 'transactional', checked); }}
                     />
                   </div>
 
@@ -639,7 +673,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.push}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, push: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, push: checked }); saveConsent('push', 'transactional', checked); }}
                     />
                   </div>
                 </CardContent>
@@ -658,7 +692,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.orderUpdates}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, orderUpdates: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, orderUpdates: checked }); saveConsent('email', 'transactional', checked); }}
                     />
                   </div>
 
@@ -669,7 +703,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.promotions}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, promotions: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, promotions: checked }); saveConsent('email', 'marketing', checked); }}
                     />
                   </div>
 
@@ -680,7 +714,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.newsletter}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, newsletter: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, newsletter: checked }); saveConsent('email', 'newsletter', checked); }}
                     />
                   </div>
                 </CardContent>

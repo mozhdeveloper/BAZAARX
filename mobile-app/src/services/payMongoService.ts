@@ -307,6 +307,10 @@ export class PayMongoGatewayService {
       if (intent.attributes.status === 'failed') {
         const msg = intent.attributes.last_payment_error?.failed_message || 'Payment failed';
         await this.updateTransactionStatus(transactionId, 'failed', { failureReason: msg });
+        supabase.from('buyers').select('email, full_name').eq('id', txn.buyer_id).single().then(({ data: buyer }) => {
+          if (!buyer?.email) return;
+          supabase.functions.invoke('send-email', { body: { to: buyer.email, templateSlug: 'payment_failed', recipientId: txn.buyer_id, category: 'transactional', variables: { buyer_name: buyer.full_name || 'Valued Customer', amount: Number(txn.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }), failure_reason: msg, order_number: txn.order_id } } }).catch(console.error);
+        }).catch(console.error);
         return { success: false, transactionId, status: 'failed', error: msg };
       }
       return { success: true, transactionId, status: 'processing' };
@@ -327,6 +331,10 @@ export class PayMongoGatewayService {
       }
       if (source.attributes.status === 'cancelled' || source.attributes.status === 'expired') {
         await this.updateTransactionStatus(transactionId, 'failed', { failureReason: 'Payment cancelled or expired' });
+        supabase.from('buyers').select('email, full_name').eq('id', txn.buyer_id).single().then(({ data: buyer }) => {
+          if (!buyer?.email) return;
+          supabase.functions.invoke('send-email', { body: { to: buyer.email, templateSlug: 'payment_failed', recipientId: txn.buyer_id, category: 'transactional', variables: { buyer_name: buyer.full_name || 'Valued Customer', amount: Number(txn.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }), failure_reason: 'Payment cancelled or expired', order_number: txn.order_id } } }).catch(console.error);
+        }).catch(console.error);
         return { success: false, transactionId, status: 'failed', error: 'Payment cancelled' };
       }
     }
@@ -627,6 +635,31 @@ export class PayMongoGatewayService {
       status: 'on_hold',
       release_after: escrowReleaseAt,
     });
+
+    // 📧 Send payment confirmation emails (fire-and-forget)
+    supabase
+      .from('buyers')
+      .select('email, full_name')
+      .eq('id', request.buyerId)
+      .single()
+      .then(({ data: buyer }) => {
+        if (!buyer?.email) return;
+        const txnDate = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+        const baseVars = {
+          buyer_name: buyer.full_name || 'Valued Customer',
+          amount: request.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
+          payment_method: request.paymentType,
+          transaction_date: txnDate,
+          order_number: request.orderId,
+        };
+        supabase.functions.invoke('send-email', {
+          body: { to: buyer.email, templateSlug: 'payment_received', recipientId: request.buyerId, category: 'transactional', variables: baseVars },
+        }).catch(console.error);
+        supabase.functions.invoke('send-email', {
+          body: { to: buyer.email, templateSlug: 'digital_receipt', recipientId: request.buyerId, category: 'transactional', variables: { ...baseVars, receipt_date: txnDate } },
+        }).catch(console.error);
+      })
+      .catch(console.error);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
