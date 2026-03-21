@@ -311,7 +311,13 @@ export default function CartScreen({ navigation, route }: any) {
                     <View style={{ flex: 1 }}>
                       <CartItemRow
                         item={item}
-                        onIncrement={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                        onIncrement={() => {
+                          const liveItem = useCartStore.getState().items.find(
+                            (cartItem) => cartItem.cartItemId === item.cartItemId || cartItem.id === item.cartItemId
+                          );
+                          const currentQty = liveItem?.quantity ?? item.quantity;
+                          updateQuantity(item.cartItemId, currentQty + 1);
+                        }}
                         onDecrement={() => item.quantity > 1 && updateQuantity(item.cartItemId, item.quantity - 1)}
                         onChange={(val) => updateQuantity(item.cartItemId, val)}
                         onRemove={() => handleRemoveSingle(item)}

@@ -167,6 +167,18 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
   const [selectedOption2, setSelectedOption2] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(initialQuantity);
 
+  const handleSelectOption1 = (value: string) => {
+    if (selectedOption1 !== value) {
+      setSelectedOption1(value);
+    }
+  };
+
+  const handleSelectOption2 = (value: string) => {
+    if (selectedOption2 !== value) {
+      setSelectedOption2(value);
+    }
+  };
+
   // Track previous visibility to catch the opening moment
   const prevVisibleRef = useRef(visible);
 
@@ -236,6 +248,11 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
       variantId: matched?.id,
     };
   }, [hasStructuredVariants, variants, selectedOption1, selectedOption2, product]);
+
+  useEffect(() => {
+    const maxStock = Math.max(1, Number(activeVariantInfo.stock ?? 1));
+    setQuantity((prev) => Math.max(1, Math.min(prev, maxStock)));
+  }, [activeVariantInfo.stock]);
 
   const handleConfirm = () => {
     // Block if seller is on vacation
@@ -410,7 +427,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                       return (
                         <Pressable
                           key={`op1-${i}`}
-                          onPress={() => !isDisabled && setSelectedOption1(val)}
+                          onPress={() => !isDisabled && handleSelectOption1(val)}
                           style={[
                             styles.colorChip,
                             { backgroundColor: getColorHex(val) },
@@ -428,7 +445,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                     return (
                       <Pressable
                         key={`op1-${i}`}
-                        onPress={() => !isDisabled && setSelectedOption1(val)}
+                        onPress={() => !isDisabled && handleSelectOption1(val)}
                         style={[
                           styles.optionChip,
                           isSelected && styles.optionChipSelected,
@@ -466,7 +483,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                       return (
                         <Pressable
                           key={`op2-${i}`}
-                          onPress={() => !isDisabled && setSelectedOption2(val)}
+                          onPress={() => !isDisabled && handleSelectOption2(val)}
                           style={[
                             styles.colorChip,
                             { backgroundColor: getColorHex(val) },
@@ -484,7 +501,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                     return (
                       <Pressable
                         key={`op2-${i}`}
-                        onPress={() => !isDisabled && setSelectedOption2(val)}
+                        onPress={() => !isDisabled && handleSelectOption2(val)}
                         style={[
                           styles.optionChip,
                           isSelected && styles.optionChipSelected,
@@ -521,10 +538,8 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                       quantity >= (activeVariantInfo.stock ?? 99) && styles.qtyBtnDisabled
                     ]}
                     onPress={() => {
-                      const maxStock = activeVariantInfo.stock ?? 99;
-                      if (quantity < maxStock) {
-                        setQuantity(prev => prev + 1);
-                      }
+                      const maxStock = Math.max(1, Number(activeVariantInfo.stock ?? 99));
+                      setQuantity(prev => Math.min(maxStock, prev + 1));
                     }}
                   >
                     <Plus

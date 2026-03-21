@@ -320,6 +320,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const setSelectedColor = setSelectedOption1;
   const setSelectedSize = setSelectedOption2;
   const [quantity, setQuantity] = useState(1);
+
+  const handleSelectOption1 = (value: string) => {
+    if (selectedOption1 !== value) {
+      setSelectedOption1(value);
+    }
+  };
+
+  const handleSelectOption2 = (value: string) => {
+    if (selectedOption2 !== value) {
+      setSelectedOption2(value);
+    }
+  };
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -392,6 +404,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       image: matchedVariant?.thumbnail_url || matchedVariant?.image || null,
     };
   }, [hasStructuredVariants, productVariants, selectedOption1, selectedOption2, product.price, product.stock]);
+
+  useEffect(() => {
+    const maxStock = Math.max(1, Number(selectedVariantInfo.stock ?? 1));
+    setQuantity((prev) => Math.max(1, Math.min(prev, maxStock)));
+  }, [selectedVariantInfo.stock]);
 
   // Extract seller name robustly (fixes lint errors with mixed object/string types)
   const displayStoreName = useMemo(() => {
@@ -1155,7 +1172,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                       <Pressable
                         key={`${value}-${index}`}
                         style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
-                        onPress={() => setSelectedOption1(value)}
+                        onPress={() => handleSelectOption1(value)}
                       >
                         {variantImg ? (
                           <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
@@ -1174,7 +1191,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     <Pressable
                       key={`${value}-${index}`}
                       style={[styles.sizeOption, isSelected && styles.sizeOptionSelected]}
-                      onPress={() => setSelectedOption1(value)}
+                      onPress={() => handleSelectOption1(value)}
                     >
                       <Text style={[styles.sizeOptionText, isSelected && styles.sizeOptionTextSelected]}>{value}</Text>
                     </Pressable>
@@ -1199,7 +1216,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     <Pressable
                       key={`${value}-${index}`}
                       style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
-                      onPress={() => setSelectedOption2(value)}
+                      onPress={() => handleSelectOption2(value)}
                     >
                       {variantImg ? (
                         <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
