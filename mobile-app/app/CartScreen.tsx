@@ -81,8 +81,8 @@ export default function CartScreen({ navigation, route }: any) {
       variantId: variantData.variantId,
     };
     // Also update legacy fields if applicable (though store might handle mapping)
-    if (variantData.option1Value) newOptions.color = variantData.option1Value;
-    if (variantData.option2Value) newOptions.size = variantData.option2Value;
+    if (variantData.option1Value) newOptions.size = variantData.option1Value;
+    if (variantData.option2Value) newOptions.color = variantData.option2Value;
 
     await updateItemVariant(editingItem.cartItemId, variantData.variantId, newOptions);
 

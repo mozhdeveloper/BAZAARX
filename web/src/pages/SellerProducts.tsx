@@ -849,7 +849,7 @@ export function AddProduct() {
     const [sizeGuideImageUrl, setSizeGuideImageUrl] = useState("");
 
     // Custom attribute names state
-    const [firstAttributeName, setFirstAttributeName] = useState("Variations");
+    const [firstAttributeName, setFirstAttributeName] = useState("Sizes");
     const [secondAttributeName, setSecondAttributeName] = useState("Colors");
     const [editingFirstAttributeName, setEditingFirstAttributeName] =
         useState(false);
@@ -1353,6 +1353,26 @@ export function AddProduct() {
                     ? [...(baseVariant ? [baseVariant] : []), ...updatedVariants]
                     : undefined;
 
+            const hasVariantAxis1 =
+                formData.variantLabel1Values.length > 0 ||
+                updatedVariants.some((variant) =>
+                    !!String(variant.variantLabel1Value || '').trim()
+                );
+
+            const hasVariantAxis2 =
+                formData.variantLabel2Values.length > 0 ||
+                updatedVariants.some((variant) =>
+                    !!String(variant.variantLabel2Value || '').trim()
+                );
+
+            const resolvedVariantLabel1 = hasVariantAxis1
+                ? (firstAttributeName?.trim() || 'Variations')
+                : undefined;
+
+            const resolvedVariantLabel2 = hasVariantAxis2
+                ? (secondAttributeName?.trim() || 'Colors')
+                : undefined;
+
             // 3. Upload Main Product Images (URLs + Files)
             const filesToUpload = imageFiles.filter((f): f is File => f !== null);
             let uploadedMainUrls: string[] = [];
@@ -1405,8 +1425,8 @@ export function AddProduct() {
                 sizeGuideImage: uploadedSizeGuideUrl,
                 isActive: true,
                 sellerId: seller?.id || "",
-                variantLabel1: firstAttributeName !== "Variations" ? firstAttributeName : undefined,
-                variantLabel2: secondAttributeName !== "Colors" ? secondAttributeName : undefined,
+                variantLabel1: resolvedVariantLabel1,
+                variantLabel2: resolvedVariantLabel2,
                 variants: variantsForSubmit,
             };
 

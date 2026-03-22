@@ -232,56 +232,25 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }, []);
   };
 
-  // Detect if a set of values looks like colors by checking against the known color map
-  const looksLikeColor = (values: string[]) =>
-    values.length > 0 && values.every(v => colorNameToHex[v.toLowerCase().trim()] !== undefined);
-
-  // Extract raw values from variants — respecting DB labels when present
+  // Extract raw values from variants
   const rawValues1 = hasStructuredVariants
-    ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
+    ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.size).filter(Boolean))]
     : (product.option1Values || product.colors || []);
   const rawValues2 = hasStructuredVariants
-    ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
+    ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.color).filter(Boolean))]
     : (product.option2Values || product.sizes || []);
 
   const deduped1 = dedupe(rawValues1);
   const deduped2 = dedupe(rawValues2);
 
-  // If DB labels are provided, trust them. Otherwise detect by value content.
-  // When no DB labels: if option1 looks like sizes and option2 looks like colors, swap them
-  // so that Color always comes first (option1) and Size/Variant comes second (option2).
-  const dbLabel1 = product.variant_label_1 as string | undefined;
-  const dbLabel2 = product.variant_label_2 as string | undefined;
-
-  const inferLabel = (values: string[], fallback: string) =>
-    looksLikeColor(values) ? 'Color' : fallback;
-
-  let option1Values: string[];
-  let option2Values: string[];
-  let variantLabel1: string | undefined;
-  let variantLabel2: string | undefined;
-
-  if (dbLabel1 || dbLabel2) {
-    // Trust DB labels as-is
-    option1Values = deduped1;
-    option2Values = deduped2;
-    variantLabel1 = dbLabel1 || (deduped1.length > 0 ? inferLabel(deduped1, 'Variant') : undefined);
-    variantLabel2 = dbLabel2 || (deduped2.length > 0 ? inferLabel(deduped2, 'Color') : undefined);
-  } else {
-    // No DB labels — detect and swap if needed so Color is always option1
-    const axis1IsColor = looksLikeColor(deduped1);
-    const axis2IsColor = looksLikeColor(deduped2);
-    const shouldSwap = !axis1IsColor && axis2IsColor && deduped2.length > 0;
-
-    option1Values = shouldSwap ? deduped2 : deduped1;
-    option2Values = shouldSwap ? deduped1 : deduped2;
-    variantLabel1 = deduped1.length > 0 || deduped2.length > 0
-      ? inferLabel(option1Values, 'Variant')
-      : undefined;
-    variantLabel2 = option2Values.length > 0
-      ? inferLabel(option2Values, 'Color')
-      : undefined;
-  }
+  const option1Values = deduped1;
+  const option2Values = deduped2;
+  const dbLabel1 = (product.variant_label_1 as string | undefined)?.trim();
+  const dbLabel2 = (product.variant_label_2 as string | undefined)?.trim();
+  const hasLegacySizeAxis1 = hasStructuredVariants && productVariants.some((v: any) => !v.option_1_value && !!v.size);
+  const hasLegacyColorAxis2 = hasStructuredVariants && productVariants.some((v: any) => !v.option_2_value && !!v.color);
+  const variantLabel1 = option1Values.length > 0 ? (dbLabel1 || (hasLegacySizeAxis1 ? 'Size' : 'Option 1')) : undefined;
+  const variantLabel2 = option2Values.length > 0 ? (dbLabel2 || (hasLegacyColorAxis2 ? 'Color' : 'Option 2')) : undefined;
 
   // Check if axis 1 and 2 are effectively identical (redundant case often seen in vinyls/posters)
   const isRedundant = useMemo(() => {
@@ -359,21 +328,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [showVariantFilterModal, setShowVariantFilterModal] = useState(false); // Filter dropdown state
   const [showSizeGuideModal, setShowSizeGuideModal] = useState(false); // Size guide modal state
 
-  // Whether axes were swapped (color was in option_2 in DB)
-  const axesSwapped = !dbLabel1 && !dbLabel2 && !looksLikeColor(deduped1) && looksLikeColor(deduped2) && deduped2.length > 0;
-
   // Match a variant row against our (possibly swapped) option1/option2 selections
   const matchVariant = (v: any, op1: string | null, op2: string | null) => {
     const n = (val: any) => String(val || '').trim().toLowerCase();
-    // DB axis values (before any swap)
-    const dbAxis1 = n(v.option_1_value || v.color);
-    const dbAxis2 = n(v.option_2_value || v.size);
-    // Our op1 = color axis, op2 = size axis
-    // If swapped: our op1 maps to DB axis2, our op2 maps to DB axis1
-    const colorAxisVal = axesSwapped ? dbAxis2 : dbAxis1;
-    const sizeAxisVal = axesSwapped ? dbAxis1 : dbAxis2;
-    const op1Match = !op1 || colorAxisVal === n(op1);
-    const op2Match = !op2 || sizeAxisVal === n(op2);
+    const dbAxis1 = n(v.option_1_value || v.size);
+    const dbAxis2 = n(v.option_2_value || v.color);
+    const op1Match = !op1 || dbAxis1 === n(op1);
+    const op2Match = !op2 || dbAxis2 === n(op2);
     return op1Match && op2Match;
   };
 
@@ -1163,7 +1124,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   const isColor = finalVariantLabel1.toLowerCase() === 'color';
                   const variantImg = isColor
                     ? productVariants.find((v: any) =>
-                      (axesSwapped ? v.option_2_value : v.option_1_value) === value
+                      v.option_1_value === value
                     )?.thumbnail_url || null
                     : null;
                   const isSelected = selectedOption1 === value;
@@ -1210,7 +1171,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => {
                   const isSelected = selectedOption2 === value;
                   const variantImg = productVariants.find((v: any) =>
-                    (axesSwapped ? v.option_1_value : v.option_2_value) === value
+                    v.option_2_value === value
                   )?.thumbnail_url || productImages[0] || null;
                   return (
                     <Pressable

@@ -95,14 +95,16 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       // Build selectedVariant if variant exists
       let selectedVariant = null;
       if (variant) {
+        const hasLegacySizeAxis1 = !variant.option_1_value && !!variant.size;
+        const hasLegacyColorAxis2 = !variant.option_2_value && !!variant.color;
         selectedVariant = {
           variantId: variant.id,
           color: variant.color || undefined,
           size: variant.size || undefined,
-          option1Value: variant.option_1_value || undefined,
-          option2Value: variant.option_2_value || undefined,
-          option1Label: product.variant_label_1 || undefined,
-          option2Label: product.variant_label_2 || undefined,
+          option1Value: variant.option_1_value || variant.size || undefined,
+          option2Value: variant.option_2_value || variant.color || undefined,
+          option1Label: product.variant_label_1 || (hasLegacySizeAxis1 ? 'Size' : 'Option 1'),
+          option2Label: product.variant_label_2 || (hasLegacyColorAxis2 ? 'Color' : 'Option 2'),
         };
       }
       // Also check personalized_options for variant info
