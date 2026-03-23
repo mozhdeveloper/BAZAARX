@@ -12,11 +12,10 @@ import {
   ActivityIndicator,
   Linking,
   Image,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store, Shield, ChevronDown, X } from 'lucide-react-native';
+import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
@@ -25,14 +24,6 @@ import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
-// Test accounts with BazCoins - All have password: Test@123456
-const TEST_ACCOUNTS = [
-  { email: 'buyer1@gmail.com', password: 'Test@123456', name: 'Angela Cruz', note: '⭐ 1500 BazCoins' },
-  { email: 'buyer2@gmail.com', password: 'Test@123456', name: 'John Mendoza', note: '💰 2300 BazCoins' },
-  { email: 'buyer3@gmail.com', password: 'Test@123456', name: 'Sofia Reyes', note: '💰 800 BazCoins' },
-  { email: 'buyer4@gmail.com', password: 'Test@123456', name: 'Carlos Garcia', note: '💰 450 BazCoins' },
-];
-
 
 export default function LoginScreen({ navigation }: Props) {
   // const login = useAuthStore((state) => state.login); // Deprecated
@@ -40,13 +31,6 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showTestAccounts, setShowTestAccounts] = useState(false);
-
-  const selectTestAccount = (account: typeof TEST_ACCOUNTS[0]) => {
-    setEmail(account.email);
-    setPassword(account.password);
-    setShowTestAccounts(false);
-  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -158,21 +142,6 @@ export default function LoginScreen({ navigation }: Props) {
             <Text style={[styles.subtitle, { color: COLORS.textMuted }]}>Sign in to continue shopping</Text>
           </View>
 
-          {/* Demo Credentials Banner */}
-          <Pressable
-            style={styles.demoBanner}
-            onPress={() => setShowTestAccounts(true)}
-          >
-            <View style={styles.demoContent}>
-              <Text style={styles.demoTitle}>🧪 Test Accounts</Text>
-              <Text style={styles.demoText}>Tap to select a test account</Text>
-              <View style={styles.demoHintRow}>
-                <Text style={styles.demoHint}>All accounts have messages & data</Text>
-                <ChevronDown size={16} color="#F97316" />
-              </View>
-            </View>
-          </Pressable>
-
           {/* Login Form */}
           <View style={styles.form}>
             {/* Email Input */}
@@ -224,6 +193,54 @@ export default function LoginScreen({ navigation }: Props) {
             <Pressable style={styles.forgotPassword}>
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </Pressable>
+
+            {/* Test Credentials Panel */}
+            <View style={styles.testCredsContainer}>
+              <View style={styles.testCredsHeader}>
+                <Text style={styles.testCredsTitle}>🧪 Test Credentials — tap to fill</Text>
+              </View>
+              {[
+                { emoji: '👩', label: 'Buyer 1 — Anna Cruz', email: 'buyer1@gmail.com', password: 'Test@123456' },
+                { emoji: '👨', label: 'Buyer 2 — Juan Reyes', email: 'buyer2@gmail.com', password: 'Test@123456' },
+                { emoji: '👩', label: 'Buyer 3 — Sofia Lim', email: 'buyer3@gmail.com', password: 'Test@123456' },
+              ].map((cred) => (
+                <Pressable
+                  key={cred.email}
+                  style={styles.testCredButton}
+                  onPress={() => {
+                    setEmail(cred.email);
+                    setPassword(cred.password);
+                  }}
+                >
+                  <View style={styles.testCredAvatar}>
+                    <Text style={styles.testCredAvatarText}>{cred.emoji}</Text>
+                  </View>
+                  <View style={styles.testCredLeft}>
+                    <Text style={styles.testCredLabel}>{cred.label}</Text>
+                    <Text style={styles.testCredEmail}>{cred.email}</Text>
+                  </View>
+                  <View style={styles.testCredPwBadge}>
+                    <Text style={styles.testCredPw}>Test@123456</Text>
+                  </View>
+                </Pressable>
+              ))}
+              <View style={styles.testCredsDivider} />
+              <View style={styles.testCredsPortalRow}>
+                <Pressable
+                  style={[styles.testCredsPortalBtn, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
+                  onPress={() => navigation.navigate('SellerAuthChoice')}
+                >
+                  <Store size={14} color="#D97706" />
+                  <Text style={[styles.testCredsPortalText, { color: '#92400E' }]}>Seller Portal</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.testCredsPortalBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}
+                  onPress={() => navigation.navigate('AdminStack')}
+                >
+                  <Text style={[styles.testCredsPortalText, { color: '#1E40AF' }]}>🛡️ Admin Portal</Text>
+                </Pressable>
+              </View>
+            </View>
 
             {/* Login Button */}
             <Pressable
@@ -280,44 +297,6 @@ export default function LoginScreen({ navigation }: Props) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Test Accounts Modal */}
-      <Modal
-        visible={showTestAccounts}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowTestAccounts(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Test Account</Text>
-              <Pressable onPress={() => setShowTestAccounts(false)}>
-                <X size={24} color="#6B7280" />
-              </Pressable>
-            </View>
-
-            <ScrollView style={styles.accountsList}>
-              {TEST_ACCOUNTS.map((account, index) => (
-                <Pressable
-                  key={index}
-                  style={styles.accountItem}
-                  onPress={() => selectTestAccount(account)}
-                >
-                  <View style={styles.accountInfo}>
-                    <Text style={styles.accountName}>{account.name}</Text>
-                    <Text style={styles.accountEmail}>{account.email}</Text>
-                    <Text style={styles.accountDetails}>
-                      {/* Unicode character for key */}
-                      🔑 Password: {account.password} • {account.note}
-                    </Text>
-                  </View>
-                  <ArrowRight size={20} color="#FF6A00" />
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -363,39 +342,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: COLORS.textMuted,
-  },
-  demoBanner: {
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1,
-    borderColor: '#FFEDD5',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  demoContent: {
-    alignItems: 'center',
-  },
-  demoTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FF6A00',
-    marginBottom: 8,
-  },
-  demoText: {
-    fontSize: 13,
-    color: '#F97316',
-    marginBottom: 4,
-  },
-  demoHintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  demoHint: {
-    fontSize: 12,
-    color: '#FF6A00',
-    fontWeight: '600',
   },
   form: {
     marginBottom: 24,
@@ -508,88 +454,104 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FF5722',
   },
-  adminPortalButton: {
-    marginTop: 12,
+  // ── Test Credentials Panel ──────────────────────────────────────────
+  testCredsContainer: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+  },
+  testCredsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#F5F3FF',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#8B5CF6',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    gap: 6,
+    marginBottom: 12,
+  },
+  testCredsTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  testCredButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
     elevation: 2,
   },
-  adminPortalText: {
+  testCredAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  testCredAvatarText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#8B5CF6',
   },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  accountsList: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  accountItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    marginVertical: 6,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  accountInfo: {
+  testCredLeft: {
     flex: 1,
   },
-  accountName: {
-    fontSize: 16,
+  testCredLabel: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
+    color: '#1F2937',
   },
-  accountEmail: {
-    fontSize: 14,
+  testCredEmail: {
+    fontSize: 11,
     color: '#6B7280',
-    marginBottom: 4,
+    marginTop: 1,
   },
-  accountDetails: {
+  testCredPwBadge: {
+    backgroundColor: '#D1FAE5',
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  testCredPw: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  testCredsDivider: {
+    height: 1,
+    backgroundColor: '#FDE68A',
+    marginVertical: 10,
+  },
+  testCredsPortalRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  testCredsPortalBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  testCredsPortalText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    fontWeight: '700',
   },
 });

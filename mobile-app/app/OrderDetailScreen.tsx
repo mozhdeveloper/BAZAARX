@@ -879,28 +879,31 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </>
         )}
 
-        {/* RECEIVED / COMPLETED: Return/Refund (7-day window per DTI/PH Consumer Act) + Write Review */}
+        {/* RECEIVED / COMPLETED: Buy Again + Write Review */}
         {order.buyerUiStatus === 'received' && (
           <>
             <Pressable
-              onPress={() => {
-                const returnWindowStart = order.deliveredAt || order.updatedAt || order.createdAt;
-                const diffTime = Date.now() - new Date(returnWindowStart).getTime();
-                const isReturnable = diffTime >= 0 && diffTime <= 7 * 24 * 60 * 60 * 1000;
-
-                if (isReturnable) navigation.navigate('ReturnRequest', { order });
-                else Alert.alert('Return Window Closed', 'Returns are only available within 7 days of delivery per Philippine consumer protection rules.');
-              }}
+              onPress={() => setShowReviewModal(true)}
               style={[styles.outlineButton, { flex: 1, borderColor: '#D97706' }]}
             >
-              <RotateCcw size={16} color="#D97706" />
-              <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Return/Refund</Text>
+              <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Write Review</Text>
             </Pressable>
             <Pressable
-              onPress={() => setShowReviewModal(true)}
+              onPress={() => {
+                if (order.items.length > 0) {
+                  const addItem = useCartStore.getState().addItem;
+                  Promise.all(order.items.map(item => addItem(item as any, { forceNewItem: true })))
+                  .then((ids) => {
+                    navigation.navigate('MainTabs', {
+                      screen: 'Cart',
+                      params: { selectedCartItemIds: ids.filter(Boolean) as string[] }
+                    });
+                  });
+                }
+              }}
               style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
             >
-              <Text style={styles.solidButtonText}>Write Review</Text>
+              <Text style={styles.solidButtonText}>Buy Again</Text>
             </Pressable>
           </>
         )}

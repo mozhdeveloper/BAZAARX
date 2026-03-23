@@ -27,6 +27,8 @@ export interface SellerCoreData {
   verified_at: string | null;
   created_at: string;
   updated_at: string;
+  is_vacation_mode?: boolean;
+  vacation_reason?: string | null;
 }
 
 // Extended seller data with joins
@@ -301,7 +303,7 @@ export class SellerService {
 
         try {
             // Try RPC first
-            const { data, error } = await supabase.rpc('get_seller_sales_summary', {
+            const { data, error } = await supabase.rpc('get_seller_sales_summary' as any, {
                 p_seller_id: sellerId,
             });
 
@@ -312,6 +314,61 @@ export class SellerService {
         } catch (error) {
             console.error('Error fetching seller stats:', error);
             return { total_orders: 0, total_sales: 0, average_rating: 0 };
+        }
+    }
+
+    /**
+     * Enable vacation mode for a seller
+     */
+    async enableVacationMode(
+        sellerId: string,
+        reason?: string
+    ): Promise<{ success: boolean; error?: string }> {
+        if (!isSupabaseConfigured()) {
+            return { success: false, error: 'Supabase not configured' };
+        }
+
+        try {
+            const { error } = await supabase
+                .from('sellers')
+                .update({
+                    is_vacation_mode: true,
+                    vacation_reason: reason || null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', sellerId);
+
+            if (error) throw error;
+            return { success: true };
+        } catch (error) {
+            console.error('Error enabling vacation mode:', error);
+            return { success: false, error: 'Failed to enable vacation mode' };
+        }
+    }
+
+    /**
+     * Disable vacation mode for a seller
+     */
+    async disableVacationMode(sellerId: string): Promise<{ success: boolean; error?: string }> {
+        if (!isSupabaseConfigured()) {
+            return { success: false, error: 'Supabase not configured' };
+        }
+
+        try {
+            const { error } = await supabase
+                .from('sellers')
+                .update({
+                    is_vacation_mode: false,
+                    vacation_reason: null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', sellerId);
+
+            if (error) throw error;
+            return { success: true };
+        } catch (error) {
+            console.error('Error disabling vacation mode:', error);
+            return { success: false, error: 'Failed to disable vacation mode' };
         }
     }
 

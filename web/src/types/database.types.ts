@@ -48,6 +48,28 @@ export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type TicketStatus = 'open' | 'in_progress' | 'waiting_response' | 'resolved' | 'closed';
 export type ChatRequestStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 
+// Warranty Types
+export type WarrantyType = 'local_manufacturer' | 'international_manufacturer' | 'shop_warranty' | 'no_warranty';
+export type WarrantyClaimStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'repair_in_progress' | 'replacement_sent' | 'refund_processed' | 'resolved' | 'cancelled';
+export type WarrantyClaimType = 'repair' | 'replacement' | 'refund' | 'technical_support';
+export type WarrantyResolutionType = 'repair' | 'replacement' | 'refund' | 'technical_support' | 'rejected';
+export type WarrantyActionType =
+  | 'claim_created'
+  | 'claim_submitted'
+  | 'claim_reviewed'
+  | 'claim_approved'
+  | 'claim_rejected'
+  | 'repair_started'
+  | 'repair_completed'
+  | 'replacement_shipped'
+  | 'refund_initiated'
+  | 'refund_completed'
+  | 'claim_resolved'
+  | 'claim_cancelled'
+  | 'evidence_added'
+  | 'seller_responded'
+  | 'admin_note_added';
+
 // Payment Gateway Types
 export type GatewayPaymentType = 'card' | 'gcash' | 'maya' | 'grab_pay' | 'bank_transfer' | 'cod';
 export type PaymentTransactionStatus = 'pending' | 'awaiting_payment' | 'processing' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded';
@@ -69,6 +91,8 @@ export type DiscountCampaignType =
   | 'bundle_deal';
 
 export type DiscountType = 'percentage' | 'fixed_amount';
+
+export type VacationReason = 'vacation' | 'personal' | 'maintenance' | 'other';
 
 export type CampaignStatus = 'scheduled' | 'active' | 'paused' | 'ended' | 'cancelled';
 
@@ -114,6 +138,9 @@ export interface Seller {
   verified_at: string | null;
   created_at: string;
   updated_at: string;
+  // Vacation mode
+  is_vacation_mode?: boolean;
+  vacation_reason?: VacationReason | null;
   // Extended joins
   business_profile?: SellerBusinessProfile;
   payout_account?: SellerPayoutAccount;
@@ -335,6 +362,16 @@ export interface Product {
   created_at: string;
   updated_at: string;
   image_embedding: number[] | null;
+  // Warranty fields
+  has_warranty: boolean;
+  warranty_type: WarrantyType;
+  warranty_duration_months: number;
+  warranty_policy: string | null;
+  warranty_provider_name: string | null;
+  warranty_provider_contact: string | null;
+  warranty_provider_email: string | null;
+  warranty_terms_url: string | null;
+  image_url: string | null;
   // Joined fields (not in DB directly)
   seller_id?: string;
   images?: ProductImage[];
@@ -353,6 +390,8 @@ export interface Product {
   campaignBadge?: string;
   campaignBadgeColor?: string;
   campaignEndsAt?: string;
+  // Apparel features
+  size_guide_image?: string | null;
 }
 
 export interface ProductImage {
@@ -627,6 +666,20 @@ export interface OrderItem {
   rating: number | null;
   created_at: string;
   updated_at: string;
+  // Warranty fields
+  warranty_expiration_date: string | null;
+  warranty_start_date: string | null;
+  warranty_type: WarrantyType | null;
+  warranty_duration_months: number | null;
+  warranty_provider_name: string | null;
+  warranty_provider_contact: string | null;
+  warranty_provider_email: string | null;
+  warranty_terms_url: string | null;
+  warranty_claimed: boolean;
+  warranty_claimed_at: string | null;
+  warranty_claim_reason: string | null;
+  warranty_claim_status: WarrantyClaimStatus | null;
+  warranty_claim_notes: string | null;
   product?: Product;
   variant?: ProductVariant;
 }
@@ -698,6 +751,57 @@ export interface OrderStatusHistory {
   changed_by_role: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+}
+
+// ============================================================================
+// WARRANTY SYSTEM
+// ============================================================================
+
+export interface WarrantyClaim {
+  id: string;
+  order_item_id: string;
+  buyer_id: string;
+  seller_id: string;
+  claim_number: string;
+  reason: string;
+  description: string | null;
+  claim_type: WarrantyClaimType;
+  evidence_urls: string[] | null;
+  diagnostic_report_url: string | null;
+  status: WarrantyClaimStatus;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  resolution_type: WarrantyResolutionType | null;
+  resolution_description: string | null;
+  resolution_amount: number | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  seller_response: string | null;
+  seller_response_at: string | null;
+  admin_notes: string | null;
+  return_tracking_number: string | null;
+  return_shipping_carrier: string | null;
+  replacement_tracking_number: string | null;
+  replacement_shipping_carrier: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  order_item?: OrderItem;
+  buyer?: Buyer & { profile?: Profile };
+  seller?: Seller;
+}
+
+export interface WarrantyActionLog {
+  id: string;
+  warranty_claim_id: string | null;
+  order_item_id: string | null;
+  action_type: WarrantyActionType;
+  actor_id: string | null;
+  actor_role: 'buyer' | 'seller' | 'admin' | 'system';
+  description: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  // Joined data
+  warranty_claim?: WarrantyClaim;
 }
 
 // ============================================================================
@@ -968,6 +1072,8 @@ export interface Database {
       ticket_messages: { Row: TicketMessage; Insert: Partial<TicketMessage>; Update: Partial<TicketMessage> };
       discount_campaigns: { Row: DiscountCampaign; Insert: Partial<DiscountCampaign>; Update: Partial<DiscountCampaign> };
       product_discounts: { Row: ProductDiscount; Insert: Partial<ProductDiscount>; Update: Partial<ProductDiscount> };
+      warranty_claims: { Row: WarrantyClaim; Insert: Partial<WarrantyClaim>; Update: Partial<WarrantyClaim> };
+      warranty_actions_log: { Row: WarrantyActionLog; Insert: Partial<WarrantyActionLog>; Update: Partial<WarrantyActionLog> };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

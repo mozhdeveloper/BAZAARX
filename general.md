@@ -356,6 +356,79 @@ git push origin feat/notification-badge
 
 ---
 
+## Session Log — March 19, 2026
+
+### Performance Optimization — Seller Messages (Web + Mobile)
+
+**Prompt:** "Optimize seller messages screen for better performance and UX."
+
+**Implementation:**
+
+**Web (`SellerMessages.tsx`):**
+- Replaced `Loader2` spinner with 6-row animated skeleton pulse during initial load
+- Added 200ms debounced search input (prevents redundant filtering)
+- Wrapped `filteredConversations` in `useMemo` to memoize based on `debouncedQuery`
+
+**Mobile (`mobile-app/app/seller/messages.tsx`):**
+- Added `SkeletonRow` component with animated shimmer (7 rows) for loading state
+- Created memoized `SellerConversationRow` component to prevent re-renders
+- Replaced conversation list `ScrollView` with `FlatList`:
+  - Configured with `getItemLayout` (80px per row), `removeClippedSubviews`, `maxToRenderPerBatch=10`, `windowSize=5`, `initialNumToRender=12`
+  - Added inverted `FlatList` for messages (newest at bottom, 20 initial renders)
+- Added 200ms debounced search with `filteredConversations` useMemo
+- Wrapped `formatTime` in `useCallback` to stabilize `SellerConversationRow` memoization
+- Removed debug `console.log` statements
+
+**Result:** Significantly reduced component re-renders, improved list virtualization, and smoother search experience.
+
+---
+
+### Feature — Unified Cancellation Disclaimer Modal (Web + Mobile)
+
+**Prompt:** "Show cancellation next steps and disclaimer for all orders."
+
+**Context:** Previously, only PayMongo orders showed "Next Steps" and regulatory details. COD orders had minimal information.
+
+**Implementation:**
+- All orders now display a comprehensive cancellation disclaimer modal
+- **COD-specific messaging:** "No refund processing needed, no items shipped, buyer can reorder anytime"
+- **PayMongo-specific messaging:** Retains refund info box + "Refund will be processed," PayMongo-specific steps, BSP/RA 7394 note
+- Consolidated logic into a single unified block (no longer two separate conditional sections)
+
+**Result:** Consistent user experience across all payment methods; buyers and sellers both see clear next steps.
+
+---
+
+### Feature — Seller Cancellation Reason Tracking + Display (Web + Mobile)
+
+**Prompt:** "Show seller the buyer's cancellation reason and next steps when order is cancelled."
+
+**Implementation:**
+
+1. `web/src/services/orderService.ts` + `mobile-app/src/services/orderService.ts`
+   - Added `order_cancellations` join to `getSellerOrders` query
+
+2. `web/src/stores/mappers.ts` + `mobile-app/src/stores/mappers.ts`
+   - Added `mapOrderRowToSellerSnapshot()` mapping for `cancellationReason` and `cancelledByRole` fields
+   - Added `cancellationReason` and `cancelledByRole` fields to `SellerOrderSnapshot` and `SellerOrder` types
+
+3. `web/src/components/OrderDetailsModal.tsx` + `mobile-app/app/seller/OrderDetailsModalSeller.tsx`
+   - Display buyer's cancellation reason in a red info box
+   - Show actionable next steps for seller:
+     - Stop order fulfillment
+     - Restock inventory
+     - Auto-refund note (for PayMongo orders)
+     - Prompt to chat with buyer
+   - Display who cancelled (buyer or seller)
+
+**Data Persistence:** Cancellation reason was already persisted to `order_cancellations` table via the atomic `cancel_order_atomic` RPC call (no new DB changes).
+
+**Notification:** Seller also receives a push notification with the reason via `notifySellerOrderCancelled()` (realtime).
+
+**Result:** Sellers now understand *why* orders were cancelled and what to do next, improving fulfillment efficiency and customer service.
+
+---
+
 ## Session Log — March 13, 2026
 
 ### Feature + Bug Fix — Buy Again Should Add to Cart First (Web + Mobile)

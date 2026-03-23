@@ -22,6 +22,7 @@ export interface Product {
   isVerified?: boolean;
   location?: string;
   description?: string;
+  isVacationMode?: boolean;
 }
 
 // Cart item with quantity
@@ -72,12 +73,14 @@ export interface Order {
   deliveryDate?: Date; // Actual delivery date
   trackingNumber?: string;
   returnRequest?: {
+    id?: string;
     reason: string;
     solution: string;
     comments: string;
     files: File[];
     refundAmount: number;
     submittedAt: Date;
+    status: 'pending' | 'seller_review' | 'counter_offered' | 'approved' | 'rejected' | 'escalated' | 'return_in_transit' | 'return_received' | 'refunded';
   };
   review?: {
     rating: number;

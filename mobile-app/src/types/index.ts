@@ -25,6 +25,7 @@ export interface Product {
   // Media
   images?: string[];
   primary_image?: string | null;
+  size_guide_image?: string | null;
   // Variants & Options
   sizes?: string[];
   colors?: string[];
@@ -41,6 +42,7 @@ export interface Product {
   rejection_reason?: string | null;
   vendor_submitted_category?: string | null;
   admin_reclassified_category?: string | null;
+  is_vacation_mode?: boolean;
   // Metrics
   rating?: number;
   review_count?: number;

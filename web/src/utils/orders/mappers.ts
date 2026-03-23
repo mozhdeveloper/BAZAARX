@@ -341,6 +341,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
 export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => {
   const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
   const latestShipment = getLatestShipment(order.shipments || []);
+  const latestCancellation = getLatestCancellation(order.cancellations || []);
   const notesAddress = parseLegacyShippingAddressFromNotes(order.notes);
   const shippingAddr = order.shipping_address || order.address || {};
   const recipient = order.recipient || {};
@@ -384,7 +385,7 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
     buyer_id: order.buyer_id,
     orderNumber: order.order_number,
     buyerName: recipientName,
-    buyerEmail: recipient?.email || order.buyer_email || "unknown@example.com",
+    buyerEmail: recipient?.email || order.buyer_email || "",
     items,
     total: Number.isFinite(parsedTotal) && parsedTotal > 0 ? parsedTotal : computedTotal,
     status: mapNormalizedToSellerUiStatus(order.payment_status, order.shipment_status),
@@ -416,6 +417,8 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
     // Payment method - derive from notes, order_payments, or default based on order type
     paymentMethod: (parseLegacyPaymentMethodFromNotes(order.notes) || order.payment_method?.type ||
       (order.order_type === "OFFLINE" ? "cash" : "online")) as "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online",
+    cancellationReason: latestCancellation?.reason || order.cancellation_reason || null,
+    cancelledByRole: order.cancelled_by_role as "buyer" | "seller" | null ?? null,
   };
 };
 

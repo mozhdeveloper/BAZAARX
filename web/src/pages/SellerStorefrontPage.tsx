@@ -9,6 +9,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   ChevronLeft,
+  ChevronRight,
   Users,
   Star,
   Heart,
@@ -331,8 +332,12 @@ export default function SellerStorefrontPage() {
     followers: followersCount,
     isVerified: realSeller.is_verified || false,
     tierLevel: (realSeller as any).tier_level || 'standard',
-    description: realSeller.store_description || 'Welcome to our store!',
-    location: [realSeller.city, realSeller.province].filter(Boolean).join(', ') || 'Philippines',
+    description: realSeller.store_description || '',
+    location: [
+      realSeller.business_profile?.address_line_1,
+      realSeller.city || realSeller.business_profile?.city,
+      realSeller.province || realSeller.business_profile?.province
+    ].filter(Boolean).join(', ') || 'Philippines',
     established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
     badges: realSeller.is_verified ? ['Verified Seller'] : [],
     responseTime: '< 24 hours',
@@ -347,7 +352,7 @@ export default function SellerStorefrontPage() {
     followers: 5,
     isVerified: true,
     tierLevel: (dbSellerProduct as any).sellerTierLevel || 'standard',
-    description: 'Welcome to our store!',
+    description: '',
     location: dbSellerProduct.sellerLocation || 'Metro Manila',
     established: '2024',
     badges: ['Verified Seller'],
@@ -416,7 +421,7 @@ export default function SellerStorefrontPage() {
       discountBadgeTooltip: (p as any).discountBadgeTooltip,
       image: (p.images && p.images.length > 0 && p.images[0].image_url) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
       rating: p.rating || 5.0,
-      review_count: p.review_count || 0,
+      review_count: (p as any).reviewCount || p.review_count || 0,
       sold: (p as any).sold || (p as any).lifetimeSold || p.sales_count || 0,
       category: (p.category && (typeof p.category === 'string' ? p.category : (p.category as any).name)) || 'General',
       isFreeShipping: p.is_free_shipping || false,
@@ -464,6 +469,14 @@ export default function SellerStorefrontPage() {
     });
 
   const handleAddToCart = (product: any) => {
+    if (product.isVacationMode || product.is_vacation_mode) {
+      toast({
+        title: "Store on Vacation",
+        description: "This store is temporarily unavailable.",
+        variant: "destructive",
+      });
+      return;
+    }
     const cartProduct = {
       ...product,
       sellerId: seller.id,
@@ -485,6 +498,14 @@ export default function SellerStorefrontPage() {
   };
 
   const onBuyNow = (product: any) => {
+    if (product.isVacationMode || product.is_vacation_mode) {
+      toast({
+        title: "Store on Vacation",
+        description: "This store is temporarily unavailable.",
+        variant: "destructive",
+      });
+      return;
+    }
     setBuyNowProduct({
       ...product,
       quantity: 1,
@@ -613,9 +634,9 @@ export default function SellerStorefrontPage() {
                   )}
                 >
                   {isFollowing(seller.id) ? (
-                    <><Heart className="w-4 h-4 mr-2 fill-current" /> Following</>
+                    "Following"
                   ) : (
-                    <><Heart className="w-4 h-4 mr-2" /> Follow</>
+                    "Follow"
                   )}
                 </Button>
 

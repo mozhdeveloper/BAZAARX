@@ -49,6 +49,7 @@ interface SearchProduct {
   image: string;
   rating: number;
   sold: number;
+  reviewsCount: number;
   seller: string;
   sellerRating?: number;
   sellerVerified?: boolean;
@@ -274,6 +275,7 @@ const SearchPage: React.FC = () => {
           image: (p.images && p.images.length > 0) ? (typeof p.images[0] === 'string' ? p.images[0] : (p.images[0] as any).image_url) : 'https://via.placeholder.com/400',
           rating: p.rating || 4.5,
           sold: p.sales || 0,
+          reviewsCount: p.reviews || 0,
           seller: p.sellerName || 'BazaarX Seller',
           isFreeShipping: product.isFreeShipping || product.is_free_shipping || false,
           isVerified: product.isVerified || p.approvalStatus === "approved",
@@ -288,6 +290,7 @@ const SearchPage: React.FC = () => {
           campaignBadgeColor: product.campaignBadgeColor,
           discountBadgePercent: product.discountBadgePercent,
           discountBadgeTooltip: product.discountBadgeTooltip,
+          isVacationMode: product.isVacationMode || false,
         };
       });
 
@@ -381,6 +384,7 @@ const SearchPage: React.FC = () => {
       image: (p.images && p.images.length > 0) ? p.images[0] : 'https://via.placeholder.com/400',
       rating: p.rating || 4.5,
       sold: p.sales || 0,
+      reviewsCount: p.reviews || 0,
     }));
 
   return (
@@ -727,7 +731,7 @@ const SearchPage: React.FC = () => {
                       <div className="flex items-center">
                         <Star className="w-3.5 h-3.5 text-yellow-500 fill-current" />
                         <span className="text-xs text-[var(--text-muted)] font-medium ml-1">
-                          {product.rating} ({(((product as any).lifetimeSold !== undefined ? (product as any).lifetimeSold : product.sold) || 0).toLocaleString()})
+                          {product.rating} ({((product as any).reviewsCount || 0).toLocaleString()})
                         </span>
                       </div>
                       {product.isVerified && (
@@ -781,6 +785,15 @@ const SearchPage: React.FC = () => {
                             return;
                           }
 
+                          if ((product as any).isVacationMode) {
+                            toast({
+                              title: "Store on Vacation",
+                              description: "This store is temporarily unavailable.",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+
                           const hasVariants = (product as any).variants && (product as any).variants.length > 0;
                           const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
                           const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
@@ -818,6 +831,15 @@ const SearchPage: React.FC = () => {
                               variant: "destructive",
                             });
                             navigate("/login");
+                            return;
+                          }
+
+                          if ((product as any).isVacationMode) {
+                            toast({
+                              title: "Store on Vacation",
+                              description: "This store is temporarily unavailable.",
+                              variant: "destructive",
+                            });
                             return;
                           }
 
@@ -921,7 +943,7 @@ const SearchPage: React.FC = () => {
                   <p className="text-[var(--brand-primary)] font-bold mb-2">₱{product.price.toLocaleString()}</p>
                   <div className="flex items-center gap-1">
                     <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
-                    <span className="text-xs text-[var(--text-muted)]">{product.rating} ({product.sold})</span>
+                    <span className="text-xs text-[var(--text-muted)]">{product.rating} ({product.reviewsCount})</span>
                   </div>
                 </div>
               </motion.div>

@@ -41,6 +41,7 @@ export interface TrackingStep {
   completed: boolean;
   current?: boolean;
   time: string | null;
+  date: Date | null;
 }
 
 export const buildTrackingSteps = (
@@ -52,43 +53,52 @@ export const buildTrackingSteps = (
 ): TrackingStep[] => {
   const isReturned = shipmentStatus === "returned" || shipmentStatus === "failed_to_deliver";
 
-  return TRACKING_STEPS.map((step) => {
+  const allSteps: TrackingStep[] = [];
+
+  // 1. Order Placed (Always completed if we are here)
+  allSteps.push({
+    id: "placed",
+    title: "Order Placed",
+    description: "Your order has been successfully placed",
+    completed: true,
+    time: formatTime(createdAt),
+    date: createdAt || null,
+  });
+
+  // 2. Map existing tracking steps
+  TRACKING_STEPS.forEach((step) => {
     const completed = step.reachedBy.includes(shipmentStatus);
+    let dateObj: Date | null = null;
+    let description = step.description;
 
-    if (step.id === "shipped") {
-      return {
-        id: step.id,
-        title: step.title,
-        description: trackingNumber
-          ? `Package is on its way (Tracking: ${trackingNumber})`
-          : step.description,
-        completed,
-        current: shipmentStatus === "shipped" || shipmentStatus === "out_for_delivery",
-        time: completed ? formatTime(shippedAt || createdAt) : null,
-      };
+    if (step.id === "confirmed") {
+      dateObj = createdAt || null;
+    } else if (step.id === "processing") {
+      dateObj = createdAt || null;
+    } else if (step.id === "shipped") {
+      dateObj = shippedAt || createdAt || null;
+      if (trackingNumber) {
+        description = `Package is on its way (Tracking: ${trackingNumber})`;
+      }
+    } else if (step.id === "delivered") {
+      dateObj = deliveredAt || null;
+      if (isReturned) {
+        description = "Delivery was unsuccessful or the package was returned";
+      }
     }
 
-    if (step.id === "delivered") {
-      return {
-        id: step.id,
-        title: isReturned ? "Delivery Update" : step.title,
-        description: isReturned
-          ? "Delivery was unsuccessful or the package was returned"
-          : step.description,
-        completed,
-        time: completed ? formatTime(deliveredAt) : null,
-      };
-    }
-
-    return {
+    allSteps.push({
       id: step.id,
-      title: step.title,
-      description: step.description,
+      title: step.id === "delivered" && isReturned ? "Delivery Update" : step.title,
+      description,
       completed,
       current:
-        step.id === "processing" &&
-        (shipmentStatus === "processing" || shipmentStatus === "ready_to_ship"),
-      time: completed ? formatTime(createdAt) : null,
-    };
+        (step.id === "shipped" && (shipmentStatus === "shipped" || shipmentStatus === "out_for_delivery")) ||
+        (step.id === "processing" && (shipmentStatus === "processing" || shipmentStatus === "ready_to_ship")),
+      time: completed ? formatTime(dateObj) : null,
+      date: completed ? dateObj : null,
+    });
   });
+
+  return allSteps;
 };

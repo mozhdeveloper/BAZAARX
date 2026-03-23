@@ -63,7 +63,6 @@ import { useWishlistStore } from '../src/stores/wishlistStore';
 import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import BackToShopButton from '../src/components/BackToShopButton';
 import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { productService } from '../src/services/productService';
 import { sellerService } from '../src/services/sellerService';
@@ -154,6 +153,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           if (fullProduct) {
             setProduct(fullProduct as any);
           }
+
         } catch (error) {
           console.error('[ProductDetail] Error fetching full product:', error);
         }
@@ -214,9 +214,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Structured variants from product_variants table
   const productVariants = product.variants || [];
   const hasStructuredVariants = productVariants.length > 0;
-  
+
   // ─── Refined Variant Logic (Align with Web) ───
-  
+
   const dedupe = (opts: any) => {
     if (!Array.isArray(opts)) return [];
     const seen = new Set();
@@ -232,56 +232,25 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }, []);
   };
 
-  // Detect if a set of values looks like colors by checking against the known color map
-  const looksLikeColor = (values: string[]) =>
-    values.length > 0 && values.every(v => colorNameToHex[v.toLowerCase().trim()] !== undefined);
-
-  // Extract raw values from variants — respecting DB labels when present
+  // Extract raw values from variants
   const rawValues1 = hasStructuredVariants
-    ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
+    ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.size).filter(Boolean))]
     : (product.option1Values || product.colors || []);
   const rawValues2 = hasStructuredVariants
-    ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
+    ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.color).filter(Boolean))]
     : (product.option2Values || product.sizes || []);
 
   const deduped1 = dedupe(rawValues1);
   const deduped2 = dedupe(rawValues2);
 
-  // If DB labels are provided, trust them. Otherwise detect by value content.
-  // When no DB labels: if option1 looks like sizes and option2 looks like colors, swap them
-  // so that Color always comes first (option1) and Size/Variant comes second (option2).
-  const dbLabel1 = product.variant_label_1 as string | undefined;
-  const dbLabel2 = product.variant_label_2 as string | undefined;
-
-  const inferLabel = (values: string[], fallback: string) =>
-    looksLikeColor(values) ? 'Color' : fallback;
-
-  let option1Values: string[];
-  let option2Values: string[];
-  let variantLabel1: string | undefined;
-  let variantLabel2: string | undefined;
-
-  if (dbLabel1 || dbLabel2) {
-    // Trust DB labels as-is
-    option1Values = deduped1;
-    option2Values = deduped2;
-    variantLabel1 = dbLabel1 || (deduped1.length > 0 ? inferLabel(deduped1, 'Variant') : undefined);
-    variantLabel2 = dbLabel2 || (deduped2.length > 0 ? inferLabel(deduped2, 'Color') : undefined);
-  } else {
-    // No DB labels — detect and swap if needed so Color is always option1
-    const axis1IsColor = looksLikeColor(deduped1);
-    const axis2IsColor = looksLikeColor(deduped2);
-    const shouldSwap = !axis1IsColor && axis2IsColor && deduped2.length > 0;
-
-    option1Values = shouldSwap ? deduped2 : deduped1;
-    option2Values = shouldSwap ? deduped1 : deduped2;
-    variantLabel1 = deduped1.length > 0 || deduped2.length > 0
-      ? inferLabel(option1Values, 'Variant')
-      : undefined;
-    variantLabel2 = option2Values.length > 0
-      ? inferLabel(option2Values, 'Color')
-      : undefined;
-  }
+  const option1Values = deduped1;
+  const option2Values = deduped2;
+  const dbLabel1 = (product.variant_label_1 as string | undefined)?.trim();
+  const dbLabel2 = (product.variant_label_2 as string | undefined)?.trim();
+  const hasLegacySizeAxis1 = hasStructuredVariants && productVariants.some((v: any) => !v.option_1_value && !!v.size);
+  const hasLegacyColorAxis2 = hasStructuredVariants && productVariants.some((v: any) => !v.option_2_value && !!v.color);
+  const variantLabel1 = option1Values.length > 0 ? (dbLabel1 || (hasLegacySizeAxis1 ? 'Size' : 'Option 1')) : undefined;
+  const variantLabel2 = option2Values.length > 0 ? (dbLabel2 || (hasLegacyColorAxis2 ? 'Color' : 'Option 2')) : undefined;
 
   // Check if axis 1 and 2 are effectively identical (redundant case often seen in vinyls/posters)
   const isRedundant = useMemo(() => {
@@ -320,6 +289,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const setSelectedColor = setSelectedOption1;
   const setSelectedSize = setSelectedOption2;
   const [quantity, setQuantity] = useState(1);
+
+  const handleSelectOption1 = (value: string) => {
+    if (selectedOption1 !== value) {
+      setSelectedOption1(value);
+    }
+  };
+
+  const handleSelectOption2 = (value: string) => {
+    if (selectedOption2 !== value) {
+      setSelectedOption2(value);
+    }
+  };
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -345,22 +326,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const setModalSelectedSize = setModalSelectedOption2;
   const [modalQuantity, setModalQuantity] = useState(1);
   const [showVariantFilterModal, setShowVariantFilterModal] = useState(false); // Filter dropdown state
-
-  // Whether axes were swapped (color was in option_2 in DB)
-  const axesSwapped = !dbLabel1 && !dbLabel2 && !looksLikeColor(deduped1) && looksLikeColor(deduped2) && deduped2.length > 0;
+  const [showSizeGuideModal, setShowSizeGuideModal] = useState(false); // Size guide modal state
 
   // Match a variant row against our (possibly swapped) option1/option2 selections
   const matchVariant = (v: any, op1: string | null, op2: string | null) => {
     const n = (val: any) => String(val || '').trim().toLowerCase();
-    // DB axis values (before any swap)
-    const dbAxis1 = n(v.option_1_value || v.color);
-    const dbAxis2 = n(v.option_2_value || v.size);
-    // Our op1 = color axis, op2 = size axis
-    // If swapped: our op1 maps to DB axis2, our op2 maps to DB axis1
-    const colorAxisVal = axesSwapped ? dbAxis2 : dbAxis1;
-    const sizeAxisVal  = axesSwapped ? dbAxis1 : dbAxis2;
-    const op1Match = !op1 || colorAxisVal === n(op1);
-    const op2Match = !op2 || sizeAxisVal  === n(op2);
+    const dbAxis1 = n(v.option_1_value || v.size);
+    const dbAxis2 = n(v.option_2_value || v.color);
+    const op1Match = !op1 || dbAxis1 === n(op1);
+    const op2Match = !op2 || dbAxis2 === n(op2);
     return op1Match && op2Match;
   };
 
@@ -391,6 +365,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       image: matchedVariant?.thumbnail_url || matchedVariant?.image || null,
     };
   }, [hasStructuredVariants, productVariants, selectedOption1, selectedOption2, product.price, product.stock]);
+
+  useEffect(() => {
+    const maxStock = Math.max(1, Number(selectedVariantInfo.stock ?? 1));
+    setQuantity((prev) => Math.max(1, Math.min(prev, maxStock)));
+  }, [selectedVariantInfo.stock]);
 
   // Extract seller name robustly (fixes lint errors with mixed object/string types)
   const displayStoreName = useMemo(() => {
@@ -435,7 +414,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     activeVariantFilter
       ? productVariants.find((v: any) => v.id === activeVariantFilter)?.variant_name || 'Selected Variant'
       : null
-  , [activeVariantFilter, productVariants]);
+    , [activeVariantFilter, productVariants]);
 
   const toggleImageFilter = () => {
     const newWithImages = !activeImageFilter;
@@ -504,10 +483,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     const baseImages = (!raw || !Array.isArray(raw) || raw.length === 0)
       ? (product.image ? [product.image] : [])
       : [...raw].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          .map((img: any) => {
-            if (typeof img === 'string') return img;
-            return img.image_url || img.url || img.uri || product.image || '';
-          }).filter(Boolean) as string[];
+        .map((img: any) => {
+          if (typeof img === 'string') return img;
+          return img.image_url || img.url || img.uri || product.image || '';
+        }).filter(Boolean) as string[];
 
     // Include variant-specific images at the end if they aren't already in baseImages
     const variantImages = (productVariants || [])
@@ -775,6 +754,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    // Check if seller is on vacation mode
+    if ((product as any).is_vacation_mode) {
+      Alert.alert('Store Unavailable', 'This store is temporarily unavailable. You cannot add this item to cart.');
+      return;
+    }
+
     // Build variant info
     const selectedVariant = buildSelectedVariant();
 
@@ -816,6 +801,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     if (isGuest) {
       setGuestModalMessage("Sign up to buy items.");
       setShowGuestModal(true);
+      return;
+    }
+
+    // Check if seller is on vacation mode
+    if ((product as any).is_vacation_mode) {
+      Alert.alert('Store Unavailable', 'This store is temporarily unavailable. You cannot purchase this product.');
       return;
     }
 
@@ -1034,7 +1025,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <Pressable onPress={() => navigation.goBack()}>
               <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
             </Pressable>
-            <BackToShopButton navigation={navigation} />
           </View>
 
           <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
@@ -1134,8 +1124,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   const isColor = finalVariantLabel1.toLowerCase() === 'color';
                   const variantImg = isColor
                     ? productVariants.find((v: any) =>
-                        (axesSwapped ? v.option_2_value : v.option_1_value) === value
-                      )?.thumbnail_url || null
+                      v.option_1_value === value
+                    )?.thumbnail_url || null
                     : null;
                   const isSelected = selectedOption1 === value;
                   if (isColor) {
@@ -1143,7 +1133,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                       <Pressable
                         key={`${value}-${index}`}
                         style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
-                        onPress={() => setSelectedOption1(value)}
+                        onPress={() => handleSelectOption1(value)}
                       >
                         {variantImg ? (
                           <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
@@ -1162,7 +1152,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     <Pressable
                       key={`${value}-${index}`}
                       style={[styles.sizeOption, isSelected && styles.sizeOptionSelected]}
-                      onPress={() => setSelectedOption1(value)}
+                      onPress={() => handleSelectOption1(value)}
                     >
                       <Text style={[styles.sizeOptionText, isSelected && styles.sizeOptionTextSelected]}>{value}</Text>
                     </Pressable>
@@ -1181,13 +1171,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => {
                   const isSelected = selectedOption2 === value;
                   const variantImg = productVariants.find((v: any) =>
-                    (axesSwapped ? v.option_1_value : v.option_2_value) === value
+                    v.option_2_value === value
                   )?.thumbnail_url || productImages[0] || null;
                   return (
                     <Pressable
                       key={`${value}-${index}`}
                       style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
-                      onPress={() => setSelectedOption2(value)}
+                      onPress={() => handleSelectOption2(value)}
                     >
                       {variantImg ? (
                         <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
@@ -1206,6 +1196,20 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
+          {/* Size Guide Button — shown if variantLabel1 is "Size" (matches web pattern) */}
+          {product.size_guide_image && (
+            <View style={{ marginTop: 16 }}>
+              <Pressable
+                style={styles.sizeGuideButton}
+                onPress={() => setShowSizeGuideModal(true)}
+              >
+                <Ionicons name="shirt-outline" size={20} color={BRAND_COLOR} />
+                <Text style={styles.sizeGuideButtonText}>Size Guide</Text>
+                <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
+              </Pressable>
+            </View>
+          )}
+
           <Text style={{ fontSize: 15, color: '#4B5563', lineHeight: 24, marginBottom: 15, marginTop: 20 }}>
             {product.description || "High-quality wireless earbuds with touch controls and a charging case. Great sound and long battery life."}
           </Text>
@@ -1218,39 +1222,44 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         {/* --- SELLER SECTION --- */}
         <View style={styles.sellerSection}>
           <View style={styles.sellerHeader}>
-            <View style={styles.sellerAvatarContainer}>
-              <Image
-                source={{ uri: product.seller_avatar || product.sellerAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayStoreName) + '&background=FFD89A&color=78350F' }}
-                style={styles.sellerAvatar}
-              />
-            </View>
-            <View style={styles.sellerInfo}>
-              <View style={styles.sellerNameRow}>
-                <Text style={styles.sellerName} numberOfLines={1}>{displayStoreName}</Text>
-                {product.sellerVerified && <BadgeCheck size={16} color={COLORS.primary} fill="#FFF" style={{ flexShrink: 0 }} />}
+            <Pressable style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 10 }} onPress={handleVisitStore}>
+              <View style={styles.sellerAvatarContainer}>
+                <Image
+                  source={{ uri: product.seller_avatar || product.sellerAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayStoreName) + '&background=FFD89A&color=78350F' }}
+                  style={styles.sellerAvatar}
+                />
               </View>
-              <View style={styles.sellerMetaRow}>
-                <View style={styles.sellerRating}>
-                  <Star size={12} color="#FB8C00" fill="#FB8C00" />
-                  <Text style={styles.sellerMetaText}>{product.sellerRating || '0.0'}</Text>
+              <View style={styles.sellerInfo}>
+                <View style={styles.sellerNameRow}>
+                  <Text style={styles.sellerName} numberOfLines={1}>{displayStoreName}</Text>
+                  {product.sellerVerified && <BadgeCheck size={14} color={COLORS.primary} fill="#FFF" style={{ flexShrink: 0 }} />}
                 </View>
-                <View style={styles.sellerMetaDivider} />
-                <Text style={styles.sellerMetaText}>{soldCount.toLocaleString()} items sold</Text>
+                <View style={styles.sellerMetaRow}>
+                  <View style={styles.sellerRating}>
+                    <Star size={12} color="#FB8C00" fill="#FB8C00" />
+                    <Text style={styles.sellerMetaText}>{product.sellerRating || '0.0'}</Text>
+                  </View>
+                  <View style={styles.sellerMetaDivider} />
+                  <Text style={styles.sellerMetaText}>{soldCount.toLocaleString()} items sold</Text>
+                </View>
               </View>
+            </Pressable>
+
+            <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
+              <Pressable
+                style={[styles.followBtn, isFollowingSeller && styles.followBtnActive]}
+                onPress={handleFollowSeller}
+              >
+                <Heart size={12} color={isFollowingSeller ? '#FFF' : BRAND_COLOR} fill={isFollowingSeller ? '#FFF' : 'none'} />
+                <Text style={[styles.followBtnText, isFollowingSeller && styles.followBtnTextActive]}>
+                  {isFollowingSeller ? 'Following' : 'Follow'}
+                </Text>
+              </Pressable>
+              <Pressable style={styles.visitStoreBtn} onPress={handleVisitStore}>
+                <Text style={styles.visitStoreText}>Visit Store</Text>
+                <ChevronRight size={14} color={BRAND_COLOR} strokeWidth={2.5} />
+              </Pressable>
             </View>
-            <Pressable
-              style={[styles.followBtn, isFollowingSeller && styles.followBtnActive]}
-              onPress={handleFollowSeller}
-            >
-              <Heart size={14} color={isFollowingSeller ? '#FFF' : BRAND_COLOR} fill={isFollowingSeller ? '#FFF' : 'none'} />
-              <Text style={[styles.followBtnText, isFollowingSeller && styles.followBtnTextActive]}>
-                {isFollowingSeller ? 'Following' : 'Follow'}
-              </Text>
-            </Pressable>
-            <Pressable style={styles.visitStoreBtn} onPress={handleVisitStore}>
-              <Text style={styles.visitStoreText}>Visit Store</Text>
-              <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
-            </Pressable>
           </View>
         </View>
 
@@ -1431,21 +1440,21 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </Pressable>
 
         <View style={styles.actionButtonsContainer}>
-          <Pressable 
-            style={[styles.addToCartBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]} 
+          <Pressable
+            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
             onPress={handleAddToCart}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
+            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode}
           >
-            <ShoppingCart size={20} color={(Number(selectedVariantInfo.stock ?? 0) > 0) ? COLORS.primary : COLORS.gray400} />
+            <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !(product as any).is_vacation_mode) ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
-          <Pressable 
-            style={[styles.buyNowBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]} 
+          <Pressable
+            style={[styles.buyNowBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
             onPress={handleBuyNow}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
+            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode}
           >
-            <Text style={[styles.buyNowText, (Number(selectedVariantInfo.stock ?? 0) <= 0) && { color: COLORS.gray400 }]}>
-              {(Number(selectedVariantInfo.stock ?? 0) > 0) ? 'Buy Now' : 'Out of Stock'}
+            <Text style={[styles.buyNowText, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && { color: COLORS.gray400 }]}>
+              {((product as any).is_vacation_mode ? 'Store Unavailable' : (Number(selectedVariantInfo.stock ?? 0) > 0 ? 'Buy Now' : 'Out of Stock'))}
             </Text>
           </Pressable>
         </View>
@@ -1565,6 +1574,53 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             >
               <Text style={{ color: '#9CA3AF', fontSize: 15 }}>Close</Text>
             </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Size Guide Modal */}
+      <Modal
+        visible={showSizeGuideModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSizeGuideModal(false)}
+        statusBarTranslucent={true}
+      >
+        <Pressable
+          style={styles.sizeGuideModalOverlay}
+          onPress={() => setShowSizeGuideModal(false)}
+        >
+          <Pressable
+            style={styles.sizeGuideModalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.sizeGuideModalHeader}>
+              <Text style={styles.sizeGuideModalTitle}>Size Guider</Text>
+              <Pressable onPress={() => setShowSizeGuideModal(false)} style={styles.sizeGuideCloseBtn}>
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+            {/* <ScrollView
+              style={styles.sizeGuideImageContainer}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.sizeGuideImageContent}
+            > */}
+            {product.size_guide_image ? (
+              <>
+                <Image
+                  source={{ uri: product.size_guide_image }}
+                  style={styles.sizeGuideImage}
+                  contentFit="contain"
+                />
+              </>
+            ) : (
+              <View style={styles.sizeGuidePlaceholder}>
+                <Ionicons name="shirt-outline" size={64} color="#D1D5DB" />
+                <Text style={styles.sizeGuidePlaceholderText}>No size guide available</Text>
+              </View>
+            )}
+
+            {/* </ScrollView> */}
           </Pressable>
         </Pressable>
       </Modal>
@@ -1834,19 +1890,20 @@ const styles = StyleSheet.create({
 
   followBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 6,
+    paddingHorizontal: 12, paddingVertical: 5,
     borderRadius: 20, borderWidth: 1, borderColor: BRAND_COLOR,
-    marginRight: 6,
   } as any,
   followBtnActive: {
     backgroundColor: BRAND_COLOR,
   },
-  followBtnText: { fontSize: 12, fontWeight: '600', color: BRAND_COLOR } as any,
+  followBtnText: { fontSize: 11, fontWeight: '700', color: BRAND_COLOR } as any,
   followBtnTextActive: { color: '#FFF' },
   visitStoreBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
   },
   visitStoreText: { fontSize: 13, fontWeight: '700', color: BRAND_COLOR },
 
@@ -2047,6 +2104,84 @@ const styles = StyleSheet.create({
   sizeOptionTextSelected: {
     color: BRAND_COLOR,
     fontWeight: '700',
+  },
+
+  // Size Guide Button
+  sizeGuideButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  sizeGuideButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: BRAND_COLOR,
+    flex: 1,
+  },
+
+  // Size Guide Modal
+  sizeGuideModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sizeGuideModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    width: '90%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    overflow: 'hidden',
+  },
+  sizeGuideModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sizeGuideModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textHeadline,
+  },
+  sizeGuideCloseBtn: {
+    padding: 4,
+  },
+  sizeGuideImageContainer: {
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  sizeGuideImageContent: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 50,
+    flexGrow: 1,
+  },
+  sizeGuideImage: {
+    backgroundColor: '#F3F4F6',
+    width: '100%',
+    height: 400,
+    borderRadius: 12,
+  },
+  sizeGuidePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  sizeGuidePlaceholderText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    marginTop: 16,
   },
 
   // Variant Modal Styles

@@ -31,8 +31,10 @@ import {
   Map,
   LocateFixed,
   Check,
-  ChevronLeft
+  ChevronLeft,
+  AlertTriangle,
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import {
   Dialog,
   DialogContent,
@@ -99,7 +101,44 @@ export default function BuyerSettingsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('addresses');
   const { toast } = useToast();
-  const { profile, addresses, addAddress, updateAddress, deleteAddress } = useBuyerStore();
+  const { profile, addresses, addAddress, updateAddress, deleteAddress, logout } = useBuyerStore();
+
+  // Account deletion state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      toast({ title: 'Type DELETE to confirm', variant: 'destructive' });
+      return;
+    }
+    if (!deletePassword) {
+      toast({ title: 'Password required', variant: 'destructive' });
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        body: { password: deletePassword, confirm: true },
+      });
+      if (error || data?.error) {
+        const msg = data?.message || data?.error || error?.message || 'Failed to delete account';
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Account deleted', description: 'Your account has been permanently deleted.' });
+      logout();
+      await supabase.auth.signOut();
+      navigate('/');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const [isAddressOpen, setIsAddressOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -279,6 +318,40 @@ export default function BuyerSettingsPage() {
     promotions: false,
     newsletter: true
   });
+
+  // Load notification consent from DB on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from('user_consent')
+        .select('channel, consent_type, is_consented')
+        .eq('user_id', user.id)
+        .then(({ data: rows }) => {
+          if (!rows?.length) return;
+          const get = (channel: string, type: string) =>
+            rows.find(r => r.channel === channel && r.consent_type === type)?.is_consented ?? true;
+          setNotifications({
+            email: get('email', 'transactional'),
+            sms: get('sms', 'transactional'),
+            push: get('push', 'transactional'),
+            orderUpdates: get('email', 'transactional'),
+            promotions: get('email', 'marketing'),
+            newsletter: get('email', 'newsletter'),
+          });
+        });
+    });
+  }, []);
+
+  const saveConsent = (channel: string, consentType: string, isConsented: boolean) => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from('user_consent').upsert(
+        { user_id: user.id, channel, consent_type: consentType, is_consented: isConsented, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,channel,consent_type' }
+      ).catch(console.error);
+    });
+  };
 
   const [privacy, setPrivacy] = useState({
     showProfile: true,
@@ -572,7 +645,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.email}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, email: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, email: checked }); saveConsent('email', 'transactional', checked); }}
                     />
                   </div>
 
@@ -586,7 +659,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.sms}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, sms: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, sms: checked }); saveConsent('sms', 'transactional', checked); }}
                     />
                   </div>
 
@@ -600,7 +673,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.push}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, push: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, push: checked }); saveConsent('push', 'transactional', checked); }}
                     />
                   </div>
                 </CardContent>
@@ -619,7 +692,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.orderUpdates}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, orderUpdates: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, orderUpdates: checked }); saveConsent('email', 'transactional', checked); }}
                     />
                   </div>
 
@@ -630,7 +703,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.promotions}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, promotions: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, promotions: checked }); saveConsent('email', 'marketing', checked); }}
                     />
                   </div>
 
@@ -641,7 +714,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.newsletter}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, newsletter: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, newsletter: checked }); saveConsent('email', 'newsletter', checked); }}
                     />
                   </div>
                 </CardContent>
@@ -654,8 +727,9 @@ export default function BuyerSettingsPage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              className="space-y-6"
             >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -779,11 +853,115 @@ export default function BuyerSettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Danger Zone */}
+            <Card className="border-red-200 bg-red-50/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-red-700">
+                  <AlertTriangle className="h-5 w-5" />
+                  Danger Zone
+                </CardTitle>
+                <CardDescription className="text-red-600/70">
+                  Permanent actions that cannot be undone. Under the Data Privacy Act (RA 10173),
+                  you have the right to erasure of your personal data.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-white">
+                  <div>
+                    <p className="font-medium text-gray-900">Delete Account</p>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Permanently delete your account and all associated data.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowDeleteModal(true)}
+                    className="ml-4 shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Delete Account
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
             </motion.div>
           </TabsContent>
         </Tabs>
       </div>
       <BazaarFooter />
+
+      {/* Account Deletion Confirmation Dialog */}
+      <Dialog open={showDeleteModal} onOpenChange={(open) => {
+        if (!isDeleting) {
+          setShowDeleteModal(open);
+          if (!open) { setDeletePassword(''); setDeleteConfirmText(''); }
+        }
+      }}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Account
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              This action is <strong>permanent and irreversible</strong>. All your data —
+              orders, addresses, reviews, and profile information — will be deleted in
+              compliance with the Data Privacy Act (RA 10173).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="delete-password">Confirm your password</Label>
+              <Input
+                id="delete-password"
+                type="password"
+                placeholder="Your current password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                disabled={isDeleting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="delete-confirm">
+                Type <strong>DELETE</strong> to confirm
+              </Label>
+              <Input
+                id="delete-confirm"
+                placeholder="DELETE"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                disabled={isDeleting}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={isDeleting || deleteConfirmText !== 'DELETE' || !deletePassword}
+            >
+              {isDeleting ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deleting...</>
+              ) : (
+                <><Trash2 className="h-4 w-4 mr-2" />Permanently Delete</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isAddressOpen} onOpenChange={(open) => { setIsAddressOpen(open); if (!open) setShowMapPicker(false); }}>
         <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-hidden flex flex-col">

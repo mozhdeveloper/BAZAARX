@@ -407,20 +407,8 @@ export class ReviewService {
         });
       }
 
-      let statsReviews = this.mockReviews
+      const statsReviews = this.mockReviews
         .filter((review) => review.product_id === productId);
-
-      if (withImages) {
-        statsReviews = statsReviews.filter(r => (r as any).review_images?.length > 0 || Array.isArray((r as any).images) && (r as any).images.length > 0);
-      }
-
-      if (variantId) {
-        statsReviews = statsReviews.filter(r => {
-          const snapshot = r.variant_snapshot as any;
-          const reviewVariantId = (snapshot?.variant_id || snapshot?.id) as string | undefined;
-          return reviewVariantId === variantId;
-        });
-      }
 
       const pagedReviews = mappedReviews.slice(start, start + limit);
 
@@ -518,7 +506,7 @@ export class ReviewService {
         query = query.filter('order_item.variant_id', 'eq', variantId);
       }
 
-      const { data, error, count } = await query
+      const { data, error } = await query
         .order(sortBy === 'helpful' ? 'helpful_count' : 'created_at', { ascending: false });
 
       if (error) {
@@ -526,35 +514,9 @@ export class ReviewService {
         return { reviews: [], total: 0, stats: EMPTY_REVIEW_STATS };
       }
 
-      // We still want full stats (distribution) even when filtering
-      let statsQuery = supabase
-        .from('reviews')
-        .select(
-          `
-            rating,
-            review_images (
-              id
-            ),
-            order_item:order_items!reviews_order_item_id_fkey (
-              variant_id
-            )
-          `,
-        )
-        .eq('product_id', productId);
-
-      if (variantId) {
-        statsQuery = statsQuery.filter('order_item.variant_id', 'eq', variantId);
-      }
-
-      const { data: statsRows, error: statsError } = await statsQuery;
-
-      if (statsError) {
-        console.warn('Error fetching product review stats:', statsError);
-      }
-
       let mappedReviews = (data || []).map((review) => mapReviewRowToFeedItem(review));
 
-      // Apply the user's specific photo logic
+      // Apply the user's specific photo logic to the list of reviews
       if (rating && !withImages) {
         // User requested: don't show reviews with photos if photo filter is OFF, but only if a rating is selected
         mappedReviews = mappedReviews.filter(r => r.images.length === 0);
@@ -563,15 +525,26 @@ export class ReviewService {
         mappedReviews = mappedReviews.filter(r => r.images.length > 0);
       }
 
-      let filteredStatsRows = statsRows || [];
-      if (withImages) {
-        filteredStatsRows = filteredStatsRows.filter((row: any) =>
-          Array.isArray(row.review_images) && row.review_images.length > 0
-        );
+      // Fetch OVERALL stats for the distribution (ignoring filters as per user request)
+      const { data: statsRows, error: statsError } = await supabase
+        .from('reviews')
+        .select(
+          `
+            rating,
+            review_images (
+              id
+            )
+          `,
+        )
+        .eq('product_id', productId);
+
+      if (statsError) {
+        console.warn('Error fetching product review stats:', statsError);
       }
 
-      const ratings = filteredStatsRows.map((row: any) => Number(row.rating || 0));
-      const withImagesCount = filteredStatsRows.filter((row: any) =>
+      const currentStatsRows = statsRows || [];
+      const ratings = currentStatsRows.map((row: any) => Number(row.rating || 0));
+      const withImagesCount = currentStatsRows.filter((row: any) =>
         Array.isArray(row.review_images) && row.review_images.length > 0,
       ).length;
 

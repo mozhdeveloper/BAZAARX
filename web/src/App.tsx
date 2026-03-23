@@ -1,14 +1,18 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import "./styles/globals.css";
 import { Toaster } from "./components/ui/toaster";
 import ScrollToTop from "./components/ScrollToTop";
 import { ChatBubble } from "./components/ChatBubbleAI";
 import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
+import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
+import { ProtectedAdminRoute } from "./components/ProtectedAdminRoute";
 import TrackingForm from "./components/TrackingForm";
 import PageLoader from "./components/PageLoader";
 import { usePresence } from './hooks/usePresence'; import { ErrorBoundary } from "react-error-boundary";
 import { OrderErrorFallback } from "./components/OrderErrorFallback";
+import { AppErrorFallback } from "./components/AppErrorFallback";
+import { supabase } from "./lib/supabase";
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
@@ -44,9 +48,7 @@ const AboutUsPage = lazy(() => import("./pages/AboutUsPage"));
 // Enhanced Buyer pages (default exports)
 const EnhancedCartPage = lazy(() => import("./pages/EnhancedCartPage"));
 const BuyerProfilePage = lazy(() => import("./pages/BuyerProfilePage"));
-const ProfileComponentsTest = lazy(() => import("./pages/ProfileComponentsTest"));
 const SellerStorefrontPage = lazy(() => import("./pages/SellerStorefrontPage"));
-
 const BuyerFollowingPage = lazy(() => import("./pages/BuyerFollowingPage"));
 const BuyerSettingsPage = lazy(() => import("./pages/BuyerSettingsPage"));
 const BuyerProductRequestsPage = lazy(() => import("./pages/BuyerProductRequestsPage"));
@@ -94,6 +96,7 @@ const SellerHelpCenter = lazy(() => import("./pages/SellerHelpCenter"));
 const SellerMyTickets = lazy(() => import("./pages/SellerMyTickets"));
 const SellerBuyerReports = lazy(() => import("./pages/SellerBuyerReports"));
 const SellerAnnouncementsPage = lazy(() => import("./pages/SellerAnnouncementsPage"));
+const SellerMarketing = lazy(() => import("./pages/SellerMarketing"));
 const BuyerAnnouncementsPage = lazy(() => import("./pages/BuyerAnnouncementsPage"));
 
 // Admin pages (default exports)
@@ -116,6 +119,8 @@ const AdminProfile = lazy(() => import("./pages/AdminProfile"));
 const AdminTickets = lazy(() => import("./pages/AdminTickets"));
 const AdminTrustedBrands = lazy(() => import("./pages/AdminTrustedBrands"));
 const AdminAnnouncementsPage = lazy(() => import("./pages/AdminAnnouncementsPage"));
+const AdminCRM = lazy(() => import("./pages/AdminCRM"));
+const AdminNotificationSettings = lazy(() => import("./pages/AdminNotificationSettings"));
 
 // QA Team pages
 const QADashboard = lazy(() => import("./pages/QADashboard"));
@@ -124,6 +129,19 @@ const AdminQADashboard = lazy(() => import("./pages/AdminQADashboard"));
 function App() {
   // 👉 NEW: This single line powers the entire global presence system!
   usePresence();
+
+  // Global auth state listener — handles token refresh, sign-out, and session sync
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        // Clear all persisted auth stores on sign-out
+        localStorage.removeItem('seller-auth-storage');
+        localStorage.removeItem('admin-auth');
+        localStorage.removeItem('buyer-store');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <>
@@ -140,9 +158,9 @@ function App() {
             <Route
               path="/buyer-onboarding"
               element={
-                // <ProtectedBuyerRoute>
-                <BuyerOnboardingPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <BuyerOnboardingPage />
+                </ProtectedBuyerRoute>
               }
             />
             <Route path="/shop" element={<ShopPage />} />
@@ -168,33 +186,37 @@ function App() {
             <Route
               path="/enhanced-cart"
               element={
-                // <ProtectedBuyerRoute>
-                <EnhancedCartPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <ErrorBoundary FallbackComponent={AppErrorFallback}>
+                    <EnhancedCartPage />
+                  </ErrorBoundary>
+                </ProtectedBuyerRoute>
               }
             />
             <Route
               path="/checkout"
               element={
-                // <ProtectedBuyerRoute>
-                <CheckoutPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <ErrorBoundary FallbackComponent={AppErrorFallback}>
+                    <CheckoutPage />
+                  </ErrorBoundary>
+                </ProtectedBuyerRoute>
               }
             />
             <Route
               path="/order-confirmation/:orderId"
               element={
-                // <ProtectedBuyerRoute>
-                <OrderConfirmationPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <OrderConfirmationPage />
+                </ProtectedBuyerRoute>
               }
             />
             <Route
               path="/delivery-tracking/:orderNumber"
               element={
-                // <ProtectedBuyerRoute>
-                <DeliveryTrackingPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <DeliveryTrackingPage />
+                </ProtectedBuyerRoute>
               }
             />
             <Route path="/payment/success" element={<PaymentCallbackPage />} />
@@ -203,34 +225,29 @@ function App() {
             <Route
               path="/orders"
               element={
-                // <ProtectedBuyerRoute>
-                <OrdersPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <OrdersPage />
+                </ProtectedBuyerRoute>
               }
             />
             <Route
               path="/order/:orderId"
               element={
-                // <ProtectedBuyerRoute>
-                <ErrorBoundary FallbackComponent={OrderErrorFallback}>
-                  <OrderDetailPage />
-                </ErrorBoundary>
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <ErrorBoundary FallbackComponent={OrderErrorFallback}>
+                    <OrderDetailPage />
+                  </ErrorBoundary>
+                </ProtectedBuyerRoute>
               }
             />
 
             <Route
               path="/profile"
               element={
-                // <ProtectedBuyerRoute>
-                <BuyerProfilePage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <BuyerProfilePage />
+                </ProtectedBuyerRoute>
               }
-            />
-            {/* Temporary test route for Phase 1 refactoring */}
-            <Route
-              path="/test-profile-components"
-              element={<ProfileComponentsTest />}
             />
             <Route
               path="/seller/:sellerId"
@@ -239,26 +256,25 @@ function App() {
             <Route
               path="/messages"
               element={
-                // <ProtectedBuyerRoute>
-                <MessagesPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <MessagesPage />
+                </ProtectedBuyerRoute>
               }
             />
-
             <Route
               path="/following"
               element={
-                // <ProtectedBuyerRoute>
-                <BuyerFollowingPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <BuyerFollowingPage />
+                </ProtectedBuyerRoute>
               }
             />
             <Route
               path="/my-requests"
               element={
-                //<ProtectedBuyerRoute>
-                <BuyerProductRequestsPage />
-                //</ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <BuyerProductRequestsPage />
+                </ProtectedBuyerRoute>
               }
             />
             <Route path="/requests" element={<CommunityRequestsPage />} />
@@ -269,41 +285,41 @@ function App() {
             <Route
               path="/settings"
               element={
-                //<ProtectedBuyerRoute>
-                <BuyerSettingsPage />
-                //</ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <BuyerSettingsPage />
+                </ProtectedBuyerRoute>
               }
             />
             <Route
               path="/buyer-support"
               element={
-                //<ProtectedBuyerRoute>
-                <BuyerSupport />
-                //</ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <BuyerSupport />
+                </ProtectedBuyerRoute>
               }
             />
             <Route
               path="/my-tickets"
               element={
-                //<ProtectedBuyerRoute>
-                <MyTickets />
-                //</ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <MyTickets />
+                </ProtectedBuyerRoute>
               }
             />
             <Route
               path="/returns"
               element={
-                // <ProtectedBuyerRoute>
-                <BuyerReturnsListPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <BuyerReturnsListPage />
+                </ProtectedBuyerRoute>
               }
             />
             <Route
               path="/order/:orderId/return"
               element={
-                // <ProtectedBuyerRoute>
-                <BuyerReturnRequestPage />
-                // </ProtectedBuyerRoute>
+                <ProtectedBuyerRoute>
+                  <BuyerReturnRequestPage />
+                </ProtectedBuyerRoute>
               }
             />
             <Route path="/track-delivery" element={<TrackingForm />} />
@@ -346,7 +362,9 @@ function App() {
               path="/seller"
               element={
                 <ProtectedSellerRoute>
-                  <SellerDashboard />
+                  <ErrorBoundary FallbackComponent={AppErrorFallback}>
+                    <SellerDashboard />
+                  </ErrorBoundary>
                 </ProtectedSellerRoute>
               }
             />
@@ -402,7 +420,9 @@ function App() {
               path="/seller/orders"
               element={
                 <ProtectedSellerRoute>
-                  <SellerOrders />
+                  <ErrorBoundary FallbackComponent={AppErrorFallback}>
+                    <SellerOrders />
+                  </ErrorBoundary>
                 </ProtectedSellerRoute>
               }
             />
@@ -426,7 +446,9 @@ function App() {
               path="/seller/pos"
               element={
                 <ProtectedSellerRoute>
-                  <SellerPOS />
+                  <ErrorBoundary FallbackComponent={AppErrorFallback}>
+                    <SellerPOS />
+                  </ErrorBoundary>
                 </ProtectedSellerRoute>
               }
             />
@@ -515,6 +537,14 @@ function App() {
               }
             />
             <Route
+              path="/seller/marketing"
+              element={
+                <ProtectedSellerRoute>
+                  <SellerMarketing />
+                </ProtectedSellerRoute>
+              }
+            />
+            <Route
               path="/seller/announcements"
               element={
                 <ProtectedSellerRoute>
@@ -525,41 +555,28 @@ function App() {
 
             {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminAuth />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route
-              path="/admin/categories"
-              element={<AdminCategories />}
-            />
-            <Route path="/admin/sellers" element={<AdminSellers />} />
-            <Route path="/admin/buyers" element={<AdminBuyers />} />
-            <Route path="/admin/orders" element={<AdminOrders />} />
-            <Route path="/admin/vouchers" element={<AdminVouchers />} />
-            <Route
-              path="/admin/reviews"
-              element={<AdminReviewModeration />}
-            />
-            <Route path="/admin/products" element={<AdminProducts />} />
-            <Route
-              path="/admin/product-requests"
-              element={<AdminProductRequests />}
-            />
-            <Route
-              path="/admin/flash-sales"
-              element={<AdminFlashSales />}
-            />
-            <Route path="/admin/payouts" element={<AdminPayouts />} />
-            <Route path="/admin/profile" element={<AdminProfile />} />
-            <Route
-              path="/admin/analytics"
-              element={<AdminAnalytics />}
-            />
-            <Route path="/admin/tickets" element={<AdminTickets />} />
-            <Route path="/admin/trusted-brands" element={<AdminTrustedBrands />} />
-            <Route path="admin/announcements" element={<AdminAnnouncementsPage />} />
-            <Route path="/admin/product-approvals" element={<QADashboard />} />
-            <Route path="/admin/qa-dashboard" element={<AdminQADashboard />} />
-            <Route path="/admin/returns" element={<AdminReturns />} />
-            <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/admin" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminDashboard /></ErrorBoundary></ProtectedAdminRoute>} />
+            <Route path="/admin/categories" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminCategories /></ErrorBoundary></ProtectedAdminRoute>} />
+            <Route path="/admin/sellers" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminSellers /></ErrorBoundary></ProtectedAdminRoute>} />
+            <Route path="/admin/buyers" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminBuyers /></ProtectedAdminRoute>} />
+            <Route path="/admin/orders" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminOrders /></ErrorBoundary></ProtectedAdminRoute>} />
+            <Route path="/admin/vouchers" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminVouchers /></ProtectedAdminRoute>} />
+            <Route path="/admin/reviews" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'moderator']}><AdminReviewModeration /></ProtectedAdminRoute>} />
+            <Route path="/admin/products" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><AdminProducts /></ProtectedAdminRoute>} />
+            <Route path="/admin/product-requests" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminProductRequests /></ProtectedAdminRoute>} />
+            <Route path="/admin/flash-sales" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminFlashSales /></ProtectedAdminRoute>} />
+            <Route path="/admin/payouts" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminPayouts /></ProtectedAdminRoute>} />
+            <Route path="/admin/profile" element={<ProtectedAdminRoute><AdminProfile /></ProtectedAdminRoute>} />
+            <Route path="/admin/analytics" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminAnalytics /></ErrorBoundary></ProtectedAdminRoute>} />
+            <Route path="/admin/tickets" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'moderator']}><AdminTickets /></ProtectedAdminRoute>} />
+            <Route path="/admin/trusted-brands" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminTrustedBrands /></ProtectedAdminRoute>} />
+            <Route path="/admin/announcements" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminAnnouncementsPage /></ProtectedAdminRoute>} />
+            <Route path="/admin/crm" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminCRM /></ProtectedAdminRoute>} />
+            <Route path="/admin/notifications" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminNotificationSettings /></ProtectedAdminRoute>} />
+            <Route path="/admin/product-approvals" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><QADashboard /></ProtectedAdminRoute>} />
+            <Route path="/admin/qa-dashboard" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><AdminQADashboard /></ProtectedAdminRoute>} />
+            <Route path="/admin/returns" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminReturns /></ProtectedAdminRoute>} />
+            <Route path="/admin/settings" element={<ProtectedAdminRoute allowedRoles={['super_admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminSettings /></ErrorBoundary></ProtectedAdminRoute>} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>

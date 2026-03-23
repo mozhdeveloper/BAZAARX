@@ -380,7 +380,7 @@ export class ReviewService {
           seller_reply: reviewData.seller_reply ?? null,
           is_hidden: reviewData.is_hidden ?? false,
           is_edited: reviewData.is_edited ?? false,
-        })
+        } as any)
         .select()
         .single();
 

@@ -162,6 +162,7 @@ export default function ShopPage() {
         images: p.images || [],
         rating: p.rating || 0,
         sold: p.sales || 0,
+        reviewsCount: p.reviews || 0,
         category: p.category,
         seller: p.sellerName || "Verified Seller",
         sellerId: p.sellerId,
@@ -175,6 +176,7 @@ export default function ShopPage() {
         stock: p.stock || 99,
         variants: p.variants || [],
         lifetimeSold: (p as any).lifetimeSold || p.sales || 0,
+        isVacationMode: (p as any).isVacationMode || false,
       }));
 
     return dbProducts;
@@ -374,7 +376,7 @@ export default function ShopPage() {
       }
       manualScrollRef.current = false;
     }, 100);
-  }, [searchParams, location.key, priceRange, minRating]);
+  }, [searchParams, location.key, priceRange, minRating, selectedSort]);
 
   // Handle toolbar scroll visibility
   useEffect(() => {
@@ -689,112 +691,112 @@ export default function ShopPage() {
                   const seenIds = new Set<string>();
                   const allItems: { key: string; product: any; isBoosted: boolean }[] = [];
 
-                  for (const bp of boostedProducts) {
-                    const product = bp.product;
-                    if (!product || seenIds.has(product.id)) continue;
-                    seenIds.add(product.id);
-                    allItems.push({ key: `boost-${bp.id}`, product, isBoosted: true });
-                  }
+                    for (const bp of boostedProducts) {
+                      const product = bp.product;
+                      if (!product || seenIds.has(product.id)) continue;
+                      seenIds.add(product.id);
+                      allItems.push({ key: `boost-${bp.id}`, product, isBoosted: true });
+                    }
 
-                  for (const fp of featuredProducts) {
-                    const product = (fp as any).product;
-                    if (!product || seenIds.has(product.id)) continue;
-                    seenIds.add(product.id);
-                    allItems.push({ key: `feat-${(fp as any).id}`, product, isBoosted: false });
-                  }
+                    for (const fp of featuredProducts) {
+                      const product = (fp as any).product;
+                      if (!product || seenIds.has(product.id)) continue;
+                      seenIds.add(product.id);
+                      allItems.push({ key: `feat-${(fp as any).id}`, product, isBoosted: false });
+                    }
 
-                  return allItems.slice(0, 6).map(({ key, product, isBoosted }, idx) => {
-                    const primaryImage = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
-                    const imageUrl = getSafeImageUrl(primaryImage?.image_url);
-                    const reviews = product.reviews || [];
-                    const avgRating = reviews.length > 0
-                      ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10
-                      : 0;
-                    const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-                    const sellerName = product.seller?.store_name || 'BazaarX Store';
-                    const soldCount = product.soldCount || product.sold_count || 0;
+                    return allItems.slice(0, 6).map(({ key, product, isBoosted }, idx) => {
+                      const primaryImage = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
+                      const imageUrl = getSafeImageUrl(primaryImage?.image_url);
+                      const reviews = product.reviews || [];
+                      const avgRating = reviews.length > 0
+                        ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10
+                        : 0;
+                      const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+                      const sellerName = product.seller?.store_name || 'BazaarX Store';
+                      const soldCount = product.soldCount || product.sold_count || 0;
 
-                    return (
-                      <motion.div
-                        key={key}
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: idx * 0.06 }}
-                        onClick={() => navigate(`/product/${product.id}`)}
-                        className="group relative bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-amber-200 shadow-sm hover:shadow-lg hover:shadow-amber-100/40 transition-all duration-300 cursor-pointer flex flex-col"
-                      >
-                        {/* Sponsored indicator */}
-                        <div className="absolute top-2 left-2 z-10">
-                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50/90 backdrop-blur-sm border border-amber-200/60 rounded px-1.5 py-0.5 uppercase tracking-wider">
-                            Ad
-                          </span>
-                        </div>
-
-                        {/* Product Image */}
-                        <div className="relative aspect-square overflow-hidden bg-gray-50">
-                          <img
-                            src={imageUrl}
-                            alt={product.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            loading="lazy"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
-                            }}
-                          />
-                          {/* Gradient overlay at bottom */}
-                          <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/10 to-transparent" />
-                        </div>
-
-                        {/* Product Info */}
-                        <div className="p-3 flex flex-col flex-1">
-                          {/* Product Name */}
-                          <h3 className="text-[13px] font-semibold text-gray-800 line-clamp-2 leading-tight mb-2 group-hover:text-[var(--brand-primary)] transition-colors min-h-[2.5rem]">
-                            {product.name}
-                          </h3>
-
-                          {/* Rating */}
-                          {avgRating > 0 && (
-                            <div className="flex items-center gap-1 mb-2">
-                              <div className="flex">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`h-3 w-3 ${i < Math.floor(avgRating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'}`}
-                                  />
-                                ))}
-                              </div>
-                              <span className="text-[11px] text-gray-400 font-medium">({reviews.length})</span>
-                            </div>
-                          )}
-
-                          {/* Price */}
-                          <div className="mb-2">
-                            <span className="text-lg font-extrabold text-[#D97706] leading-none">
-                              ₱{product.price?.toLocaleString() || '0'}
+                      return (
+                        <motion.div
+                          key={key}
+                          initial={{ opacity: 0, y: 16 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: idx * 0.06 }}
+                          onClick={() => navigate(`/product/${product.id}`)}
+                          className="group relative bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-amber-200 shadow-sm hover:shadow-lg hover:shadow-amber-100/40 transition-all duration-300 cursor-pointer flex flex-col"
+                        >
+                          {/* Sponsored indicator */}
+                          <div className="absolute top-2 left-2 z-10">
+                            <span className="text-[9px] font-bold text-amber-700 bg-amber-50/90 backdrop-blur-sm border border-amber-200/60 rounded px-1.5 py-0.5 uppercase tracking-wider">
+                              Ad
                             </span>
                           </div>
 
-                          {/* Sold count */}
-                          {/* Sold count and Stock indicator */}
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                              {((product as any).lifetimeSold !== undefined ? (product as any).lifetimeSold : soldCount).toLocaleString()} sold
-                            </div>
-                            <div className={`text-[10px] font-bold ${totalStock < 10 ? 'text-red-500' : 'text-green-600'}`}>
-                              {totalStock > 0 ? `${totalStock} in stock` : 'Out of stock'}
-                            </div>
+                          {/* Product Image */}
+                          <div className="relative aspect-square overflow-hidden bg-gray-50">
+                            <img
+                              src={imageUrl}
+                              alt={product.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
+                              }}
+                            />
+                            {/* Gradient overlay at bottom */}
+                            <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/10 to-transparent" />
                           </div>
 
-                          {/* Seller */}
-                          <div className="mt-auto pt-2 border-t border-gray-50">
-                            <p className="text-[11px] text-gray-500 font-medium truncate">{sellerName}</p>
+                          {/* Product Info */}
+                          <div className="p-3 flex flex-col flex-1">
+                            {/* Product Name */}
+                            <h3 className="text-[13px] font-semibold text-gray-800 line-clamp-2 leading-tight mb-2 group-hover:text-[var(--brand-primary)] transition-colors min-h-[2.5rem]">
+                              {product.name}
+                            </h3>
+
+                            {/* Rating */}
+                            {avgRating > 0 && (
+                              <div className="flex items-center gap-1 mb-2">
+                                <div className="flex">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`h-3 w-3 ${i < Math.floor(avgRating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'}`}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-[11px] text-gray-400 font-medium">({reviews.length})</span>
+                              </div>
+                            )}
+
+                            {/* Price */}
+                            <div className="mb-2">
+                              <span className="text-lg font-extrabold text-[#D97706] leading-none">
+                                ₱{product.price?.toLocaleString() || '0'}
+                              </span>
+                            </div>
+
+                            {/* Sold count */}
+                            {/* Sold count and Stock indicator */}
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                                {((product as any).lifetimeSold !== undefined ? (product as any).lifetimeSold : soldCount).toLocaleString()} sold
+                              </div>
+                              <div className={`text-[10px] font-bold ${totalStock < 10 ? 'text-red-500' : 'text-green-600'}`}>
+                                {totalStock > 0 ? `${totalStock} in stock` : 'Out of stock'}
+                              </div>
+                            </div>
+
+                            {/* Seller */}
+                            <div className="mt-auto pt-2 border-t border-gray-50">
+                              <p className="text-[11px] text-gray-500 font-medium truncate">{sellerName}</p>
+                            </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    );
-                  });
-                })()}
-              </div>
+                        </motion.div>
+                      );
+                    });
+                  })()}
+                </div>
               )}
             </div>
           )}
@@ -992,63 +994,61 @@ export default function ShopPage() {
 
                       {/* Size Section */}
                       {dynamicSizeOptions.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="font-bold text-[var(--text-headline)] text-sm">Size</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {dynamicSizeOptions.map((size) => (
-                            <button
-                              key={size}
-                              className="w-9 h-9 rounded-full border border-[var(--border)] bg-white flex items-center justify-center text-xs font-bold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-all active:scale-95 shadow-sm"
-                            >
-                              {size}
-                            </button>
-                          ))}
+                        <div className="space-y-3">
+                          <h3 className="font-bold text-[var(--text-headline)] text-sm">Size</h3>
+                          <div className="flex flex-wrap gap-2">
+                            {dynamicSizeOptions.map((size) => (
+                              <button
+                                key={size}
+                                className="w-9 h-9 rounded-full border border-[var(--border)] bg-white flex items-center justify-center text-xs font-bold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-all active:scale-95 shadow-sm"
+                              >
+                                {size}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
                       )}
 
                       {/* Color Section */}
                       {dynamicColorOptions.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="font-bold text-[var(--text-headline)] text-sm">Color</h3>
-                        <div className="flex flex-wrap gap-2.5">
-                          {dynamicColorOptions.map((color) => (
-                            <button
-                              key={color}
-                              className="px-2.5 py-1 rounded-full border border-[var(--border)] shadow-sm hover:border-[var(--brand-primary)] transition-all text-xs font-medium text-[var(--text-primary)]"
-                              aria-label={`Filter by color: ${color}`}
-                            >
-                              {color}
-                            </button>
-                          ))}
+                        <div className="space-y-3">
+                          <h3 className="font-bold text-[var(--text-headline)] text-sm">Color</h3>
+                          <div className="flex flex-wrap gap-2.5">
+                            {dynamicColorOptions.map((color) => (
+                              <button
+                                key={color}
+                                className="px-2.5 py-1 rounded-full border border-[var(--border)] shadow-sm hover:border-[var(--brand-primary)] transition-all text-xs font-medium text-[var(--text-primary)]"
+                                aria-label={`Filter by color: ${color}`}
+                              >
+                                {color}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
                       )}
-
-
 
                       {/* Brands Section */}
                       {dynamicBrandOptions.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="font-bold text-gray-900 text-sm">Sellers</h3>
                         <div className="space-y-3">
-                          {dynamicBrandOptions.map((brand) => (
-                            <button
-                              key={brand.name}
-                              className="w-full flex justify-between items-center group cursor-pointer hover:text-gray-900"
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm transition-colors text-[var(--text-primary)] font-medium">
-                                  {brand.name}
+                          <h3 className="font-bold text-gray-900 text-sm">Sellers</h3>
+                          <div className="space-y-3">
+                            {dynamicBrandOptions.map((brand) => (
+                              <button
+                                key={brand.name}
+                                className="w-full flex justify-between items-center group cursor-pointer hover:text-gray-900"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm transition-colors text-[var(--text-primary)] font-medium">
+                                    {brand.name}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] transition-colors text-[var(--text-muted)] group-hover:text-[var(--text-primary)]">
+                                  {brand.count}
                                 </span>
-                              </div>
-                              <span className="text-[11px] transition-colors text-[var(--text-muted)] group-hover:text-[var(--text-primary)]">
-                                {brand.count}
-                              </span>
-                            </button>
-                          ))}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
                       )}
 
                       {/* Popular Tags */}
@@ -1226,7 +1226,7 @@ export default function ShopPage() {
                           <div className="flex items-center">
                             <Star className="w-3.5 h-3.5 text-yellow-500 fill-current" />
                             <span className="text-xs text-[var(--text-muted)] font-medium ml-1">
-                              {product.rating} ({(((product as any).lifetimeSold !== undefined ? (product as any).lifetimeSold : product.sold) || 0).toLocaleString()})
+                              {product.rating} ({((product as any).reviewsCount || 0).toLocaleString()})
                             </span>
                           </div>
                           {product.isVerified && (
@@ -1280,6 +1280,15 @@ export default function ShopPage() {
                                 return;
                               }
 
+                              if ((product as any).isVacationMode) {
+                                toast({
+                                  title: "Store on Vacation",
+                                  description: "This store is temporarily unavailable.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+
                               const hasVariants = (product as any).variants && (product as any).variants.length > 0;
                               const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
                               const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
@@ -1328,6 +1337,15 @@ export default function ShopPage() {
                                   variant: "destructive",
                                 });
                                 navigate("/login");
+                                return;
+                              }
+
+                              if ((product as any).isVacationMode) {
+                                toast({
+                                  title: "Store on Vacation",
+                                  description: "This store is temporarily unavailable.",
+                                  variant: "destructive",
+                                });
                                 return;
                               }
 

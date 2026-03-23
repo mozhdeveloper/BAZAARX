@@ -12,6 +12,8 @@ import {
   StatusBar,
   Alert,
   TouchableOpacity,
+  Image,
+  Keyboard,
   NativeSyntheticEvent,
   NativeScrollEvent,
   useWindowDimensions,
@@ -65,6 +67,42 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HORIZONTAL_PADDING = 20;
 const GRID_GAP = 10;
 const STATIC_CATEGORY_ITEM_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4)) / 5;
+
+const PROMO_SLIDES = [
+  {
+    id: '1',
+    badge: 'LIMITED TIME OFFER',
+    title: 'Summer Sale',
+    highlight: 'Up to 50% Off',
+    buttonText: 'Shop Now',
+    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80',
+    gradient: ['rgba(15, 23, 42, 0.4)', 'rgba(15, 23, 42, 0.9)'] as [string, string],
+    screen: 'FlashSale',
+    params: undefined as any
+  },
+  {
+    id: '2',
+    badge: 'NEW ARRIVALS',
+    title: 'Premium Sound',
+    highlight: 'Experience More',
+    buttonText: 'View All',
+    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80',
+    gradient: ['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)'] as [string, string],
+    screen: 'Shop',
+    params: { category: 'electronics' }
+  },
+  {
+    id: '3',
+    badge: 'TRENDING NOW',
+    title: 'Ergonomic Chair',
+    highlight: 'Level Up Your Workspace',
+    buttonText: 'Shop Now',
+    image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800&q=80',
+    gradient: ['rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0.85)'] as [string, string],
+    screen: 'Shop',
+    params: { category: 'home-living' }
+  }
+];
 
 const CategoryItem = React.memo(({ label, iconValue, imageUrl, itemWidth }: { label: string; iconValue: string | null; imageUrl?: string | null; itemWidth: number }) => {
   const [imageError, setImageError] = useState(false);
@@ -179,8 +217,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
   const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
   const scrollRef = useRef<ScrollView>(null);
-  const scrollAnchor = useRef(0);
-  const [showLocationRow, setShowLocationRow] = useState(true);
+  const [showLocationRow, setShowLocationRow] = useState(true); // Keep for future use if needed
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
   const [dbCategories, setDbCategories] = useState<Category[]>([]); //
@@ -212,59 +249,22 @@ export default function HomeScreen({ navigation }: Props) {
   const saveRecentSearch = useCallback(async (term: string) => {
     if (!term.trim()) return;
     const cleanTerm = term.trim();
-    
+
     setRecentSearches(prev => {
       // Remove term if it already exists, then add to front
       const filtered = prev.filter(t => t.toLowerCase() !== cleanTerm.toLowerCase());
       const updated = [cleanTerm, ...filtered].slice(0, 10);
-      
+
       // Persist to AsyncStorage
       AsyncStorage.setItem('recentSearches', JSON.stringify(updated)).catch(e => {
         console.error('[HomeScreen] Failed to save recent searches:', e);
       });
-      
+
       return updated;
     });
   }, []);
 
-  const promoSlides = [
-    {
-      id: '1',
-      badge: 'LIMITED TIME OFFER',
-      title: 'Summer Sale',
-      highlight: 'Up to 50% Off',
-      buttonText: 'Shop Now',
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80', // Premium watch image
-      gradient: ['rgba(15, 23, 42, 0.4)', 'rgba(15, 23, 42, 0.9)'], // Dark overlay gradient
-      screen: 'FlashSale',
-      params: undefined
-    },
-    {
-      id: '2',
-      badge: 'NEW ARRIVALS',
-      title: 'Premium Sound',
-      highlight: 'Experience More',
-      buttonText: 'View All',
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80', // Headphones
-      gradient: ['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)'],
-      screen: 'Shop',
-      params: { category: 'electronics' } // Note: Ideally these should be IDs from DB
-    },
-    {
-      id: '3',
-      badge: 'TRENDING NOW',
-      title: 'Ergonomic Chair',
-      highlight: 'Level Up Your Workspace',
-      buttonText: 'Shop Now',
-      image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800&q=80', // Working Office Chair link
-      gradient: ['rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0.85)'],
-      screen: 'Shop',
-      params: { category: 'home-living' } // Changed from 'home' to match likely slug/id
-    }
-  ];
-
   const { products: sellerProducts = [], seller } = useSellerStore();
-  const PLACEHOLDER_IMAGE = 'https://placehold.co/400x400/e5e7eb/6b7280?text=No+Image';
 
   // Display name logic
   const username = user?.name ? user.name.split(' ')[0] : 'Guest';
@@ -474,13 +474,13 @@ export default function HomeScreen({ navigation }: Props) {
       pollIntervalRef.current = null;
     }
 
-    // Aggressive polling every 2 seconds as fallback safety net
+    // Poll every 30 seconds as fallback — 2s was causing re-renders during scroll
     if (user?.id && !isGuest) {
       pollIntervalRef.current = setInterval(() => {
         if (mountedRef.current && user?.id) {
           loadNotifications();
         }
-      }, 2000);
+      }, 30000);
     }
 
     return () => {
@@ -516,15 +516,17 @@ export default function HomeScreen({ navigation }: Props) {
     await setSessionAddress(user?.id ?? null, address, coords, details);
   };
 
+  const activeSlideRef = useRef(activeSlide);
+  useEffect(() => { activeSlideRef.current = activeSlide; }, [activeSlide]);
+
   useEffect(() => {
     const interval = setInterval(() => {
-      let nextSlide = activeSlide + 1;
-      if (nextSlide >= promoSlides.length) nextSlide = 0;
+      const nextSlide = (activeSlideRef.current + 1) % PROMO_SLIDES.length;
       scrollRef.current?.scrollTo({ x: nextSlide * SCREEN_WIDTH, animated: true });
       setActiveSlide(nextSlide);
     }, 4000);
     return () => clearInterval(interval);
-  }, [activeSlide]);
+  }, []);
 
   const popularProducts = useMemo(() => {
     return [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8);
@@ -619,23 +621,28 @@ export default function HomeScreen({ navigation }: Props) {
 
   // flashCountdown state is declared above with other state (before the consolidated timer)
 
+  const handleCarouselScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x;
+    const index = Math.round(x / SCREEN_WIDTH);
+    if (index !== activeSlideRef.current) setActiveSlide(index);
+  }, []);
+
   const handleProductPress = useCallback((product: Product) => {
-    if (searchQuery.trim()) {
-      saveRecentSearch(searchQuery);
-    }
+    saveRecentSearch(product.name || 'Product');
     navigation.navigate('ProductDetail', { product });
-  }, [navigation, searchQuery, saveRecentSearch]);
+  }, [navigation, saveRecentSearch]);
 
   // Memoized scroll handler — avoids re-creating the function on every render
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = e.nativeEvent.contentOffset.y;
-    if (y > scrollAnchor.current + 15 && y > 50) {
-      setShowLocationRow(false);
-      scrollAnchor.current = y;
-    } else if (y < scrollAnchor.current - 15) {
-      setShowLocationRow(true);
-      scrollAnchor.current = y;
-    }
+    // Removed location row hide/show logic to prevent layout shifts during scrolling
+    // const y = e.nativeEvent.contentOffset.y;
+    // if (y > scrollAnchor.current + 15 && y > 50) {
+    //   if (showLocationRow) setShowLocationRow(false);
+    //   scrollAnchor.current = y;
+    // } else if (y < scrollAnchor.current - 15) {
+    //   if (!showLocationRow) setShowLocationRow(true);
+    //   scrollAnchor.current = y;
+    // }
   }, []);
 
   return (
@@ -649,40 +656,38 @@ export default function HomeScreen({ navigation }: Props) {
 
       {/* 1. BRANDED HEADER */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
-        {showLocationRow && (
-          <View style={styles.locationRow}>
-            <Pressable onPress={() => setShowLocationModal(true)}>
-              <Text style={styles.locationLabel}>Location</Text>
-              <View style={styles.locationSelector}>
-                <MapPin size={16} color={COLORS.primary} fill={COLORS.primary} />
-                <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: COLORS.textHeadline, fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
-                <ChevronDown size={16} color={COLORS.textHeadline} />
-              </View>
-            </Pressable>
+        <View style={styles.locationRow}>
+          <Pressable onPress={() => setShowLocationModal(true)}>
+            <Text style={styles.locationLabel}>Location</Text>
+            <View style={styles.locationSelector}>
+              <MapPin size={16} color={COLORS.primary} fill={COLORS.primary} />
+              <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: COLORS.textHeadline, fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
+              <ChevronDown size={16} color={COLORS.textHeadline} />
+            </View>
+          </Pressable>
 
-            {/* UPDATED NOTIFICATION BUTTON */}
-            <Pressable
-              onPress={() => {
-                if (isGuest) {
-                  setShowGuestModal(true);
-                } else {
-                  // Navigate to dedicated screen
-                  navigation.navigate('Notifications');
-                }
-              }}
-              style={styles.headerIconButton}
-            >
-              <Bell size={24} color={COLORS.primary} />
-              {!isGuest && unreadCount > 0 && (
-                <View style={styles.notifBadge}>
-                  <Text style={styles.notifBadgeText}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
-        )}
+          {/* UPDATED NOTIFICATION BUTTON */}
+          <Pressable
+            onPress={() => {
+              if (isGuest) {
+                setShowGuestModal(true);
+              } else {
+                // Navigate to dedicated screen
+                navigation.navigate('Notifications');
+              }
+            }}
+            style={styles.headerIconButton}
+          >
+            <Bell size={24} color={COLORS.primary} />
+            {!isGuest && unreadCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
 
         {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
@@ -696,15 +701,21 @@ export default function HomeScreen({ navigation }: Props) {
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
               onSubmitEditing={() => {
-                if (searchQuery.trim()) {
-                  saveRecentSearch(searchQuery);
-                }
+                // onSubmitEditing is now only for UI feedback,
+                // search history is saved when clicking items
               }}
             />
             <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color={COLORS.primary} /></Pressable>
           </View>
           {isSearchFocused && (
-            <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
+            <Pressable
+              onPress={() => {
+                setIsSearchFocused(false);
+                setSearchQuery('');
+                Keyboard.dismiss();
+              }}
+              style={{ paddingLeft: 10 }}
+            >
               <Text style={{ color: '#FFF', fontWeight: '600' }}>Cancel</Text>
             </Pressable>
           )}
@@ -714,34 +725,61 @@ export default function HomeScreen({ navigation }: Props) {
       <ScrollView
         style={styles.contentScroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
         scrollEventThrottle={16}
         onScroll={handleScroll}
+        keyboardShouldPersistTaps="handled"
       >
         {isSearchFocused ? (
-          <View style={styles.searchDiscovery}>
+          <Pressable
+            style={styles.searchDiscovery}
+            onPress={() => {
+              setIsSearchFocused(false);
+              Keyboard.dismiss();
+            }}
+          >
             {searchQuery.trim() === '' ? (
               <View style={styles.recentSection}>
-                <Text style={styles.discoveryTitle}>Recent Searches</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <Text style={styles.discoveryTitle}>Recent Searches</Text>
+                  {recentSearches.length > 0 && (
+                    <Pressable onPress={() => { setRecentSearches([]); AsyncStorage.removeItem('recentSearches'); }}>
+                      <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '600' }}>Clear All</Text>
+                    </Pressable>
+                  )}
+                </View>
                 {recentSearches.map((term, i) => (
-                  <Pressable 
-                    key={i} 
-                    style={styles.searchRecentItem} 
-                    onPress={() => {
+                  <Pressable
+                    key={i}
+                    style={styles.searchRecentItem}
+                    onPress={(e) => {
+                      e.stopPropagation();
                       setSearchQuery(term);
-                      saveRecentSearch(term); // Move to top
                     }}
                   >
                     <Clock size={16} color="#9CA3AF" />
                     <Text style={styles.searchRecentText}>{term}</Text>
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        const updated = recentSearches.filter((_, idx) => idx !== i);
+                        setRecentSearches(updated);
+                        AsyncStorage.setItem('recentSearches', JSON.stringify(updated));
+                      }}
+                      style={{ marginLeft: 'auto', padding: 4 }}
+                    >
+                      <X size={14} color="#9CA3AF" />
+                    </Pressable>
                   </Pressable>
                 ))}
                 {recentSearches.length === 0 && (
                   <Text style={{ color: '#9CA3AF', fontSize: 14, fontStyle: 'italic', marginTop: 10 }}>No recent searches</Text>
                 )}
+                {/* Filler to catch taps below the content */}
+                <View style={{ flex: 1, minHeight: 400 }} />
               </View>
             ) : (
-              <View style={styles.resultsSection}>
+              <Pressable style={styles.resultsSection} onPress={(e) => e.stopPropagation()}>
                 <Text style={styles.discoveryTitle}>{filteredProducts.length + filteredStores.length} results found</Text>
                 {filteredProducts.length === 0 && filteredStores.length === 0 && (
                   <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
@@ -755,7 +793,7 @@ export default function HomeScreen({ navigation }: Props) {
                       Can't find what you're looking for? Request it and we'll notify you when a seller offers it!
                     </Text>
                     <Pressable
-                      onPress={() => setShowProductRequest(true)}
+                      onPress={(e) => { e.stopPropagation(); setShowProductRequest(true); }}
                       style={({ pressed }) => [
                         {
                           backgroundColor: '#FF6A00',
@@ -787,20 +825,32 @@ export default function HomeScreen({ navigation }: Props) {
                         <Pressable
                           key={s.id}
                           style={styles.storeSearchResultCard}
-                          onPress={() => {
-                            if (searchQuery.trim()) {
-                              saveRecentSearch(searchQuery);
-                            }
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            saveRecentSearch(s.store_name || s.business_name);
                             navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } });
                           }}
                         >
-                          <View style={styles.storeSearchIcon}><Text style={{ fontSize: 20 }}>🏬</Text></View>
+                          <View style={styles.storeSearchIcon}>
+                            {s.avatar_url || (s as any).logo || (s as any).avatar ? (
+                              <Image
+                                source={{ uri: s.avatar_url || (s as any).logo || (s as any).avatar }}
+                                style={{ width: '100%', height: '100%', borderRadius: 22 }}
+                              />
+                            ) : (
+                              <Text style={{ fontSize: 18, color: COLORS.primary, fontWeight: 'bold' }}>
+                                {(s.store_name || 'S').charAt(0).toUpperCase()}
+                              </Text>
+                            )}
+                          </View>
                           <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                               <Text style={styles.storeSearchName} numberOfLines={1}>{s.store_name}</Text>
                               {s.is_verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
                             </View>
-                            <Text style={styles.storeSearchLocation}>{s.city}, {s.province}</Text>
+                            <Text style={styles.storeSearchLocation} numberOfLines={1}>
+                              {s.city ? `${s.city}, ${s.province || ''}` : 'Location hidden'}
+                            </Text>
                           </View>
                         </Pressable>
                       ))}
@@ -819,9 +869,11 @@ export default function HomeScreen({ navigation }: Props) {
                     </View>
                   </View>
                 )}
-              </View>
+                {/* Filler for results section to allow tapping outside */}
+                <View style={{ flex: 1, minHeight: 300 }} />
+              </Pressable>
             )}
-          </View>
+          </Pressable>
         ) : activeTab === 'Home' ? (
           <>
             {/* CAROUSEL */}
@@ -831,14 +883,10 @@ export default function HomeScreen({ navigation }: Props) {
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
-                onScroll={(e) => {
-                  const x = e.nativeEvent.contentOffset.x;
-                  const index = Math.round(x / SCREEN_WIDTH);
-                  if (index !== activeSlide) setActiveSlide(index);
-                }}
+                onScroll={handleCarouselScroll}
                 scrollEventThrottle={16}
               >
-                {promoSlides.map((slide) => (
+                {PROMO_SLIDES.map((slide) => (
                   <Pressable
                     key={slide.id}
                     style={[styles.promoBox, { width: SCREEN_WIDTH - 40 }]}
@@ -848,10 +896,10 @@ export default function HomeScreen({ navigation }: Props) {
                       }
                     }}
                   >
-                    <ExpoImage 
-                      source={{ uri: slide.image }} 
-                      style={StyleSheet.absoluteFill} 
-                      contentFit="cover" 
+                    <ExpoImage
+                      source={{ uri: slide.image }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
                     />
                     <LinearGradient
                       colors={slide.gradient as [string, string]}
@@ -873,7 +921,7 @@ export default function HomeScreen({ navigation }: Props) {
                 ))}
               </ScrollView>
               <View style={styles.paginationContainer}>
-                {promoSlides.map((_, i) => (
+                {PROMO_SLIDES.map((_, i) => (
                   <View
                     key={i}
                     style={[
@@ -1005,8 +1053,8 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* FEATURED STORES SECTION */}
             {verifiedStores.length > 0 && (
-              <View style={{ marginTop: 20, marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
+              <View style={{ marginTop: 20, marginBottom: 5 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 20 }}>
                   <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Stores</Text>
                   <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Featured Stores' })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
@@ -1047,7 +1095,7 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* FEATURED PRODUCTS SECTION */}
             {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
-              <View style={{ marginTop: 20, marginBottom: 8 }}>
+              <View style={{ marginTop: 10, marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Products</Text>
@@ -1055,11 +1103,11 @@ export default function HomeScreen({ navigation }: Props) {
                       <Text style={{ fontSize: 10, fontWeight: '700', color: '#B45309' }}>Sponsored</Text>
                     </View>
                   </View>
-                  <Pressable onPress={() => navigation.navigate('Shop', { view: 'featured' })}>
+                  <Pressable onPress={() => navigation.navigate('Shop', { customResults: mergedFeaturedProducts.map(({ mapped }) => mapped as any) })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, gap: 12 }}>
                   {mergedFeaturedProducts.map(({ key, mapped }) => (
                     <View key={key} style={{ width: 150 }}>
                       <ProductCard product={mapped as any} onPress={() => handleProductPress(mapped as any)} />
@@ -1219,25 +1267,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700'
   },
-  promoTextPart: { 
+  promoTextPart: {
     zIndex: 10,
     width: '100%'
   },
-  promoBadge: { 
-    fontSize: 11, 
-    fontWeight: '800', 
+  promoBadge: {
+    fontSize: 11,
+    fontWeight: '800',
     letterSpacing: 1.5,
-    marginBottom: 8 
+    marginBottom: 8
   },
-  promoHeadline: { 
-    fontSize: 28, 
-    fontWeight: '900', 
+  promoHeadline: {
+    fontSize: 28,
+    fontWeight: '900',
     letterSpacing: -0.5,
     marginBottom: 0
   },
-  promoHighlight: { 
+  promoHighlight: {
     fontSize: 24, // Slightly smaller to fit button
-    fontWeight: '800', 
+    fontWeight: '800',
     letterSpacing: -0.5,
     flexShrink: 1, // Allow text to shrink if needed
     paddingRight: 10
@@ -1264,7 +1312,7 @@ const styles = StyleSheet.create({
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#D97706' },
   gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  searchDiscovery: { padding: 20 },
+  searchDiscovery: { flex: 1, minHeight: 600, padding: 20 },
   discoveryTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
   recentSection: { marginBottom: 20 },
   searchRecentItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
@@ -1272,7 +1320,7 @@ const styles = StyleSheet.create({
   resultsSection: { flex: 1 },
   categoryExpandedContent: { padding: 20 },
   categorySectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
-  storeCard: { width: 260, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
+  storeCard: { width: 260, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   storeLogo: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   storeInfo: { flex: 1 },
@@ -1293,7 +1341,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F3F4F6'
   },
-  storeSearchIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' },
+  storeSearchIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB'
+  },
   storeSearchName: { fontSize: 14, fontWeight: '700', color: COLORS.textHeadline },
   storeSearchLocation: { fontSize: 12, color: COLORS.textMuted },
   paginationContainer: {

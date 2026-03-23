@@ -12,6 +12,7 @@ import { chatService } from './chatService';
 import type { ActiveDiscount } from '@/types/discount';
 import { payMongoService } from './payMongoService';
 import type { PaymentResult } from '@/types/payment.types';
+import { sendOrderReceiptEmail } from '@/services/transactionalEmails';
 
 export interface CheckoutPayload {
     userId: string;
@@ -68,11 +69,14 @@ export class CheckoutService {
         return CheckoutService.instance;
     }
 
+    /**
+     * Generate a fallback order number (only used if DB trigger is not deployed).
+     * Prefer server-side generation via the trg_set_order_number trigger.
+     */
     private generateOrderNumber(): string {
         const year = new Date().getFullYear();
-        const randomNum = Math.floor(100000 + Math.random() * 900000);
-        const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
-        return `ORD-${year}${randomNum}${timestamp}`;
+        const seq = Date.now().toString(36).toUpperCase();
+        return `ORD-${year}${seq}`;
     }
 
     async processCheckout(payload: CheckoutPayload): Promise<CheckoutResult> {
@@ -294,7 +298,7 @@ export class CheckoutService {
 
                     // Fire all per-order writes in parallel
                     await Promise.all([
-                        supabase.from('order_payments').insert({
+                        supabase.from('payment_transactions').insert({
                             order_id: orderData.id,
                             payment_method: paymentMethod,
                             amount: pricingSummary.total,
@@ -322,6 +326,22 @@ export class CheckoutService {
                                 `New order placed! Order #${(orderData.order_number as string).slice(0, 8).toUpperCase()} is being processed.`
                             ).catch(console.error);
                         }
+                    }).catch(console.error);
+
+                    // Order receipt email (fire-and-forget)
+                    const itemsHtml = sellerLinePricing.map(lp =>
+                        `<tr><td>${lp.item.name || 'Product'}</td><td>${lp.quantity}</td><td>₱${lp.unitPrice.toLocaleString()}</td><td>₱${(lp.unitPrice * lp.quantity).toLocaleString()}</td></tr>`
+                    ).join('');
+                    sendOrderReceiptEmail({
+                        buyerEmail: email,
+                        buyerId: userId,
+                        orderNumber: orderData.order_number as string,
+                        orderDate: new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }),
+                        buyerName: shippingAddress.fullName || 'Valued Customer',
+                        itemsHtml: `<table>${itemsHtml}</table>`,
+                        subtotal: `₱${pricingSummary.subtotal.toLocaleString()}`,
+                        shippingFee: `₱${pricingSummary.shipping.toLocaleString()}`,
+                        totalAmount: `₱${pricingSummary.total.toLocaleString()}`,
                     }).catch(console.error);
 
                     return { id: orderData.id as string, orderNumber: orderData.order_number as string };

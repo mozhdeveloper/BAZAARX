@@ -197,7 +197,7 @@ export class CartService {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as unknown as CartItem[];
     } catch (error) {
       console.error('Error fetching cart items:', error);
       throw new Error('Failed to fetch cart items.');
@@ -284,7 +284,7 @@ export class CartService {
             variant_id: variantId || null,
             personalized_options: personalizedOptions || null,
             notes: notes || null,
-          })
+          } as any)
           .select()
           .single();
 
@@ -295,7 +295,7 @@ export class CartService {
       }
 
       if (!result) throw new Error('Failed to add or update cart item');
-      return result;
+      return result as unknown as CartItem;
     } catch (error: any) {
       const msg = String(error?.message || error || '');
       if (msg.includes('Product not found') || msg.includes('violates foreign key')) {
@@ -350,7 +350,7 @@ export class CartService {
         .from('cart_items')
         .update({ 
           variant_id: variantId || null,
-          personalized_options: personalizedOptions || null
+          personalized_options: (personalizedOptions || null) as any
         })
         .eq('id', itemId);
 

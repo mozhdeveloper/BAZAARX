@@ -4,6 +4,129 @@ import { useAuthStore } from '../stores/authStore';
 import { useOrderStore } from '../stores/orderStore';
 import type { Order } from '../types';
 
+// Types for Supabase join query rows
+interface SupabaseProductImage {
+  image_url: string;
+  is_primary?: boolean;
+  sort_order?: number;
+}
+
+interface SupabaseProductSeller {
+  id: string;
+  store_name?: string;
+  store_description?: string;
+  avatar_url?: string;
+  rating?: number;
+  is_verified?: boolean;
+}
+
+interface SupabaseProduct {
+  id: string;
+  name?: string;
+  description?: string;
+  price?: number;
+  original_price?: number;
+  brand?: string;
+  is_free_shipping?: boolean;
+  is_verified?: boolean;
+  seller_id?: string;
+  seller?: SupabaseProductSeller;
+  images?: SupabaseProductImage[];
+  rating?: number;
+  sold?: number;
+  stock?: number;
+  category?: string;
+  reviews?: unknown[];
+}
+
+interface SupabaseOrderItem {
+  id?: string;
+  product_id: string;
+  product_name?: string;
+  quantity?: number;
+  price?: number;
+  unit_price?: number;
+  price_discount?: number;
+  primary_image_url?: string;
+  variant_id?: string;
+  selected_variant?: Record<string, unknown> | null;
+  personalized_options?: Record<string, string>;
+  product?: SupabaseProduct;
+}
+
+interface SupabaseOrderVoucher {
+  discount_amount?: number;
+  voucher?: { code?: string; title?: string; voucher_type?: string };
+}
+
+interface SupabaseAddress {
+  id?: string;
+  label?: string;
+  address_line_1?: string;
+  address_line_2?: string;
+  city?: string;
+  province?: string;
+  region?: string;
+  postal_code?: string;
+}
+
+interface PaymentMethodInfo {
+  type?: 'cod' | 'gcash' | 'card' | 'paymongo' | string;
+}
+
+interface SupabaseOrderRow {
+  id: string;
+  order_number?: string;
+  buyer_id: string;
+  payment_status?: string;
+  shipment_status?: string;
+  payment_method?: string | PaymentMethodInfo;
+  shipping_cost?: number | string;
+  estimated_delivery_date?: string;
+  cancellation_reason?: string;
+  cancelled_at?: string;
+  is_reviewed?: boolean;
+  created_at: string;
+  address?: SupabaseAddress;
+  items?: SupabaseOrderItem[];
+  reviews?: Array<Record<string, unknown>>;
+  cancellations?: Array<{ id: string }>;
+  vouchers?: SupabaseOrderVoucher[];
+  return_requests?: Array<{ id: string; status?: string; is_returnable?: boolean; refund_date?: string }>;
+}
+
+interface OrderUser {
+  id: string;
+  name?: string;
+  email?: string;
+}
+
+interface MappedOrderItem {
+  id: string;
+  productId: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  images: string[];
+  rating: number;
+  sold: number;
+  seller: string;
+  sellerId: string;
+  sellerInfo: SupabaseProductSeller;
+  sellerRating: number;
+  sellerVerified: boolean;
+  isFreeShipping: boolean;
+  isVerified: boolean;
+  location: string;
+  description: string;
+  category: string;
+  stock: number;
+  reviews: unknown[];
+  quantity: number;
+  selectedVariant: Record<string, unknown> | null;
+}
+
 type BuyerUiStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'received' | 'returned' | 'cancelled' | 'reviewed';
 
 function mapBuyerUiStatus(
@@ -44,13 +167,13 @@ const ORDER_SELECT = `
   return_requests:refund_return_periods (id, status, is_returnable, refund_date)
 `;
 
-function mapOrderRow(order: any, user: any): Order & { buyerUiStatus: BuyerUiStatus; isReviewed: boolean; returnRequestId?: string; review?: any } {
+function mapOrderRow(order: SupabaseOrderRow, user: OrderUser | null): Order & { buyerUiStatus: BuyerUiStatus; isReviewed: boolean; returnRequestId?: string; review?: Record<string, unknown> | null } {
   const hasReviews = Array.isArray(order.reviews) && order.reviews.length > 0;
   const hasCancellationRecord =
     (Array.isArray(order.cancellations) && order.cancellations.length > 0) ||
     Boolean(order.cancellation_reason || order.cancelled_at);
   const hasReturnRequest = Array.isArray(order.return_requests) && order.return_requests.length > 0;
-  const returnRequestId = hasReturnRequest ? order.return_requests[0].id : undefined;
+  const returnRequestId = hasReturnRequest ? order.return_requests?.[0]?.id : undefined;
   const buyerUiStatus = mapBuyerUiStatus(
     order.payment_status,
     order.shipment_status,
@@ -67,17 +190,17 @@ function mapOrderRow(order: any, user: any): Order & { buyerUiStatus: BuyerUiSta
   const mappedStatus = statusMap[buyerUiStatus] || 'pending';
 
   const firstItem = order.items?.[0];
-  const firstProduct = firstItem?.product || {};
+  const firstProduct = (firstItem?.product || {}) as any;
   const productSeller = firstProduct.seller || {};
   const sellerName = productSeller.store_name || 'Shop';
   const sellerId = productSeller.id || firstProduct.seller_id;
   const linkedAddress = order.address || {};
 
-  const items = (order.items || []).map((it: any) => {
-    const p = it.product || {};
+  const items: MappedOrderItem[] = (order.items || []).map((it: SupabaseOrderItem) => {
+    const p = it.product || {} as SupabaseProduct;
     const productImages = p.images || [];
-    const primaryImg = productImages.find((img: any) => img.is_primary);
-    const firstImg = productImages.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))[0];
+    const primaryImg = productImages.find((img: SupabaseProductImage) => img.is_primary);
+    const firstImg = [...productImages].sort((a: SupabaseProductImage, b: SupabaseProductImage) => (a.sort_order || 0) - (b.sort_order || 0))[0];
     const image = it.primary_image_url || primaryImg?.image_url || firstImg?.image_url || '';
     const priceNum = typeof it.price === 'number' ? it.price
       : typeof it.unit_price === 'number' ? it.unit_price
@@ -104,7 +227,7 @@ function mapOrderRow(order: any, user: any): Order & { buyerUiStatus: BuyerUiSta
       price: priceNum,
       originalPrice: itemOriginalPrice,
       image,
-      images: productImages.map((img: any) => img.image_url),
+      images: productImages.map((img: SupabaseProductImage) => img.image_url),
       rating: typeof p.rating === 'number' ? p.rating : 0,
       sold: typeof p.sold === 'number' ? p.sold : 0,
       seller: itemSeller.store_name || sellerName,
@@ -131,15 +254,15 @@ function mapOrderRow(order: any, user: any): Order & { buyerUiStatus: BuyerUiSta
   const voucherInfo = orderVouchers.length > 0 ? {
     code: orderVouchers[0].voucher?.code || 'VOUCHER',
     type: orderVouchers[0].voucher?.voucher_type || 'fixed',
-    discountAmount: orderVouchers.reduce((sum: number, v: any) => sum + (v.discount_amount || 0), 0),
+    discountAmount: orderVouchers.reduce((sum: number, v: SupabaseOrderVoucher) => sum + (v.discount_amount || 0), 0),
   } : null;
 
-  const campaignDiscount = (order.items || []).reduce((sum: number, it: any) => {
+  const campaignDiscount = (order.items || []).reduce((sum: number, it: SupabaseOrderItem) => {
     const pd = typeof it.price_discount === 'number' ? it.price_discount : 0;
     return sum + (pd * (it.quantity || 1));
   }, 0);
 
-  const subtotal = items.reduce((sum: number, i: any) => sum + ((i.price || 0) * i.quantity), 0);
+  const subtotal = items.reduce((sum: number, i: MappedOrderItem) => sum + ((i.price || 0) * i.quantity), 0);
   const total = subtotal + shippingFee - (voucherInfo?.discountAmount || 0);
 
   const addressLine1 = linkedAddress.address_line_1 || '';
@@ -185,17 +308,21 @@ function mapOrderRow(order: any, user: any): Order & { buyerUiStatus: BuyerUiSta
     },
     paymentMethod: typeof order.payment_method === 'string'
       ? order.payment_method
-      : ((order.payment_method as any)?.type === 'cod' ? 'Cash on Delivery'
-        : (order.payment_method as any)?.type === 'gcash' ? 'GCash'
-        : (order.payment_method as any)?.type === 'card' ? 'Card'
-        : (order.payment_method as any)?.type === 'paymongo' ? 'PayMongo'
-        : (order.payment_method as any)?.type || 'Cash on Delivery'),
+      : (() => {
+        const pm = order.payment_method as PaymentMethodInfo | undefined;
+        const pmType = pm?.type;
+        return pmType === 'cod' ? 'Cash on Delivery'
+          : pmType === 'gcash' ? 'GCash'
+          : pmType === 'card' ? 'Card'
+          : pmType === 'paymongo' ? 'PayMongo'
+          : pmType || 'Cash on Delivery';
+      })(),
     createdAt: order.created_at,
     buyerUiStatus,
     isReviewed: buyerUiStatus === 'reviewed',
     returnRequestId,
-    review: order.reviews?.length > 0 ? order.reviews[0] : null,
-  } as any;
+    review: order.reviews?.length ? order.reviews[0] : null,
+  } as unknown as Order & { buyerUiStatus: BuyerUiStatus; isReviewed: boolean; returnRequestId?: string; review?: Record<string, unknown> | null };
 }
 
 /**
@@ -226,7 +353,7 @@ export function useOrders() {
         return;
       }
 
-      setOrders((data || []).map((row: any) => mapOrderRow(row, user)));
+      setOrders((data || []).map((row) => mapOrderRow(row as unknown as SupabaseOrderRow, user as OrderUser)));
     } catch (e) {
       console.error('[useOrders] unexpected error:', e);
       setOrders([]);

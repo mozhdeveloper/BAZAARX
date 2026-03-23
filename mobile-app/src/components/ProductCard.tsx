@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { BadgeCheck, ShieldCheck, Star, Flame } from 'lucide-react-native';
+import { BadgeCheck, ShieldCheck, Star, Flame, Palmtree } from 'lucide-react-native';
 import { Product } from '../types';
 import { COLORS } from '../constants/theme';
 import { safeImageUri } from '../utils/imageUtils';
@@ -52,6 +52,14 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, on
         {/* Campaign Badge Removed for Grouped Layout */}
 
         {/* Free Shipping Badge Removed */}
+
+        {/* Vacation Mode Badge */}
+        {product.is_vacation_mode && (
+          <View style={styles.vacationBadge}>
+            <Palmtree size={12} color="#FFFFFF" />
+            <Text style={styles.vacationBadgeText}>On Vacation</Text>
+          </View>
+        )}
 
 
       </View>
@@ -184,6 +192,24 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
+  },
+  vacationBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#EA580C', // Orange-600
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  vacationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   shippingBadge: {
     position: 'absolute',

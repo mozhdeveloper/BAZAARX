@@ -96,7 +96,7 @@ export default function ProductRequestDetailScreen({ navigation, route }: Props)
       .select('*')
       .eq('id', requestId)
       .single();
-    if (!error && data) setRequest(data);
+    if (!error && data) setRequest(data as unknown as ProductRequest);
     setLoading(false);
   }, [requestId]);
 

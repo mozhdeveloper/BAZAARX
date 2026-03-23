@@ -44,11 +44,11 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
           const parts: string[] = [];
           const sv = item.selectedVariant;
           if (sv.option1Value || sv.option2Value) {
-            if (sv.option1Value) parts.push(`${sv.option1Label || 'Option 1'}: ${sv.option1Value}`);
-            if (sv.option2Value) parts.push(`${sv.option2Label || 'Option 2'}: ${sv.option2Value}`);
+            if (sv.option1Value) parts.push(sv.option1Value);
+            if (sv.option2Value) parts.push(sv.option2Value);
           } else {
-            if (sv.color) parts.push(`Color: ${sv.color}`);
-            if (sv.size) parts.push(`Size: ${sv.size}`);
+            if (sv.size) parts.push(sv.size);
+            if (sv.color) parts.push(sv.color);
           }
           if (parts.length === 0) return null;
           return (

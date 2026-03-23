@@ -35,6 +35,7 @@ export default function ShopBuyNowModal({ isOpen, onClose, product }: ShopBuyNow
     const modalProduct = useMemo(() => ({
         ...product,
         price: product.price,
+        is_vacation_mode: product.isVacationMode,
         variants: (product.variants || []).map((variant: any) => ({
             ...variant,
             originalPrice: variant.price,

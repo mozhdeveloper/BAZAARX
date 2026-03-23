@@ -43,25 +43,13 @@ const AdminAuth: React.FC = () => {
 
     const success = await login(formData.email, formData.password);
     if (success) {
-      navigate("/admin", { replace: true });
+      // Role-aware redirect — QA users go directly to QA dashboard
+      const currentUser = useAdminAuth.getState().user;
+      const destination = currentUser?.role === 'qa_team' ? '/admin/qa-dashboard' : '/admin';
+      navigate(destination, { replace: true });
     }
   };
 
-  const handleDemoLogin = async () => {
-    // Auto-fill demo credentials
-    setFormData({
-      email: "admin@gmail.com",
-      password: "password",
-    });
-
-    // Auto-login after brief delay
-    setTimeout(async () => {
-      const success = await login("admin@gmail.com", "password");
-      if (success) {
-        navigate("/admin", { replace: true });
-      }
-    }, 500);
-  };
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -126,84 +114,6 @@ const AdminAuth: React.FC = () => {
 
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Test Credentials */}
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="bg-gradient-to-r from-orange-50 to-orange-100/50 border border-orange-200 rounded-xl p-4"
-                >
-                  <h3 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
-                    <Shield className="w-4 h-4" />
-                    Test Accounts
-                  </h3>
-                  <div className="space-y-3">
-                    {/* Demo Admin */}
-                    <div className="flex items-center justify-between gap-3 p-2 bg-white/60 rounded-lg">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">Demo Admin</p>
-                        <p className="text-xs font-mono text-orange-700">admin@gmail.com / password</p>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={handleDemoLogin}
-                        disabled={isLoading}
-                        size="sm"
-                        variant="outline"
-                        className="border-orange-300 hover:bg-orange-100 text-orange-700"
-                      >
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
-                      </Button>
-                    </div>
-                    {/* Since Admin */}
-                    <div className="flex items-center justify-between gap-3 p-2 bg-white/60 rounded-lg">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">Since Admin</p>
-                        <p className="text-xs font-mono text-orange-700">sinceadmin@gmail.com / password</p>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setFormData({ email: 'sinceadmin@gmail.com', password: 'password' });
-                          setTimeout(async () => {
-                            const success = await login('sinceadmin@gmail.com', 'password');
-                            if (success) navigate('/admin', { replace: true });
-                          }, 300);
-                        }}
-                        disabled={isLoading}
-                        size="sm"
-                        variant="outline"
-                        className="border-orange-300 hover:bg-orange-100 text-orange-700"
-                      >
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
-                      </Button>
-                    </div>
-                    {/* QA Team */}
-                    <div className="flex items-center justify-between gap-3 p-2 bg-white/60 rounded-lg">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">QA Team</p>
-                        <p className="text-xs font-mono text-orange-700">qa@gmail.com / password</p>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setFormData({ email: 'qa@gmail.com', password: 'password' });
-                          setTimeout(async () => {
-                            const success = await login('qa@gmail.com', 'password');
-                            if (success) navigate('/admin/qa-dashboard', { replace: true });
-                          }, 300);
-                        }}
-                        disabled={isLoading}
-                        size="sm"
-                        variant="outline"
-                        className="border-indigo-300 hover:bg-indigo-100 text-indigo-700"
-                      >
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
-                      </Button>
-                    </div>
-                  </div>
-                </motion.div>
-
                 {/* Error Alert */}
                 {error && (
                   <motion.div
@@ -278,23 +188,6 @@ const AdminAuth: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Demo Credentials */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-800 font-medium mb-1">
-                    Demo Credentials:
-                  </p>
-                  <p className="text-xs text-blue-700">
-                    Email:{" "}
-                    <code className="bg-blue-100 px-1 rounded">
-                      admin@gmail.com
-                    </code>
-                  </p>
-                  <p className="text-xs text-blue-700">
-                    Password:{" "}
-                    <code className="bg-blue-100 px-1 rounded">password</code>
-                  </p>
-                </div>
-
                 {/* Submit Button */}
                 <Button
                   type="submit"
@@ -315,8 +208,34 @@ const AdminAuth: React.FC = () => {
                 </Button>
               </form>
 
+              {/* Quick Fill — Demo Credentials */}
+              <div className="mt-5 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide mb-2">
+                  Demo Credentials
+                </p>
+                <div className="space-y-1.5">
+                  {[
+                    { label: 'Super Admin', email: 'admin@bazaarph.com', password: 'Test@123456' },
+                    { label: 'QA Reviewer', email: 'qa.admin@bazaarph.com', password: 'Test@123456' },
+                  ].map((cred) => (
+                    <button
+                      key={cred.label}
+                      type="button"
+                      onClick={() => {
+                        setFormData({ email: cred.email, password: cred.password });
+                        if (error) clearError();
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-amber-200 hover:border-orange-400 hover:bg-orange-50 transition-all duration-150 text-left group"
+                    >
+                      <span className="text-xs font-bold text-gray-700 group-hover:text-orange-600">{cred.label}</span>
+                      <span className="text-[11px] text-gray-400 font-mono group-hover:text-orange-500">{cred.email}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Footer Links */}
-              <div className="mt-6 pt-4 border-t border-gray-200">
+              <div className="mt-4 pt-4 border-t border-gray-200">
                 <p className="text-xs text-gray-500 text-center">
                   Secured by BazaarPH Admin System
                 </p>

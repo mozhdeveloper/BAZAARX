@@ -840,12 +840,16 @@ export function AddProduct() {
         images: [""],
         variantLabel1Values: [] as string[],
         variantLabel2Values: [] as string[],
+        sizesValues: [] as string[],
     });
     const [variationInput, setVariationInput] = useState("");
     const [colorInput, setColorInput] = useState("");
+    const [sizeInput, setSizeInput] = useState("");
+    const [sizeGuideImage, setSizeGuideImage] = useState<File | null>(null);
+    const [sizeGuideImageUrl, setSizeGuideImageUrl] = useState("");
 
     // Custom attribute names state
-    const [firstAttributeName, setFirstAttributeName] = useState("Variations");
+    const [firstAttributeName, setFirstAttributeName] = useState("Sizes");
     const [secondAttributeName, setSecondAttributeName] = useState("Colors");
     const [editingFirstAttributeName, setEditingFirstAttributeName] =
         useState(false);
@@ -911,9 +915,9 @@ export function AddProduct() {
 
         // If the user hasn't added any variation tags yet, we don't auto-generate.
         if (v1.length === 0 && v2.length === 0) {
-            // Optional: If you want to wipe variants when all tags are removed, 
+            // Optional: If you want to wipe variants when all tags are removed,
             // uncomment the line below:
-            // setVariantConfigs([]); 
+            // setVariantConfigs([]);
             return;
         }
 
@@ -1191,6 +1195,44 @@ export function AddProduct() {
         }));
     };
 
+    const addSize = () => {
+        const trimmed = sizeInput.trim();
+        if (trimmed && !formData.sizesValues.includes(trimmed)) {
+            setFormData((prev) => ({
+                ...prev,
+                sizesValues: [...prev.sizesValues, trimmed],
+            }));
+            setSizeInput("");
+        }
+    };
+
+    const removeSize = (size: string) => {
+        setFormData((prev) => ({
+            ...prev,
+            sizesValues: prev.sizesValues.filter((s) => s !== size),
+        }));
+    };
+
+    const handleSizeGuideImageSelect = async (file: File | null) => {
+        if (!file) {
+            setSizeGuideImage(null);
+            setSizeGuideImageUrl("");
+            return;
+        }
+        const validation = validateImageFile(file);
+        if (!validation.valid) {
+            setErrors((prev) => ({
+                ...prev,
+                sizeGuide: validation.error ?? "Invalid file",
+            }));
+            return;
+        }
+        const compressed = await compressImage(file);
+        setSizeGuideImage(compressed);
+        setSizeGuideImageUrl(URL.createObjectURL(compressed));
+        setErrors((prev) => ({ ...prev, sizeGuide: "" }));
+    };
+
     const handleImageChange = (index: number, value: string) => {
         const newImages = [...formData.images];
         newImages[index] = value;
@@ -1254,6 +1296,7 @@ export function AddProduct() {
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
+
         e.preventDefault();
 
         if (!validateForm()) {
@@ -1310,6 +1353,26 @@ export function AddProduct() {
                     ? [...(baseVariant ? [baseVariant] : []), ...updatedVariants]
                     : undefined;
 
+            const hasVariantAxis1 =
+                formData.variantLabel1Values.length > 0 ||
+                updatedVariants.some((variant) =>
+                    !!String(variant.variantLabel1Value || '').trim()
+                );
+
+            const hasVariantAxis2 =
+                formData.variantLabel2Values.length > 0 ||
+                updatedVariants.some((variant) =>
+                    !!String(variant.variantLabel2Value || '').trim()
+                );
+
+            const resolvedVariantLabel1 = hasVariantAxis1
+                ? (firstAttributeName?.trim() || 'Variations')
+                : undefined;
+
+            const resolvedVariantLabel2 = hasVariantAxis2
+                ? (secondAttributeName?.trim() || 'Colors')
+                : undefined;
+
             // 3. Upload Main Product Images (URLs + Files)
             const filesToUpload = imageFiles.filter((f): f is File => f !== null);
             let uploadedMainUrls: string[] = [];
@@ -1324,7 +1387,30 @@ export function AddProduct() {
                 ...uploadedMainUrls,
             ];
 
-            // 4. Assemble Final Product Payload
+            // 4. Upload Size Guide Image if apparel category and image selected
+            let uploadedSizeGuideUrl: string | undefined = undefined;
+            const isApparelCategory =
+                formData.category &&
+                (
+                    formData.category.toLowerCase().includes('apparel') ||
+                    formData.category.toLowerCase().includes('fashion') ||
+                    formData.category.toLowerCase().includes('clothing')
+                );
+            if (isApparelCategory && sizeGuideImage && seller?.id) {
+                try {
+                    const [uploadedUrl] = await uploadProductImages(
+                        [sizeGuideImage],
+                        seller.id,
+                        `size-guide-${Date.now()}`
+                    );
+                    uploadedSizeGuideUrl = uploadedUrl;
+                } catch (error) {
+                    console.error("Failed to upload size guide image:", error);
+                    // Continue without size guide image
+                }
+            }
+
+            // 5. Assemble Final Product Payload
             const productData = {
                 name: formData.name.trim(),
                 description: formData.description.trim(),
@@ -1335,10 +1421,12 @@ export function AddProduct() {
                 images: allImages,
                 variantLabel1Values: formData.variantLabel1Values,
                 variantLabel2Values: formData.variantLabel2Values,
+                sizesValues: isApparelCategory ? formData.sizesValues : undefined,
+                sizeGuideImage: uploadedSizeGuideUrl,
                 isActive: true,
                 sellerId: seller?.id || "",
-                variantLabel1: firstAttributeName !== "Variations" ? firstAttributeName : undefined,
-                variantLabel2: secondAttributeName !== "Colors" ? secondAttributeName : undefined,
+                variantLabel1: resolvedVariantLabel1,
+                variantLabel2: resolvedVariantLabel2,
                 variants: variantsForSubmit,
             };
 
@@ -1553,10 +1641,17 @@ export function AddProduct() {
                                     setVariationInput={setVariationInput}
                                     colorInput={colorInput}
                                     setColorInput={setColorInput}
+                                    sizeInput={sizeInput}
+                                    setSizeInput={setSizeInput}
                                     addVariation={addVariation}
                                     removeVariation={removeVariation}
                                     addColor={addColor}
                                     removeColor={removeColor}
+                                    addSize={addSize}
+                                    removeSize={removeSize}
+                                    sizeGuideImageUrl={sizeGuideImageUrl}
+                                    onSizeGuideImageSelect={handleSizeGuideImageSelect}
+                                    errors={errors}
                                     firstAttributeName={firstAttributeName}
                                     setFirstAttributeName={
                                         setFirstAttributeName
@@ -1581,7 +1676,6 @@ export function AddProduct() {
                                     editingVariantId={editingVariantId}
                                     showAddVariantForm={showAddVariantForm}
                                     newVariant={newVariant}
-                                    errors={errors}
                                     getTotalVariantStock={getTotalVariantStock}
                                     updateVariantConfig={updateVariantConfig}
                                     cancelEditVariant={cancelEditVariant}

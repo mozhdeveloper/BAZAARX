@@ -82,7 +82,7 @@ export default function MyRequestsScreen({ navigation }: Props) {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        setRequests(data);
+        setRequests(data as unknown as ProductRequest[]);
       }
     } catch (err) {
       console.error('Failed to load requests:', err);

@@ -166,6 +166,8 @@ export interface SellerOrderSnapshot {
   type?: "ONLINE" | "OFFLINE";
   posNote?: string;
   notes?: string;
+  cancellationReason?: string | null;
+  cancelledByRole?: "buyer" | "seller" | null;
 }
 
 export interface OrderTrackingSnapshot {

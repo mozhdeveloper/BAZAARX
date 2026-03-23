@@ -1,11 +1,34 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BadgeCheck, ShieldCheck, Flame, Star } from 'lucide-react';
+import { BadgeCheck, ShieldCheck, Flame, Star, Heart, Palmtree } from 'lucide-react';
+import { useWishlist } from '../hooks/useWishlist';
 
+export interface ProductCardProduct {
+  id: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  rating?: number;
+  sold?: number;
+  stock?: number;
+  isVerified?: boolean;
+  seller?: string;
+  sellerVerified?: boolean;
+  discountBadgePercent?: number;
+  discountBadgeTooltip?: string;
+  sellerTierLevel?: string;
+  isPremiumOutlet?: boolean;
+  lifetimeSold?: number;
+  campaignSold?: number;
+  campaignStock?: number;
+  reviewsCount?: number;
+  isVacationMode?: boolean;
+}
 
 interface ProductCardProps {
-  product: any;
+  product: ProductCardProduct;
   index?: number;
   isFlash?: boolean;
   variant?: 'default' | 'hero';
@@ -13,6 +36,8 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash = false, variant = 'default' }) => {
   const navigate = useNavigate();
+  const { isWishlisted, toggleWishlist } = useWishlist();
+  const wishlisted = isWishlisted(product.id);
   const hasDiscount =
     (product.originalPrice && product.originalPrice > product.price) ||
     (typeof product.discountBadgePercent === 'number' && product.discountBadgePercent > 0);
@@ -55,11 +80,27 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
           </div>
         )}
 
+        {/* Wishlist Heart */}
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleWishlist(product.id); }}
+          className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm transition-all"
+          aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+        >
+          <Heart className={`w-4 h-4 transition-colors ${wishlisted ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400'}`} />
+        </button>
+
 
         {product.isVerified && !isFlash && (
           <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
             <ShieldCheck className="w-3 h-3 text-[var(--brand-accent)]" />
             <span className="text-[10px] font-bold text-[var(--brand-accent)] uppercase">Verified</span>
+          </div>
+        )}
+
+        {product.isVacationMode && (
+          <div className="absolute top-3 left-3 bg-orange-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase flex items-center gap-1 shadow-sm">
+            <Palmtree className="w-3 h-3" />
+            On Vacation
           </div>
         )}
       </div>
@@ -86,7 +127,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
               ))}
             </div>
             <span className="text-[12px] text-gray-500 font-medium">
-              ({product.rating || 5.0})
+              {product.rating || 5.0} ({product.reviewsCount || 0})
             </span>
           </div>
 

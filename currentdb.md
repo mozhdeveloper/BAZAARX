@@ -75,6 +75,23 @@ CREATE TABLE public.announcements (
   CONSTRAINT announcements_pkey PRIMARY KEY (id),
   CONSTRAINT announcements_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admins(id)
 );
+CREATE TABLE public.automation_workflows (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  trigger_event text NOT NULL,
+  channels jsonb NOT NULL DEFAULT '["email"]'::jsonb,
+  delay_minutes integer DEFAULT 0,
+  template_id uuid,
+  sms_template text,
+  is_enabled boolean NOT NULL DEFAULT true,
+  created_by uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT automation_workflows_pkey PRIMARY KEY (id),
+  CONSTRAINT automation_workflows_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id),
+  CONSTRAINT automation_workflows_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
+);
 CREATE TABLE public.bazcoin_transactions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -86,6 +103,15 @@ CREATE TABLE public.bazcoin_transactions (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT bazcoin_transactions_pkey PRIMARY KEY (id),
   CONSTRAINT bazcoin_transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.bounce_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  email text NOT NULL,
+  bounce_type text NOT NULL CHECK (bounce_type = ANY (ARRAY['hard'::text, 'soft'::text])),
+  reason text,
+  resend_event_id text,
+  logged_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT bounce_logs_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.buyer_notifications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -100,6 +126,19 @@ CREATE TABLE public.buyer_notifications (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT buyer_notifications_pkey PRIMARY KEY (id),
   CONSTRAINT buyer_notifications_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id)
+);
+CREATE TABLE public.buyer_segments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  filter_criteria jsonb NOT NULL DEFAULT '{}'::jsonb,
+  buyer_count integer DEFAULT 0,
+  is_dynamic boolean NOT NULL DEFAULT true,
+  created_by uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT buyer_segments_pkey PRIMARY KEY (id),
+  CONSTRAINT buyer_segments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
 );
 CREATE TABLE public.buyer_vouchers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -169,6 +208,18 @@ CREATE TABLE public.comment_upvotes (
   CONSTRAINT comment_upvotes_pkey PRIMARY KEY (id),
   CONSTRAINT comment_upvotes_comment_id_fkey FOREIGN KEY (comment_id) REFERENCES public.product_request_comments(id),
   CONSTRAINT comment_upvotes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.consent_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  channel text NOT NULL CHECK (channel = ANY (ARRAY['email'::text, 'sms'::text, 'push'::text])),
+  action text NOT NULL CHECK (action = ANY (ARRAY['opt_in'::text, 'opt_out'::text])),
+  source text NOT NULL CHECK (source = ANY (ARRAY['signup'::text, 'settings'::text, 'email_link'::text, 'campaign'::text, 'admin'::text])),
+  ip_address inet,
+  user_agent text,
+  logged_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT consent_log_pkey PRIMARY KEY (id),
+  CONSTRAINT consent_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.contributor_tiers (
   user_id uuid NOT NULL,
@@ -272,6 +323,73 @@ CREATE TABLE public.discount_campaigns (
   CONSTRAINT discount_campaigns_pkey PRIMARY KEY (id),
   CONSTRAINT discount_campaigns_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
+CREATE TABLE public.email_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  email_log_id uuid,
+  resend_message_id text,
+  event_type text NOT NULL CHECK (event_type = ANY (ARRAY['delivered'::text, 'opened'::text, 'clicked'::text, 'bounced'::text, 'complained'::text, 'delivery_delayed'::text])),
+  metadata jsonb DEFAULT '{}'::jsonb,
+  occurred_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT email_events_pkey PRIMARY KEY (id),
+  CONSTRAINT email_events_email_log_id_fkey FOREIGN KEY (email_log_id) REFERENCES public.email_logs(id)
+);
+CREATE TABLE public.email_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  recipient_email text NOT NULL,
+  recipient_id uuid,
+  template_id uuid,
+  event_type text NOT NULL,
+  subject text NOT NULL,
+  status text NOT NULL DEFAULT 'queued'::text CHECK (status = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'bounced'::text, 'failed'::text, 'disabled'::text, 'suppressed'::text, 'no_consent'::text, 'invalid_contact'::text, 'frequency_exceeded'::text])),
+  resend_message_id text,
+  error_message text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  delivered_at timestamp with time zone,
+  category text CHECK (category = ANY (ARRAY['transactional'::text, 'security'::text, 'marketing'::text])),
+  queued_at timestamp with time zone DEFAULT now(),
+  sent_at timestamp with time zone,
+  retry_count integer DEFAULT 0,
+  CONSTRAINT email_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT email_logs_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.profiles(id),
+  CONSTRAINT email_logs_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id)
+);
+CREATE TABLE public.email_template_versions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  template_id uuid NOT NULL,
+  version_number integer NOT NULL DEFAULT 1,
+  subject text NOT NULL,
+  html_body text NOT NULL,
+  text_body text,
+  variables jsonb,
+  changed_by uuid,
+  change_reason text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT email_template_versions_pkey PRIMARY KEY (id),
+  CONSTRAINT email_template_versions_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id),
+  CONSTRAINT email_template_versions_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.admins(id)
+);
+CREATE TABLE public.email_templates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  slug text NOT NULL UNIQUE,
+  subject text NOT NULL,
+  html_body text NOT NULL,
+  text_body text,
+  variables jsonb DEFAULT '[]'::jsonb,
+  category text NOT NULL DEFAULT 'transactional'::text CHECK (category = ANY (ARRAY['transactional'::text, 'marketing'::text, 'system'::text])),
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  approval_status text DEFAULT 'approved'::text CHECK (approval_status = ANY (ARRAY['draft'::text, 'pending_review'::text, 'approved'::text, 'rejected'::text])),
+  approved_by uuid,
+  approved_at timestamp with time zone,
+  version integer DEFAULT 1,
+  CONSTRAINT email_templates_pkey PRIMARY KEY (id),
+  CONSTRAINT email_templates_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.admins(id),
+  CONSTRAINT email_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.admins(id)
+);
 CREATE TABLE public.featured_products (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL UNIQUE,
@@ -324,6 +442,39 @@ CREATE TABLE public.low_stock_alerts (
   CONSTRAINT low_stock_alerts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
   CONSTRAINT low_stock_alerts_acknowledged_by_fkey FOREIGN KEY (acknowledged_by) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.marketing_campaigns (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  campaign_type text NOT NULL CHECK (campaign_type = ANY (ARRAY['email_blast'::text, 'sms_blast'::text, 'multi_channel'::text])),
+  status text NOT NULL DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'scheduled'::text, 'sending'::text, 'sent'::text, 'paused'::text, 'cancelled'::text])),
+  segment_id uuid,
+  template_id uuid,
+  subject text,
+  content text,
+  sms_content text,
+  scheduled_at timestamp with time zone,
+  sent_at timestamp with time zone,
+  total_recipients integer DEFAULT 0,
+  total_sent integer DEFAULT 0,
+  total_delivered integer DEFAULT 0,
+  total_opened integer DEFAULT 0,
+  total_clicked integer DEFAULT 0,
+  total_bounced integer DEFAULT 0,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  approval_status text DEFAULT 'draft'::text CHECK (approval_status = ANY (ARRAY['draft'::text, 'pending_approval'::text, 'approved'::text, 'rejected'::text, 'suspended'::text])),
+  approved_by uuid,
+  approved_at timestamp with time zone,
+  locked boolean NOT NULL DEFAULT false,
+  seller_id uuid,
+  CONSTRAINT marketing_campaigns_pkey PRIMARY KEY (id),
+  CONSTRAINT marketing_campaigns_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.buyer_segments(id),
+  CONSTRAINT marketing_campaigns_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id),
+  CONSTRAINT marketing_campaigns_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.admins(id),
+  CONSTRAINT marketing_campaigns_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
+);
 CREATE TABLE public.messages (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   conversation_id uuid NOT NULL,
@@ -339,6 +490,19 @@ CREATE TABLE public.messages (
   CONSTRAINT messages_pkey PRIMARY KEY (id),
   CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id),
   CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.notification_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  channel text NOT NULL CHECK (channel = ANY (ARRAY['email'::text, 'sms'::text, 'push'::text])),
+  event_type text NOT NULL,
+  is_enabled boolean NOT NULL DEFAULT true,
+  template_id uuid,
+  updated_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT notification_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT notification_settings_template_fkey FOREIGN KEY (template_id) REFERENCES public.email_templates(id),
+  CONSTRAINT notification_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.admins(id)
 );
 CREATE TABLE public.order_cancellations (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -474,6 +638,7 @@ CREATE TABLE public.orders (
   notes text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  receipt_number text,
   CONSTRAINT orders_pkey PRIMARY KEY (id),
   CONSTRAINT orders_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
   CONSTRAINT orders_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.order_recipients(id),
@@ -536,6 +701,10 @@ CREATE TABLE public.payment_transactions (
   refunded_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  escrow_status character varying NOT NULL DEFAULT 'none'::character varying CHECK (escrow_status::text = ANY (ARRAY['none'::character varying, 'held'::character varying, 'released'::character varying, 'refunded'::character varying]::text[])),
+  escrow_held_at timestamp with time zone,
+  escrow_release_at timestamp with time zone,
+  escrow_released_at timestamp with time zone,
   CONSTRAINT payment_transactions_pkey PRIMARY KEY (id),
   CONSTRAINT payment_transactions_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
   CONSTRAINT payment_transactions_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id),
@@ -773,6 +942,7 @@ CREATE TABLE public.products (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   image_embedding USER-DEFINED,
   seller_id uuid,
+  size_guide_image text,
   CONSTRAINT products_pkey PRIMARY KEY (id),
   CONSTRAINT products_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.categories(id),
   CONSTRAINT products_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
@@ -1025,10 +1195,13 @@ CREATE TABLE public.seller_payouts (
   failure_reason text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  escrow_transaction_id uuid,
+  release_after timestamp with time zone,
   CONSTRAINT seller_payouts_pkey PRIMARY KEY (id),
   CONSTRAINT seller_payouts_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.profiles(id),
   CONSTRAINT seller_payouts_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT seller_payouts_payment_transaction_id_fkey FOREIGN KEY (payment_transaction_id) REFERENCES public.payment_transactions(id)
+  CONSTRAINT seller_payouts_payment_transaction_id_fkey FOREIGN KEY (payment_transaction_id) REFERENCES public.payment_transactions(id),
+  CONSTRAINT seller_payouts_escrow_transaction_id_fkey FOREIGN KEY (escrow_transaction_id) REFERENCES public.payment_transactions(id)
 );
 CREATE TABLE public.seller_rejection_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -1108,6 +1281,8 @@ CREATE TABLE public.sellers (
   temp_blacklist_until timestamp with time zone,
   is_permanently_blacklisted boolean DEFAULT false,
   store_banner_url text,
+  is_vacation_mode boolean DEFAULT false,
+  vacation_reason text,
   CONSTRAINT sellers_pkey PRIMARY KEY (id),
   CONSTRAINT sellers_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
 );
@@ -1134,6 +1309,22 @@ CREATE TABLE public.shipping_addresses (
   phone_number text,
   CONSTRAINT shipping_addresses_pkey PRIMARY KEY (id),
   CONSTRAINT shipping_addresses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.sms_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  recipient_phone text NOT NULL,
+  recipient_id uuid,
+  event_type text NOT NULL,
+  message_body text NOT NULL,
+  status text NOT NULL DEFAULT 'queued'::text CHECK (status = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'failed'::text, 'disabled'::text])),
+  provider text DEFAULT 'none'::text,
+  provider_message_id text,
+  error_message text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  delivered_at timestamp with time zone,
+  CONSTRAINT sms_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT sms_logs_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.store_followers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -1165,6 +1356,17 @@ CREATE TABLE public.support_tickets (
   CONSTRAINT support_tickets_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.admins(id),
   CONSTRAINT support_tickets_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
+CREATE TABLE public.suppression_list (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  contact text NOT NULL,
+  contact_type text NOT NULL CHECK (contact_type = ANY (ARRAY['email'::text, 'phone'::text])),
+  reason text NOT NULL CHECK (reason = ANY (ARRAY['hard_bounce'::text, 'soft_bounce_converted'::text, 'unsubscribed'::text, 'manual_blacklist'::text, 'spam_complaint'::text])),
+  suppressed_by uuid,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT suppression_list_pkey PRIMARY KEY (id),
+  CONSTRAINT suppression_list_suppressed_by_fkey FOREIGN KEY (suppressed_by) REFERENCES public.admins(id)
+);
 CREATE TABLE public.ticket_categories (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -1185,6 +1387,21 @@ CREATE TABLE public.ticket_messages (
   CONSTRAINT ticket_messages_pkey PRIMARY KEY (id),
   CONSTRAINT ticket_messages_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.support_tickets(id),
   CONSTRAINT ticket_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.user_consent (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  channel text NOT NULL CHECK (channel = ANY (ARRAY['email'::text, 'sms'::text, 'push'::text])),
+  is_consented boolean NOT NULL DEFAULT false,
+  consent_source text NOT NULL DEFAULT 'signup'::text CHECK (consent_source = ANY (ARRAY['signup'::text, 'settings'::text, 'campaign'::text, 'admin'::text])),
+  consented_at timestamp with time zone,
+  revoked_at timestamp with time zone,
+  ip_address inet,
+  user_agent text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_consent_pkey PRIMARY KEY (id),
+  CONSTRAINT user_consent_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.user_presence (
   user_id uuid NOT NULL,

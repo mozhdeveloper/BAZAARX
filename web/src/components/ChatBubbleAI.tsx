@@ -1,7 +1,7 @@
 /**
  * ChatBubble - Floating draggable chat bubble with AI Assistant
  * Features:
- * - AI-powered chat using Gemini 2.5 Flash
+ * - AI-powered chat using BazBot (Qwen via Edge Function)
  * - Product and store context awareness
  * - "Talk to Seller" feature with notifications
  * - Quick reply suggestions
@@ -29,7 +29,8 @@ import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chatStore';
 import { useBuyerStore } from '@/stores/buyerStore';
 import { chatService, Message, Conversation } from '@/services/chatService';
-import { aiChatService, ProductContext, StoreContext, ChatContext, ReviewSummary } from '../services/aiChatService';
+import { aiChatService, ProductContext, StoreContext, ChatContext } from '../services/aiChatService';
+import { supabase } from '@/lib/supabase';
 
 interface ChatMessage {
   id: string;
@@ -69,7 +70,6 @@ export function ChatBubble() {
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
   const [productContext, setProductContext] = useState<ProductContext | null>(null);
   const [storeContext, setStoreContext] = useState<StoreContext | null>(null);
-  const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
   const [showTalkToSeller, setShowTalkToSeller] = useState(false);
@@ -86,25 +86,51 @@ export function ChatBubble() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Load product and store context
+  // Load product and store context (minimal — just enough for welcome msg + quick replies)
   useEffect(() => {
     const loadContext = async () => {
       if (!chatTarget) return;
 
-      // Load product context if product is specified
       if (chatTarget.productId) {
-        const product = await aiChatService.getProductDetails(chatTarget.productId);
-        setProductContext(product);
+        const { data } = await supabase
+          .from('products')
+          .select('id, name, price, brand, is_free_shipping, description, category:categories!products_category_id_fkey(name), variants:product_variants(size, color, stock, price)')
+          .eq('id', chatTarget.productId)
+          .single() as any;
 
-        // Load review summary for product
-        const reviews = await aiChatService.getReviewSummary(chatTarget.productId);
-        setReviewSummary(reviews);
+        if (data) {
+          const totalStock = data.variants?.reduce((s: number, v: any) => s + (v.stock || 0), 0) || 0;
+          setProductContext({
+            id: data.id,
+            name: data.name,
+            price: data.price,
+            brand: data.brand || '',
+            description: data.description,
+            isFreeShipping: data.is_free_shipping,
+            category: (data.category as any)?.name || '',
+            stock: totalStock,
+            variantLabel1Values: [...new Set(data.variants?.map((v: any) => v.size).filter(Boolean))] as string[],
+            variantLabel2Values: [...new Set(data.variants?.map((v: any) => v.color).filter(Boolean))] as string[],
+          });
+        }
       }
 
-      // Load store context
       if (chatTarget.sellerId) {
-        const store = await aiChatService.getStoreDetails(chatTarget.sellerId);
-        setStoreContext(store);
+        const { data } = await supabase
+          .from('sellers')
+          .select('id, store_name, store_description, owner_name, approval_status')
+          .eq('id', chatTarget.sellerId)
+          .single() as any;
+
+        if (data) {
+          setStoreContext({
+            id: data.id,
+            storeName: data.store_name,
+            businessName: data.owner_name,
+            storeDescription: data.store_description,
+            isVerified: data.approval_status === 'verified',
+          });
+        }
       }
     };
 
@@ -116,10 +142,9 @@ export function ChatBubble() {
     const context: ChatContext = {
       product: productContext || undefined,
       store: storeContext || undefined,
-      reviews: reviewSummary || undefined,
     };
     setQuickReplies(aiChatService.getQuickReplies(context));
-  }, [productContext, storeContext, reviewSummary]);
+  }, [productContext, storeContext]);
 
   // Add welcome message when chat opens in AI mode
   useEffect(() => {
@@ -127,7 +152,6 @@ export function ChatBubble() {
       const context: ChatContext = {
         product: productContext || undefined,
         store: storeContext || undefined,
-        reviews: reviewSummary || undefined,
       };
       const welcomeMessage: ChatMessage = {
         id: 'ai-welcome',
@@ -138,7 +162,7 @@ export function ChatBubble() {
       };
       setMessages([welcomeMessage]);
     }
-  }, [isOpen, chatMode, productContext, storeContext, reviewSummary]);
+  }, [isOpen, chatMode, productContext, storeContext]);
 
   // Load conversation when switching to seller mode
   useEffect(() => {
@@ -248,7 +272,6 @@ export function ChatBubble() {
       const context: ChatContext = {
         product: productContext || undefined,
         store: storeContext || undefined,
-        reviews: reviewSummary || undefined,
       };
 
       const { response, suggestTalkToSeller } = await aiChatService.sendMessage(message, context);
@@ -551,22 +574,11 @@ export function ChatBubble() {
                   <RefreshCw className="w-4 h-4" />
                 </Button>
               )}
+
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setMiniMode(true)}
-                className="text-white hover:bg-white/20 h-8 w-8"
-              >
-                <Minimize2 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  closeChat();
-                  clearChatTarget();
-                  handleResetChat();
-                }}
                 className="text-white hover:bg-white/20 h-8 w-8"
               >
                 <X className="w-4 h-4" />

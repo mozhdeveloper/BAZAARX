@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -28,17 +30,21 @@ import {
   Clock,
   Menu,
   Edit3,
+  AlertTriangle,
+  Trash2,
+  Palmtree,
 } from 'lucide-react-native';
+import { supabase } from '../../../src/lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useAuthStore } from '../../../src/stores/authStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
-type SettingTab = 'profile' | 'store' | 'documents' | 'notifications' | 'security' | 'payments';
+type SettingTab = 'profile' | 'store' | 'documents' | 'notifications' | 'security' | 'payments' | 'store-status';
 
 export default function SellerSettingsScreen() {
   const navigation = useNavigation();
-  const { seller, updateSellerInfo } = useSellerStore();
+  const { seller, updateSellerInfo, setVacationMode, disableVacationMode } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<SettingTab>('profile');
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -47,6 +53,31 @@ export default function SellerSettingsScreen() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingStore, setIsEditingStore] = useState(false);
   const [isEditingPayments, setIsEditingPayments] = useState(false);
+
+  // Vacation mode state
+  const [vacationReason, setVacationReason] = useState('');
+
+  useEffect(() => {
+    if (seller?.vacation_reason) {
+      setVacationReason(seller.vacation_reason);
+    } else {
+      setVacationReason('');
+    }
+  }, [seller?.vacation_reason]);
+
+  const handleVacationToggle = async (enabled: boolean) => {
+    if (enabled) {
+      const success = await setVacationMode(vacationReason || undefined);
+      if (success) {
+        Alert.alert('Success', 'Vacation mode enabled. Buyers cannot purchase your products.');
+      }
+    } else {
+      const success = await disableVacationMode();
+      if (success) {
+        Alert.alert('Success', 'Vacation mode disabled. Your store is now open for business.');
+      }
+    }
+  };
 
   // Profile - matches database schema (sellers table)
   const [ownerName, setOwnerName] = useState(seller?.owner_name || '');
@@ -73,6 +104,37 @@ export default function SellerSettingsScreen() {
   const [accountNumber, setAccountNumber] = useState(seller?.payout_account?.account_number || '');
   const [gcashNumber, setGcashNumber] = useState(''); // Assuming distinct from phone
 
+  // Delete account state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE' || !deletePassword) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        body: { password: deletePassword, confirm: true },
+      });
+      if (error || data?.error) {
+        const msg = data?.message || data?.error || error?.message || 'Failed to delete account';
+        setDeleteError(msg);
+        return;
+      }
+      const { logout } = useAuthStore.getState();
+      logout();
+      await supabase.auth.signOut();
+      navigation.navigate('Login' as never);
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const [notifications, setNotifications] = useState({
     newOrders: true,
     orderUpdates: true,
@@ -91,7 +153,12 @@ export default function SellerSettingsScreen() {
     );
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // If on store-status tab and vacation mode is enabled, save the reason
+    if (selectedTab === 'store-status' && seller?.is_vacation_mode) {
+      await setVacationMode(vacationReason || undefined);
+    }
+
     updateSellerInfo({
       owner_name: ownerName,
       email,
@@ -565,6 +632,27 @@ export default function SellerSettingsScreen() {
                 <Text style={styles.enableButtonText}>Enable 2FA</Text>
               </Pressable>
             </View>
+
+            {/* Danger Zone */}
+            <View style={[styles.formSection, { marginBottom: 0 }]}>
+              <View style={styles.dangerZoneCard}>
+                <View style={styles.dangerZoneHeader}>
+                  <AlertTriangle size={18} color="#DC2626" strokeWidth={2.5} />
+                  <Text style={styles.dangerZoneTitle}>Danger Zone</Text>
+                </View>
+                <Text style={styles.dangerZoneDescription}>
+                  Permanently delete your seller account, store, products, and all associated data.
+                  Active payouts must be settled first. This complies with RA 10173.
+                </Text>
+                <Pressable
+                  style={styles.deleteAccountButton}
+                  onPress={() => { setDeleteError(''); setShowDeleteModal(true); }}
+                >
+                  <Trash2 size={16} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
         );
 
@@ -638,6 +726,66 @@ export default function SellerSettingsScreen() {
             </View>
           </View>
         );
+
+      case 'store-status':
+        return (
+          <View style={styles.formCard}>
+            <View style={styles.formSection}>
+              <View style={styles.sectionHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Palmtree size={20} color="#EA580C" strokeWidth={2.5} />
+                  <Text style={styles.sectionTitle}>Store Status</Text>
+                </View>
+              </View>
+
+              <View style={[styles.switchRow, { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 16 }]}>
+                <View style={{ flex: 1, marginRight: 16 }}>
+                  <Text style={styles.switchLabel}>Vacation Mode</Text>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                    When enabled, buyers can still see your products but cannot purchase them.
+                  </Text>
+                </View>
+                <Switch
+                  value={seller?.is_vacation_mode || false}
+                  onValueChange={handleVacationToggle}
+                  trackColor={{ false: '#E5E7EB', true: '#FDBA74' }}
+                  thumbColor={seller?.is_vacation_mode ? '#EA580C' : '#F3F4F6'}
+                />
+              </View>
+
+              {seller?.is_vacation_mode && (
+                <View style={[styles.inputGroup, { backgroundColor: '#FFF7ED', borderRadius: 12, padding: 16, marginTop: 12, borderWidth: 1, borderColor: '#FFEDD5' }]}>
+                  <Text style={styles.inputLabel}>Vacation Reason</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    {['vacation', 'personal', 'maintenance', 'other'].map((reason) => (
+                      <Pressable
+                        key={reason}
+                        onPress={() => setVacationReason(reason)}
+                        style={{
+                          paddingHorizontal: 16,
+                          paddingVertical: 8,
+                          borderRadius: 20,
+                          backgroundColor: vacationReason === reason ? '#EA580C' : '#FFFFFF',
+                          borderWidth: 1,
+                          borderColor: vacationReason === reason ? '#EA580C' : '#E5E7EB',
+                        }}
+                      >
+                        <Text style={{
+                          fontSize: 13,
+                          fontWeight: '600',
+                          color: vacationReason === reason ? '#FFFFFF' : '#6B7280',
+                          textTransform: 'capitalize',
+                        }}>
+                          {reason}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        );
     }
   };
 
@@ -656,6 +804,89 @@ export default function SellerSettingsScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!isDeleting) { setShowDeleteModal(false); setDeletePassword(''); setDeleteConfirmText(''); setDeleteError(''); } }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <AlertTriangle size={20} color="#DC2626" strokeWidth={2.5} />
+              <Text style={styles.modalTitle}>Delete Seller Account</Text>
+            </View>
+            <Text style={styles.modalDescription}>
+              This will permanently delete your store, all products, and seller data.
+              Ensure all pending orders and payouts are settled. This action cannot be undone (RA 10173).
+            </Text>
+
+            {!!deleteError && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{deleteError}</Text>
+              </View>
+            )}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Confirm your password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Your current password"
+                placeholderTextColor="#9CA3AF"
+                secureTextEntry
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                editable={!isDeleting}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>
+                Type <Text style={{ fontWeight: '800', color: '#DC2626' }}>DELETE</Text> to confirm
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="DELETE"
+                placeholderTextColor="#9CA3AF"
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                editable={!isDeleting}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalCancelButton, isDeleting && styles.buttonDisabled]}
+                onPress={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteConfirmText(''); setDeleteError(''); }}
+                disabled={isDeleting}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalDeleteButton,
+                  (isDeleting || deleteConfirmText !== 'DELETE' || !deletePassword) && styles.buttonDisabled,
+                ]}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting || deleteConfirmText !== 'DELETE' || !deletePassword}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Trash2 size={16} color="#FFFFFF" strokeWidth={2.5} />
+                )}
+                <Text style={styles.modalDeleteText}>
+                  {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Seller Drawer */}
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
 
@@ -819,6 +1050,22 @@ export default function SellerSettingsScreen() {
               ]}
             >
               Payments
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.pillTab,
+              selectedTab === 'store-status' && styles.pillTabActive,
+            ]}
+            onPress={() => setSelectedTab('store-status')}
+          >
+            <Text
+              style={[
+                styles.pillTabText,
+                selectedTab === 'store-status' && styles.pillTabTextActive,
+              ]}
+            >
+              Store Status
             </Text>
           </Pressable>
         </ScrollView>
@@ -1230,5 +1477,138 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#EF4444',
+  },
+  // Danger Zone
+  dangerZoneCard: {
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    borderRadius: 12,
+    backgroundColor: '#FFF5F5',
+    padding: 16,
+    gap: 10,
+  },
+  dangerZoneHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dangerZoneTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  dangerZoneDescription: {
+    fontSize: 13,
+    color: '#B91C1C',
+    lineHeight: 19,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#DC2626',
+    borderRadius: 10,
+    paddingVertical: 11,
+    marginTop: 4,
+  },
+  deleteAccountButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // Delete Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 420,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  modalDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 19,
+  },
+  errorBox: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#DC2626',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  modalDeleteButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: 10,
+    backgroundColor: '#DC2626',
+  },
+  modalDeleteText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  buttonDisabled: {
+    opacity: 0.45,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  switchLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
   },
 });

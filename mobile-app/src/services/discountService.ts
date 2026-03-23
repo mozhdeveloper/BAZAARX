@@ -9,7 +9,8 @@ import type {
   DiscountCampaign,
   ProductDiscount,
   DiscountUsage,
-  ActiveDiscount
+  ActiveDiscount,
+  DiscountType
 } from '@/types/discount';
 
 export class DiscountService {
@@ -49,15 +50,15 @@ export class DiscountService {
             discount_value: campaign.discountValue,
             max_discount_amount: campaign.maxDiscountAmount,
             min_purchase_amount: campaign.minPurchaseAmount || 0,
-            starts_at: campaign.startsAt,
-            ends_at: campaign.endsAt,
+            starts_at: campaign.startsAt?.toISOString(),
+            ends_at: campaign.endsAt?.toISOString(),
             badge_text: campaign.badgeText,
             badge_color: campaign.badgeColor || '#FF6A00',
             priority: campaign.priority || 0,
             claim_limit: campaign.claimLimit,
             per_customer_limit: campaign.perCustomerLimit || 1,
             applies_to: campaign.appliesTo || 'specific_products'
-          }
+          } as any
         ])
         .select()
         .single();
@@ -139,8 +140,8 @@ export class DiscountService {
           discount_value: updates.discountValue,
           max_discount_amount: updates.maxDiscountAmount,
           min_purchase_amount: updates.minPurchaseAmount,
-          starts_at: updates.startsAt,
-          ends_at: updates.endsAt,
+          starts_at: updates.startsAt?.toISOString(),
+          ends_at: updates.endsAt?.toISOString(),
           status: updates.status,
           badge_text: updates.badgeText,
           badge_color: updates.badgeColor,
@@ -511,8 +512,8 @@ export class DiscountService {
 
       // Pre-compute the discounted price WITHOUT applying the max_discount_amount cap
       // (matches web's calculateLineDiscount which never applies the cap).
-      const originalPrice = parseFloat(discount.original_price || discount.price);
-      const discountValue = parseFloat(discount.discount_value);
+      const originalPrice = parseFloat(String(discount.original_price));
+      const discountValue = parseFloat(String(discount.discount_value));
       const discountType = discount.discount_type;
       let discountedPrice = originalPrice;
       if (discountType === 'percentage') {
@@ -524,7 +525,7 @@ export class DiscountService {
       return {
         campaignId: discount.campaign_id,
         campaignName: discount.campaign_name,
-        discountType: discountType,
+        discountType: discountType as DiscountType,
         discountValue: discountValue,
         maxDiscountAmount: campaignMeta?.max_discount_amount != null
           ? parseFloat(String(campaignMeta.max_discount_amount))
@@ -627,7 +628,7 @@ export class DiscountService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('discount_usage')
         .insert([
           {
@@ -666,7 +667,7 @@ export class DiscountService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('discount_usage')
         .select('*')
         .eq('campaign_id', campaignId);
@@ -674,9 +675,9 @@ export class DiscountService {
       if (error) throw error;
 
       const totalUsage = data?.length || 0;
-      const totalRevenue = (data || []).reduce((sum, usage) => sum + parseFloat(usage.discounted_price) * usage.quantity, 0);
-      const totalDiscount = (data || []).reduce((sum, usage) => sum + parseFloat(usage.discount_amount) * usage.quantity, 0);
-      const uniqueCustomers = new Set((data || []).map(usage => usage.buyer_id)).size;
+      const totalRevenue = (data || []).reduce((sum: number, usage: any) => sum + parseFloat(usage.discounted_price) * usage.quantity, 0);
+      const totalDiscount = (data || []).reduce((sum: number, usage: any) => sum + parseFloat(usage.discount_amount) * usage.quantity, 0);
+      const uniqueCustomers = new Set((data || []).map((usage: any) => usage.buyer_id)).size;
 
       return {
         totalUsage,

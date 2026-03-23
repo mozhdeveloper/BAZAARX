@@ -67,6 +67,8 @@ export type DiscountCampaignType =
 
 export type DiscountType = 'percentage' | 'fixed_amount';
 
+export type VacationReason = 'vacation' | 'personal' | 'maintenance' | 'other';
+
 export type CampaignStatus = 'scheduled' | 'active' | 'paused' | 'ended' | 'cancelled';
 
 // ============================================================================
@@ -110,6 +112,9 @@ export interface Seller {
   verified_at: string | null;
   created_at: string;
   updated_at: string;
+  // Vacation mode
+  is_vacation_mode?: boolean;
+  vacation_reason?: VacationReason | null;
   // Extended joins
   business_profile?: SellerBusinessProfile;
   payout_account?: SellerPayoutAccount;
@@ -313,6 +318,7 @@ export interface Product {
   created_at: string;
   updated_at: string;
   image_embedding: number[] | null;
+  size_guide_image: string | null;
   // Joined fields (not in DB directly)
   seller_id?: string;
   images?: ProductImage[];

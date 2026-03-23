@@ -65,7 +65,7 @@ export const getVoucherByCode = async (code: string): Promise<Voucher | null> =>
         return null;
     }
 
-    return mapDbVoucherToVoucher(data);
+    return mapDbVoucherToVoucher(data as any);
 };
 
 export const validateVoucherDetailed = async (

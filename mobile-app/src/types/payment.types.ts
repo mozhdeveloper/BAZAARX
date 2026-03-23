@@ -10,6 +10,8 @@ import type {
   PayoutMethod,
 } from './database.types';
 
+export type { GatewayPaymentType, PayoutMethod, PaymentTransactionStatus, PayoutStatus };
+
 // ============================================================================
 // PayMongo API Types
 // ============================================================================
@@ -128,6 +130,9 @@ export interface PaymentResult {
   error?: string;
 }
 
+/** Escrow hold status on a payment transaction */
+export type EscrowStatus = 'none' | 'held' | 'released' | 'refunded';
+
 export interface PaymentTransaction {
   id: string;
   orderId: string;
@@ -148,6 +153,11 @@ export interface PaymentTransaction {
   failureReason: string | null;
   paidAt: string | null;
   refundedAt: string | null;
+  // Escrow fields
+  escrowStatus: EscrowStatus;
+  escrowHeldAt: string | null;
+  escrowReleaseAt: string | null;
+  escrowReleasedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -185,6 +195,9 @@ export interface SellerPayout {
   status: PayoutStatus;
   processedAt: string | null;
   failureReason: string | null;
+  // Escrow fields
+  escrowTransactionId: string | null;
+  releaseAfter: string | null;
   createdAt: string;
   updatedAt: string;
 }

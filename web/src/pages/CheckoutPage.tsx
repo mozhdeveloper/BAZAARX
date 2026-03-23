@@ -21,6 +21,7 @@ import {
   Map,
   Pencil,
   Trash2,
+  Palmtree,
 } from "lucide-react";
 import {
   Dialog,
@@ -80,14 +81,14 @@ const paymentMethods = [
     name: "GCash",
     icon: Smartphone,
     description: "Pay with your GCash wallet",
-    comingSoon: false,
+    comingSoon: true,
   },
   {
     id: "maya" as const,
     name: "Maya",
     icon: Smartphone,
     description: "Pay with your Maya account",
-    comingSoon: false,
+    comingSoon: true,
   },
 ];
 
@@ -159,6 +160,31 @@ export default function CheckoutPage() {
 
   const isRegistryOrder = useMemo(() => {
     return checkoutItems.some(item => !!item.registryId);
+  }, [checkoutItems]);
+
+  // Check for vacation sellers
+  const [vacationSellers, setVacationSellers] = useState<string[]>([]);
+  const hasVacationSeller = vacationSellers.length > 0;
+
+  useEffect(() => {
+    const checkVacationSellers = async () => {
+      const sellerIds = [...new Set(checkoutItems.map(item => item.sellerId || item.seller_id).filter(Boolean))];
+      if (sellerIds.length === 0) {
+        setVacationSellers([]);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('sellers')
+        .select('id, store_name, is_vacation_mode')
+        .in('id', sellerIds)
+        .eq('is_vacation_mode', true);
+
+      const vacationSellerNames = (data || []).map(s => s.store_name || 'Unknown Seller');
+      setVacationSellers(vacationSellerNames);
+    };
+
+    checkVacationSellers();
   }, [checkoutItems]);
 
   // Bazcoins Logic
@@ -384,14 +410,14 @@ export default function CheckoutPage() {
   const maxRedeemableBazcoins = Math.min(availableBazcoins, Math.max(0, subtotalAfterCampaign - discount));
   const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
 
-  // VAT is included in the subtotal in the PH market context to match EnhancedCartPage
-  const tax = Math.round((subtotalAfterCampaign / 1.12) * 0.12);
+  // Tax calculated on original subtotal (per Philippine VAT regulations)
+  const tax = Math.round(originalSubtotal * 0.12);
 
   const couponSavings = campaignDiscountTotal + discount + bazcoinDiscount;
   const grandTotalSavings = couponSavings;
 
-  // Final total calculation consistent with EnhancedCartPage (Tax is inclusive)
-  const finalTotal = Math.max(0, originalSubtotal + shippingFee - couponSavings);
+  // Final total calculation (Tax included, consistent with checkoutService)
+  const finalTotal = Math.max(0, originalSubtotal + shippingFee - couponSavings + tax);
 
   const handleApplyVoucher = useCallback(async () => {
     const code = voucherCode.trim().toUpperCase();
@@ -574,6 +600,16 @@ export default function CheckoutPage() {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Check for vacation sellers
+    if (hasVacationSeller) {
+      toast({
+        title: "Cannot Complete Order",
+        description: `Some items in your cart are from sellers currently on vacation: ${vacationSellers.join(', ')}. Please remove these items to proceed.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     console.log('🛒 Place Order clicked');
     console.log('  - selectedAddress:', selectedAddress?.id);
     console.log('  - confirmedAddress:', confirmedAddress?.id);
@@ -607,7 +643,7 @@ export default function CheckoutPage() {
     setIsLoading(true);
 
     // Import processCheckout at top of file (I will need to add the import in a separate step or assume I can add it here if I replace enough context, but I only replaced body. I'll rely on TS to complain or I will add import in next step if missed, but let's try to add import with the other changes if possible. Unfortunately this tool only does one block. I will add import in a separate call or just rely on auto-imports if I was in an IDE, but here I must be explicit.
-    // Actually I can't add import here easily without changing top of file. 
+    // Actually I can't add import here easily without changing top of file.
     // I will execute this change, then add the import.
 
     try {
@@ -619,7 +655,7 @@ export default function CheckoutPage() {
 
       // Map checkout items to expected payload
       const payloadItems = checkoutItems.map(item => ({
-        // We cast to any to satisfy the strict database type requirement 
+        // We cast to any to satisfy the strict database type requirement
         // since we are adapting from BuyerStore structure
         id: item.id, // This is Product ID in BuyerStore
         product_id: item.id,
@@ -757,7 +793,7 @@ export default function CheckoutPage() {
       }
 
       if (firstOrderNumber) {
-        // If there are multiple orders, navigating to the first one is standard, 
+        // If there are multiple orders, navigating to the first one is standard,
         // or you could navigate to a general "Order History" page.
         navigate(`/order/${firstOrderNumber}`, {
           state: { fromCheckout: true, earnedBazcoins: earnedBazcoins },
@@ -773,7 +809,7 @@ export default function CheckoutPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [validateForm, profile, checkoutItems, finalTotal, selectedAddress, formData, isBuyAgainMode, isQuickCheckout, useBazcoins, bazcoinDiscount, earnedBazcoins, shippingFee, discount, appliedVoucher, navigate, toast, updateRegistryItem, clearBuyAgainItems, clearQuickOrder, removeSelectedItems]);
+  }, [validateForm, profile, checkoutItems, finalTotal, selectedAddress, formData, isBuyAgainMode, isQuickCheckout, useBazcoins, bazcoinDiscount, earnedBazcoins, shippingFee, discount, appliedVoucher, navigate, toast, updateRegistryItem, clearBuyAgainItems, clearQuickOrder, removeSelectedItems, hasVacationSeller, vacationSellers]);
 
   // Show loading while store is rehydrating
   if (!isStoreReady || isLoadingCheckoutContext) {
@@ -1368,7 +1404,7 @@ export default function CheckoutPage() {
                   )}
 
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Tax (12% VAT Included)</span>
+                    <span className="text-gray-600">Tax (12% VAT)</span>
                     <span className="text-gray-600 font-medium">₱{tax.toLocaleString()}</span>
                   </div>
                   <hr className="border-gray-300" />
@@ -1397,9 +1433,22 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                {hasVacationSeller && (
+                  <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start gap-3">
+                    <Palmtree className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-orange-700">Some sellers are currently unavailable</p>
+                      <p className="text-xs text-orange-600">
+                        The following seller(s) are on vacation: <span className="font-semibold">{vacationSellers.join(', ')}</span>.
+                        Please remove their items from your cart to proceed.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   type="submit"
-                  disabled={isLoading || !selectedAddress}
+                  disabled={isLoading || !selectedAddress || hasVacationSeller}
                   className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (

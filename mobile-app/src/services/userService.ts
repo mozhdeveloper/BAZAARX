@@ -8,12 +8,14 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface UserProfile {
     id: string;
-    full_name: string;
+    full_name?: string;
+    first_name?: string;
+    last_name?: string;
     email?: string;
     phone?: string;
     avatar_url?: string;
     bazcoins?: number;
-    user_type: 'buyer' | 'seller' | 'admin';
+    user_type?: 'buyer' | 'seller' | 'admin';
     updated_at?: string;
 }
 
@@ -43,7 +45,7 @@ export class UserService {
                 .single();
 
             if (error) throw error;
-            return data;
+            return data as unknown as UserProfile;
         } catch (error) {
             console.error('[UserService] Error fetching profile:', error);
             throw error;
@@ -69,7 +71,7 @@ export class UserService {
             if (error) throw error;
             if (!data) throw new Error('Failed to update profile');
 
-            return data;
+            return data as unknown as UserProfile;
         } catch (error) {
             console.error('[UserService] Error updating profile:', error);
             throw error;

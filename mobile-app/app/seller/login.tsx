@@ -102,18 +102,25 @@ export default function SellerLoginScreen() {
           avatar: sellerData.avatar_url || (profile as any)?.avatar_url || ''
         });
 
+        // Fetch verification documents from related table
+        const { data: verificationDocs } = await supabase
+          .from('seller_verification_documents')
+          .select('*')
+          .eq('seller_id', authData.user.id)
+          .single();
+
         // Sync with AuthStore (seller info)
         useAuthStore.getState().updateSellerInfo({
           id: authData.user.id,
           store_name: sellerData.store_name,
           email: authData.user.email,
-          approval_status: sellerData.approval_status,
+          approval_status: sellerData.approval_status as any,
           verification_documents: {
-            business_permit_url: sellerData.business_permit_url || '',
-            valid_id_url: sellerData.valid_id_url || '',
-            proof_of_address_url: sellerData.proof_of_address_url || '',
-            dti_registration_url: sellerData.dti_registration_url || '',
-            tax_id_url: sellerData.tax_id_url || '',
+            business_permit_url: verificationDocs?.business_permit_url || '',
+            valid_id_url: verificationDocs?.valid_id_url || '',
+            proof_of_address_url: verificationDocs?.proof_of_address_url || '',
+            dti_registration_url: verificationDocs?.dti_registration_url || '',
+            tax_id_url: verificationDocs?.tax_id_url || '',
           },
         });
 
@@ -164,21 +171,30 @@ export default function SellerLoginScreen() {
           <Text style={styles.subtitle}>Sign in to manage your BazaarX Store.</Text>
         </View>
 
-        {/* Demo Access Card */}
-        <Pressable
-          style={styles.demoCard}
-          onPress={() => setShowTestAccounts(true)}
-        >
-          <View style={styles.demoInfo}>
-            <View style={styles.demoTag}>
-              <Text style={styles.demoTagText}>🧪 TEST ACCOUNTS</Text>
-            </View>
-            <Text style={styles.demoLabel}>Tap to select a seller account</Text>
+        {/* Test Credentials Card */}
+        <View style={styles.testCredsContainer}>
+          <View style={styles.testCredsHeader}>
+            <Text style={styles.testCredsTitle}>🧪 TEST SELLER ACCOUNTS</Text>
           </View>
-          <View style={styles.demoButton}>
-            <ChevronDown size={20} color="#D97706" />
-          </View>
-        </Pressable>
+          {TEST_SELLER_ACCOUNTS.map((account, index) => (
+            <Pressable
+              key={index}
+              style={styles.testCredButton}
+              onPress={() => selectTestAccount(account)}
+            >
+              <View style={styles.testCredAvatar}>
+                <Text style={styles.testCredAvatarText}>{account.name.split(' ').pop()}</Text>
+              </View>
+              <View style={styles.testCredLeft}>
+                <Text style={styles.testCredLabel}>{account.name.split(' ').slice(0, -1).join(' ')}</Text>
+                <Text style={styles.testCredEmail}>{account.email}</Text>
+              </View>
+              <View style={styles.testCredPwBadge}>
+                <Text style={styles.testCredPw}>Test@123456</Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
 
         <View style={styles.form}>
           {/* Email Input */}
@@ -264,41 +280,6 @@ export default function SellerLoginScreen() {
         </View>
       </ScrollView>
 
-      {/* Test Accounts Modal */}
-      <Modal
-        visible={showTestAccounts}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowTestAccounts(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Test Seller</Text>
-              <Pressable onPress={() => setShowTestAccounts(false)}>
-                <X size={24} color="#6B7280" />
-              </Pressable>
-            </View>
-
-            <ScrollView style={styles.accountsList}>
-              {TEST_SELLER_ACCOUNTS.map((account, index) => (
-                <Pressable
-                  key={index}
-                  style={styles.accountItem}
-                  onPress={() => selectTestAccount(account)}
-                >
-                  <View style={styles.accountInfo}>
-                    <Text style={styles.accountName}>{account.name}</Text>
-                    <Text style={styles.accountEmail}>{account.email}</Text>
-                    <Text style={styles.accountDetails}>Password: {account.password}</Text>
-                  </View>
-                  <ArrowRight size={20} color="#D97706" />
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -350,57 +331,78 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  demoCard: {
+  testCredsContainer: {
     marginHorizontal: 25,
-    backgroundColor: '#FFF4EC',
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 24,
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
+  },
+  testCredsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#FFE4D6',
-    marginBottom: 30,
+    marginBottom: 10,
   },
-  demoInfo: {
+  testCredsTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#92400E',
+    letterSpacing: 0.8,
+  },
+  testCredButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  testCredAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  testCredAvatarText: {
+    fontSize: 18,
+  },
+  testCredLeft: {
     flex: 1,
   },
-  demoTag: {
-    backgroundColor: '#FFE4D6',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  testCredLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  testCredEmail: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 1,
+  },
+  testCredPwBadge: {
+    backgroundColor: '#D1FAE5',
     borderRadius: 6,
-    marginBottom: 4,
-  },
-  demoTagText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#D97706',
-    letterSpacing: 1,
-  },
-  demoLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#4B5563',
-  },
-  demoButton: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderWidth: 1,
-    borderColor: '#FFE4D6',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderColor: '#6EE7B7',
   },
-  demoButtonText: {
-    fontSize: 12,
+  testCredPw: {
+    fontSize: 10,
     fontWeight: '700',
-    color: '#D97706',
+    color: '#065F46',
   },
   form: {
     paddingHorizontal: 25,
@@ -516,66 +518,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     fontWeight: '700',
-  },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 20,
-    maxHeight: '70%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  accountsList: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  accountItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFF4EC',
-    borderRadius: 12,
-    marginVertical: 6,
-    borderWidth: 1,
-    borderColor: '#FFEDD5',
-  },
-  accountInfo: {
-    flex: 1,
-  },
-  accountName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  accountEmail: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  accountDetails: {
-    fontSize: 12,
-    color: '#9CA3AF',
   },
 });
