@@ -1,4 +1,4 @@
-import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info, Loader2, MoreVertical, Zap } from 'lucide-react-native';
+import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info, Loader2, MoreVertical, Zap, Palmtree } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
@@ -761,6 +761,12 @@ export default function StoreDetailScreen() {
                                             <Text style={styles.verifiedText}>VERIFIED</Text>
                                         </View>
                                     )}
+                                    {storeData.is_vacation_mode && (
+                                        <View style={styles.vacationBadge}>
+                                            <Palmtree size={12} color="#FFFFFF" />
+                                            <Text style={styles.vacationBadgeText}>ON VACATION</Text>
+                                        </View>
+                                    )}
                                 </View>
                                 
                                 <View style={styles.statsRow}>
@@ -795,6 +801,17 @@ export default function StoreDetailScreen() {
                         </View>
                     </View>
                 </View>
+
+                {/* Vacation Mode Banner */}
+                {storeData.is_vacation_mode && (
+                    <View style={styles.vacationBanner}>
+                        <Palmtree size={20} color="#EA580C" />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={styles.vacationBannerTitle}>This store is currently on vacation</Text>
+                            <Text style={styles.vacationBannerSubtitle}>Products are available to view but cannot be purchased at this time.</Text>
+                        </View>
+                    </View>
+                )}
 
                 {/* Categories / Tabs simulation */}
                 <View style={styles.tabsWrapper}>
@@ -961,6 +978,43 @@ const styles = StyleSheet.create({
         color: COLORS.success,
         fontSize: 10,
         fontWeight: '900',
+    },
+    vacationBadge: {
+        backgroundColor: '#EA580C',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        gap: 4,
+    },
+    vacationBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '900',
+    },
+    vacationBanner: {
+        backgroundColor: '#FFF7ED',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#FFEDD5',
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: 16,
+        marginTop: 10,
+        marginBottom: 10,
+    },
+    vacationBannerTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#C2410C',
+    },
+    vacationBannerSubtitle: {
+        fontSize: 12,
+        color: '#EA580C',
+        marginTop: 2,
     },
     textInfo: { flex: 1, justifyContent: 'center' },
     storeName: { 
