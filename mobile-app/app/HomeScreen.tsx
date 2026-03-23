@@ -17,6 +17,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   useWindowDimensions,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -284,98 +285,101 @@ export default function HomeScreen({ navigation }: Props) {
     );
   }, [sellers, debouncedSearchQuery]);
 
-  // === PARALLEL DATA LOADING — all independent fetches in one shot ===
-  useEffect(() => {
-    const loadAllData = async () => {
-      setIsLoadingProducts(true);
-      setFetchError(null);
+  const loadAllData = useCallback(async () => {
+    setIsLoadingProducts(true);
+    setFetchError(null);
 
-      const [productsResult, flashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = await Promise.allSettled([
-        productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
-        discountService.getFlashSaleProducts(),
-        featuredProductService.getFeaturedProducts(10),
-        adBoostService.getActiveBoostedProducts('featured', 10),
-        sellerService.getAllSellers(),
-        categoryService.getActiveCategories(), // Add this call
-      ]);
+    const [productsResult, flashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = await Promise.allSettled([
+      productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
+      discountService.getFlashSaleProducts(),
+      featuredProductService.getFeaturedProducts(10),
+      adBoostService.getActiveBoostedProducts('featured', 10),
+      sellerService.getAllSellers(),
+      categoryService.getActiveCategories(),
+    ]);
 
-      if (categoriesResult.status === 'fulfilled') {
-        const rawCategories = categoriesResult.value || [];
-        // Deduplicate by name or slug
-        const unique = rawCategories.reduce((acc: Category[], curr) => {
-          if (!acc.find(c => (c.slug && c.slug === curr.slug) || c.name.toLowerCase() === curr.name.toLowerCase())) {
-            acc.push(curr);
-          }
-          return acc;
-        }, []);
-        setDbCategories(unique);
-      }
+    if (categoriesResult.status === 'fulfilled') {
+      const rawCategories = categoriesResult.value || [];
+      const unique = rawCategories.reduce((acc: Category[], curr) => {
+        if (!acc.find(c => (c.slug && c.slug === curr.slug) || c.name.toLowerCase() === curr.name.toLowerCase())) {
+          acc.push(curr);
+        }
+        return acc;
+      }, []);
+      setDbCategories(unique);
+    }
 
-      // Products
-      if (productsResult.status === 'fulfilled') {
-        const mapped: Product[] = (productsResult.value || []).map((row: any) => {
-          const images = row.images?.map((img: any) =>
-            typeof img === 'string' ? img : img.image_url
-          ).filter(Boolean) || [];
-          const primaryImage = safeImageUri(
-            row.images?.find((img: any) => img.is_primary)?.image_url
-            || images[0]
-            || row.primary_image
-            || ''
-          );
+    // Products
+    if (productsResult.status === 'fulfilled') {
+      const mapped: Product[] = (productsResult.value || []).map((row: any) => {
+        const images = row.images?.map((img: any) =>
+          typeof img === 'string' ? img : img.image_url
+        ).filter(Boolean) || [];
+        const primaryImage = safeImageUri(
+          row.images?.find((img: any) => img.is_primary)?.image_url
+          || images[0]
+          || row.primary_image
+          || ''
+        );
 
-          const rawVariants = Array.isArray(row.variants) ? row.variants : [];
-          const variants = rawVariants.map((v: any) => ({
-            id: v.id,
-            product_id: row.id,
-            sku: v.sku,
-            variant_name: v.variant_name || `${v.option_1_value || v.color || ''} ${v.option_2_value || v.size || ''}`.trim() || 'Variant',
-            size: v.size,
-            color: v.color,
-            option_1_value: v.option_1_value,
-            option_2_value: v.option_2_value,
-            price: v.price ?? row.price,
-            stock: v.stock ?? 0,
-            thumbnail_url: v.thumbnail_url ? safeImageUri(v.thumbnail_url) : undefined,
-          }));
+        const rawVariants = Array.isArray(row.variants) ? row.variants : [];
+        const variants = rawVariants.map((v: any) => ({
+          id: v.id,
+          product_id: row.id,
+          sku: v.sku,
+          variant_name: v.variant_name || `${v.option_1_value || v.color || ''} ${v.option_2_value || v.size || ''}`.trim() || 'Variant',
+          size: v.size,
+          color: v.color,
+          option_1_value: v.option_1_value,
+          option_2_value: v.option_2_value,
+          price: v.price ?? row.price,
+          stock: v.stock ?? 0,
+          thumbnail_url: v.thumbnail_url ? safeImageUri(v.thumbnail_url) : undefined,
+        }));
 
-          return {
-            ...row,
-            price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
-            image: primaryImage,
-            images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
-            seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
-          } as Product;
-        });
-        const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
-        setDbProducts(uniqueMapped);
-      } else {
-        setFetchError((productsResult.reason as any)?.message || 'Failed to load products');
-        setDbProducts([]);
-      }
+        return {
+          ...row,
+          price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
+          image: primaryImage,
+          images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
+          seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
+        } as Product;
+      });
+      const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
+      setDbProducts(uniqueMapped);
+    } else {
+      setFetchError((productsResult.reason as any)?.message || 'Failed to load products');
+      setDbProducts([]);
+    }
 
-      // Flash sales
-      if (flashResult.status === 'fulfilled') {
-        const seen = new Set<string>();
-        const unique = (flashResult.value || []).filter((p: any) => {
-          if (seen.has(p.id)) return false;
-          seen.add(p.id);
-          return true;
-        });
-        setFlashSaleProducts(unique);
-      }
+    // Flash sales
+    if (flashResult.status === 'fulfilled') {
+      const seen = new Set<string>();
+      const unique = (flashResult.value || []).filter((p: any) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+      setFlashSaleProducts(unique);
+    }
 
-      // Featured + Boosted
-      if (featuredResult.status === 'fulfilled') setFeaturedProducts(featuredResult.value);
-      if (boostedResult.status === 'fulfilled') setBoostedProducts(boostedResult.value);
+    // Featured + Boosted
+    if (featuredResult.status === 'fulfilled') setFeaturedProducts(featuredResult.value);
+    if (boostedResult.status === 'fulfilled') setBoostedProducts(boostedResult.value);
 
-      // Sellers
-      if (sellersResult.status === 'fulfilled' && sellersResult.value) setSellers(sellersResult.value);
+    if (sellersResult.status === 'fulfilled' && sellersResult.value) setSellers(sellersResult.value);
 
-      setIsLoadingProducts(false);
-    };
-    loadAllData();
+    setIsLoadingProducts(false);
   }, []);
+
+  useEffect(() => { loadAllData(); }, []);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await loadAllData();
+    setIsRefreshing(false);
+  }, [loadAllData]);
 
   // Consolidated flash sale countdown timer — single interval handles both campaign timer and block countdown
   useEffect(() => {
@@ -729,6 +733,14 @@ export default function HomeScreen({ navigation }: Props) {
         scrollEventThrottle={16}
         onScroll={handleScroll}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
       >
         {isSearchFocused ? (
           <Pressable
@@ -1103,7 +1115,7 @@ export default function HomeScreen({ navigation }: Props) {
                       <Text style={{ fontSize: 10, fontWeight: '700', color: '#B45309' }}>Sponsored</Text>
                     </View>
                   </View>
-                  <Pressable onPress={() => navigation.navigate('Shop', { customResults: mergedFeaturedProducts.map(({ mapped }) => mapped as any) })}>
+                  <Pressable onPress={() => navigation.navigate('Shop', { view: 'featured' })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>

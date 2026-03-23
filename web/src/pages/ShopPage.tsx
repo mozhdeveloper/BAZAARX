@@ -11,6 +11,7 @@ import {
   Menu,
   Flame,
   ChevronRight,
+  X,
 } from "lucide-react";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
@@ -44,6 +45,7 @@ import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import ProductCard from "../components/ProductCard";
 import { getSafeImageUrl } from "../utils/imageUtils";
+import { ProductCardSkeleton } from "../components/skeletons/ProductCardSkeleton";
 // import { useProductQAStore } from "../stores/productQAStore";
 import { ShopProduct } from "../types/shop";
 import type { ActiveDiscount } from "@/types/discount";
@@ -52,13 +54,17 @@ import { CampaignCountdown } from "../components/shop/CampaignCountdown";
 // Flash sale products are now derived from real products in the component
 import { bestSellerProducts } from "../data/products";
 
-const sortOptions = [
+const attributeSortOptions = [
   { value: "newest", label: "Newest Arrivals" },
   { value: "featured", label: "Featured" },
-  { value: "price-low", label: "Price: Low to High" },
-  { value: "price-high", label: "Price: High to Low" },
-  { value: "rating", label: "Rating" },
+  { value: "rating", label: "Top Rated" },
   { value: "bestseller", label: "Best Sellers" },
+];
+
+const priceSortOptions = [
+  { value: "price-default", label: "Default" },
+  { value: "price-low", label: "Low to High" },
+  { value: "price-high", label: "High to Low" },
 ];
 
 const brandOptions: { name: string; count: number }[] = [];
@@ -84,6 +90,8 @@ export default function ShopPage() {
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
   const [selectedSort, setSelectedSort] = useState("newest");
+  const [selectedPriceSort, setSelectedPriceSort] = useState("price-default");
+  const [isProductsLoading, setIsProductsLoading] = useState(false);
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [minRating, setMinRating] = useState<number>(0);
   const [showFilters, setShowFilters] = useState(false);
@@ -342,6 +350,7 @@ export default function ShopPage() {
     const queryParam = searchParams.get("q") || "";
     const categoryParam = searchParams.get("category");
     const sortParam = searchParams.get("sort");
+    const priceSortParam = searchParams.get("priceSort");
 
     setSearchQuery(queryParam);
 
@@ -351,24 +360,26 @@ export default function ShopPage() {
       setSelectedCategory("All Categories");
     }
 
-    // Set sort from URL parameter
-    if (sortParam && sortOptions.some(option => option.value === sortParam)) {
+    if (sortParam && attributeSortOptions.some(option => option.value === sortParam)) {
       setSelectedSort(sortParam);
     } else if (!sortParam) {
       setSelectedSort("newest");
     }
 
-    // Scroll logic - handles both initial mount and updates
+    if (priceSortParam && priceSortOptions.some(option => option.value === priceSortParam)) {
+      setSelectedPriceSort(priceSortParam);
+    } else if (!priceSortParam) {
+      setSelectedPriceSort("price-default");
+    }
+
     setTimeout(() => {
-      const isClean = !categoryParam && !queryParam && !sortParam &&
+      const isClean = !categoryParam && !queryParam && !sortParam && !priceSortParam &&
         priceRange[0] === 0 && priceRange[1] === 100000 &&
         minRating === 0;
 
       if (isClean && !manualScrollRef.current) {
-        // Landing on a clean Shop page (or reset via Shop tab), scroll to the very top
         window.scrollTo({ top: 0, behavior: "smooth" });
-      } else {
-        // Any filter change (URL or local state), or manual "All" selection, scroll to results
+      } else if (manualScrollRef.current) {
         const element = document.getElementById("shop-results-header");
         if (element) {
           element.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -376,7 +387,7 @@ export default function ShopPage() {
       }
       manualScrollRef.current = false;
     }, 100);
-  }, [searchParams, location.key, priceRange, minRating, selectedSort]);
+  }, [searchParams, location.key, priceRange, minRating]);
 
   // Handle toolbar scroll visibility
   useEffect(() => {
@@ -402,45 +413,62 @@ export default function ShopPage() {
 
   // flashSaleProducts comes from the real discount campaigns (state above)
 
-  const filteredProducts = useMemo<ShopProduct[]>(() => {
-    let productsToFilter = pricedProducts;
-
-    const filtered = productsToFilter.filter((product) => {
+  const productsFilteredWithoutCategory = useMemo<ShopProduct[]>(() => {
+    let result = pricedProducts.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.seller.toLowerCase().includes(searchQuery.toLowerCase());
 
+      const matchesPrice =
+        product.price >= priceRange[0] && product.price <= priceRange[1];
+
+      const matchesRating = minRating === 0 || (product.rating || 0) >= minRating;
+
+      return matchesSearch && matchesPrice && matchesRating;
+    });
+
+    // Apply attribute filter (featured)
+    if (selectedSort === "featured") {
+      const featuredProductIds = new Set([
+        ...featuredProducts.map(fp => fp.product_id),
+        ...boostedProducts.map(bp => bp.product_id)
+      ]);
+      result = result.filter(p => featuredProductIds.has(p.id));
+    }
+
+    return result;
+  }, [pricedProducts, searchQuery, selectedSort, priceRange, minRating, featuredProducts, boostedProducts]);
+
+  // Category count map that reacts to active filters
+  const filteredCategoryCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of productsFilteredWithoutCategory) {
+      if (!p.category) {
+        map.set("Uncategorized", (map.get("Uncategorized") || 0) + 1);
+        continue;
+      }
+      map.set(p.category, (map.get(p.category) || 0) + 1);
+    }
+    return map;
+  }, [productsFilteredWithoutCategory]);
+
+  const filteredProducts = useMemo<ShopProduct[]>(() => {
+    // Start from the pre-category-filtered list and apply category
+    let filtered = productsFilteredWithoutCategory.filter((product) => {
       const matchesCategory =
         selectedCategory === "All Categories" ||
         (selectedCategory === "Others"
           ? !categories.some(c => c.name.toLowerCase() === product.category.toLowerCase() && c.name.toLowerCase() !== 'others')
           : product.category.toLowerCase() === selectedCategory.toLowerCase());
 
-      // Use slider price range instead of predefined ranges
-      const matchesPrice =
-        product.price >= priceRange[0] && product.price <= priceRange[1];
-
-      const matchesRating = minRating === 0 || (product.rating || 0) >= minRating;
-
-      return matchesSearch && matchesCategory && matchesPrice && matchesRating;
+      return matchesCategory;
     });
 
-    // Apply sorting / filtering
+    // Apply attribute sorting (non-price)
     switch (selectedSort) {
-      case "featured": {
-        // Filter to show only featured/boosted products
-        const featuredProductIds = new Set([
-          ...featuredProducts.map(fp => fp.product_id),
-          ...boostedProducts.map(bp => bp.product_id)
-        ]);
-        return filtered.filter(p => featuredProductIds.has(p.id));
-      }
-      case "price-low":
-        filtered.sort((a, b) => a.price - b.price);
-        break;
-      case "price-high":
-        filtered.sort((a, b) => b.price - a.price);
+      case "featured":
+        // Already filtered above, no additional sort needed
         break;
       case "rating":
         filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
@@ -449,25 +477,44 @@ export default function ShopPage() {
         filtered.sort((a, b) => (b.sold || 0) - (a.sold || 0));
         break;
       default:
-        // Keep original order for relevance and newest
+        // Keep original order for newest
         break;
     }
 
+    // Apply price sort independently (composable with attribute filter)
+    if (selectedPriceSort === "price-low") {
+      filtered = [...filtered].sort((a, b) => a.price - b.price);
+    } else if (selectedPriceSort === "price-high") {
+      filtered = [...filtered].sort((a, b) => b.price - a.price);
+    }
+
     return filtered;
-  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, featuredProducts, boostedProducts]);
+  }, [productsFilteredWithoutCategory, selectedCategory, selectedSkinTypes, selectedSort, selectedPriceSort, categories, featuredProducts, boostedProducts]);
 
 
+
+  // Trigger skeleton loading on filter/category changes
+  useEffect(() => {
+    setIsProductsLoading(true);
+    const timer = setTimeout(() => setIsProductsLoading(false), 300);
+    return () => clearTimeout(timer);
+  }, [selectedCategory, selectedSort, selectedPriceSort, priceRange, minRating, searchQuery]);
 
   const resetFilters = () => {
     setSearchQuery("");
     setSelectedSort("newest");
+    setSelectedPriceSort("price-default");
     setPriceRange([0, 100000]);
     setMinRating(0);
     setSearchParams(prev => {
       const params = new URLSearchParams(prev);
       params.delete("sort");
+      params.delete("priceSort");
+      params.delete("category");
       return params;
     });
+    setSelectedCategory("All Categories");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -835,9 +882,6 @@ export default function ShopPage() {
                           onClick={() => {
                             manualScrollRef.current = true;
                             setSelectedCategory(category);
-                            if (category === "All Categories") {
-                              setIsFeaturedView(false);
-                            }
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               if (category === "All Categories") {
@@ -878,11 +922,9 @@ export default function ShopPage() {
                         onClick={() => {
                           manualScrollRef.current = true;
                           setSelectedCategory("All Categories");
-                          setIsFeaturedView(false);
                           setSearchParams((prev) => {
                             const next = new URLSearchParams(prev);
                             next.delete("category");
-                            next.delete("view");
                             return next;
                           });
                         }}
@@ -891,7 +933,7 @@ export default function ShopPage() {
                       >
                         <span className={`text-sm ${selectedCategory === "All Categories" ? "font-bold" : "font-medium"}`}>All Product</span>
                         <span className={`text-xs ${selectedCategory === "All Categories" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] font-normal"}`}>
-                          {allProducts.length}
+                          {productsFilteredWithoutCategory.length}
                         </span>
                       </button>
                       {categories.filter(c => c.name.toLowerCase() !== 'others').map((cat) => (
@@ -911,7 +953,7 @@ export default function ShopPage() {
                         >
                           <span className={`text-sm ${selectedCategory.toLowerCase() === cat.name.toLowerCase() ? "font-bold" : "font-medium"}`}>{cat.name}</span>
                           <span className={`text-xs ${selectedCategory.toLowerCase() === cat.name.toLowerCase() ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)] font-normal"}`}>
-                            {categoryCountMap.get(cat.name) ?? 0}
+                            {filteredCategoryCountMap.get(cat.name) ?? 0}
                           </span>
                         </button>
                       ))}
@@ -1098,27 +1140,11 @@ export default function ShopPage() {
                       <p className="text-[var(--text-muted)] text-sm font-medium leading-none">
                         Showing <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> results
                       </p>
-                      {selectedSort === 'featured' && (
-                        <Badge
-                          variant="secondary"
-                          className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 cursor-pointer text-[10px] font-semibold px-2 py-0.5"
-                          onClick={() => {
-                            setSelectedSort("newest");
-                            setSearchParams(prev => {
-                              const params = new URLSearchParams(prev);
-                              params.delete("sort");
-                              return params;
-                            });
-                          }}
-                        >
-                          <Star className="h-2.5 w-2.5 mr-1 fill-current" />
-                          Featured ×
-                        </Badge>
-                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 h-10">
+                  <div className="flex items-center gap-3 h-10">
+                    {/* Attribute Sort Dropdown */}
                     <span className="text-sm font-medium text-[var(--text-muted)] whitespace-nowrap">Sort by:</span>
                     <Select value={selectedSort} onValueChange={(val) => {
                       manualScrollRef.current = true;
@@ -1133,11 +1159,42 @@ export default function ShopPage() {
                         return params;
                       });
                     }}>
-                      <SelectTrigger className="w-[120px] md:w-[160px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
+                      <SelectTrigger className="w-[130px] md:w-[160px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-none shadow-xl bg-white/95 backdrop-blur-md">
-                        {sortOptions.map((option) => (
+                        {attributeSortOptions.map((option) => (
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            className="text-xs focus:bg-[var(--brand-primary)] focus:text-white transition-colors cursor-pointer"
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Price Sort Dropdown */}
+                    <span className="text-sm font-medium text-[var(--text-muted)] whitespace-nowrap">Price:</span>
+                    <Select value={selectedPriceSort} onValueChange={(val) => {
+                      manualScrollRef.current = true;
+                      setSelectedPriceSort(val);
+                      setSearchParams(prev => {
+                        const params = new URLSearchParams(prev);
+                        if (val === "price-default") {
+                          params.delete("priceSort");
+                        } else {
+                          params.set("priceSort", val);
+                        }
+                        return params;
+                      });
+                    }}>
+                      <SelectTrigger className="w-[120px] md:w-[150px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
+                        <SelectValue placeholder="Price" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-none shadow-xl bg-white/95 backdrop-blur-md">
+                        {priceSortOptions.map((option) => (
                           <SelectItem
                             key={option.value}
                             value={option.value}
@@ -1151,10 +1208,86 @@ export default function ShopPage() {
                   </div>
                 </motion.div>
 
+                {/* Active Filter Chips */}
+                {(selectedCategory !== "All Categories" || selectedSort !== "newest" || selectedPriceSort !== "price-default" || priceRange[0] !== 0 || priceRange[1] !== 100000 || minRating > 0) && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    {selectedCategory !== "All Categories" && (
+                      <button
+                        onClick={() => {
+                          manualScrollRef.current = true;
+                          setSelectedCategory("All Categories");
+                          setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete("category"); return p; });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--brand-wash)] border border-[var(--brand-primary)]/20 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white transition-all"
+                      >
+                        {selectedCategory}
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {selectedSort !== "newest" && (
+                      <button
+                        onClick={() => {
+                          setSelectedSort("newest");
+                          setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete("sort"); return p; });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-500 hover:text-white transition-all"
+                      >
+                        {attributeSortOptions.find(o => o.value === selectedSort)?.label || selectedSort}
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {selectedPriceSort !== "price-default" && (
+                      <button
+                        onClick={() => {
+                          setSelectedPriceSort("price-default");
+                          setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete("priceSort"); return p; });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-700 hover:bg-blue-500 hover:text-white transition-all"
+                      >
+                        Price: {priceSortOptions.find(o => o.value === selectedPriceSort)?.label || selectedPriceSort}
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {(priceRange[0] !== 0 || priceRange[1] !== 100000) && (
+                      <button
+                        onClick={() => { manualScrollRef.current = true; setPriceRange([0, 100000]); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-xs font-semibold text-green-700 hover:bg-green-500 hover:text-white transition-all"
+                      >
+                        ₱{priceRange[0].toLocaleString()} – ₱{priceRange[1].toLocaleString()}
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    {minRating > 0 && (
+                      <button
+                        onClick={() => { manualScrollRef.current = true; setMinRating(0); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-50 border border-yellow-200 text-xs font-semibold text-yellow-700 hover:bg-yellow-500 hover:text-white transition-all"
+                      >
+                        {minRating}+ Stars
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                    <button
+                      onClick={resetFilters}
+                      className="text-xs font-medium text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors underline ml-1"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+
                 {/* Mobile Filters Menu handled separately above */}
 
+                {/* Skeleton Loading */}
+                {isProductsLoading && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    {[...Array(8)].map((_, i) => (
+                      <ProductCardSkeleton key={`skel-${i}`} />
+                    ))}
+                  </div>
+                )}
+
                 {/* Products Grid */}
-                {(() => {
+                {!isProductsLoading && (() => {
                   const groupedProducts: Record<string, typeof filteredProducts> = {};
                   const normalProducts: typeof filteredProducts = [];
 
