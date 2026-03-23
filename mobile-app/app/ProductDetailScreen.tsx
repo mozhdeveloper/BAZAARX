@@ -1,76 +1,59 @@
-﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  Pressable,
-  Dimensions,
-  TextInput,
-  StatusBar,
-  Alert,
-  Share,
-  Platform,
-  Modal,
-  TouchableWithoutFeedback,
-  FlatList,
-  ActivityIndicator,
-} from 'react-native';
+﻿import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
+  BadgeCheck, // For Image filter icon
+  CheckCircle,
+  ChevronDown,
+  ChevronRight,
+  Heart, // For Filter icon
+  ImageIcon,
+  MapPin,
+  MessageCircle,
+  Share2,
   ShoppingCart,
   Star,
-  BadgeCheck,
-  Search,
-  Camera,
-  Share2,
-  Heart,
-  Plus,
-  Minus,
-  X,
-  MessageCircle,
-  Truck,
-  ShieldCheck,
-  ChevronRight,
-  ChevronDown,
-  Bookmark, // For Wishlist categories
-  FolderHeart,
-  PlusCircle,
-  Gift,
-  Edit3,
-  MapPin, // Added for seller location
-  User, // Added missing import
-  Filter, // For Filter icon
-  ImageIcon, // For Image filter icon
-  CheckCircle,
   ThumbsUp,
+  X
 } from 'lucide-react-native';
-import { ProductCard } from '../src/components/ProductCard';
-import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
-import CameraSearchModal from '../src/components/CameraSearchModal';
-import StoreChatModal from '../src/components/StoreChatModal';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableWithoutFeedback,
+  View
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AIChatBubble } from '../src/components/AIChatBubble';
-import { AddedToCartModal } from '../src/components/AddedToCartModal';
-import { QuantityStepper } from '../src/components/QuantityStepper';
 import { AddToWishlistModal } from '../src/components/AddToWishlistModal';
+import { AddedToCartModal } from '../src/components/AddedToCartModal';
+import CameraSearchModal from '../src/components/CameraSearchModal';
+import { ProductCard } from '../src/components/ProductCard';
+import StoreChatModal from '../src/components/StoreChatModal';
+import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 // trendingProducts removed — related products are now fetched from Supabase by category
-import { COLORS } from '../src/constants/theme';
-import { useAuthStore } from '../src/stores/authStore';
-import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
-import { productService } from '../src/services/productService';
-import { sellerService } from '../src/services/sellerService';
-import { discountService } from '../src/services/discountService';
-import { ActiveDiscount } from '../src/types/discount';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { COLORS } from '../src/constants/theme';
+import { discountService } from '../src/services/discountService';
+import { productService } from '../src/services/productService';
+import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
+import { sellerService } from '../src/services/sellerService';
+import { useAuthStore } from '../src/stores/authStore';
+import { ActiveDiscount } from '../src/types/discount';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
@@ -467,6 +450,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     : 0;
 
   const soldCount = Number((product as any).sales_count ?? (product as any).sold ?? 0);
+  const isOutOfStock = Number(selectedVariantInfo.stock ?? 0) <= 0;
 
   // Wishlist State
   const [showWishlistModal, setShowWishlistModal] = useState(false);
@@ -1108,8 +1092,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
               </Text>
             </View>
-            <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-              <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
+            <Pressable
+              onPress={handleWishlistAction}
+              disabled={isOutOfStock}
+              style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: isOutOfStock ? 0.35 : 1 }}
+            >
+              <Heart size={24} color={isOutOfStock ? '#af9cac' : BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite && !isOutOfStock ? BRAND_ACCENT : 'transparent'} />
             </Pressable>
           </View>
 
