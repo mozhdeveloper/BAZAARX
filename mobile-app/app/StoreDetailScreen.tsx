@@ -1,4 +1,4 @@
-import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info, Loader2, MoreVertical, Zap } from 'lucide-react-native';
+import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info, Loader2, MoreVertical } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
@@ -6,7 +6,6 @@ import { trendingProducts } from '../src/data/products'; // Placeholder products
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimensions, Alert, LayoutAnimation, Platform, UIManager, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Filter, ChevronDown } from 'lucide-react-native';
 import StoreChatModal from '../src/components/StoreChatModal';
 import { COLORS } from '../src/constants/theme';
 
@@ -14,50 +13,9 @@ import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { sellerService } from '../src/services/sellerService';
 import { productService } from '../src/services/productService';
-import { reviewService } from '../src/services/reviewService';
-import { DiscountService } from '../src/services/discountService';
 import { safeImageUri, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
 
 const { width } = Dimensions.get('window');
-
-const CountdownTimer = ({ endDate }: { endDate: Date }) => {
-    const [timeLeft, setTimeLeft] = useState("");
-
-    useEffect(() => {
-        const calculateTimeLeft = () => {
-            const now = new Date();
-            const diff = new Date(endDate).getTime() - now.getTime();
-
-            if (diff <= 0) {
-                setTimeLeft("Ended");
-                return;
-            }
-
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-            if (days > 0) {
-                setTimeLeft(`${days}d ${hours}h ${minutes}m`);
-            } else {
-                const pad = (n: number) => n < 10 ? `0${n}` : n;
-                setTimeLeft(`${pad(hours)}:${pad(minutes)}:${pad(seconds)}`);
-            }
-        };
-
-        calculateTimeLeft();
-        const interval = setInterval(calculateTimeLeft, 1000);
-
-        return () => clearInterval(interval);
-    }, [endDate]);
-
-    return (
-        <View style={styles.timerContainer}>
-            <Text style={styles.timerText}>{timeLeft}</Text>
-        </View>
-    );
-};
 
 export default function StoreDetailScreen() {
     const insets = useSafeAreaInsets();
@@ -85,13 +43,8 @@ export default function StoreDetailScreen() {
     const [storeData, setStoreData] = useState<any>(store);
     const [followerCount, setFollowerCount] = useState(0);
     const [isFollowing, setIsFollowing] = useState(false);
-    const [storeCategories, setStoreCategories] = useState<string[]>([]);
 
     const [activeTab, setActiveTab] = useState('Shop');
-    const [selectedCategory, setSelectedCategory] = useState('All');
-    const [sortBy, setSortBy] = useState('Latest');
-    const [showSortModal, setShowSortModal] = useState(false);
-
     const [searchVisible, setSearchVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [menuVisible, setMenuVisible] = useState(false);
@@ -102,39 +55,12 @@ export default function StoreDetailScreen() {
     // Real products state
     const [realProducts, setRealProducts] = useState<any[]>([]);
     const [productsLoading, setProductsLoading] = useState(true);
-    const [reviews, setReviews] = useState<any[]>([]);
-    const [reviewFilter, setReviewFilter] = useState('All');
-    const [activeCampaigns, setActiveCampaigns] = useState<any[]>([]);
-
-    // Fetch refreshed store details regularly/on change
-    const [refreshing, setRefreshing] = useState(false);
 
     const [vouchers, setVouchers] = useState([
         { id: '1', amount: '₱50 OFF', min: 'Min. Spend ₱500', claimed: false },
         { id: '2', amount: '10% OFF', min: 'Min. Spend ₱1k', claimed: false },
         { id: '3', amount: 'Free Shipping', min: 'Min. Spend ₱300', claimed: false },
     ]);
-
-    // Fetch active discount campaigns (Flash Sales)
-    useEffect(() => {
-        const fetchCampaigns = async () => {
-            if (!store?.id) return;
-            try {
-                const campaigns = await DiscountService.getInstance().getCampaignsBySeller(store.id);
-                // In this schema, a campaign with status 'active' and startsAt < now < endsAt is a flash sale/discount
-                const now = new Date();
-                const active = (campaigns || []).filter(c => 
-                    c.status === 'active' && 
-                    new Date(c.startsAt) <= now && 
-                    new Date(c.endsAt) > now
-                );
-                setActiveCampaigns(active);
-            } catch (error) {
-                console.error('Error fetching campaigns:', error);
-            }
-        };
-        fetchCampaigns();
-    }, [store?.id]);
 
     // Fetch real store data
     useEffect(() => {
@@ -145,29 +71,14 @@ export default function StoreDetailScreen() {
                 const seller = await sellerService.getSellerById(store.id);
                 if (seller) {
                     const logoUrl = seller.avatar_url || (seller as any).avatar || (seller as any).logo || store.logo;
-                    const bp = seller.business_profile;
-                    
-                    // Construct consistent address from business profile - identical to web logic
-                    const addressParts = [
-                        bp?.address_line_1,
-                        bp?.city || seller.city,
-                        bp?.province || seller.province
-                    ].filter(part => part && part.trim() !== "");
-                    
-                    const fullAddress = addressParts.length > 0 
-                        ? addressParts.join(', ') 
-                        : store.location || "Address not available";
-
                     setStoreData({
                         ...store,
                         ...seller,
-                        name: seller.store_name || (bp as any)?.business_name || store.name,
-                        location: fullAddress,
-                        address: fullAddress, // Add explicit address field
-                        description: seller.store_description || bp?.business_type || "",
+                        name: seller.store_name || seller.business_name || store.name,
+                        location: seller.city ? `${seller.city}, ${seller.province}` : (seller.business_profile?.address_line_1 || store.location),
+                        description: seller.store_description || "",
                         rating: seller.rating || store.rating || 0,
-                        logo: logoUrl,
-                        is_verified: seller.approval_status === 'verified'
+                        logo: logoUrl
                     });
                 }
 
@@ -249,47 +160,19 @@ export default function StoreDetailScreen() {
                         };
                     });
                     setRealProducts(mappedProducts);
-
-                    // Extract unique categories from products
-                    const categories = Array.from(new Set(mappedProducts.map(p => p.category))).filter((c): c is string => !!c);
-                    setStoreCategories(categories);
                 } else {
                     setRealProducts([]);
-                    setStoreCategories([]);
                 }
             } catch (error) {
                 console.error('Error fetching store products:', error);
                 setRealProducts([]); // Set empty on error instead of leaving stale data
-                setStoreCategories([]);
             } finally {
                 setProductsLoading(false);
             }
         };
 
         fetchProducts();
-    }, [store?.id, storeData.name, storeData.location]);
-
-    // Fetch real reviews
-    useEffect(() => {
-        const fetchReviews = async () => {
-            if (!store?.id) return;
-            try {
-                const data = await reviewService.getSellerReviews(store.id);
-                if (data) {
-                    const mappedReviews = data.map((rev: any) => ({
-                        author: rev.buyerName || 'User',
-                        content: rev.comment || '',
-                        rating: rev.rating || 5,
-                        date: rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : 'Just now'
-                    }));
-                    setReviews(mappedReviews);
-                }
-            } catch (error) {
-                console.error('Error fetching reviews:', error);
-            }
-        };
-        fetchReviews();
-    }, [store?.id]);
+    }, [store?.id, storeData.name]);
 
     // Use real products if available, otherwise fallback to trending products (only if disabled)
     // Actually for store detail we should probably only show real products or empty
@@ -350,52 +233,14 @@ export default function StoreDetailScreen() {
         Alert.alert('Success', 'Voucher claimed! It will be applied at checkout.');
     };
 
-    // List of sorting options
-    const sortOptions = [
-        { label: 'Popularity', value: 'Popular' },
-        { label: 'Price: Low to High', value: 'Price: Low-High' },
-        { label: 'Price: High to Low', value: 'Price: High-Low' },
-        { label: 'Latest', value: 'Latest' }
-    ];
-
-    const sortProducts = (products: any[]) => {
-        let sorted = [...products];
-
-        // Filter by category
-        if (selectedCategory !== 'All') {
-            sorted = sorted.filter(p => p.category === selectedCategory);
-        }
-
-        // Apply sort
-        switch (sortBy) {
-            case 'Popular':
-                return sorted.sort((a, b) => (b.sold || 0) - (a.sold || 0));
-            case 'Price: Low-High':
-                return sorted.sort((a, b) => a.price - b.price);
-            case 'Price: High-Low':
-                return sorted.sort((a, b) => b.price - a.price);
-            case 'Latest':
-                return sorted.sort((a, b) => (b.id > a.id ? 1 : -1));
-            default:
-                return sorted;
-        }
-    };
-
     const renderTabContent = () => {
         switch (activeTab) {
             case 'Shop':
-                const sortedShopProducts = sortProducts(storeProducts);
-                
-                // Get products that are part of active campaigns (Flash Sales)
-                const flashSaleProducts = storeProducts.filter(p => 
-                    p.campaignDiscountType || p.campaignDiscountValue
-                );
-
                 return (
-                    <ScrollView showsVerticalScrollIndicator={false}>
-                        {/* Featured / Coupon Section - FIRST */}
+                    <>
+                        {/* Featured / Coupon Section */}
                         <View style={styles.couponSection}>
-                            <Text style={[styles.sectionTitle, { paddingLeft: 16 }]}>Vouchers from {storeData.name || store.name}</Text>
+                            <Text style={styles.sectionTitle}>Vouchers from {store.name}</Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 16, paddingRight: 16 }}>
                                 {vouchers.map((voucher) => (
                                     <View key={voucher.id} style={[styles.couponCard, voucher.claimed && styles.couponCardClaimed]}>
@@ -417,111 +262,38 @@ export default function StoreDetailScreen() {
                             </ScrollView>
                         </View>
 
-                        {/* Flash Sales Section */}
-                        {activeCampaigns.length > 0 && flashSaleProducts.length > 0 && (
-                            <View style={styles.flashSaleSection}>
-                                <View style={styles.flashSaleHeader}>
-                                    <View style={styles.flashSaleTitleRow}>
-                                        <Zap size={20} color={COLORS.primary} fill={COLORS.primary} />
-                                        <Text style={styles.flashSaleTitle}>FLASH SALE</Text>
-                                        <CountdownTimer endDate={new Date(activeCampaigns[0].endsAt)} />
-                                    </View>
-                                </View>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashSaleProductsScroll}>
-                                    {flashSaleProducts.map((p) => (
-                                        <View key={`flash-${p.id}`} style={styles.flashSaleProductItem}>
-                                            <ProductCard 
-                                                product={{...p, isFlashSale: true}} 
-                                                onPress={() => navigation.navigate('ProductDetail', { product: p })} 
-                                            />
-                                            {/* Flash Sale Progress Bar (Optional context) */}
-                                            <View style={styles.flashProgressBg}>
-                                                <View style={[styles.flashProgressFill, { width: '45%' }]} />
-                                                <View style={styles.flashProgressOverlay}>
-                                                    <Text style={styles.flashProgressText}>45% SOLD</Text>
-                                                </View>
-                                            </View>
-                                        </View>
-                                    ))}
-                                </ScrollView>
-                            </View>
-                        )}
-
-                        {/* Filter Bar */}
-                        <View style={styles.filterBar}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-                                <Pressable
-                                    onPress={() => setSelectedCategory('All')}
-                                    style={[styles.filterTag, selectedCategory === 'All' && styles.filterTagActive]}
-                                >
-                                    <Text style={[styles.filterTagText, selectedCategory === 'All' && styles.filterTagTextActive]}>All</Text>
-                                </Pressable>
-                                {storeCategories.map(cat => (
-                                    <Pressable
-                                        key={cat}
-                                        onPress={() => setSelectedCategory(cat)}
-                                        style={[styles.filterTag, selectedCategory === cat && styles.filterTagActive]}
-                                    >
-                                        <Text style={[styles.filterTagText, selectedCategory === cat && styles.filterTagTextActive]}>{cat}</Text>
-                                    </Pressable>
-                                ))}
-                            </ScrollView>
-                            <Pressable style={styles.sortButton} onPress={() => setShowSortModal(true)}>
-                                <Filter size={16} color={COLORS.gray600} />
-                                <Text style={styles.sortButtonText}>{sortBy}</Text>
-                            </Pressable>
-                        </View>
-
                         {/* Products Grid */}
                         <View style={styles.productsContainer}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={styles.sectionTitle}>Featured Products</Text>
+                                <Text style={styles.seeAllText}>See All</Text>
+                            </View>
                             <View style={styles.grid}>
-                                {sortedShopProducts.slice(0, 10).map((p) => (
+                                {storeProducts.slice(0, 4).map((p) => (
                                     <View key={p.id} style={styles.productWrapper}>
                                         <ProductCard product={p} onPress={() => navigation.navigate('ProductDetail', { product: p })} />
                                     </View>
                                 ))}
                             </View>
                         </View>
-                    </ScrollView>
+                    </>
                 );
             case 'Products':
-                const sortedAllProducts = sortProducts(availableProducts);
                 return (
                     <View style={styles.productsContainer}>
-                        {/* Filter Bar */}
-                        <View style={[styles.filterBar, { marginBottom: 16, paddingLeft: 0 }]}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                <Pressable
-                                    onPress={() => setSelectedCategory('All')}
-                                    style={[styles.filterTag, selectedCategory === 'All' && styles.filterTagActive]}
-                                >
-                                    <Text style={[styles.filterTagText, selectedCategory === 'All' && styles.filterTagTextActive]}>All</Text>
-                                </Pressable>
-                                {storeCategories.map(cat => (
-                                    <Pressable
-                                        key={cat}
-                                        onPress={() => setSelectedCategory(cat)}
-                                        style={[styles.filterTag, selectedCategory === cat && styles.filterTagActive]}
-                                    >
-                                        <Text style={[styles.filterTagText, selectedCategory === cat && styles.filterTagTextActive]}>{cat}</Text>
-                                    </Pressable>
-                                ))}
-                            </ScrollView>
-                        </View>
-
-                        <Text style={styles.sectionTitle}>All Products ({sortedAllProducts.length})</Text>
+                        <Text style={styles.sectionTitle}>All Products ({storeProducts.length})</Text>
                         {productsLoading ? (
                             <View style={styles.loadingContainer}>
                                 <ActivityIndicator size="large" color="#FB8C00" />
                                 <Text style={styles.loadingText}>Loading products...</Text>
                             </View>
-                        ) : sortedAllProducts.length === 0 ? (
+                        ) : storeProducts.length === 0 ? (
                             <View style={styles.emptyContainer}>
-                                <Text style={styles.emptyText}>No products available under this filter</Text>
+                                <Text style={styles.emptyText}>No products available yet</Text>
                             </View>
                         ) : (
                             <View style={styles.grid}>
-                                {sortedAllProducts.map((p) => (
+                                {storeProducts.map((p) => (
                                     <View key={p.id} style={styles.productWrapper}>
                                         <ProductCard product={p} onPress={() => navigation.navigate('ProductDetail', { product: p })} />
                                     </View>
@@ -530,118 +302,23 @@ export default function StoreDetailScreen() {
                         )}
                     </View>
                 );
-            case 'Reviews':
-                // Calculate rating distribution
-                const totalReviews = reviews.length;
-                const averageRating = totalReviews > 0 
-                    ? (reviews.reduce((acc, rev) => acc + rev.rating, 0) / totalReviews).toFixed(1)
-                    : "0";
-                
-                const stats = [5, 4, 3, 2, 1].map(star => {
-                    const count = reviews.filter(rev => Math.floor(rev.rating) === star).length;
-                    const percentage = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
-                    return { star, count, percentage };
-                });
-
-                const filteredReviews = reviews.filter(rev => {
-                    if (reviewFilter === 'All') return true;
-                    if (reviewFilter === 'With Media') return rev.hasMedia; // Assuming we add this flag
-                    return Math.floor(rev.rating) === parseInt(reviewFilter);
-                });
-
+            case 'Categories':
                 return (
                     <View style={styles.sectionContainer}>
-                        {/* Rating Summary Header (Web Parity) */}
-                        <View style={styles.ratingSummaryCard}>
-                            <View style={styles.ratingOverview}>
-                                <Text style={styles.ratingBigNumber}>{averageRating}</Text>
-                                <View style={styles.ratingStarsRow}>
-                                    {[...Array(5)].map((_, i) => (
-                                        <Star 
-                                            key={i} 
-                                            size={16} 
-                                            color={i < Math.floor(Number(averageRating)) ? "#FABB18" : COLORS.gray300} 
-                                            fill={i < Math.floor(Number(averageRating)) ? "#FABB18" : COLORS.gray300} 
-                                        />
-                                    ))}
-                                </View>
-                                <Text style={styles.ratingCountSub}>{totalReviews} reviews</Text>
-                            </View>
-
-                            <View style={styles.ratingBarsColumn}>
-                                {stats.map((stat) => (
-                                    <View key={stat.star} style={styles.ratingBarRow}>
-                                        <Text style={styles.ratingBarLabel}>{stat.star}</Text>
-                                        <Star size={10} color="#FABB18" fill="#FABB18" style={{ marginRight: 4 }} />
-                                        <View style={styles.ratingBarBg}>
-                                            <View style={[styles.ratingBarFill, { width: `${stat.percentage}%` }]} />
-                                        </View>
-                                        <Text style={styles.ratingBarPercent}>{Math.round(stat.percentage)}%</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        </View>
-
-                        {/* Review Filters (Web Parity) */}
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewFilterScroll} contentContainerStyle={styles.reviewFilterContent}>
-                            {['All', '5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star', 'With Media'].map((filter) => {
-                                const isActive = (filter === 'All' && reviewFilter === 'All') || 
-                                               (filter.startsWith(reviewFilter) && filter !== 'All' && reviewFilter !== 'All') ||
-                                               (filter === 'With Media' && reviewFilter === 'With Media');
-                                
-                                return (
-                                    <Pressable
-                                        key={filter}
-                                        style={[styles.reviewFilterTag, isActive && styles.reviewFilterTagActive]}
-                                        onPress={() => {
-                                            if (filter === 'All') setReviewFilter('All');
-                                            else if (filter === 'With Media') setReviewFilter('With Media');
-                                            else setReviewFilter(filter[0]);
-                                        }}
-                                    >
-                                        <Text style={[styles.reviewFilterText, isActive && styles.reviewFilterTextActive]}>{filter}</Text>
-                                    </Pressable>
-                                );
-                            })}
-                        </ScrollView>
-
-                        <View style={styles.reviewsList}>
-                            {filteredReviews.length > 0 ? (
-                                filteredReviews.map((rev, index) => (
-                                    <View key={index} style={styles.reviewItem}>
-                                        <View style={styles.reviewHeader}>
-                                            <View style={styles.reviewAuthorRow}>
-                                                <View style={styles.reviewAvatar}>
-                                                    <Text style={styles.avatarText}>{rev.author.charAt(0).toUpperCase()}</Text>
-                                                </View>
-                                                <View>
-                                                    <Text style={styles.reviewAuthor}>{rev.author}</Text>
-                                                    <View style={styles.reviewRating}>
-                                                        {[...Array(5)].map((_, i) => (
-                                                            <Star key={i} size={12} color={i < rev.rating ? "#FABB18" : COLORS.gray300} fill={i < rev.rating ? "#FABB18" : COLORS.gray300} />
-                                                        ))}
-                                                    </View>
-                                                </View>
-                                            </View>
-                                            <Text style={styles.reviewDate}>{rev.date}</Text>
-                                        </View>
-                                        <Text style={styles.reviewContent}>{rev.content}</Text>
-                                        {rev.images && rev.images.length > 0 && (
-                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewImagesScroll}>
-                                                {rev.images.map((img: string, i: number) => (
-                                                    <Image key={i} source={{ uri: img }} style={styles.reviewImageThumb} />
-                                                ))}
-                                            </ScrollView>
-                                        )}
-                                    </View>
-                                ))
-                            ) : (
-                                <View style={styles.emptyContainer}>
-                                    <Star size={48} color={COLORS.gray200} />
-                                    <Text style={styles.emptyTitle}>No Reviews Yet</Text>
-                                    <Text style={styles.emptyText}>Be the first to review products from this store!</Text>
-                                </View>
-                            )}
+                        <Text style={styles.sectionTitle}>Store Categories</Text>
+                        <View style={styles.categoriesList}>
+                            {(store.categories || []).map((cat: string, index: number) => (
+                                <Pressable key={index} style={styles.categoryRow}>
+                                    <Text style={styles.categoryName}>{cat}</Text>
+                                    <Grid size={20} color={COLORS.textMuted} />
+                                </Pressable>
+                            ))}
+                            {['Sale', 'New Arrivals', 'Bundles'].map((cat, index) => (
+                                <Pressable key={`extra-${index}`} style={styles.categoryRow}>
+                                    <Text style={styles.categoryName}>{cat}</Text>
+                                    <Grid size={20} color={COLORS.textMuted} />
+                                </Pressable>
+                            ))}
                         </View>
                     </View>
                 );
@@ -657,7 +334,11 @@ export default function StoreDetailScreen() {
                             <View style={styles.infoRow}>
                                 <MapPin size={18} color={COLORS.textMuted} />
                                 <Text style={styles.infoText}>
-                                    {storeData.location || "Address not available"}
+                                    {[
+                                        storeData.business_profile?.address_line_1,
+                                        storeData.city || storeData.business_profile?.city,
+                                        storeData.province || storeData.business_profile?.province
+                                    ].filter(Boolean).join(', ') || storeData.location || "Address not available"}
                                 </Text>
                             </View>
                             <View style={styles.infoRow}>
@@ -670,9 +351,7 @@ export default function StoreDetailScreen() {
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Joined:</Text>
-                                <Text style={styles.infoText}>
-                                    {storeData.created_at ? new Date(storeData.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'January 2023'}
-                                </Text>
+                                <Text style={styles.infoText}>January 2023</Text>
                             </View>
                         </View>
                     </View>
@@ -688,22 +367,24 @@ export default function StoreDetailScreen() {
 
             {/* Custom Header */}
             <LinearGradient
-                colors={['#FFFBF0', '#FFFDF9']}
-                style={[styles.header, { paddingTop: insets.top }, searchVisible && { backgroundColor: COLORS.white, paddingBottom: 12 }]}
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.header, { paddingTop: insets.top }, searchVisible && { backgroundColor: COLORS.primary, paddingBottom: 12 }]}
             >
                 {searchVisible ? (
                     <View style={styles.searchHeader}>
                         <View style={styles.searchBar}>
-                            <Search size={18} color={COLORS.gray400} />
+                            <Search size={18} color="#9CA3AF" />
                             <TextInput
                                 style={styles.searchInput}
                                 placeholder={`Search in ${store.name}`}
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
                                 autoFocus
-                                placeholderTextColor={COLORS.gray400}
+                                placeholderTextColor="#9CA3AF"
                             />
-                            {searchQuery.length > 0 && <Pressable onPress={() => setSearchQuery('')}><X size={18} color={COLORS.gray400} /></Pressable>}
+                            {searchQuery.length > 0 && <Pressable onPress={() => setSearchQuery('')}><X size={18} color="#9CA3AF" /></Pressable>}
                         </View>
                         <Pressable onPress={() => { setSearchVisible(false); setSearchQuery(''); }} style={styles.cancelSearch}>
                             <Text style={styles.cancelText}>Cancel</Text>
@@ -718,7 +399,7 @@ export default function StoreDetailScreen() {
                             <Pressable style={styles.headerIconButton} onPress={() => { }}>
                                 <Share2 size={24} color={COLORS.textHeadline} />
                             </Pressable>
-                            <Pressable style={styles.headerIconButton} onPress={() => setMenuVisible(true)}>
+                            <Pressable style={styles.headerIconButton} onPress={() => { }}>
                                 <MoreVertical size={24} color={COLORS.textHeadline} />
                             </Pressable>
                         </View>
@@ -726,53 +407,44 @@ export default function StoreDetailScreen() {
                 )}
             </LinearGradient>
 
-            <ScrollView showsVerticalScrollIndicator={false} stickyHeaderIndices={[2]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Profile Banner Section */}
                 <View style={styles.profileSection}>
                     <Image source={{ uri: safeImageUri(store.banner, PLACEHOLDER_BANNER) }} style={styles.bannerImage} resizeMode="cover" />
-                    <LinearGradient
-                        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.6)']}
-                        style={styles.overlay}
-                    />
+                    <View style={styles.overlay} />
 
                     <View style={styles.storeInfoContent}>
                         <View style={styles.mainInfo}>
                             <View style={styles.logoContainer}>
-                                {storeData.logo ? (
+                                {storeData.logo && (storeData.logo.startsWith('http') || storeData.logo.startsWith('/') || storeData.logo.startsWith('data:')) ? (
                                     <Image 
                                         source={{ uri: safeImageUri(storeData.logo) }} 
-                                        style={{ width: '100%', height: '100%', borderRadius: 50 }} 
+                                        style={{ width: '100%', height: '100%', borderRadius: 35 }} 
                                         resizeMode="cover" 
                                     />
                                 ) : (
-                                    <Text style={styles.logoText}>{storeData.name?.substring(0, 1).toUpperCase() || 'S'}</Text>
-                                )}
-                                {storeData.is_verified && (
-                                    <View style={[styles.verifiedBadgeRow, { position: 'absolute', bottom: 0, right: 0, borderRadius: 10, paddingHorizontal: 0, paddingVertical: 0, width: 20, height: 20 }]}>
-                                        <CheckCircle2 size={16} color={COLORS.white} fill={COLORS.success} />
-                                    </View>
+                                    <Text style={styles.logoText}>{storeData.logo || storeData.name?.substring(0, 2).toUpperCase() || 'S'}</Text>
                                 )}
                             </View>
                             <View style={styles.textInfo}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                                <View style={styles.nameLockup}>
                                     <Text style={styles.storeName}>{storeData.name}</Text>
-                                    {storeData.is_verified && (
-                                        <View style={styles.verifiedBadgeRow}>
-                                            <Text style={styles.verifiedText}>VERIFIED</Text>
-                                        </View>
-                                    )}
+                                    {storeData.verified && <CheckCircle2 size={16} color="#3B82F6" fill="#FFF" />}
                                 </View>
-                                
-                                <View style={styles.statsRow}>
-                                    <Text style={styles.statsText}>{storeData.location ? storeData.location.split(',')[0] : 'Philippines'}</Text>
-                                    <Text style={styles.statsText}>   Est. 2026</Text>
+                                <View style={styles.locationRow}>
+                                    <MapPin size={12} color="#FFF" />
+                                    <Text style={styles.locationText} numberOfLines={1}>
+                                        {[
+                                            storeData.business_profile?.address_line_1,
+                                            storeData.city || storeData.business_profile?.city,
+                                            storeData.province || storeData.business_profile?.province
+                                        ].filter(Boolean).join(', ') || storeData.location || "Address not available"}
+                                    </Text>
                                 </View>
-
-                                <View style={[styles.statsRow, { marginTop: 12 }]}>
-                                    <Text style={styles.ratingNumber}>{storeData.rating}</Text>
-                                    <Text style={styles.ratingLabel}> RATING</Text>
-                                    <Text style={[styles.ratingNumber, { marginLeft: 20 }]}>{followerCount}</Text>
-                                    <Text style={styles.ratingLabel}> FOLLOWERS</Text>
+                                <View style={styles.metricsRow}>
+                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{storeData.rating}</Text> Rating</Text>
+                                    <View style={styles.divider} />
+                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{followerCount > 1000 ? (followerCount / 1000).toFixed(1) + 'k' : followerCount}</Text> Followers</Text>
                                 </View>
                             </View>
                         </View>
@@ -782,47 +454,51 @@ export default function StoreDetailScreen() {
                                 style={[styles.followButton, isFollowing && styles.followingButton]}
                                 onPress={handleFollow}
                             >
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Heart size={16} color={isFollowing ? COLORS.primary : COLORS.white} fill={isFollowing ? COLORS.primary : COLORS.white} />
-                                    <Text style={[styles.followButtonText, isFollowing && { color: COLORS.primary }]}>
-                                        {isFollowing ? 'Following' : 'Follow'}
-                                    </Text>
-                                </View>
+                                {isFollowing ? (
+                                    <>
+                                        <Check size={16} color="#FFF" style={{ marginRight: 4 }} />
+                                        <Text style={styles.followButtonText}>Following</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <UserPlus size={16} color="#FFF" style={{ marginRight: 4 }} />
+                                        <Text style={styles.followButtonText}>Follow</Text>
+                                    </>
+                                )}
                             </Pressable>
-                            <Pressable style={styles.chatButtonTextOnly} onPress={handleChat}>
-                                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 13 }}>Chat</Text>
+                            <Pressable style={styles.chatButton} onPress={handleChat}>
+                                <MessageCircle size={18} color="#FFF" style={{ marginRight: 6 }} />
+                                <Text style={styles.chatButtonText}>Chat</Text>
                             </Pressable>
                         </View>
                     </View>
                 </View>
 
                 {/* Categories / Tabs simulation */}
-                <View style={styles.tabsWrapper}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
-                        {['Shop', 'Products', 'Reviews', 'About'].map((tab) => (
-                            <Pressable
-                                key={tab}
-                                style={[styles.tabItem, activeTab === tab && styles.activeTabItem]}
-                                onPress={() => setActiveTab(tab)}
-                            >
-                                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
-                            </Pressable>
-                        ))}
-                    </ScrollView>
-                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
+                    {['Shop', 'Products', 'Categories', 'About'].map((tab, i) => (
+                        <Pressable
+                            key={tab}
+                            style={[styles.tabItem, activeTab === tab && styles.activeTabItem]}
+                            onPress={() => setActiveTab(tab)}
+                        >
+                            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+                            {activeTab === tab && <View style={styles.activeIndicator} />}
+                        </Pressable>
+                    ))}
+                </ScrollView>
 
                 {/* Dynamic Content */}
-                <View style={styles.contentContainer}>
-                    {renderTabContent()}
-                </View>
+                {renderTabContent()}
 
                 <View style={{ height: 40 }} />
             </ScrollView>
 
+            {/* Store Chat Modal */}
             <StoreChatModal
                 visible={chatVisible}
                 onClose={() => setChatVisible(false)}
-                storeName={storeData.name || store.name}
+                storeName={store.name}
                 sellerId={store.id || store.seller_id}
             />
 
@@ -854,46 +530,22 @@ export default function StoreDetailScreen() {
                     message={guestModalMessage || "Please log in to continue."}
                 />
             )}
-
-            {/* Sort Picker Modal */}
-            <Modal visible={showSortModal} transparent animationType="slide" onRequestClose={() => setShowSortModal(false)}>
-                <Pressable style={styles.modalOverlay} onPress={() => setShowSortModal(false)}>
-                    <View style={styles.sortModalContent}>
-                        <View style={styles.sortModalHeader}>
-                            <Text style={styles.sortModalTitle}>Sort Products</Text>
-                            <Pressable onPress={() => setShowSortModal(false)}>
-                                <X size={24} color={COLORS.textHeadline} />
-                            </Pressable>
-                        </View>
-                        {sortOptions.map((option) => (
-                            <Pressable 
-                                key={option.value} 
-                                style={[styles.sortOption, sortBy === option.value && styles.sortOptionActive]}
-                                onPress={() => { setSortBy(option.value); setShowSortModal(false); }}
-                            >
-                                <Text style={[styles.sortOptionText, sortBy === option.value && styles.sortOptionTextActive]}>{option.label}</Text>
-                                {sortBy === option.value && <Check size={18} color={COLORS.primary} />}
-                            </Pressable>
-                        ))}
-                    </View>
-                </Pressable>
-            </Modal>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
-    header: { paddingHorizontal: 16, zIndex: 10, paddingBottom: 8 },
+    header: { paddingHorizontal: 20, zIndex: 10, paddingBottom: 10 },
     headerTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         paddingHorizontal: 0,
-        paddingBottom: 8,
+        paddingBottom: 10,
         alignItems: 'center',
     },
     headerIconButton: { padding: 4 },
-    headerRight: { flexDirection: 'row', gap: 12 },
+    headerRight: { flexDirection: 'row', gap: 10 },
     searchHeader: {
         flex: 1,
         flexDirection: 'row',
@@ -906,353 +558,373 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.gray100,
-        borderRadius: 12,
-        paddingHorizontal: 12,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 100,
+        paddingHorizontal: 16,
         height: 40,
+        gap: 8,
     },
     searchInput: {
         flex: 1,
         fontSize: 14,
         color: COLORS.textHeadline,
-        marginLeft: 8,
+        padding: 0,
     },
-    cancelSearch: { paddingVertical: 8 },
-    cancelText: { color: COLORS.primary, fontWeight: '600' },
-
-    profileSection: { height: 280, width: '100%', position: 'relative' },
-    bannerImage: { width: '100%', height: '100%' },
+    cancelSearch: {
+        padding: 4,
+    },
+    cancelText: {
+        color: '#FFF',
+        fontWeight: '600',
+    },
+    iconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    profileSection: {
+        height: 280,
+        justifyContent: 'flex-end',
+    },
+    bannerImage: {
+        ...StyleSheet.absoluteFillObject,
+    },
     overlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.4)',
     },
     storeInfoContent: {
-        position: 'absolute',
-        bottom: 16,
-        left: 16,
-        right: 16,
+        padding: 16,
+        paddingBottom: 20,
     },
-    mainInfo: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    logoContainer: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: COLORS.white,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 3,
-        borderColor: COLORS.white,
-        marginRight: 16,
-        position: 'relative'
-    },
-    logoText: { fontSize: 32, fontWeight: 'bold', color: COLORS.primary },
-    verifiedBadgeRow: {
-        backgroundColor: COLORS.white,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    verifiedText: {
-        color: COLORS.success,
-        fontSize: 10,
-        fontWeight: '900',
-    },
-    textInfo: { flex: 1, justifyContent: 'center' },
-    storeName: { 
-        fontSize: 26, 
-        fontWeight: '800', 
-        color: COLORS.white, 
-        textShadowColor: 'rgba(0,0,0,0.5)', 
-        textShadowOffset: { width: 0, height: 1 }, 
-        textShadowRadius: 2,
-    },
-    statsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-    statsText: { fontSize: 13, color: COLORS.white, opacity: 0.9, fontWeight: '500' },
-    ratingNumber: { fontSize: 18, color: COLORS.white, fontWeight: '800' },
-    ratingLabel: { fontSize: 11, color: COLORS.white, opacity: 0.7, fontWeight: '700', letterSpacing: 0.5 },
-
-    actionButtons: { flexDirection: 'row', gap: 12, marginTop: 12 },
-    followButton: {
-        backgroundColor: '#E58C1A',
-        paddingHorizontal: 20,
-        height: 44,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        minWidth: 140,
-    },
-    followingButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
-    followButtonText: { color: COLORS.white, fontSize: 15, fontWeight: 'bold' },
-    chatButtonTextOnly: {
-        flex: 1,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.3)'
-    },
-    shareIconButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.3)'
-    },
-
-    tabsWrapper: {
-        backgroundColor: COLORS.white,
-        paddingTop: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.gray100
-    },
-    tabsScroll: {},
-    tabsContent: { paddingHorizontal: 16 },
-    tabItem: {
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        marginRight: 8,
-        position: 'relative'
-    },
-    tabText: { fontSize: 14, fontWeight: '600', color: COLORS.gray500 },
-    activeTabText: { color: COLORS.primary },
-    activeTabItem: {
-        borderBottomWidth: 2,
-        borderBottomColor: COLORS.primary
-    },
-
-    contentContainer: { flex: 1 },
-    sectionContainer: { padding: 16 },
-    sectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 16 },
-    
-    couponSection: { paddingVertical: 16 },
-    couponCard: {
-        width: width * 0.7,
+    mainInfo: {
         flexDirection: 'row',
-        backgroundColor: COLORS.primarySoft,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderStyle: 'dashed',
-        borderColor: COLORS.primary,
-        marginRight: 12,
-        height: 80,
+        alignItems: 'center',
     },
-    couponCardClaimed: { backgroundColor: COLORS.gray100, borderColor: COLORS.gray300 },
-    couponLeft: { flex: 1, padding: 12, justifyContent: 'center' },
-    couponAmount: { fontSize: 18, fontWeight: 'bold', color: COLORS.primary },
-    couponMin: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-    claimButton: {
+    logoContainer: {
         width: 70,
-        backgroundColor: COLORS.primary,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: '#FFF',
         justifyContent: 'center',
         alignItems: 'center',
-        borderTopRightRadius: 10,
-        borderBottomRightRadius: 10,
+        borderWidth: 2,
+        borderColor: '#FFF',
     },
-    claimText: { color: COLORS.white, fontWeight: 'bold', fontSize: 12 },
-
-    productsContainer: { padding: 16 },
-    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-    seeAllText: { color: COLORS.primary, fontWeight: '600' },
-
-    flashSaleSection: { 
-        backgroundColor: COLORS.white, 
-        paddingVertical: 20, 
-        paddingBottom: 24,
-        marginBottom: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.gray100
+    logoText: {
+        fontSize: 32,
     },
-    flashSaleHeader: { 
-        flexDirection: 'row', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        paddingHorizontal: 16,
-        marginBottom: 16 
+    textInfo: {
+        marginLeft: 12,
+        flex: 1,
     },
-    flashSaleTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    flashSaleTitle: { 
-        fontSize: 18, 
-        fontWeight: '900', 
-        color: COLORS.primary, 
-        fontStyle: 'italic',
-        letterSpacing: 0.5
+    nameLockup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
     },
-    timerContainer: { 
-        backgroundColor: COLORS.primarySoft, 
-        paddingHorizontal: 10, 
-        paddingVertical: 5, 
-        borderRadius: 12,
-        marginLeft: 8,
-        borderWidth: 1,
-        borderColor: COLORS.primary
-    },
-    timerText: { 
-        color: COLORS.primary, 
-        fontSize: 12, 
-        fontWeight: '800', 
-        fontVariant: ['tabular-nums']
-    },
-    flashSaleProductsScroll: { 
-        paddingHorizontal: 16, 
-        gap: 12 
-    },
-    flashSaleProductItem: { 
-        width: 160,
-    },
-    flashProgressBg: { 
-        height: 18, 
-        backgroundColor: COLORS.primarySoft, 
-        borderRadius: 10, 
-        marginTop: 10,
-        overflow: 'hidden',
-        position: 'relative',
-        justifyContent: 'center'
-    },
-    flashProgressFill: { 
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        backgroundColor: COLORS.primary,
-        borderRadius: 10
-    },
-    flashProgressOverlay: {
-        width: '100%',
-        alignItems: 'center'
-    },
-    flashProgressText: { 
-        fontSize: 9, 
-        fontWeight: '900', 
-        color: COLORS.white,
+    storeName: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#FFF',
         textShadowColor: 'rgba(0,0,0,0.5)',
         textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 2
+        textShadowRadius: 4,
     },
-
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
-    productWrapper: { width: (width - 44) / 2 },
-
-    filterBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12, gap: 8 },
-    filterScroll: { paddingRight: 8 },
-    filterTag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: COLORS.gray100, marginRight: 8 },
-    filterTagActive: { backgroundColor: COLORS.primarySoft, borderWidth: 1, borderColor: COLORS.primary },
-    filterTagText: { fontSize: 13, color: COLORS.gray600, fontWeight: '500' },
-    filterTagTextActive: { color: COLORS.primary, fontWeight: '600' },
-    sortButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.gray200, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, gap: 4 },
-    sortButtonText: { fontSize: 12, color: COLORS.gray600, fontWeight: '600' },
-
-    reviewsList: { gap: 16, marginTop: 16 },
-    reviewItem: { padding: 16, borderRadius: 12, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.gray100 },
-    reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-    reviewAuthorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    reviewAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.gray100, alignItems: 'center', justifyContent: 'center' },
-    avatarText: { fontSize: 16, fontWeight: '700', color: COLORS.gray400 },
-    reviewAuthor: { fontSize: 14, fontWeight: '600', color: COLORS.textHeadline },
-    reviewRating: { flexDirection: 'row', gap: 2, marginTop: 2 },
-    reviewContent: { fontSize: 13, color: COLORS.gray600, lineHeight: 18, marginBottom: 4 },
-    reviewDate: { fontSize: 11, color: COLORS.textMuted },
-    reviewImagesScroll: { marginTop: 8, flexDirection: 'row' },
-    reviewImageThumb: { width: 80, height: 80, borderRadius: 8, marginRight: 8 },
-
-    ratingSummaryCard: { 
-        flexDirection: 'row', 
-        backgroundColor: COLORS.white, 
-        padding: 20, 
-        borderRadius: 16, 
-        borderWidth: 1, 
-        borderColor: COLORS.gray100,
-        marginBottom: 16,
+    locationRow: {
+        flexDirection: 'row',
         alignItems: 'center',
-        gap: 20
+        gap: 4,
+        marginTop: 4,
     },
-    ratingOverview: { alignItems: 'center', width: 100 },
-    ratingBigNumber: { fontSize: 36, fontWeight: '800', color: COLORS.textHeadline },
-    ratingStarsRow: { flexDirection: 'row', gap: 2, marginVertical: 4 },
-    ratingCountSub: { fontSize: 12, color: COLORS.textMuted },
-    ratingBarsColumn: { flex: 1, gap: 4 },
-    ratingBarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    ratingBarLabel: { fontSize: 12, color: COLORS.gray600, width: 12 },
-    ratingBarBg: { flex: 1, height: 8, backgroundColor: COLORS.gray100, borderRadius: 4, overflow: 'hidden' },
-    ratingBarFill: { height: '100%', backgroundColor: '#FABB18' },
-    ratingBarPercent: { fontSize: 11, color: COLORS.textMuted, width: 30, textAlign: 'right' },
+    locationText: {
+        color: '#FFF',
+        fontSize: 12,
+        opacity: 0.9,
+    },
+    metricsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 8,
+    },
+    metricText: {
+        color: '#FFF',
+        fontSize: 13,
+    },
+    metricBold: {
+        fontWeight: '700',
+    },
+    divider: {
+        width: 1,
+        height: 12,
+        backgroundColor: 'rgba(255,255,255,0.5)',
+    },
+    actionButtons: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 16,
+    },
+    followButton: {
+        flex: 1,
+        backgroundColor: '#FB8C00', // Warm Orange
+        paddingVertical: 10,
+        borderRadius: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    followButtonText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    followingButton: {
+        backgroundColor: '#6B7280', // Gray when following
+    },
+    chatButton: {
+        flex: 1,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        paddingVertical: 10,
+        borderRadius: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#FFF',
+    },
+    chatButtonText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    tabsScroll: {
+        backgroundColor: '#FFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#EEE',
+    },
+    tabsContent: {
+        paddingHorizontal: 8,
+    },
+    tabItem: {
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        position: 'relative',
+    },
+    activeTabItem: {
 
-    reviewFilterScroll: { marginBottom: 8, backgroundColor: COLORS.white, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: COLORS.gray100 },
-    reviewFilterContent: { paddingHorizontal: 12, gap: 8 },
-    reviewFilterTag: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.gray200 },
-    reviewFilterTagActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-    reviewFilterText: { fontSize: 13, color: COLORS.gray600, fontWeight: '500' },
-    reviewFilterTextActive: { color: COLORS.white, fontWeight: '700' },
-
-    emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textHeadline, marginTop: 12, marginBottom: 4 },
-
-    categoriesList: { backgroundColor: COLORS.white, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.gray100 },
+    },
+    tabText: {
+        fontSize: 15,
+        color: '#666',
+        fontWeight: '600',
+    },
+    activeTabText: {
+        color: '#FB8C00',
+        fontWeight: '700',
+    },
+    activeIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        left: 16,
+        right: 16,
+        height: 3,
+        backgroundColor: '#FB8C00',
+        borderRadius: 3,
+    },
+    couponSection: {
+        marginTop: 12,
+        backgroundColor: '#FFF',
+        paddingVertical: 16,
+    },
+    sectionContainer: {
+        marginTop: 12,
+        backgroundColor: '#FFF',
+        padding: 16,
+        minHeight: 300,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        marginBottom: 12,
+    },
+    seeAllText: {
+        color: '#FB8C00',
+        fontWeight: '600',
+        fontSize: 13,
+    },
+    sectionTitle: {
+        fontSize: 19,
+        fontWeight: '900',
+        color: COLORS.primary,
+        paddingHorizontal: 16,
+        marginBottom: 12,
+    },
+    couponCard: {
+        flexDirection: 'row',
+        backgroundColor: '#FFF5F0',
+        borderWidth: 1,
+        borderColor: '#FFCCBC',
+        borderRadius: 8,
+        marginRight: 10,
+        width: 200,
+        overflow: 'hidden',
+    },
+    couponLeft: {
+        flex: 1,
+        padding: 10,
+        justifyContent: 'center',
+        borderRightWidth: 1,
+        borderRightColor: '#FFCCBC',
+        borderStyle: 'dashed',
+    },
+    couponAmount: {
+        color: COLORS.primary,
+        fontWeight: '800',
+        fontSize: 16,
+    },
+    couponMin: {
+        color: '#FF8A65',
+        fontSize: 10,
+    },
+    claimButton: {
+        width: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#FFF',
+    },
+    claimText: {
+        color: COLORS.primary,
+        fontWeight: '700',
+        fontSize: 12,
+    },
+    couponCardClaimed: {
+        backgroundColor: '#F3F4F6',
+        borderColor: '#E5E7EB',
+    },
+    categoriesList: {
+        marginTop: 8,
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
     categoryRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.gray100
+        borderBottomColor: '#F3F4F6',
     },
-    categoryName: { fontSize: 15, color: COLORS.textHeadline, fontWeight: '500' },
-
+    categoryName: {
+        fontSize: 15,
+        color: '#374151',
+        fontWeight: '500',
+    },
     aboutCard: {
-        backgroundColor: COLORS.white,
+        backgroundColor: '#F9FAFB',
         borderRadius: 16,
         padding: 16,
-        borderWidth: 1,
-        borderColor: COLORS.gray100,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2
+        marginTop: 8,
     },
-    aboutDescription: { fontSize: 14, color: COLORS.gray600, lineHeight: 20, marginBottom: 16 },
-    divider: { height: 1, backgroundColor: COLORS.gray100, marginVertical: 16 },
-    infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    infoLabel: { fontSize: 14, color: COLORS.gray500, width: 100 },
-    infoText: { fontSize: 14, color: COLORS.textHeadline, fontWeight: '600', marginLeft: 8, flex: 1 },
-
-    emptyContainer: { padding: 40, alignItems: 'center' },
-    emptyText: { color: COLORS.gray400, fontSize: 15 },
-    loadingContainer: { padding: 40, alignItems: 'center' },
-    loadingText: { marginTop: 12, color: COLORS.gray400 },
-
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    sortModalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 },
-    sortModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-    sortModalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline },
-    sortOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
-    sortOptionActive: {},
-    sortOptionText: { fontSize: 15, color: COLORS.gray600, fontWeight: '500' },
-    sortOptionTextActive: { color: COLORS.primary, fontWeight: '700' },
-
-    menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+    aboutDescription: {
+        fontSize: 14,
+        color: '#4B5563',
+        lineHeight: 22,
+        marginBottom: 16,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 12,
+    },
+    infoText: {
+        fontSize: 14,
+        color: '#374151',
+        flex: 1,
+    },
+    infoLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#374151',
+        width: 60,
+    },
+    productsContainer: {
+        marginTop: 12,
+        backgroundColor: '#FFF',
+        paddingVertical: 16,
+    },
+    grid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        paddingHorizontal: 16,
+        justifyContent: 'space-between',
+    },
+    productWrapper: {
+        width: (width - 48) / 2,
+        marginBottom: 12,
+    },
+    // Menu Styles
+    menuOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
     menuContainer: {
         position: 'absolute',
-        right: 20,
-        width: 200,
-        backgroundColor: COLORS.white,
+        right: 16,
+        backgroundColor: '#FFF',
         borderRadius: 12,
-        padding: 8,
+        width: 200,
+        paddingVertical: 8,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-        elevation: 5
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 10,
     },
-    menuItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
-    menuText: { fontSize: 14, color: COLORS.textHeadline, fontWeight: '500' },
-    menuDivider: { height: 1, backgroundColor: COLORS.gray100, marginVertical: 4 },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
+    menuText: {
+        fontSize: 15,
+        color: '#374151',
+        fontWeight: '500',
+    },
+    menuDivider: {
+        height: 1,
+        backgroundColor: '#F3F4F6',
+        marginVertical: 4,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#6B7280',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    emptyText: {
+        fontSize: 14,
+        color: '#9CA3AF',
+    },
 });

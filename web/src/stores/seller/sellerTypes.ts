@@ -161,8 +161,6 @@ export interface SellerOrder {
     type?: "ONLINE" | "OFFLINE"; // POS-Lite: Track order source
     posNote?: string; // POS-Lite: Optional note for offline sales
     notes?: string; // Unified notes field
-    cancellationReason?: string | null; // Reason for cancellation (from order_cancellations)
-    cancelledByRole?: "buyer" | "seller" | null; // Who cancelled
 }
 
 // Inventory Ledger - Immutable audit trail for all stock changes

@@ -333,11 +333,7 @@ export default function SellerStorefrontPage() {
     isVerified: realSeller.is_verified || false,
     tierLevel: (realSeller as any).tier_level || 'standard',
     description: realSeller.store_description || '',
-    location: [
-      realSeller.business_profile?.address_line_1,
-      realSeller.city || realSeller.business_profile?.city,
-      realSeller.province || realSeller.business_profile?.province
-    ].filter(Boolean).join(', ') || 'Philippines',
+    location: [realSeller.city, realSeller.province].filter(Boolean).join(', ') || 'Philippines',
     established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
     badges: realSeller.is_verified ? ['Verified Seller'] : [],
     responseTime: '< 24 hours',
