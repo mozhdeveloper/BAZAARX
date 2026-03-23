@@ -352,7 +352,7 @@ export default function OrdersPage() {
       return matchesSearch && matchesStatus;
     });
 
-    // If viewing reviewed tab, sort by review.submittedAt desc
+    // For other tabs, check if there's a specialized sort
     if (statusFilter === "reviewed") {
       return filtered.sort((a, b) => {
         const aTime = a.review?.submittedAt ? new Date(a.review.submittedAt).getTime() : getTimestamp(a.createdAt);
@@ -360,7 +360,7 @@ export default function OrdersPage() {
         return bTime - aTime;
       });
     }
-    // If viewing cancelled tab, sort by cancelledAt desc (fallback to createdAt)
+
     if (statusFilter === "cancelled") {
       return filtered.sort((a, b) => {
         const aTime = a.cancelledAt ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
@@ -370,7 +370,6 @@ export default function OrdersPage() {
       });
     }
 
-    // If viewing returned tab, sort by returnRequest.submittedAt desc
     if (statusFilter === "returned") {
       return filtered.sort((a, b) => {
         const aTime = a.returnRequest?.submittedAt ? getTimestamp(a.returnRequest.submittedAt) : getTimestamp(a.createdAt);
@@ -379,8 +378,16 @@ export default function OrdersPage() {
         return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
       });
     }
-    // Otherwise, sort by createdAt desc
-    return filtered.sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
+
+    // Default sort for "all" and other tabs:
+    // Sort by cancelledAt if the order is cancelled, otherwise by createdAt
+    return filtered.sort((a, b) => {
+      const aTime = (a.status === "cancelled" && a.cancelledAt) ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
+      const bTime = (b.status === "cancelled" && b.cancelledAt) ? getTimestamp(b.cancelledAt) : getTimestamp(b.createdAt);
+      
+      if (aTime !== bTime) return bTime - aTime;
+      return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
+    });
   }, [orders, searchQuery, statusFilter]);
 
   const formatDate = (date: Date | string) => {
