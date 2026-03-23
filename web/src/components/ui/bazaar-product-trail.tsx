@@ -70,7 +70,7 @@ const BazaarProductTrailDemo = () => {
               key={index}
               className="flex relative overflow-hidden w-24 h-24 rounded-xl shadow-lg border-2 border-orange-200 hover:border-orange-400 transition-all duration-300"
             >
-              <img
+              <img loading="lazy" 
                 src={product.url}
                 alt={product.alt}
                 className="object-cover absolute inset-0 hover:scale-110 transition-transform duration-300"

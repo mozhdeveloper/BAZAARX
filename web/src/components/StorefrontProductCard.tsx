@@ -78,7 +78,7 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
             onClick={() => navigate(`/product/${product.id}`)}
         >
             <div className="relative aspect-square overflow-hidden">
-                <img
+                <img loading="lazy" 
                     src={product.image}
                     alt={product.name}
                     loading="lazy"

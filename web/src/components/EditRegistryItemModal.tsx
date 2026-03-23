@@ -140,7 +140,7 @@ export const EditRegistryItemModal = ({
               {/* Product Image Section */}
               <div className="w-full md:w-1/2 bg-white p-8 flex items-center justify-center border-b md:border-b-0 md:border-r border-gray-100">
                 <div className="aspect-square w-full max-w-sm flex items-center justify-center">
-                  <img
+                  <img loading="lazy" 
                     src={item.image}
                     alt={item.name}
                     className="max-h-full max-w-full object-contain"

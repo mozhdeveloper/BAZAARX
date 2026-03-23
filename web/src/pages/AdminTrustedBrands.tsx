@@ -257,7 +257,7 @@ const AdminTrustedBrands: React.FC = () => {
                             <tr key={seller.id} className={`hover:bg-gray-50 transition-colors ${trusted ? 'bg-amber-50/30' : ''}`}>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
-                                  <img
+                                  <img loading="lazy" 
                                     src={seller.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(seller.store_name)}&background=FFD89A&color=78350F`}
                                     alt={seller.store_name}
                                     className="h-10 w-10 rounded-full object-cover border"

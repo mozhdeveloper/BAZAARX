@@ -45,7 +45,7 @@ export function CartModal({ isOpen, onClose, productName, productImage, cartItem
             {/* Product Mini Preview */}
             <div className="flex items-center gap-3 w-full bg-gray-50/70 p-3 rounded-2xl border border-gray-100">
               <div className="w-12 h-12 rounded-xl bg-white p-1 shadow-sm border border-gray-100 shrink-0">
-                <img
+                <img loading="lazy" 
                   src={productImage}
                   alt={productName}
                   className="w-full h-full object-cover rounded-lg"

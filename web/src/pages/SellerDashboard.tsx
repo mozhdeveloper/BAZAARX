@@ -360,7 +360,7 @@ const DashboardContent = () => {
                 >
                   {index === 0 && <Flame className="absolute top-3 right-3 h-6 w-6 text-[var(--brand-primary)] fill-current animate-pulse" />}
                   <div className="flex-1 flex items-center justify-center w-full min-h-0">
-                    <img
+                    <img loading="lazy" 
                       src={product.images[0] || "https://placehold.co/200"}
                       alt={product.name}
                       className={cn(

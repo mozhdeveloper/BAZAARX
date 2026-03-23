@@ -62,7 +62,7 @@ export function RevealImageListItem({ text, images, isActive = false, isDimmed =
           activeEffect,
           isActive && "scale-105 opacity-90"
         )}>
-          <img
+          <img loading="lazy" 
             alt={images[1]?.alt ?? ""}
             src={images[1]?.src ?? "/placeholder.svg"}
             className="h-full w-full object-cover"
@@ -76,7 +76,7 @@ export function RevealImageListItem({ text, images, isActive = false, isDimmed =
         className={containerFront}
       >
         <div className={cn(effectBase, activeEffect, "duration-200")}>
-          <img
+          <img loading="lazy" 
             alt={images[0]?.alt ?? ""}
             src={images[0]?.src ?? "/placeholder.svg"}
             className="h-full w-full object-cover"

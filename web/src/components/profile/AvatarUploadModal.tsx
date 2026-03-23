@@ -73,7 +73,7 @@ export const AvatarUploadModal = ({
             onClick={() => document.getElementById('avatar-upload-input')?.click()}
           >
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-gray-200">
-              <img
+              <img loading="lazy" 
                 src={profile.avatar}
                 alt="Current Avatar"
                 className="w-full h-full object-cover"

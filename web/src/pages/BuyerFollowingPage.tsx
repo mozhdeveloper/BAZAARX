@@ -220,7 +220,7 @@ export default function BuyerFollowingPage() {
                     {/* Shop Brand Area */}
                     <div className="flex items-center gap-3 mb-3">
                       {shop.logo ? (
-                        <img
+                        <img loading="lazy" 
                           src={shop.logo}
                           alt={shop.name}
                           className="w-12 h-12 rounded-full object-cover border-2 border-orange-50 shadow-sm shrink-0"

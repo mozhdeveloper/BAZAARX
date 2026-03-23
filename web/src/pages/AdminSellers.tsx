@@ -455,7 +455,7 @@ const AdminSellers: React.FC = () => {
         className={`${sizeClass} bg-[var(--brand-primary)] rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm`}
       >
         {canRenderImage ? (
-          <img
+          <img loading="lazy" 
             src={logo}
             alt={name}
             className={`${sizeClass} rounded-xl object-cover`}

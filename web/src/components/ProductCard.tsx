@@ -60,7 +60,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
       onClick={() => navigate(`/product/${product.id}`)}
     >
       <div className="relative aspect-square overflow-hidden bg-[#FFF6E5]">
-        <img
+        <img loading="lazy" 
           src={product.image}
           alt={product.name}
           loading="lazy"

@@ -771,7 +771,7 @@ const AdminReturns: React.FC = () => {
                   </p>
                   <div className="flex gap-2 overflow-x-auto">
                     {selectedReturn.evidence_urls.map((url, i) => (
-                      <img
+                      <img loading="lazy" 
                         key={i}
                         src={url}
                         alt={`Evidence ${i + 1}`}
@@ -789,7 +789,7 @@ const AdminReturns: React.FC = () => {
                   {selectedReturn.items_json.map((item: any, i: number) => (
                     <div key={i} className="flex items-center gap-2 py-1">
                       {item.image && (
-                        <img src={item.image} alt="" className="w-8 h-8 rounded object-cover" />
+                        <img loading="lazy" src={item.image} alt="" className="w-8 h-8 rounded object-cover" />
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate">{item.productName || item.product_name}</p>

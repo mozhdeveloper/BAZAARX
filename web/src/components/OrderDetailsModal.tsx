@@ -494,7 +494,7 @@ export function OrderDetailsModal({
                                                 return (
                                                     <div key={idx} className="flex gap-4">
                                                         <div className="h-14 w-14 rounded-md bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
-                                                            <img src={item.image} alt={displayName} className="h-full w-full object-cover" />
+                                                            <img loading="lazy" src={item.image} alt={displayName} className="h-full w-full object-cover" />
                                                         </div>
                                                         <div className="flex-1 min-w-0 flex flex-col justify-center">
                                                             {/* Display recovered base name */}
@@ -786,7 +786,7 @@ export function OrderDetailsModal({
                                             <div className="flex gap-2 mt-3">
                                                 {latestReview.images.map(
                                                     (image, index) => (
-                                                        <img
+                                                        <img loading="lazy" 
                                                             key={`${latestReview.id}-${index}`}
                                                             src={image}
                                                             alt={`Review ${index + 1}`}
@@ -816,7 +816,7 @@ export function OrderDetailsModal({
                                                     onClick={() => setSelectedPhoto(url)}
                                                     className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-orange-400 transition-colors"
                                                 >
-                                                    <img
+                                                    <img loading="lazy" 
                                                         src={url}
                                                         alt={`Receipt ${idx + 1}`}
                                                         className="w-full h-full object-cover"
@@ -1241,7 +1241,7 @@ export function OrderDetailsModal({
                     >
                         <X className="w-8 h-8" />
                     </button>
-                    <img
+                    <img loading="lazy" 
                         src={selectedPhoto}
                         alt="Receipt photo"
                         className="max-w-full max-h-[90vh] rounded-lg object-contain"

@@ -531,7 +531,7 @@ export function ChatBubble() {
                   <Bot className="w-5 h-5 text-white" />
                 </div>
               ) : chatTarget?.sellerAvatar ? (
-                <img
+                <img loading="lazy" 
                   src={chatTarget.sellerAvatar}
                   alt={chatTarget.sellerName}
                   className="w-10 h-10 rounded-full border-2 border-white/30 object-cover"
@@ -628,7 +628,7 @@ export function ChatBubble() {
           {/* Product context bar */}
           {chatTarget?.productId && chatTarget?.productImage && (
             <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-3">
-              <img
+              <img loading="lazy" 
                 src={chatTarget.productImage}
                 alt={chatTarget.productName}
                 className="w-10 h-10 rounded-lg object-cover border border-gray-200"

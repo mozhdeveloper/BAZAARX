@@ -335,7 +335,7 @@ const QADashboard = () => {
                   <Card key={assessment.id} className="overflow-hidden flex flex-col hover:shadow-lg transition-all duration-300 border-gray-200/60 bg-white group relative">
                     {/* Image */}
                     <div className="h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
-                      <img
+                      <img loading="lazy" 
                         src={primaryImage}
                         alt={product?.name || 'Product'}
                         className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -409,7 +409,7 @@ const QADashboard = () => {
                         {selectedProduct.product?.images && (
                           <div className="relative rounded-2xl border border-gray-100 bg-gray-50/50 p-2 shadow-sm overflow-hidden">
                             <div className="h-64 sm:h-80 bg-white rounded-xl overflow-hidden flex items-center justify-center">
-                              <img
+                              <img loading="lazy" 
                                 src={selectedProduct.product.images[currentImageIndex]?.image_url || 'https://placehold.co/400'}
                                 alt="Product"
                                 className="h-full w-full object-contain"

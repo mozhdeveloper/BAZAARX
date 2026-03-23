@@ -247,9 +247,13 @@ export const useOrderStore = create<OrderStore>()(
                                     const trackUrl = `${BASE_URL}/orders/${id}`;
                                     (
                                         dbStatus === 'processing' ? emails.sendOrderConfirmedEmail({ ...base, estimatedDelivery: '3–7 business days' }) :
+                                        dbStatus === 'ready_to_ship' ? emails.sendOrderReadyToShipEmail({ ...base, estimatedPickup: 'Within 24 hours', trackUrl }) :
                                         dbStatus === 'shipped' ? emails.sendOrderShippedEmail({ ...base, trackingNumber: order.trackingNumber || 'N/A', courierName: 'courier', trackingUrl: trackUrl }) :
+                                        dbStatus === 'out_for_delivery' ? emails.sendOrderOutForDeliveryEmail({ ...base, courierName: 'courier', trackUrl }) :
                                         dbStatus === 'delivered' ? emails.sendOrderDeliveredEmail(base) :
+                                        dbStatus === 'failed_to_deliver' ? emails.sendOrderFailedDeliveryEmail({ ...base, failureReason: 'Delivery attempt failed', rescheduleUrl: trackUrl }) :
                                         dbStatus === 'cancelled' ? emails.sendOrderCancelledEmail({ ...base, cancelReason: 'Order cancelled' }) :
+                                        dbStatus === 'returned' ? emails.sendOrderReturnedEmail({ ...base, refundAmount: 'Pending', refundMethod: 'Original payment method', trackUrl }) :
                                         Promise.resolve()
                                     ).then((result) => {
                                         console.log(`[SellerOrderStore] ${dbStatus} email result:`, result);

@@ -246,7 +246,7 @@ export default function BuyerOnboardingPage() {
                                                     }`}
                                             >
                                                 <div className="absolute inset-0">
-                                                    <img
+                                                    <img loading="lazy" 
                                                         src={cat.image_url || cat.icon || "/placeholder-category.jpg"} // Use DB image fields
                                                         alt={cat.name}
                                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"

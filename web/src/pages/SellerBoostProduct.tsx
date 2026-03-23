@@ -420,7 +420,7 @@ export default function SellerBoostProduct() {
                             {/* Product Image */}
                             <div className="sm:w-28 sm:h-28 h-40 bg-gray-100 flex-shrink-0 overflow-hidden">
                               {img ? (
-                                <img
+                                <img loading="lazy" 
                                   src={img}
                                   alt={boost.product?.name}
                                   className="w-full h-full object-cover"
@@ -564,7 +564,7 @@ export default function SellerBoostProduct() {
               {selectedProduct ? (
                 <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
                   {getProductImage(selectedProduct) ? (
-                    <img
+                    <img loading="lazy" 
                       src={getProductImage(selectedProduct)}
                       alt={selectedProduct.name}
                       className="w-12 h-12 rounded-lg object-cover"
@@ -621,7 +621,7 @@ export default function SellerBoostProduct() {
                           )}
                         >
                           {getProductImage(product) ? (
-                            <img
+                            <img loading="lazy" 
                               src={getProductImage(product)}
                               alt={product.name}
                               className="w-10 h-10 rounded object-cover"

@@ -51,12 +51,26 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
     set({ isLoading: true });
     try {
       await returnService.approveReturn(id);
+      const returnReq = get().sellerReturns.find((r) => r.id === id);
       set((state) => ({
         sellerReturns: state.sellerReturns.map((r) =>
           r.id === id ? { ...r, status: 'approved', refundDate: new Date().toISOString() } : r
         ),
         isLoading: false,
       }));
+      // Send refund email to buyer (non-blocking)
+      if (returnReq?.buyerEmail) {
+        import('../services/transactionalEmails').then(({ sendRefundProcessedEmail }) => {
+          sendRefundProcessedEmail({
+            buyerEmail: returnReq.buyerEmail!,
+            buyerId: returnReq.buyerId || '',
+            orderNumber: returnReq.orderNumber || returnReq.orderId,
+            buyerName: returnReq.buyerName || 'Valued Customer',
+            refundAmount: returnReq.refundAmount ? `₱${returnReq.refundAmount.toFixed(2)}` : 'Pending',
+            refundMethod: 'Original payment method',
+          }).catch((err: unknown) => console.warn('[ReturnStore] Refund email error:', err));
+        }).catch(() => {});
+      }
     } catch (err: any) {
       set({ error: err.message || 'Failed to approve return', isLoading: false });
       throw err;
@@ -115,12 +129,26 @@ export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
     set({ isLoading: true });
     try {
       await returnService.confirmReturnReceived(id);
+      const returnReq = get().sellerReturns.find((r) => r.id === id);
       set((state) => ({
         sellerReturns: state.sellerReturns.map((r) =>
           r.id === id ? { ...r, status: 'refunded', returnReceivedAt: new Date().toISOString(), refundDate: new Date().toISOString() } : r
         ),
         isLoading: false,
       }));
+      // Send refund confirmation email to buyer (non-blocking)
+      if (returnReq?.buyerEmail) {
+        import('../services/transactionalEmails').then(({ sendRefundProcessedEmail }) => {
+          sendRefundProcessedEmail({
+            buyerEmail: returnReq.buyerEmail!,
+            buyerId: returnReq.buyerId || '',
+            orderNumber: returnReq.orderNumber || returnReq.orderId,
+            buyerName: returnReq.buyerName || 'Valued Customer',
+            refundAmount: returnReq.refundAmount ? `₱${returnReq.refundAmount.toFixed(2)}` : 'Pending',
+            refundMethod: 'Original payment method',
+          }).catch((err: unknown) => console.warn('[ReturnStore] Refund email error:', err));
+        }).catch(() => {});
+      }
     } catch (err: any) {
       set({ error: err.message || 'Failed to confirm return received', isLoading: false });
       throw err;

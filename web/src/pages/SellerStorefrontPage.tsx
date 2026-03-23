@@ -572,7 +572,7 @@ export default function SellerStorefrontPage() {
             {/* Store Avatar */}
             <div className="relative">
               <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-white p-1 shadow-2xl overflow-hidden">
-                <img
+                <img loading="lazy" 
                   src={seller.avatar}
                   alt={seller.name}
                   className="w-full h-full rounded-full object-cover"

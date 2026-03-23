@@ -32,8 +32,8 @@ export async function sendOrderReceiptEmail(params: {
       order_date: params.orderDate,
       items_html: params.itemsHtml,
       subtotal: params.subtotal,
-      shipping_fee: params.shippingFee,
-      total_amount: params.totalAmount,
+      shipping: params.shippingFee,
+      total: params.totalAmount,
     },
     metadata: { order_number: params.orderNumber },
   });
@@ -83,8 +83,8 @@ export async function sendOrderShippedEmail(params: {
       buyer_name: params.buyerName,
       order_number: params.orderNumber,
       tracking_number: params.trackingNumber,
-      courier_name: params.courierName,
-      tracking_url: params.trackingUrl,
+      courier: params.courierName,
+      track_url: params.trackingUrl,
     },
   });
 }
@@ -153,7 +153,7 @@ export async function sendPaymentReceivedEmail(params: {
       buyer_name: params.buyerName,
       order_number: params.orderNumber,
       payment_method: params.paymentMethod,
-      amount_paid: params.amountPaid,
+      amount: params.amountPaid,
     },
   });
 }
@@ -177,7 +177,7 @@ export async function sendRefundProcessedEmail(params: {
     variables: {
       buyer_name: params.buyerName,
       order_number: params.orderNumber,
-      refund_amount: params.refundAmount,
+      amount: params.refundAmount,
       refund_method: params.refundMethod,
     },
   });

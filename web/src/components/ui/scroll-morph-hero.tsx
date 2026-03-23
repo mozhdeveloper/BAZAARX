@@ -63,7 +63,7 @@ function FlipCard({
                     className="absolute inset-0 h-full w-full overflow-hidden rounded-xl shadow-lg bg-gray-200"
                     style={{ backfaceVisibility: "hidden" }}
                 >
-                    <img
+                    <img loading="lazy" 
                         src={src}
                         alt={`${category}-${index}`}
                         className="h-full w-full object-cover"

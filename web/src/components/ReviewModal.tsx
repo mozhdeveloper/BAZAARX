@@ -312,7 +312,7 @@ export function ReviewModal({
                             <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
                               <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
                                 {item.image ? (
-                                  <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                  <img loading="lazy" src={item.image} alt={item.name} className="w-full h-full object-cover" />
                                 ) : (
                                   <Package className="w-6 h-6 text-gray-400" />
                                 )}
@@ -442,7 +442,7 @@ export function ReviewModal({
                                     <div className="flex items-center gap-3 flex-wrap">
                                       {currentImages.map((img, index) => (
                                         <div key={index} className="relative group">
-                                          <img
+                                          <img loading="lazy" 
                                             src={img}
                                             alt="Review Thumbnail"
                                             className="w-16 h-16 object-cover rounded-lg border border-gray-200"

@@ -1229,7 +1229,7 @@ export default function OrderDetailPage() {
                         >
                           <div className="relative group flex-shrink-0">
                             <div className="w-16 h-16 overflow-hidden border border-gray-100 bg-gray-50">
-                              <img
+                              <img loading="lazy" 
                                 src={item.image}
                                 alt={item.name}
                                 className="w-16 h-16 object-cover transition-transform group-hover/item:scale-110"
@@ -1692,7 +1692,7 @@ export default function OrderDetailPage() {
           >
             <X className="w-6 h-6" />
           </button>
-          <img
+          <img loading="lazy" 
             src={selectedPhoto}
             alt="Receipt photo"
             className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain"

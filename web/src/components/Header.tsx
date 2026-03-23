@@ -125,7 +125,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
             onClick={() => navigate("/")}
           >
             <div className={`flex items-center gap-2 transition-all duration-300 ${transparentOnTop && !isScrolled ? "drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]" : ""}`}>
-              <img
+              <img loading="eager" 
                 src="/BazaarX.png"
                 alt="BazaarX Logo"
                 className="h-12 w-auto object-contain"
@@ -320,7 +320,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                     <div className="relative">
                       <div className="w-9 h-9 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden shadow-sm hover:scale-105 transition-transform border border-white/50">
                         {profile.avatar ? (
-                          <img src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
+                          <img loading="lazy" src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
                         ) : (
                           <span className="text-white text-sm font-bold">
                             {profile.firstName.charAt(0)}
@@ -342,7 +342,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden shadow-md text-white font-bold text-base">
                             {profile.avatar ? (
-                              <img src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
+                              <img loading="lazy" src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
                             ) : (
                               <span>{profile.firstName.charAt(0)}</span>
                             )}

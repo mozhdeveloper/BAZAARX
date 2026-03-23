@@ -167,7 +167,7 @@ const AdminReviewModeration: React.FC = () => {
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-start gap-3 flex-1">
-              <img
+              <img loading="lazy" 
                 src={review.productImage}
                 alt=""
                 className="w-16 h-16 object-cover rounded-lg"
@@ -190,7 +190,7 @@ const AdminReviewModeration: React.FC = () => {
 
           {/* Buyer Info */}
           <div className="flex items-center gap-3 mb-4">
-            <img
+            <img loading="lazy" 
               src={review.buyerAvatar}
               alt=""
               className="w-10 h-10 rounded-full"
@@ -222,7 +222,7 @@ const AdminReviewModeration: React.FC = () => {
           {review.images && review.images.length > 0 && (
             <div className="flex gap-2 mb-4">
               {review.images.map((image: string, idx: number) => (
-                <img
+                <img loading="lazy" 
                   key={idx}
                   src={image}
                   alt=""
@@ -473,7 +473,7 @@ const AdminReviewModeration: React.FC = () => {
                 {selectedReview && (
                   <div className="space-y-6 py-4">
                     <div className="flex items-start gap-4">
-                      <img
+                      <img loading="lazy" 
                         src={selectedReview.productImage}
                         alt=""
                         className="w-20 h-20 object-cover rounded-lg"
@@ -491,7 +491,7 @@ const AdminReviewModeration: React.FC = () => {
                       <div>
                         <Label className="text-gray-500">Buyer</Label>
                         <div className="flex items-center gap-2 mt-1">
-                          <img src={selectedReview.buyerAvatar} alt="" className="w-6 h-6 rounded-full" />
+                          <img loading="lazy" src={selectedReview.buyerAvatar} alt="" className="w-6 h-6 rounded-full" />
                           <span className="text-sm font-medium">{selectedReview.buyerName}</span>
                         </div>
                       </div>
@@ -519,7 +519,7 @@ const AdminReviewModeration: React.FC = () => {
                         <Label className="text-gray-500">Review Images</Label>
                         <div className="flex gap-2 mt-2">
                           {selectedReview.images.map((img: string, i: number) => (
-                            <img key={i} src={img} alt="" className="w-24 h-24 object-cover rounded-lg border" />
+                            <img loading="lazy" key={i} src={img} alt="" className="w-24 h-24 object-cover rounded-lg border" />
                           ))}
                         </div>
                       </div>

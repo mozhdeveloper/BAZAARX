@@ -290,7 +290,7 @@ export default function BuyerReturnsListPage() {
                       {/* Items */}
                       <div className="flex items-start gap-3 mb-3">
                         {ret.items && ret.items.length > 0 ? (
-                          <img
+                          <img loading="lazy" 
                             src={ret.items[0].image || "/placeholder.png"}
                             alt=""
                             className="w-14 h-14 rounded-lg object-cover flex-shrink-0"

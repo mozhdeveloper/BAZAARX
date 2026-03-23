@@ -244,7 +244,7 @@ export function VariantSelectionModal({
                 </DialogTitle>
                 {/* Product Image - Compact at top */}
                 <div className="w-full h-64 bg-gray-50 relative flex-shrink-0">
-                    <img
+                    <img loading="lazy" 
                         src={currentImage}
                         alt={product.name}
                         className="w-full h-full object-contain"
@@ -312,7 +312,7 @@ export function VariantSelectionModal({
                                         >
                                             {colorVariant?.thumbnail_url ? (
                                                 <div className="w-12 h-12">
-                                                    <img
+                                                    <img loading="lazy" 
                                                         src={colorVariant.thumbnail_url}
                                                         alt={color}
                                                         className="w-full h-full object-cover"

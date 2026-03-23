@@ -205,7 +205,7 @@ export function JoinGlobalSlotDialog({
                             onCheckedChange={() => handleToggle(p.id, Math.floor(maxPrice), p.stock)}
                             className="mt-1"
                           />
-                          <img src={p.images?.[0] || ""} alt="" className="w-12 h-12 object-cover rounded bg-gray-200" />
+                          <img loading="lazy" src={p.images?.[0] || ""} alt="" className="w-12 h-12 object-cover rounded bg-gray-200" />
                           <div>
                             <p className="font-semibold text-sm truncate">{p.name}</p>
                             <p className="text-xs text-gray-500">Regular: ₱{p.price.toLocaleString()} | Stock: {p.stock}</p>
@@ -272,7 +272,7 @@ export function JoinGlobalSlotDialog({
                 {existingSubmissions.map((sub) => (
                   <div key={sub.id} className="bg-white border rounded-xl p-4 flex items-center gap-4">
                     {sub.product_image ? (
-                      <img src={sub.product_image} alt="" className="w-14 h-14 rounded-lg object-cover bg-gray-100 shrink-0" />
+                      <img loading="lazy" src={sub.product_image} alt="" className="w-14 h-14 rounded-lg object-cover bg-gray-100 shrink-0" />
                     ) : (
                       <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                         <Package className="h-6 w-6 text-gray-300" />
