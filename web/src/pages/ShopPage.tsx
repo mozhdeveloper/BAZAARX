@@ -54,6 +54,7 @@ import { bestSellerProducts } from "../data/products";
 
 const sortOptions = [
   { value: "newest", label: "Newest Arrivals" },
+  { value: "featured", label: "Featured" },
   { value: "price-low", label: "Price: Low to High" },
   { value: "price-high", label: "Price: High to Low" },
   { value: "rating", label: "Rating" },
@@ -340,6 +341,7 @@ export default function ShopPage() {
   useEffect(() => {
     const queryParam = searchParams.get("q") || "";
     const categoryParam = searchParams.get("category");
+    const sortParam = searchParams.get("sort");
 
     setSearchQuery(queryParam);
 
@@ -349,11 +351,18 @@ export default function ShopPage() {
       setSelectedCategory("All Categories");
     }
 
+    // Set sort from URL parameter
+    if (sortParam && sortOptions.some(option => option.value === sortParam)) {
+      setSelectedSort(sortParam);
+    } else if (!sortParam) {
+      setSelectedSort("newest");
+    }
+
     // Scroll logic - handles both initial mount and updates
     setTimeout(() => {
-      const isClean = !categoryParam && !queryParam &&
+      const isClean = !categoryParam && !queryParam && !sortParam &&
         priceRange[0] === 0 && priceRange[1] === 100000 &&
-        minRating === 0 && selectedSort === "newest";
+        minRating === 0;
 
       if (isClean && !manualScrollRef.current) {
         // Landing on a clean Shop page (or reset via Shop tab), scroll to the very top
@@ -394,7 +403,9 @@ export default function ShopPage() {
   // flashSaleProducts comes from the real discount campaigns (state above)
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
-    const filtered = pricedProducts.filter((product) => {
+    let productsToFilter = pricedProducts;
+
+    const filtered = productsToFilter.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -415,8 +426,16 @@ export default function ShopPage() {
       return matchesSearch && matchesCategory && matchesPrice && matchesRating;
     });
 
-    // Apply sorting
+    // Apply sorting / filtering
     switch (selectedSort) {
+      case "featured": {
+        // Filter to show only featured/boosted products
+        const featuredProductIds = new Set([
+          ...featuredProducts.map(fp => fp.product_id),
+          ...boostedProducts.map(bp => bp.product_id)
+        ]);
+        return filtered.filter(p => featuredProductIds.has(p.id));
+      }
       case "price-low":
         filtered.sort((a, b) => a.price - b.price);
         break;
@@ -435,7 +454,7 @@ export default function ShopPage() {
     }
 
     return filtered;
-  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating]);
+  }, [pricedProducts, searchQuery, selectedCategory, selectedSkinTypes, selectedSort, priceRange, minRating, featuredProducts, boostedProducts]);
 
 
 
@@ -444,6 +463,11 @@ export default function ShopPage() {
     setSelectedSort("newest");
     setPriceRange([0, 100000]);
     setMinRating(0);
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev);
+      params.delete("sort");
+      return params;
+    });
   };
 
   return (
@@ -599,7 +623,7 @@ export default function ShopPage() {
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
-          {(featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
+          {selectedSort !== 'featured' && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
             <div className="mb-10">
               {/* Section Header */}
               <div className="flex items-center justify-between mb-5 px-1">
@@ -612,7 +636,24 @@ export default function ShopPage() {
                     Sponsored
                   </span>
                 </div>
-                <button className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1">
+                <button
+                  className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1"
+                  onClick={() => {
+                    manualScrollRef.current = true;
+                    setSelectedSort("featured");
+                    setSearchParams(prev => {
+                      const params = new URLSearchParams(prev);
+                      params.set("sort", "featured");
+                      return params;
+                    });
+                    setTimeout(() => {
+                      const element = document.getElementById("shop-results-header");
+                      if (element) {
+                        element.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }, 100);
+                  }}
+                >
                   See All <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -645,10 +686,10 @@ export default function ShopPage() {
 
               {/* Sponsored Products Grid */}
               {!featuredLoading && (featuredProducts.length > 0 || boostedProducts.length > 0) && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                  {(() => {
-                    const seenIds = new Set<string>();
-                    const allItems: { key: string; product: any; isBoosted: boolean }[] = [];
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {(() => {
+                  const seenIds = new Set<string>();
+                  const allItems: { key: string; product: any; isBoosted: boolean }[] = [];
 
                     for (const bp of boostedProducts) {
                       const product = bp.product;
@@ -794,10 +835,14 @@ export default function ShopPage() {
                           onClick={() => {
                             manualScrollRef.current = true;
                             setSelectedCategory(category);
+                            if (category === "All Categories") {
+                              setIsFeaturedView(false);
+                            }
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               if (category === "All Categories") {
                                 next.delete("category");
+                                next.delete("view");
                               } else {
                                 next.set("category", category);
                               }
@@ -833,9 +878,11 @@ export default function ShopPage() {
                         onClick={() => {
                           manualScrollRef.current = true;
                           setSelectedCategory("All Categories");
+                          setIsFeaturedView(false);
                           setSearchParams((prev) => {
                             const next = new URLSearchParams(prev);
                             next.delete("category");
+                            next.delete("view");
                             return next;
                           });
                         }}
@@ -1047,9 +1094,28 @@ export default function ShopPage() {
                       Categories
                     </button>
 
-                    <p className="text-[var(--text-muted)] text-sm font-medium leading-none">
-                      Showing <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> results
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[var(--text-muted)] text-sm font-medium leading-none">
+                        Showing <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> results
+                      </p>
+                      {selectedSort === 'featured' && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 cursor-pointer text-[10px] font-semibold px-2 py-0.5"
+                          onClick={() => {
+                            setSelectedSort("newest");
+                            setSearchParams(prev => {
+                              const params = new URLSearchParams(prev);
+                              params.delete("sort");
+                              return params;
+                            });
+                          }}
+                        >
+                          <Star className="h-2.5 w-2.5 mr-1 fill-current" />
+                          Featured ×
+                        </Badge>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 h-10">
@@ -1057,6 +1123,15 @@ export default function ShopPage() {
                     <Select value={selectedSort} onValueChange={(val) => {
                       manualScrollRef.current = true;
                       setSelectedSort(val);
+                      setSearchParams(prev => {
+                        const params = new URLSearchParams(prev);
+                        if (val === "newest") {
+                          params.delete("sort");
+                        } else {
+                          params.set("sort", val);
+                        }
+                        return params;
+                      });
                     }}>
                       <SelectTrigger className="w-[120px] md:w-[160px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
                         <SelectValue placeholder="Sort by" />
