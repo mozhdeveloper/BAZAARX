@@ -179,7 +179,7 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl, itemWidth }: { la
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  const CATEGORY_ITEM_WIDTH = (screenWidth - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4)) / 5;
+  const CATEGORY_ITEM_WIDTH = (screenWidth - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4) - 4) / 5;
 
   const BRAND_COLOR = COLORS.primary;
   const { user, isGuest } = useAuthStore();
