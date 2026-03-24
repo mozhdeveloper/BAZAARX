@@ -52,6 +52,14 @@ export default function SellerMessages() {
 
   const useRealData = dbConversations.length > 0;
 
+  // Sort helper — newest last_message_at first
+  const sortByLastMessage = (list: DBConversation[]) =>
+    [...list].sort(
+      (a, b) =>
+        new Date(b.last_message_at || b.updated_at).getTime() -
+        new Date(a.last_message_at || a.updated_at).getTime()
+    );
+
   const loadConversations = useCallback(async () => {
     if (!seller?.id) return setLoading(false);
     try {
@@ -65,6 +73,14 @@ export default function SellerMessages() {
   }, [seller?.id]);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
+
+  // Clear unread badge optimistically when a conversation is opened
+  const handleSelectConversation = (id: string) => {
+    setSelectedConversation(id);
+    setDbConversations(prev =>
+      prev.map(c => c.id === id ? { ...c, seller_unread_count: 0 } : c)
+    );
+  };
 
   useEffect(() => {
     if (dbConversations.length > 0 && !selectedConversation) {
@@ -84,7 +100,7 @@ export default function SellerMessages() {
     return unsubscribe;
   }, []);
 
-  // Real-time sidebar: keep last_message + timestamp current for all conversations
+  // Real-time sidebar: keep last_message + timestamp current, always re-sorted
   useEffect(() => {
     if (!seller?.id) return;
     const unsubscribe = chatService.subscribeToConversations(
@@ -93,10 +109,10 @@ export default function SellerMessages() {
       (updatedConv) => {
         setDbConversations(prev => {
           const exists = prev.some(c => c.id === updatedConv.id);
-          if (exists) {
-            return prev.map(c => c.id === updatedConv.id ? updatedConv : c);
-          }
-          return [updatedConv, ...prev];
+          const next = exists
+            ? prev.map(c => c.id === updatedConv.id ? updatedConv : c)
+            : [updatedConv, ...prev];
+          return sortByLastMessage(next);
         });
       }
     );
@@ -120,35 +136,49 @@ export default function SellerMessages() {
       if (newMsg.sender_type === 'buyer' && seller?.id) {
         chatService.markAsRead(selectedConversation, seller.id, 'seller');
       }
+      // Increment seller unread badge for non-selected conversations
+      if (newMsg.sender_type === 'buyer' && newMsg.conversation_id !== selectedConversation) {
+        setDbConversations(prev =>
+          sortByLastMessage(
+            prev.map(c =>
+              c.id === newMsg.conversation_id
+                ? { ...c, seller_unread_count: (c.seller_unread_count || 0) + 1, last_message: newMsg.content, last_message_at: newMsg.created_at }
+                : c
+            )
+          )
+        );
+      }
     });
     return unsubscribe;
   }, [selectedConversation, useRealData, seller?.id]);
 
   const normalizedDbConversations = useMemo(() => {
-    return dbConversations.map(conv => {
-      const convMessages = dbMessages.filter(msg => msg.conversation_id === conv.id);
-      const lastMsg = convMessages.at(-1);
-      const isLastMessageFromMe = lastMsg?.sender_type === 'seller';
-      return {
-        id: conv.id,
-        buyerName: conv.buyer_name || conv.buyer?.full_name || conv.buyer_email || 'Unknown Customer',
-        buyerImage: conv.buyer_avatar || conv.buyer?.avatar_url,
-        lastMessage: conv.last_message || '',
-        lastMessageTime: conv.last_message_at ? new Date(conv.last_message_at) : new Date(),
-        unreadCount: conv.seller_unread_count || 0,
-        isOnline: conv.is_online,
-        isLastMessageFromMe,
-        messages: convMessages.map(msg => ({
-          id: msg.id, 
-          senderId: msg.sender_type || '', 
-          text: msg.content, 
-          message_type: msg.message_type,
-          images: msg.image_url ? [msg.image_url] : undefined, 
-          timestamp: new Date(msg.created_at), 
-          isRead: msg.is_read
-        }))
-      };
-    });
+    return dbConversations
+      .filter(conv => !!conv.last_message) // Hide blank conversations
+      .map(conv => {
+        const convMessages = dbMessages.filter(msg => msg.conversation_id === conv.id);
+        const lastMsg = convMessages.at(-1);
+        const isLastMessageFromMe = lastMsg?.sender_type === 'seller';
+        return {
+          id: conv.id,
+          buyerName: conv.buyer_name || conv.buyer?.full_name || conv.buyer_email || 'Unknown Customer',
+          buyerImage: conv.buyer_avatar || conv.buyer?.avatar_url,
+          lastMessage: conv.last_message || '',
+          lastMessageTime: conv.last_message_at ? new Date(conv.last_message_at) : new Date(),
+          unreadCount: conv.seller_unread_count || 0,
+          isOnline: conv.is_online,
+          isLastMessageFromMe,
+          messages: convMessages.map(msg => ({
+            id: msg.id, 
+            senderId: msg.sender_type || '', 
+            text: msg.content, 
+            message_type: msg.message_type,
+            images: msg.image_url ? [msg.image_url] : undefined, 
+            timestamp: new Date(msg.created_at), 
+            isRead: msg.is_read
+          }))
+        };
+      });
   }, [dbConversations, dbMessages]);
 
   const activeConversation = useRealData
@@ -236,7 +266,7 @@ export default function SellerMessages() {
                 </div>
               ) : (
                 filteredConversations.map((conv) => (
-                  <div key={conv.id} onClick={() => setSelectedConversation(conv.id)} className={`p-4 cursor-pointer transition-all border-l-4 mx-2 rounded-xl my-1 ${selectedConversation === conv.id ? 'bg-orange-50 border-l-[var(--brand-primary)] shadow-sm' : 'border-l-transparent hover:bg-gray-50'}`}>
+                  <div key={conv.id} onClick={() => handleSelectConversation(conv.id)} className={`p-4 cursor-pointer transition-all border-l-4 mx-2 rounded-xl my-1 ${selectedConversation === conv.id ? 'bg-orange-50 border-l-[var(--brand-primary)] shadow-sm' : 'border-l-transparent hover:bg-gray-50'}`}>
                     <div className="flex gap-4">
                       <div className="relative">
                         <Avatar className="h-12 w-12 border-2 border-white shadow-md ring-1 ring-orange-100">
@@ -307,41 +337,69 @@ export default function SellerMessages() {
                 </div>
 
                 <div key={selectedConversation} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 space-y-reverse bg-[var(--brand-wash)] scrollbar-hide flex flex-col-reverse">
-                  {[...activeConversation.messages].reverse().map((msg: any) => {
-                    if (msg.message_type === 'system') {
-                      return (
-                        <div key={msg.id} className="flex justify-center items-center my-6 w-full opacity-90 pointer-events-none">
-                          <div className="h-px bg-orange-200 flex-1"></div>
-                          <div className="mx-4 bg-orange-50 text-orange-600 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-orange-100 shadow-sm">
-                            {msg.text || msg.message_content}
+                  {(() => {
+                    const items: React.ReactNode[] = [];
+                    let lastDateLabel = '';
+                    // Iterate oldest→newest so flex-col-reverse places date labels ABOVE their group
+                    activeConversation.messages.forEach((msg: any, idx: number) => {
+                      const msgDate = new Date(msg.timestamp);
+                      const dateLabel = msgDate.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                      if (dateLabel !== lastDateLabel) {
+                        items.push(
+                          <div key={`sep-${idx}`} className="flex justify-center items-center my-4 w-full pointer-events-none">
+                            <div className="h-px bg-orange-200/60 flex-1" />
+                            <span className="mx-3 text-[10px] font-semibold text-gray-400 uppercase tracking-widest bg-[var(--brand-wash)] px-2 py-0.5 rounded-full">{dateLabel}</span>
+                            <div className="h-px bg-orange-200/60 flex-1" />
                           </div>
-                          <div className="h-px bg-orange-200 flex-1"></div>
-                        </div>
+                        );
+                        lastDateLabel = dateLabel;
+                      }
+                      if (msg.message_type === 'system') {
+                        items.push(
+                          <div key={msg.id} className="flex justify-center items-center my-6 w-full opacity-90 pointer-events-none">
+                            <div className="h-px bg-orange-200 flex-1"></div>
+                            <div className="mx-4 bg-orange-50 text-orange-600 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-orange-100 shadow-sm">
+                              {msg.text || msg.message_content}
+                            </div>
+                            <div className="h-px bg-orange-200 flex-1"></div>
+                          </div>
+                        );
+                        return;
+                      }
+                      const isSeller = msg.senderId === 'seller';
+                      const fullTimestamp = msgDate.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                      items.push(
+                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={msg.id} className={`flex ${isSeller ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] flex flex-col ${isSeller ? 'items-end' : 'items-start'}`}>
+                            <div
+                              title={fullTimestamp}
+                              className={`px-5 py-4 shadow-sm group relative cursor-default ${isSeller ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl rounded-tr-sm shadow-orange-500/20' : 'bg-white text-gray-800 border border-gray-100 rounded-xl rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'}`}
+                            >
+                              {msg.images && msg.images.length > 0 && (
+                                <div className={`grid gap-1 mb-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                  {msg.images.map((img: string, imgIdx: number) => (
+                                    <div key={imgIdx} className={`${msg.images && msg.images.length > 1 ? 'w-24 h-24' : 'w-40 h-40'} overflow-hidden rounded-lg cursor-pointer hover:opacity-90`} onClick={() => setPreviewImage(img)}>
+                                      <img loading="lazy" src={img} alt="Sent" className="w-full h-full object-cover" />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {msg.text && <p className="text-[15px] leading-relaxed">{msg.text}</p>}
+                              {/* Hover timestamp tooltip */}
+                              <span className={`absolute bottom-full mb-1 ${isSeller ? 'right-0' : 'left-0'} hidden group-hover:block text-[10px] text-white bg-gray-700/90 rounded px-2 py-0.5 whitespace-nowrap z-10`}>
+                                {fullTimestamp}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-bold text-gray-400 mt-1.5 px-1 uppercase tracking-wider">
+                              {msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </motion.div>
                       );
-                    }
-
-                    return (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={msg.id} className={`flex ${msg.senderId === 'seller' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] flex flex-col ${msg.senderId === 'seller' ? 'items-end' : 'items-start'}`}>
-                          <div className={`px-5 py-4 shadow-sm ${msg.senderId === 'seller' ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl rounded-tr-sm shadow-orange-500/20' : 'bg-white text-gray-800 border border-gray-100 rounded-xl rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'}`}>
-                            {msg.images && msg.images.length > 0 && (
-                              <div className={`grid gap-1 mb-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                                {msg.images.map((img: string, idx: number) => (
-                                  <div key={idx} className={`${msg.images && msg.images.length > 1 ? 'w-24 h-24' : 'w-40 h-40'} overflow-hidden rounded-lg cursor-pointer hover:opacity-90`} onClick={() => setPreviewImage(img)}>
-                                    <img loading="lazy" src={img} alt="Sent" className="w-full h-full object-cover" />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {msg.text && <p className="text-[15px] leading-relaxed">{msg.text}</p>}
-                          </div>
-                          <span className="text-[10px] font-bold text-gray-400 mt-1.5 px-1 uppercase tracking-wider">
-                            {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
+                    });
+                    // Reverse so flex-col-reverse renders them visually top→bottom (oldest first)
+                    return items.reverse();
+                  })()}
                 </div>
 
                 <div className="p-4 bg-white border-t border-orange-100">
