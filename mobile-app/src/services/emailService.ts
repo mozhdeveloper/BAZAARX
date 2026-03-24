@@ -30,6 +30,13 @@ export interface SendEmailResult {
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
+interface EmailTemplateRecord {
+  id: string;
+  subject: string;
+  html_body: string;
+  category: string | null;
+}
+
 class EmailService {
   private static instance: EmailService;
 
@@ -52,22 +59,24 @@ class EmailService {
     }
 
     // Fetch template from email_templates table
-    const { data: template, error: tplError } = await supabase
+    const { data: template, error: tplError } = await (supabase as any)
       .from('email_templates')
       .select('*')
       .eq('slug', params.templateSlug)
       .eq('is_active', true)
       .single();
 
-    if (tplError || !template) {
+    const typedTemplate = template as EmailTemplateRecord | null;
+
+    if (tplError || !typedTemplate) {
       console.error('[EmailService] Template not found:', params.templateSlug, tplError?.message);
       return { sent: false, error: `Template "${params.templateSlug}" not found` };
     }
 
     // Render template with variables
     const variables = params.variables || {};
-    let renderedHtml = template.html_body as string;
-    let renderedSubject = template.subject as string;
+    let renderedHtml = typedTemplate.html_body;
+    let renderedSubject = typedTemplate.subject;
     for (const [key, value] of Object.entries(variables)) {
       // Variables ending in _html or named 'content' contain trusted HTML — skip escaping
       const isHtml = key.endsWith('_html') || key === 'content';
@@ -83,9 +92,9 @@ class EmailService {
       subject: renderedSubject,
       html: renderedHtml,
       event_type: params.eventType,
-      category: (template.category as string) || 'transactional',
+      category: typedTemplate.category || 'transactional',
       recipient_id: params.recipientId,
-      template_id: template.id,
+      template_id: typedTemplate.id,
       metadata: params.metadata,
     };
 

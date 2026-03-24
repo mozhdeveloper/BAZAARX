@@ -25,8 +25,8 @@ import { productService } from '../src/services/productService';
 import { categoryService } from '../src/services/categoryService';
 import { addressService } from '../src/services/addressService';
 import { notificationService } from '../src/services/notificationService';
-import { featuredProductService, type FeaturedProductWithDetails } from '../src/services/featuredProductService';
-import { adBoostService, type AdBoostWithProduct } from '../src/services/adBoostService';
+import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
+import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -216,8 +216,8 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [selectedSort, setSelectedSort] = useState(view === 'featured' ? 'featured' : 'relevance');
 
   // Featured products state
-  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
-  const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
+  const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
 
   const [minPrice, setMinPrice] = useState('0');
