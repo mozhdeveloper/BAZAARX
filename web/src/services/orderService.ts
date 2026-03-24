@@ -1174,13 +1174,6 @@ export class OrderService {
                         delivered_at,
                         created_at
                     ),
-                    cancellations:order_cancellations (
-                        id,
-                        reason,
-                        cancelled_at,
-                        cancelled_by,
-                        created_at
-                    ),
                     reviews (
                         id,
                         product_id,
@@ -1226,7 +1219,6 @@ export class OrderService {
                     productIds.includes(item.product_id),
                 );
                 const latestShipment = getLatestShipment(order.shipments || []);
-                const latestCancellation = getLatestCancellation(order.cancellations || []);
                 const orderReviews = normalizeReviewRows(order.reviews || []);
                 const sellerReviews = orderReviews.filter((review: any) => {
                     const productRef = Array.isArray(review.product)
@@ -1327,8 +1319,6 @@ export class OrderService {
                     shipping_instructions:
                         shippingAddr?.delivery_instructions || "",
                     shipping_country: "Philippines",
-                    cancellation_reason: latestCancellation?.reason || null,
-                    cancelled_at: latestCancellation?.cancelled_at || latestCancellation?.created_at || null,
                 };
             });
             _setOrderCache(sellerCacheKey, sellerResult);
