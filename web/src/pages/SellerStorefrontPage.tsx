@@ -332,20 +332,18 @@ export default function SellerStorefrontPage() {
       Number((realSeller as any).total_reviews || 0),
     followers: followersCount,
     isVerified: realSeller.is_verified || false,
-    isVacationMode: (realSeller as any).is_vacation_mode === true,
     tierLevel: (realSeller as any).tier_level || 'standard',
     description: realSeller.store_description || '',
-    location: [
-      realSeller.business_profile?.address_line_1,
-      realSeller.city || realSeller.business_profile?.city,
-      realSeller.province || realSeller.business_profile?.province
-    ].filter(Boolean).join(', ') || 'Philippines',
+    location: [realSeller.city, realSeller.province].filter(Boolean).join(', ') || 'Philippines',
     established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
     badges: realSeller.is_verified ? ['Verified Seller'] : [],
     responseTime: '< 24 hours',
     categories: (realSeller as any).product_categories || (realSeller as any).store_category || ['General'],
-    products: []
-  } : demoSeller || (dbSellerProduct ? {
+    products: [],
+    isVacationMode: (realSeller as any).is_vacation_mode === true
+  } : demoSeller ? {
+    ...demoSeller,
+  } : dbSellerProduct ? {
     id: dbSellerProduct.sellerId,
     name: dbSellerProduct.sellerName || "Verified Seller",
     avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
@@ -361,7 +359,23 @@ export default function SellerStorefrontPage() {
     responseTime: '< 24 hours',
     categories: ['General'],
     products: []
-  } : demoSellers[0]);
+  } : {
+    id: demoSellers[0]?.id || 'default-seller',
+    name: demoSellers[0]?.name || "Verified Seller",
+    avatar: demoSellers[0]?.avatar || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
+    rating: demoSellers[0]?.rating || 5.0,
+    totalReviews: demoSellers[0]?.totalReviews || 10,
+    followers: demoSellers[0]?.followers || 5,
+    isVerified: demoSellers[0]?.isVerified ?? true,
+    tierLevel: (demoSellers[0] as any)?.tierLevel || 'standard',
+    description: demoSellers[0]?.description || '',
+    location: demoSellers[0]?.location || 'Metro Manila',
+    established: (demoSellers[0] as any)?.established || '2024',
+    badges: demoSellers[0]?.badges || ['Verified Seller'],
+    responseTime: (demoSellers[0] as any)?.responseTime || '< 24 hours',
+    categories: (demoSellers[0] as any)?.categories || ['General'],
+    products: (demoSellers[0] as any)?.products || []
+  } as any;
 
   const isPremiumOutlet = seller.tierLevel === 'premium_outlet';
 
@@ -437,7 +451,7 @@ export default function SellerStorefrontPage() {
       sellerLocation: seller?.location,
       sellerName: seller?.name,
       isVerified: seller?.isVerified,
-      isVacationMode: seller?.isVacationMode,
+      isVacationMode: (seller as any)?.isVacationMode ?? false,
     }))
     : demoProducts.map(p => ({
       ...p,
@@ -449,7 +463,7 @@ export default function SellerStorefrontPage() {
       sellerLocation: seller?.location,
       sellerName: seller?.name,
       isVerified: seller?.isVerified,
-      isVacationMode: seller?.isVacationMode,
+      isVacationMode: (seller as any)?.isVacationMode ?? false,
     }));
 
   // Get all unique categories from the displayed products
@@ -601,7 +615,7 @@ export default function SellerStorefrontPage() {
                     Premium Outlet
                   </Badge>
                 )}
-                {seller.isVacationMode && (
+                {seller?.isVacationMode && (
                   <Badge className="bg-orange-500 text-white hover:bg-orange-600 border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
                     <Palmtree className="w-3 h-3" />
                     On Vacation
@@ -672,7 +686,7 @@ export default function SellerStorefrontPage() {
       </div>
 
       {/* Vacation Mode Banner */}
-      {seller.isVacationMode && (
+      {seller?.isVacationMode && (
         <div className="max-w-7xl mx-auto px-4 pt-4">
           <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3">
             <Palmtree className="w-5 h-5 text-orange-500 flex-shrink-0" />

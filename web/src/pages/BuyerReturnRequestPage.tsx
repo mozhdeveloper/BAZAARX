@@ -135,6 +135,11 @@ export default function BuyerReturnRequestPage() {
     loadOrder();
   }, [orderId, profile?.id, navigate, toast]);
 
+  // Scroll to top when step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentStep]);
+
   // Derived
   const orderData = order?.order;
   const items: any[] = orderData?.items || [];

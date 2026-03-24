@@ -270,7 +270,7 @@ const mapReviewRowToFeedItem = (review: any): ReviewFeedItem => {
   return {
     id: review.id,
     productId: review.product_id,
-    productName: asNonEmptyString(orderItem?.product_name) || asNonEmptyString(product?.name) || 'Product',
+    productName: asNonEmptyString(product?.name) || asNonEmptyString(orderItem?.product_name) || 'Product',
     productImage: pickProductImage(review),
     buyerId: review.buyer_id,
     buyerName,
