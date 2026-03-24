@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -73,9 +73,7 @@ import { reviewService, type ReviewFeedItem } from '../src/services/reviewServic
 import { productService } from '../src/services/productService';
 import { sellerService } from '../src/services/sellerService';
 import { discountService } from '../src/services/discountService';
-import { useAuthStore } from '../src/stores/authStore';
 import { ActiveDiscount } from '../src/types/discount';
-import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../App';
