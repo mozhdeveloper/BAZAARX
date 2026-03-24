@@ -48,8 +48,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import { COLORS } from '../src/constants/theme';
-import { discountService } from '../src/services/discountService';
+import BackToShopButton from '../src/components/BackToShopButton';
+import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { productService } from '../src/services/productService';
 import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { sellerService } from '../src/services/sellerService';
@@ -1021,6 +1021,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <Pressable onPress={() => navigation.goBack()}>
               <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
             </Pressable>
+            <BackToShopButton navigation={navigation} />
           </View>
 
           <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
