@@ -58,6 +58,7 @@ export interface Seller {
   id: string;
   name: string;
   avatar: string;
+  contactNumber?: string;
   rating: number;
   totalReviews: number;
   followers: number;

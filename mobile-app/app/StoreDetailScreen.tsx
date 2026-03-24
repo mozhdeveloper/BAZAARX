@@ -676,6 +676,14 @@ export default function StoreDetailScreen() {
                             ) : null}
 
                             <View style={styles.infoRow}>
+                                <Phone size={16} color={COLORS.gray400} />
+                                <Text style={styles.infoLabel}>Contact</Text>
+                                <Text style={styles.infoText}>
+                                    {storeData.store_contact_number || storeData.phone || "Contact not available"}
+                                </Text>
+                            </View>
+
+                            <View style={styles.infoRow}>
                                 <MapPin size={16} color={COLORS.gray400} />
                                 <Text style={styles.infoLabel}>Location</Text>
                                 <Text style={styles.infoText}>{storeData.location || "Philippines"}</Text>
@@ -986,10 +994,6 @@ export default function StoreDetailScreen() {
                 />
             )}
             {/* Categories Modal */}
-            <Modal visible={showCategoryModal} transparent animationType="fade" statusBarTranslucent={true} onRequestClose={() => setShowCategoryModal(false)}>
-                <Pressable style={styles.modalOverlay} onPress={() => setShowCategoryModal(false)} />
-            </Modal>
-
             <Modal visible={showCategoryModal} transparent animationType="slide" statusBarTranslucent={true} onRequestClose={() => setShowCategoryModal(false)}>
                 <Pressable style={[styles.modalOverlay, { backgroundColor: 'transparent' }]} onPress={() => setShowCategoryModal(false)}>
                     <View style={styles.sortModalContent}>

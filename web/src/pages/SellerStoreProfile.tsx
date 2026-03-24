@@ -1074,6 +1074,7 @@ export function SellerStoreProfile() {
         .update({
           store_name: formData.storeName,
           store_description: formData.storeDescription,
+          store_contact_number: normalizedPhone || null,
         })
         .eq("id", sellerId);
 
