@@ -10,7 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ChevronLeft, CheckCircle, Circle, Flame, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, CheckCircle, Circle, Flame, ChevronRight, Store as StoreIcon } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
@@ -42,6 +42,7 @@ export default function CartScreen({ navigation, route }: any) {
 
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     const requestedIds: string[] | undefined = route?.params?.selectedCartItemIds;
@@ -244,17 +245,26 @@ export default function CartScreen({ navigation, route }: any) {
             <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Cart</Text>
-          <View style={{ width: 40 }} />
+          <Pressable onPress={() => setIsEditing(!isEditing)} style={styles.editButton}>
+            <Text style={[styles.editText, { color: BRAND_PRIMARY }]}>
+              {isEditing ? 'Done' : 'Edit'}
+            </Text>
+          </Pressable>
         </View>
       </View>
 
       {/* SELECT ALL BAR */}
       <View style={styles.selectAllBar}>
         <Pressable style={styles.checkboxWrapper} onPress={() => isAllSelected ? setSelectedIds([]) : setSelectedIds(items.map(i => i.cartItemId))}>
-          {isAllSelected ? <CheckCircle size={22} color={BRAND_PRIMARY} fill={BRAND_PRIMARY + '15'} /> : <Circle size={22} color="#D1D5DB" />}
-          <Text style={styles.selectAllText}>Select All Items</Text>
+          <View style={[
+            styles.checkboxBase,
+            isAllSelected && { backgroundColor: BRAND_PRIMARY, borderColor: BRAND_PRIMARY }
+          ]}>
+            {isAllSelected && <CheckCircle size={14} color="#FFF" />}
+          </View>
+          <Text style={styles.selectAllText}>Select All ({items.length})</Text>
         </Pressable>
-        {selectedIds.length > 0 && (
+        {isEditing && selectedIds.length > 0 && (
           <Pressable onPress={handleDeleteSelected}>
             <Text style={[styles.clearText, { color: '#EF4444' }]}>Delete ({selectedIds.length})</Text>
           </Pressable>
@@ -275,11 +285,12 @@ export default function CartScreen({ navigation, route }: any) {
               {/* STORE HEADER */}
               <View style={styles.sellerHeader}>
                 <Pressable onPress={() => toggleSellerGroup(sellerProducts)} style={styles.headerCheckbox}>
-                  {isSellerSelected ? (
-                    <CheckCircle size={20} color={BRAND_PRIMARY} fill={BRAND_PRIMARY + '15'} />
-                  ) : (
-                    <Circle size={20} color="#D1D5DB" />
-                  )}
+                  <View style={[
+                    styles.checkboxBase,
+                    isSellerSelected && { backgroundColor: BRAND_PRIMARY, borderColor: BRAND_PRIMARY }
+                  ]}>
+                    {isSellerSelected && <CheckCircle size={14} color="#FFF" />}
+                  </View>
                 </Pressable>
                 <Pressable
                   style={styles.storeInfo}
@@ -290,6 +301,9 @@ export default function CartScreen({ navigation, route }: any) {
                     }
                   }}
                 >
+                  <View style={styles.storeIcon}>
+                    <StoreIcon size={14} color="#5D4037" strokeWidth={2.5} />
+                  </View>
                   <Text style={styles.sellerName}>{sellerName}</Text>
                   <ChevronRight size={16} color="#9CA3AF" />
                 </Pressable>
@@ -302,11 +316,12 @@ export default function CartScreen({ navigation, route }: any) {
                 <View key={item.cartItemId}>
                   <View style={styles.itemRow}>
                     <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)}>
-                      {selectedSet.has(item.cartItemId) ? (
-                        <CheckCircle size={20} color={BRAND_PRIMARY} />
-                      ) : (
-                        <Circle size={20} color="#D1D5DB" />
-                      )}
+                      <View style={[
+                        styles.checkboxBase,
+                        selectedSet.has(item.cartItemId) && { backgroundColor: BRAND_PRIMARY, borderColor: BRAND_PRIMARY }
+                      ]}>
+                        {selectedSet.has(item.cartItemId) && <CheckCircle size={14} color="#FFF" />}
+                      </View>
                     </Pressable>
                     <View style={{ flex: 1 }}>
                       <CartItemRow
@@ -331,61 +346,52 @@ export default function CartScreen({ navigation, route }: any) {
                 </View>
               ))}
 
-              {/* Per-Seller Subtotal */}
-              {(() => {
-                const sellerSelected = sellerProducts.filter(item => selectedSet.has(item.cartItemId));
-                if (sellerSelected.length === 0) return null;
-                const sellerSub = sellerSelected.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
-                return (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingHorizontal: 4 }}>
-                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Subtotal ({sellerSelected.length} item{sellerSelected.length !== 1 ? 's' : ''})</Text>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: BRAND_PRIMARY }}>₱{sellerSub.toLocaleString()}</Text>
-                  </View>
-                );
-              })()}
+              {/* Per-Seller Subtotal Removed to match reference UI */}
             </View>
           );
         })}
       </ScrollView>
 
       {/* FLOATING ACTION BAR */}
-      <View style={[styles.bottomBar, { bottom: insets.bottom + 80 }]}>
-        <View style={styles.bottomBarContent}>
-          <View>
-            <Text style={styles.totalInfoLabel}>Total Amount</Text>
-            <Text style={[styles.totalInfoPrice, { color: BRAND_PRIMARY }]}>₱{total.toLocaleString()}</Text>
-            {totalSavings > 0 && (
-              <Text style={styles.savingsText}>You saved ₱{totalSavings.toLocaleString()}</Text>
-            )}
+      {!isEditing && (
+        <View style={[styles.bottomBar, { bottom: insets.bottom + 80 }]}>
+          <View style={styles.bottomBarContent}>
+            <View>
+              <Text style={styles.totalInfoLabel}>Total Amount</Text>
+              <Text style={[styles.totalInfoPrice, { color: BRAND_PRIMARY }]}>₱{total.toLocaleString()}</Text>
+              {totalSavings > 0 && (
+                <Text style={styles.savingsText}>You saved ₱{totalSavings.toLocaleString()}</Text>
+              )}
+            </View>
+            <Pressable
+              disabled={selectedIds.length === 0}
+              onPress={async () => {
+                // Clear any previous quick order to prioritize cart selection
+                clearQuickOrder();
+
+                // Get delivery address from AsyncStorage
+                try {
+                  const deliveryAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+                  const coordsStr = await AsyncStorage.getItem('currentDeliveryCoordinates');
+                  const deliveryCoordinates = coordsStr ? JSON.parse(coordsStr) : null;
+
+                  navigation.navigate('Checkout', {
+                    selectedItems,
+                    deliveryAddress,
+                    deliveryCoordinates
+                  });
+                } catch (error) {
+                  console.error('Error reading delivery address:', error);
+                  navigation.navigate('Checkout', { selectedItems });
+                }
+              }}
+              style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}>
+              <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
+            </Pressable>
+
           </View>
-          <Pressable
-            disabled={selectedIds.length === 0}
-            onPress={async () => {
-              // Clear any previous quick order to prioritize cart selection
-              clearQuickOrder();
-
-              // Get delivery address from AsyncStorage
-              try {
-                const deliveryAddress = await AsyncStorage.getItem('currentDeliveryAddress');
-                const coordsStr = await AsyncStorage.getItem('currentDeliveryCoordinates');
-                const deliveryCoordinates = coordsStr ? JSON.parse(coordsStr) : null;
-
-                navigation.navigate('Checkout', {
-                  selectedItems,
-                  deliveryAddress,
-                  deliveryCoordinates
-                });
-              } catch (error) {
-                console.error('Error reading delivery address:', error);
-                navigation.navigate('Checkout', { selectedItems });
-              }
-            }}
-            style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}>
-            <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
-          </Pressable>
-
         </View>
-      </View>
+      )}
       {editingItem && (() => {
         // Build an ActiveDiscount from the stored campaignDiscount on the cart item
         // so the VariantSelectionModal can display the correct discounted price.
@@ -445,6 +451,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
+  editButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  editText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
   clearTextWrapper: {
     position: 'absolute',
     right: 0,
@@ -464,24 +478,34 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   checkboxWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  selectAllText: { fontSize: 14, fontWeight: '600', color: '#9CA3AF' },
+  checkboxBase: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF',
+  },
+  selectAllText: { fontSize: 15, fontWeight: '700', color: COLORS.textHeadline },
 
   scrollContainer: { flex: 1, paddingTop: 8 },
 
   // REFACTORED STYLE FOR SELLER GROUP (No boxes)
   sellerCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 12,
-    marginBottom: 10,
-    borderRadius: 14,
-    padding: 10,
-    borderWidth: 0.5,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.02,
-    shadowRadius: 2,
-    elevation: 0,
+    backgroundColor: '#FFFFFF', // Clean White
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 24,
+    padding: 16,
+    shadowColor: '#A85D32', // Amber-tinted shadow
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 15,
+    elevation: 3,
+    // Removed harsh borders to allow the soft shadow to do the "blending"
+    borderWidth: 0, 
   },
   sellerHeader: {
     flexDirection: 'row',
@@ -491,25 +515,35 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   headerCheckbox: { marginRight: 12 },
-  storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sellerName: { fontSize: 17, fontWeight: '800', color: '#111827' }, // Black subheader
+  storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  storeIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F7E9DE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#EBD9C8',
+  },
+  sellerName: { fontSize: 17, fontWeight: '800', color: '#431407' }, // Darker coffee color to match parchment theme
 
-  cardDivider: { height: 1, backgroundColor: '#E5E7EB', marginBottom: 12 },
+  cardDivider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 12, opacity: 0.5 },
 
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center', // Changed from flex-start to center
     paddingVertical: 12,
     backgroundColor: 'transparent',
   },
   itemCheckbox: {
-    width: 44,
+    width: 32,
     height: 90,
-    paddingTop: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 8,
   },
-  itemSeparator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 12, opacity: 0.6 },
+  itemSeparator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 0, opacity: 0.3 },
 
   savingsBanner: {
     flexDirection: 'row',

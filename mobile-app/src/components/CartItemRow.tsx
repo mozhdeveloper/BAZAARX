@@ -74,7 +74,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
 
         <Pressable onPress={onPress}>
           <View style={styles.priceContainer}>
-            <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#EF4444' } : null]}>
+            <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#92400E' } : null]}>
               ₱{(item.price ?? 0).toLocaleString()}
             </Text>
             {!!item.originalPrice && item.originalPrice > (item.price || 0) && (
@@ -93,12 +93,8 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
             onChange={onChange}
             max={item.stock} // Pass correct stock limit
             min={1}
-            iconColor="#9CA3AF"
+            variant="compact"
           />
-
-          <Pressable onPress={onRemove} style={styles.removeButton}>
-            <Trash2 size={18} color="#9d9d9dff" />
-          </Pressable>
         </View>
       </View>
     </View>
@@ -120,41 +116,45 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#000', // Black background for square feel like vinyl
   },
   infoContainer: {
     flex: 1,
-    marginLeft: 12, // Reduced spacing
-    justifyContent: 'space-between',
+    marginLeft: 16,
+    justifyContent: 'flex-start',
   },
   name: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-    lineHeight: 20,
-    letterSpacing: -0.2,
-  },
-  seller: {
-    fontSize: 13,
-    color: '#888888',
-    marginBottom: 8,
-  },
-  price: {
     fontSize: 18,
     fontWeight: '800',
-    color: COLORS.primary,
-    marginBottom: 0,
-    letterSpacing: -0.5,
+    color: '#111827',
+    marginBottom: 4,
+    lineHeight: 22,
+  },
+  variantChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4, // Adjusted from 8
+    alignSelf: 'flex-start',
+  },
+  variantChipText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 8,
-    marginBottom: 12,
+    marginVertical: 4,
+  },
+  price: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#92400E',
+    letterSpacing: -0.5,
   },
   originalPrice: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#9CA3AF',
     textDecorationLine: 'line-through',
     fontWeight: '500',
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 0,
   },
   removeButton: {
     padding: 6,

@@ -51,7 +51,7 @@ import { discountService } from '../src/services/discountService';
 import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
 import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 import { categoryService } from '../src/services/categoryService';
-import { safeImageUri } from '../src/utils/imageUtils';
+import { safeImageUri, PLACEHOLDER_AVATAR, PLACEHOLDER_PRODUCT, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
 import { Image as ExpoImage } from 'expo-image';
 import { CURATED_CATEGORY_IMAGES } from '../src/constants/categories';
 import type { Category } from '../src/types/database.types';
@@ -114,7 +114,7 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl, itemWidth }: { la
     return CURATED_CATEGORY_IMAGES[key] || null;
   }, [label]);
 
-  const finalImageUri = (!imageError && imageUrl) ? safeImageUri(imageUrl) : curatedFallback;
+  const finalImageUri = (!imageError && (imageUrl || curatedFallback)) ? safeImageUri(imageUrl || curatedFallback, PLACEHOLDER_PRODUCT) : null;
 
   return (
     <View style={styles.categoryItm}>
@@ -552,6 +552,7 @@ export default function HomeScreen({ navigation }: Props) {
           id: product.id, name: product.name, price: product.price,
           originalPrice: (product as any).original_price, original_price: (product as any).original_price,
           primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+          image: primaryImg?.image_url, // Added fallback for ProductCard
           images: product.images?.map((img: any) => img.image_url) || [],
           category: product.category?.name, seller: product.seller,
           rating: avgRating, review_count: reviews.length, stock: totalStock,
@@ -574,6 +575,7 @@ export default function HomeScreen({ navigation }: Props) {
           id: product.id, name: product.name, price: product.price,
           originalPrice: product.original_price, original_price: product.original_price,
           primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+          image: primaryImg?.image_url, // Added fallback for ProductCard
           images: product.images?.map((img: any) => img.image_url) || [],
           category: product.category?.name, seller: product.seller,
           rating: avgRating, review_count: reviews.length, stock: totalStock,
@@ -863,7 +865,7 @@ export default function HomeScreen({ navigation }: Props) {
                     }}
                   >
                     <ExpoImage 
-                      source={{ uri: slide.image }} 
+                      source={{ uri: safeImageUri(slide.image, PLACEHOLDER_BANNER) }} 
                       style={StyleSheet.absoluteFill} 
                       contentFit="cover" 
                     />
@@ -1026,32 +1028,39 @@ export default function HomeScreen({ navigation }: Props) {
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}>
                   {verifiedStores.map((store) => (
-                    <Pressable key={store.id} style={styles.storeCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
-                      <View style={styles.storeHeader}>
-                        <View style={styles.storeLogo}>
-                          {store.logo && store.logo !== '🏪' ? (
-                            <ExpoImage source={{ uri: store.logo }} style={{ width: 40, height: 40, borderRadius: 20 }} />
-                          ) : (
-                            <Text style={{ fontSize: 20 }}>🏪</Text>
-                          )}
-                        </View>
-                        <View style={styles.storeInfo}>
-                          <View style={styles.storeNameRow}>
-                            <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-                            {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
-                          </View>
-                          <View style={styles.ratingRow}>
-                            <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
-                            <Text style={styles.ratingText}>{store.rating}</Text>
+                    <Pressable key={store.id} style={styles.storeVerticalCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
+                      <View style={styles.storeBannerContainer}>
+                        <ExpoImage 
+                          source={{ uri: safeImageUri(store.products?.[0], PLACEHOLDER_BANNER) }} 
+                          style={styles.storeBannerImage} 
+                          contentFit="cover"
+                        />
+                        <LinearGradient
+                          colors={['transparent', 'rgba(255,255,255,0.8)', '#FFFFFF']}
+                          style={styles.storeBannerGradient}
+                        />
+                        <View style={styles.storeAvatarOverlap}>
+                          <View style={styles.storeAvatarBorder}>
+                            <ExpoImage 
+                              source={{ uri: safeImageUri(store.logo, PLACEHOLDER_AVATAR) }} 
+                              style={styles.storeAvatarImage} 
+                              contentFit="cover"
+                            />
                           </View>
                         </View>
                       </View>
-                      <View style={styles.storeProducts}>
-                        {(store.products || []).slice(0, 3).map((url: string, i: number) => (
-                          <ExpoImage key={i} source={{ uri: url }} style={styles.storeProductThumb} />
-                        ))}
+                      
+                      <View style={styles.storeCardBody}>
+                        <Text style={styles.storeCardName} numberOfLines={1}>{store.name}</Text>
+                        <Text style={styles.storeCardSubtitle} numberOfLines={1}>
+                          {store.rating} ★ Rating
+                        </Text>
+                        
+                        <View style={styles.visitShopButton}>
+                          <Text style={styles.visitShopText}>Visit Shop</Text>
+                        </View>
                       </View>
                     </Pressable>
                   ))}
@@ -1287,6 +1296,130 @@ const styles = StyleSheet.create({
   categoryExpandedContent: { padding: 20 },
   categorySectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
   storeCard: { width: 260, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
+  storeVerticalCard: {
+    width: 220,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  storeBannerContainer: {
+    height: 100,
+    width: '100%',
+    position: 'relative',
+    backgroundColor: '#F3F4F6',
+  },
+  storeBannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  storeBannerGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 40,
+  },
+  storeAvatarOverlap: {
+    position: 'absolute',
+    bottom: -20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  storeAvatarBorder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    padding: 3,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  storeAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 27,
+  },
+  storeCardBody: {
+    paddingTop: 28,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  storeCardName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  storeCardSubtitle: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginBottom: 16,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  visitShopButton: {
+    backgroundColor: '#FDE1D3', // Soft peach/orange tint as seen in screenshot
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  visitShopText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#4B2C20', // Dark brown/burgundy text
+  },
+  storeCircleCard: {
+    width: 90,
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 5,
+  },
+  storeCircleContainer: {
+    width: 88,
+    height: 88,
+    padding: 2,
+    borderRadius: 44,
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#E7DCC5', // Soft beige border as seen in screenshot
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  storeCircleOuter: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+  },
+  storeCircleImage: {
+    width: '100%',
+    height: '100%',
+  },
+  storeCircleName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#5D4037', // Brownish text to match the theme
+    textAlign: 'center',
+    lineHeight: 16,
+  },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   storeLogo: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   storeInfo: { flex: 1 },
