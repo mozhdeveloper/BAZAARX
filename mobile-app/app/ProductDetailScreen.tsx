@@ -21,6 +21,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   Modal,
   Pressable,
@@ -451,6 +452,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   const soldCount = Number((product as any).sales_count ?? (product as any).sold ?? 0);
   const isOutOfStock = Number(selectedVariantInfo.stock ?? 0) <= 0;
+
+  // Out of stock pulse animation
+  const outOfStockScale = useRef(new Animated.Value(1)).current;
+  const triggerOutOfStockPulse = () => {
+    Animated.sequence([
+      Animated.timing(outOfStockScale, { toValue: 1.25, duration: 120, useNativeDriver: true }),
+      Animated.timing(outOfStockScale, { toValue: 0.9, duration: 100, useNativeDriver: true }),
+      Animated.timing(outOfStockScale, { toValue: 1.15, duration: 100, useNativeDriver: true }),
+      Animated.timing(outOfStockScale, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
+  };
 
   // Wishlist State
   const [showWishlistModal, setShowWishlistModal] = useState(false);
@@ -1083,18 +1095,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
                 )}
               </View>
-              <Text style={{
+              <Animated.Text style={{
                 fontSize: 13,
                 marginTop: 4,
                 fontWeight: '600',
                 color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#9CA3AF',
+                transform: [{ scale: outOfStockScale }],
               }}>
                 {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
-              </Text>
+              </Animated.Text>
             </View>
             <Pressable
-              onPress={handleWishlistAction}
-              disabled={isOutOfStock}
+              onPress={isOutOfStock ? triggerOutOfStockPulse : handleWishlistAction}
               style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: isOutOfStock ? 0.35 : 1 }}
             >
               <Heart size={24} color={isOutOfStock ? '#af9cac' : BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite && !isOutOfStock ? BRAND_ACCENT : 'transparent'} />
@@ -1430,16 +1442,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         <View style={styles.actionButtonsContainer}>
           <Pressable
             style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
-            onPress={handleAddToCart}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode}
+            onPress={isOutOfStock ? triggerOutOfStockPulse : handleAddToCart}
+            disabled={!!(product as any).is_vacation_mode}
           >
             <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !(product as any).is_vacation_mode) ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
           <Pressable
             style={[styles.buyNowBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
-            onPress={handleBuyNow}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode}
+            onPress={isOutOfStock ? triggerOutOfStockPulse : handleBuyNow}
+            disabled={!!(product as any).is_vacation_mode}
           >
             <Text style={[styles.buyNowText, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && { color: COLORS.gray400 }]}>
               {((product as any).is_vacation_mode ? 'Store Unavailable' : (Number(selectedVariantInfo.stock ?? 0) > 0 ? 'Buy Now' : 'Out of Stock'))}
