@@ -145,6 +145,7 @@ interface BuyerStore {
   // Registry & Gifting
   registries: RegistryItem[];
   loadRegistries: () => Promise<void>;
+  loadPublicRegistry: (registryId: string) => Promise<RegistryItem | null>;
   createRegistry: (registry: RegistryItem) => Promise<void>;
   updateRegistryMeta: (registryId: string, updates: Partial<RegistryItem>) => Promise<void>;
   addToRegistry: (registryId: string, product: Product) => Promise<void>;
@@ -1728,6 +1729,24 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       set({ registries: (rows || []).map(mapDbToRegistryItem) });
 
       console.log("mapped registries", (rows || []).map(mapDbToRegistryItem));
+    },
+
+    loadPublicRegistry: async (registryId) => {
+      console.log('fetching public registry:', registryId);
+
+      const { data: registry, error } = await db
+        .from('registries')
+        .select('*, registry_items(*)')
+        .eq('id', registryId)
+        .eq('privacy', 'public')
+        .single();
+
+      if (error) {
+        console.error('Failed to load public registry:', error);
+        return null;
+      }
+
+      return mapDbToRegistryItem(registry);
     },
 
     createRegistry: async (registry) => {

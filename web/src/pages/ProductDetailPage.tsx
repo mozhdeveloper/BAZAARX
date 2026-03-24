@@ -1149,11 +1149,6 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         {/* Action Buttons */}
                         <div className="flex flex-row items-center gap-4 mb-10">
                             <button
-                                disabled={(() => {
-                                    const currentVariant = getSelectedVariant();
-                                    const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
-                                    return stockQty === 0;
-                                })()}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (isInRegistry) {
