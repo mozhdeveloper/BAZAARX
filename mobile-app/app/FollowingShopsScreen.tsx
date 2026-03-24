@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Image, StatusBar } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, StatusBar } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
@@ -129,70 +130,61 @@ export default function FollowingShopsScreen({ navigation }: Props) {
                 ) : (
                     followingShops.map((shop) => {
                         const shopName = shop.store_name || shop.name || 'Shop';
+                        const bannerUri = safeImageUri(shop.banner_url || shop.avatar_url, PLACEHOLDER_BANNER);
                         const avatarUri = safeImageUri(shop.avatar_url, PLACEHOLDER_BANNER);
                         const location = [shop.city, shop.province].filter(Boolean).join(', ') || shop.location || 'Philippines';
-                        const followersCount: number = shop.followers_count ?? 0;
-                        const productsCount: number = shop.products_count ?? 0;
-                        const followersLabel = followersCount > 1000 ? (followersCount / 1000).toFixed(1) + 'k' : followersCount;
+                        
                         return (
-                        <Pressable key={shop.id} style={styles.shopCard} onPress={() => handleVisitShop(shop)}>
-                            {/* Banner: use avatar as banner fallback since there's no banner field */}
-                            <Image source={{ uri: avatarUri }} style={styles.shopImage} />
-                            <View style={styles.overlay} />
-                            <View style={styles.logoContainer}>
-                                {shop.avatar_url ? (
-                                    <Image source={{ uri: safeImageUri(shop.avatar_url) }} style={styles.logoImage} />
-                                ) : (
-                                    <Store size={28} color="#D97706" />
-                                )}
-                            </View>
-                            <View style={styles.shopInfo}>
-                                <View style={styles.shopHeader}>
-                                    <Text style={styles.shopName}>{shopName}</Text>
-                                    <View style={styles.ratingBadge}>
-                                        <Star size={14} color="#FBBF24" fill="#FBBF24" />
-                                        <Text style={styles.ratingText}>{(shop.rating ?? 0).toFixed(1)}</Text>
+                            <Pressable key={shop.id} style={styles.storeVerticalCard} onPress={() => handleVisitShop(shop)}>
+                                <View style={styles.storeBannerContainer}>
+                                    <Image 
+                                        source={{ uri: bannerUri }} 
+                                        style={styles.storeBannerImage} 
+                                        contentFit="cover" 
+                                    />
+                                    <LinearGradient
+                                        colors={['transparent', 'rgba(255,255,255,0.8)', '#FFFFFF']}
+                                        style={styles.storeBannerGradient}
+                                    />
+                                    <View style={styles.storeAvatarOverlap}>
+                                        <View style={styles.storeAvatarBorder}>
+                                            <Image 
+                                                source={{ uri: avatarUri }} 
+                                                style={styles.storeAvatarImage} 
+                                                contentFit="cover" 
+                                            />
+                                        </View>
                                     </View>
                                 </View>
 
-                                <View style={styles.locationRow}>
-                                    <MapPin size={14} color="#6B7280" />
-                                    <Text style={styles.locationText}>{location}</Text>
-                                </View>
+                                <View style={styles.storeCardBody}>
+                                    <Text style={styles.storeCardName} numberOfLines={1}>{shopName}</Text>
+                                    <Text style={styles.storeCardSubtitle} numberOfLines={1}>
+                                        {(shop.rating ?? 0).toFixed(1)} ★ Rating • {location}
+                                    </Text>
 
-                                <View style={styles.statsRow}>
-                                    <View style={styles.statItem}>
-                                        <Users size={14} color="#6B7280" />
-                                        <Text style={styles.statText}>{followersLabel} followers</Text>
-                                    </View>
-                                    <View style={styles.statItem}>
-                                        <Store size={14} color="#6B7280" />
-                                        <Text style={styles.statText}>{productsCount} products</Text>
+                                    <View style={styles.buttonRow}>
+                                        <Pressable
+                                            style={({ pressed }) => [
+                                                styles.visitShopButton,
+                                                pressed && { opacity: 0.85 },
+                                            ]}
+                                            onPress={() => handleVisitShop(shop)}
+                                        >
+                                            <Text style={styles.visitShopText}>Visit Shop</Text>
+                                        </Pressable>
+                                        <Pressable
+                                            style={({ pressed }) => [
+                                                styles.unfollowActionBtn,
+                                                pressed && { opacity: 0.7 },
+                                            ]}
+                                            onPress={() => handleUnfollow(shop.id)}
+                                        >
+                                            <Text style={styles.unfollowActionText}>Unfollow</Text>
+                                        </Pressable>
                                     </View>
                                 </View>
-
-                                <View style={styles.buttonRow}>
-                                    <Pressable
-                                        style={({ pressed }) => [
-                                            styles.visitButton,
-                                            pressed && styles.visitButtonPressed,
-                                        ]}
-                                        onPress={() => handleVisitShop(shop)}
-                                    >
-                                        <Text style={styles.visitButtonText}>Visit Shop</Text>
-                                    </Pressable>
-                                    <Pressable
-                                        style={({ pressed }) => [
-                                            styles.unfollowButton,
-                                            pressed && styles.unfollowButtonPressed,
-                                        ]}
-                                        onPress={() => handleUnfollow(shop.id)}
-                                    >
-                                        <Text style={styles.unfollowButtonText}>Unfollow</Text>
-                                    </Pressable>
-                                </View>
-                            </View>
-                        </Pressable>
+                            </Pressable>
                         );
                     })
                 )}
@@ -227,6 +219,115 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         padding: 16,
+    },
+    storeVerticalCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 24,
+        overflow: 'hidden',
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+    },
+    storeBannerContainer: {
+        height: 120,
+        width: '100%',
+        position: 'relative',
+        backgroundColor: '#F3F4F6',
+    },
+    storeBannerImage: {
+        width: '100%',
+        height: '100%',
+    },
+    storeBannerGradient: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 50,
+    },
+    storeAvatarOverlap: {
+        position: 'absolute',
+        bottom: -25,
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    storeAvatarBorder: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: '#FFFFFF',
+        padding: 3,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+    },
+    storeAvatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 32,
+    },
+    storeCardBody: {
+        paddingTop: 32,
+        paddingHorizontal: 16,
+        paddingBottom: 24,
+        alignItems: 'center',
+    },
+    storeCardName: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#1F2937',
+        marginBottom: 4,
+        textAlign: 'center',
+    },
+    storeCardSubtitle: {
+        fontSize: 14,
+        color: '#9CA3AF',
+        marginBottom: 20,
+        textAlign: 'center',
+        fontWeight: '500',
+    },
+    visitShopButton: {
+        backgroundColor: '#FDE1D3',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 20,
+        flex: 2,
+        alignItems: 'center',
+    },
+    visitShopText: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#4B2C20',
+    },
+    buttonRow: {
+        flexDirection: 'row',
+        gap: 10,
+        width: '100%',
+        marginTop: 5,
+    },
+    unfollowActionBtn: {
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 20,
+        flex: 1,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        backgroundColor: '#F9FAFB',
+    },
+    unfollowActionText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#6B7280',
     },
     emptyState: {
         alignItems: 'center',
@@ -340,10 +441,6 @@ const styles = StyleSheet.create({
     statText: {
         fontSize: 13,
         color: '#6B7280',
-    },
-    buttonRow: {
-        flexDirection: 'row',
-        gap: 12,
     },
     visitButton: {
         flex: 1,

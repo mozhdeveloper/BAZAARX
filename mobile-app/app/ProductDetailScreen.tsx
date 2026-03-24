@@ -48,13 +48,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import BackToShopButton from '../src/components/BackToShopButton';
 import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { productService } from '../src/services/productService';
-import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { sellerService } from '../src/services/sellerService';
+import { discountService } from '../src/services/discountService';
 import { useAuthStore } from '../src/stores/authStore';
 import { ActiveDiscount } from '../src/types/discount';
+import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
@@ -1021,7 +1021,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <Pressable onPress={() => navigation.goBack()}>
               <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
             </Pressable>
-            <BackToShopButton navigation={navigation} />
           </View>
 
           <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
@@ -1327,76 +1326,91 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 15, textAlign: 'right', marginTop: 12 }}>
                 {effectiveAverageRating.toFixed(1)} out of 5 stars ({reviewsTotal.toLocaleString()} Reviews)
               </Text>
-              {reviews.map((review) => (
-                <View key={review.id} style={styles.reviewCard}>
-                  <Image
-                    source={{ uri: review.buyerAvatar || 'https://ui-avatars.com/api/?name=Buyer&background=FF6A00&color=fff' }}
-                    style={styles.reviewerAvatar}
-                  />
-                  <View style={styles.reviewContent}>
-                    <Text style={styles.reviewerName}>{review.buyerName || 'Anonymous Buyer'}</Text>
-                    <View style={styles.reviewRatingRow}>
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} size={10} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
-                      ))}
-                    </View>
-                    <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
-                      {formatReviewDate(review.createdAt)}
-                    </Text>
-                    <Text style={styles.reviewText}>{review.comment || 'No written feedback.'}</Text>
-                    {review.variantLabel ? (
-                      <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
-                        Variant: {review.variantLabel}
-                      </Text>
-                    ) : null}
-                    {review.images.length > 0 ? (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.reviewImagesContainer}
-                      >
-                        {review.images.map((imageUrl, index) => (
-                          <Image
-                            key={`${review.id}-${index}`}
-                            source={{ uri: imageUrl }}
-                            style={styles.reviewImage}
-                          />
+              {reviews.map((review, index) => {
+                // Only show first 3 reviews if "details" tab is active and not showing all
+                const isDetailsTab = activeTab === 'details';
+                if (isDetailsTab && index >= 3) return null;
+
+                return (
+                  <View key={review.id} style={styles.reviewCard}>
+                    <Image
+                      source={{ uri: review.buyerAvatar || 'https://ui-avatars.com/api/?name=Buyer&background=FF6A00&color=fff' }}
+                      style={styles.reviewerAvatar}
+                    />
+                    <View style={styles.reviewContent}>
+                      <Text style={styles.reviewerName}>{review.buyerName || 'Anonymous Buyer'}</Text>
+                      <View style={styles.reviewRatingRow}>
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star key={i} size={10} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
                         ))}
-                      </ScrollView>
-                    ) : null}
-                    {review.sellerReply ? (
-                      <View style={{ marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: '#FB8C00' }}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#C2410C' }}>Seller response</Text>
-                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{review.sellerReply.message}</Text>
                       </View>
-                    ) : null}
-                    <View style={styles.reviewFooter}>
-                      <Pressable
-                        style={[
-                          styles.helpfulButton,
-                          helpfulReviewIds[review.id] && styles.helpfulButtonActive,
-                        ]}
-                        onPress={() => handleMarkReviewHelpful(review.id)}
-                        disabled={!!helpfulReviewIds[review.id]}
-                      >
-                        <ThumbsUp
-                          size={14}
-                          color={helpfulReviewIds[review.id] ? BRAND_COLOR : '#6B7280'}
-                        />
-                        <Text
-                          style={[
-                            styles.helpfulButtonText,
-                            helpfulReviewIds[review.id] && styles.helpfulButtonTextActive,
-                          ]}
-                        >
-                          Helpful ({review.helpfulCount || 0})
+                      <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                        {formatReviewDate(review.createdAt)}
+                      </Text>
+                      <Text style={styles.reviewText}>{review.comment || 'No written feedback.'}</Text>
+                      {review.variantLabel ? (
+                        <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                          Variant: {review.variantLabel}
                         </Text>
-                      </Pressable>
+                      ) : null}
+                      {review.images.length > 0 ? (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.reviewImagesContainer}
+                        >
+                          {review.images.map((imageUrl, index) => (
+                            <Image
+                              key={`${review.id}-${index}`}
+                              source={{ uri: imageUrl }}
+                              style={styles.reviewImage}
+                            />
+                          ))}
+                        </ScrollView>
+                      ) : null}
+                      {review.sellerReply ? (
+                        <View style={{ marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: '#FB8C00' }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#C2410C' }}>Seller response</Text>
+                          <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{review.sellerReply.message}</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.reviewFooter}>
+                        <Pressable
+                          style={[
+                            styles.helpfulButton,
+                            helpfulReviewIds[review.id] && styles.helpfulButtonActive,
+                          ]}
+                          onPress={() => handleMarkReviewHelpful(review.id)}
+                          disabled={!!helpfulReviewIds[review.id]}
+                        >
+                          <ThumbsUp
+                            size={14}
+                            color={helpfulReviewIds[review.id] ? BRAND_COLOR : '#6B7280'}
+                          />
+                          <Text
+                            style={[
+                              styles.helpfulButtonText,
+                              helpfulReviewIds[review.id] && styles.helpfulButtonTextActive,
+                            ]}
+                          >
+                            Helpful ({review.helpfulCount || 0})
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))}
-              {reviews.length < reviewsTotal ? (
+                );
+              })}
+
+              {/* View All / Load More Logic */}
+              {activeTab === 'details' && reviews.length > 3 ? (
+                <Pressable
+                  onPress={() => setActiveTab('ratings')}
+                  style={{ marginTop: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFF5F0', borderRadius: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: '#FED7AA' }}
+                >
+                  <Text style={{ color: '#EA580C', fontWeight: '700' }}>View All</Text>
+                </Pressable>
+              ) : activeTab === 'ratings' && reviews.length < reviewsTotal ? (
                 <Pressable
                   onPress={handleLoadMoreReviews}
                   style={{ marginTop: 8, paddingVertical: 10, alignItems: 'center' }}

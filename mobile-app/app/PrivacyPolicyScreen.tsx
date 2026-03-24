@@ -11,6 +11,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'PrivacyPolicy'>;
 
 export default function PrivacyPolicyScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const BRAND_COLOR = COLORS.primary;
   const sections = [
     {
       icon: Database,
@@ -124,89 +125,92 @@ export default function PrivacyPolicyScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      {/* Header */}
       <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+        end={{ x: 1, y: 1 }}
+        style={styles.container}
       >
-        <View style={styles.headerTop}>
+        <StatusBar barStyle="dark-content" />
+        {/* Header */}
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+          <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+              <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
             </Pressable>
-            <Text style={styles.headerTitle}>Privacy Policy</Text>
+            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Privacy Policy</Text>
             <View style={{ width: 40 }} />
-        </View>
-      </LinearGradient>
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Hero Section */}
-        <View style={styles.heroSection}>
-          <View style={styles.heroIcon}>
-            <Shield size={32} color="#FF6A00" />
           </View>
-          <Text style={styles.heroTitle}>Your Privacy Matters</Text>
-          <Text style={styles.heroSubtitle}>
-            Last updated: December 19, 2024
-          </Text>
-          <Text style={styles.heroText}>
-            At BazaarX, we are committed to protecting your privacy and ensuring the security of
-            your personal information. This policy explains how we collect, use, and safeguard your data.
-          </Text>
         </View>
 
-        {/* Policy Sections */}
-        {sections.map((section, index) => (
-          <View key={index} style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
-                <section.icon size={24} color="#FF6A00" />
-              </View>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          {/* Hero Section */}
+          <View style={styles.heroSection}>
+            <View style={[styles.heroIcon, { backgroundColor: `${BRAND_COLOR}10` }]}>
+              <Shield size={32} color={BRAND_COLOR} />
             </View>
+            <Text style={styles.heroTitle}>Your Privacy Matters</Text>
+            <Text style={styles.heroSubtitle}>
+              Last updated: December 19, 2024
+            </Text>
+            <Text style={styles.heroText}>
+              At BazaarX, we are committed to protecting your privacy and ensuring the security of
+              your personal information. This policy explains how we collect, use, and safeguard your data.
+            </Text>
+          </View>
 
-            {section.content.map((item, itemIndex) => (
-              <View key={itemIndex} style={styles.contentBlock}>
-                <Text style={styles.subtitle}>{item.subtitle}</Text>
-                <Text style={styles.contentText}>{item.text}</Text>
+          {/* Policy Sections */}
+          {sections.map((section, index) => (
+            <View key={index} style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.sectionIcon, { backgroundColor: `${BRAND_COLOR}10` }]}>
+                  <section.icon size={24} color={BRAND_COLOR} />
+                </View>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
               </View>
-            ))}
-          </View>
-        ))}
 
-        {/* Contact Section */}
-        <View style={styles.contactSection}>
-          <Text style={styles.contactTitle}>Questions About Privacy?</Text>
-          <Text style={styles.contactText}>
-            If you have any questions about this Privacy Policy or how we handle your data, please
-            contact us:
-          </Text>
-          <View style={styles.contactInfo}>
-            <Text style={styles.contactDetail}>Email: privacy@bazaarx.ph</Text>
-            <Text style={styles.contactDetail}>Phone: +63 2 1234 5678</Text>
-            <Text style={styles.contactDetail}>Address: BazaarX Building, Makati City, Philippines</Text>
-          </View>
-        </View>
+              {section.content.map((item, itemIndex) => (
+                <View key={itemIndex} style={styles.contentBlock}>
+                  <Text style={styles.subtitle}>{item.subtitle}</Text>
+                  <Text style={styles.contentText}>{item.text}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            By using BazaarX, you agree to this Privacy Policy. We may update this policy from time
-            to time, and we will notify you of any significant changes.
-          </Text>
-          <Text style={styles.copyrightText}>© 2024 BazaarX. All rights reserved.</Text>
-        </View>
-      </ScrollView>
+          {/* Contact Section */}
+          <View style={styles.contactSection}>
+            <Text style={styles.contactTitle}>Questions About Privacy?</Text>
+            <Text style={styles.contactText}>
+              If you have any questions about this Privacy Policy or how we handle your data, please
+              contact us:
+            </Text>
+            <View style={styles.contactInfo}>
+              <Text style={styles.contactDetail}>Email: privacy@bazaarx.ph</Text>
+              <Text style={styles.contactDetail}>Phone: +63 2 1234 5678</Text>
+              <Text style={styles.contactDetail}>Address: BazaarX Building, Makati City, Philippines</Text>
+            </View>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              By using BazaarX, you agree to this Privacy Policy. We may update this policy from time
+              to time, and we will notify you of any significant changes.
+            </Text>
+            <Text style={styles.copyrightText}>© 2026 BazaarX. All rights reserved.</Text>
+          </View>
+        </ScrollView>
+      </LinearGradient>
     </View>
   );
 }
 
+const BRAND_COLOR = COLORS.primary;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFBF0', // Warm Ivory
   },
   headerContainer: {
     paddingHorizontal: 20,
@@ -222,7 +226,7 @@ const styles = StyleSheet.create({
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
+  headerTitle: { fontSize: 20, fontWeight: '800' },
   scrollView: {
     flex: 1,
   },
@@ -230,7 +234,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   heroSection: {
-    backgroundColor: '#FFFFFF',
     paddingVertical: 32,
     paddingHorizontal: 24,
     alignItems: 'center',
@@ -240,7 +243,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#FEF3E8',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -267,12 +269,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 16,
     padding: 20,
-    borderRadius: 16,
+    borderRadius: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 4,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -282,8 +284,7 @@ const styles = StyleSheet.create({
   sectionIcon: {
     width: 40,
     height: 40,
-    borderRadius: 10,
-    backgroundColor: '#FEF3E8',
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -309,34 +310,38 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   contactSection: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
     marginBottom: 16,
     padding: 20,
-    borderRadius: 16,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: `${COLORS.primary}20`,
   },
   contactTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1E40AF',
+    color: COLORS.primary,
     marginBottom: 8,
   },
   contactText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#374151',
     lineHeight: 20,
     marginBottom: 12,
   },
   contactInfo: {
-    backgroundColor: '#FFFFFF',
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   contactDetail: {
     fontSize: 13,
-    color: '#1E40AF',
+    color: COLORS.primary,
     marginBottom: 4,
   },
   footer: {

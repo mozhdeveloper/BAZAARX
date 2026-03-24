@@ -60,58 +60,60 @@ export default function AllStoresScreen() {
 
     const renderStoreItem = useCallback(({ item }: { item: any }) => (
         <Pressable 
-            style={styles.shopCard} 
+            style={styles.storeVerticalCard} 
             onPress={() => navigation.navigate('StoreDetail', { store: item })}
         >
-            <Image source={{ uri: safeImageUri(item.banner, PLACEHOLDER_BANNER) }} style={styles.shopImage} contentFit="cover" cachePolicy="memory-disk" />
-            <View style={styles.overlay} />
-            <View style={styles.logoContainer}>
-                {item.logo && item.logo.length > 1 ? (
-                     <Image source={{ uri: safeImageUri(item.logo) }} style={{ width: '100%', height: '100%', borderRadius: 30 }} contentFit="cover" />
-                ) : (
-                     <Text style={{ fontSize: 24, fontWeight: '700', color: BRAND_COLOR }}>{item.logo}</Text>
-                )}
+            <View style={styles.storeBannerContainer}>
+                <Image 
+                    source={{ uri: safeImageUri(item.banner, PLACEHOLDER_BANNER) }} 
+                    style={styles.storeBannerImage} 
+                    contentFit="cover" 
+                    cachePolicy="memory-disk" 
+                />
+                <LinearGradient
+                    colors={['transparent', 'rgba(255,255,255,0.8)', '#FFFFFF']}
+                    style={styles.storeBannerGradient}
+                />
+                <View style={styles.storeAvatarOverlap}>
+                    <View style={styles.storeAvatarBorder}>
+                        {item.logo && item.logo.length > 1 ? (
+                            <Image 
+                                source={{ uri: safeImageUri(item.logo) }} 
+                                style={styles.storeAvatarImage} 
+                                contentFit="cover" 
+                            />
+                        ) : (
+                            <View style={[styles.storeAvatarImage, { backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' }]}>
+                                <Text style={{ fontSize: 20, fontWeight: '700', color: BRAND_COLOR }}>{item.logo}</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
             </View>
-            <View style={styles.shopInfo}>
-                <View style={styles.shopHeader}>
-                    <Text style={styles.shopName}>{item.name}</Text>
+
+            <View style={styles.storeCardBody}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                    <Text style={styles.storeCardName} numberOfLines={1}>{item.name}</Text>
                     {item.isVerified && (
-                         <View style={{ marginLeft: 4 }}>
-                            <CheckCircle2 size={16} color={BRAND_COLOR} fill="#FFF" />
-                         </View>
+                        <CheckCircle2 size={16} color={BRAND_COLOR} fill="#FFF" />
                     )}
-                    <View style={{ flex: 1 }} />
-                    <View style={styles.ratingBadge}>
-                        <Star size={14} color="#FBBF24" fill="#FBBF24" />
-                        <Text style={styles.ratingText}>{item.rating}</Text>
-                    </View>
                 </View>
-
-                <View style={styles.locationRow}>
-                    <MapPin size={14} color="#6B7280" />
-                    <Text style={styles.locationText}>{item.location}</Text>
-                </View>
-
-                <View style={styles.statsRow}>
-                    <View style={styles.statItem}>
-                        <Store size={14} color="#6B7280" />
-                        <Text style={styles.statText}>{item.products.length} products</Text>
-                    </View>
-                </View>
+                <Text style={styles.storeCardSubtitle} numberOfLines={1}>
+                    {item.rating} ★ Rating • {item.location}
+                </Text>
 
                 <Pressable
                     style={({ pressed }) => [
-                        styles.visitButton,
-                        { backgroundColor: BRAND_COLOR },
-                        pressed && styles.visitButtonPressed,
+                        styles.visitShopButton,
+                        pressed && { opacity: 0.8 },
                     ]}
                     onPress={() => navigation.navigate('StoreDetail', { store: item })}
                 >
-                    <Text style={styles.visitButtonText}>Visit Shop</Text>
+                    <Text style={styles.visitShopText}>Visit Shop</Text>
                 </Pressable>
             </View>
         </Pressable>
-    ), [navigation]);
+    ), [navigation, BRAND_COLOR]);
 
     const keyExtractor = useCallback((item: any) => item.id, []);
 
@@ -190,6 +192,94 @@ const styles = StyleSheet.create({
     listContent: {
         padding: 16,
         paddingBottom: 40,
+    },
+    storeVerticalCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 24,
+        overflow: 'hidden',
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+    },
+    storeBannerContainer: {
+        height: 120,
+        width: '100%',
+        position: 'relative',
+        backgroundColor: '#F3F4F6',
+    },
+    storeBannerImage: {
+        width: '100%',
+        height: '100%',
+    },
+    storeBannerGradient: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 50,
+    },
+    storeAvatarOverlap: {
+        position: 'absolute',
+        bottom: -25,
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    storeAvatarBorder: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: '#FFFFFF',
+        padding: 3,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+    },
+    storeAvatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 32,
+    },
+    storeCardBody: {
+        paddingTop: 32,
+        paddingHorizontal: 16,
+        paddingBottom: 24,
+        alignItems: 'center',
+    },
+    storeCardName: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#1F2937',
+        marginBottom: 4,
+        textAlign: 'center',
+    },
+    storeCardSubtitle: {
+        fontSize: 14,
+        color: '#9CA3AF',
+        marginBottom: 20,
+        textAlign: 'center',
+        fontWeight: '500',
+    },
+    visitShopButton: {
+        backgroundColor: '#FDE1D3',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 20,
+        width: '100%',
+        alignItems: 'center',
+    },
+    visitShopText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#4B2C20',
     },
     shopCard: {
         backgroundColor: '#FFFFFF',

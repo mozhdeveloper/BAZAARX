@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Share, Alert, Pressable, Modal, TextInput, Switch, KeyboardAvoidingView, Platform, Animated, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Share, Alert, Pressable, Modal, TextInput, Switch, KeyboardAvoidingView, Platform, Animated, Keyboard, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Heart, ShoppingBag, Share2, MoreVertical, Edit2, Search, FolderHeart, Plus, Lock, Globe, User, X, Store, ChevronRight, Trash2, Eye } from 'lucide-react-native';
@@ -21,6 +21,8 @@ const OCCASIONS = [
     { id: 'christmas', label: 'Christmas', icon: 'Tree' },
     { id: 'other', label: 'Other', icon: 'MoreHorizontal' },
 ];
+
+const BRAND_COLOR = COLORS.primary;
 
 // Create List Modal (Bottom Sheet Style)
 const CreateListModal = ({ visible, onClose, onCreate }: any) => {
@@ -400,6 +402,8 @@ export default function WishlistScreen() {
         createCategory(name, privacy, occasion);
     }, [createCategory]);
 
+    const BRAND_COLOR = COLORS.primary;
+
     // List of predefined occasion IDs for filtering
     const predefinedIds = useMemo(() => OCCASIONS.filter(o => o.id !== 'other').map(o => o.id), []);
 
@@ -428,73 +432,41 @@ export default function WishlistScreen() {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" />
-
-            {/* Header */}
-            <View
-                style={[styles.headerContainer, { paddingTop: insets.top + 5, backgroundColor: '#E58C1A' }]}
+            <LinearGradient
+                colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.container}
             >
-                <View style={styles.headerTop}>
-                    <Pressable
-                        onPress={() => {
-                            if (selectedCategoryId) {
-                                setSelectedCategoryId(null); // Go back to categories
-                            } else {
-                                navigation.goBack();
-                            }
-                        }}
-                        style={styles.headerIconButton}
-                    >
-                        <ChevronLeft size={28} color="#FFFFFF" strokeWidth={2.5} />
-                    </Pressable>
+                <StatusBar barStyle="dark-content" />
 
-                    <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>
-                        {selectedCategoryId ? currentCategoryName : 'My Wishlists'}
-                    </Text>
+                {/* Header */}
+                <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+                    <View style={styles.headerTop}>
+                        <Pressable
+                            onPress={() => {
+                                if (selectedCategoryId) {
+                                    setSelectedCategoryId(null); // Go back to categories
+                                } else {
+                                    navigation.goBack();
+                                }
+                            }}
+                            style={styles.headerIconButton}
+                        >
+                            <ChevronLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+                        </Pressable>
 
-                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                        {selectedCategoryId && (
-                            <Pressable onPress={() => {
-                                const catItems = items.filter(i => i.categoryId === selectedCategoryId || (selectedCategoryId === 'default' && !i.categoryId));
+                        <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>
+                            {selectedCategoryId ? currentCategoryName : 'My Wishlists'}
+                        </Text>
 
-                                const previewData = {
-                                    name: "You",
-                                    avatar: "https://ui-avatars.com/api/?name=You&background=random",
-                                    registryAddress: { city: "Makati", province: "MM" },
-                                    items: catItems.map(i => ({ ...i, status: 'active', priority: 'medium' }))
-                                };
-
-                                navigation.navigate('SharedWishlist', { wishlistData: previewData });
-                            }} style={styles.headerIconButton}>
-                                <Eye size={22} color="#FFFFFF" />
-                            </Pressable>
-                        )}
-
-                        {selectedCategoryId && (
-                            <Pressable onPress={handleShare} style={styles.headerIconButton}>
-                                <Share2 size={22} color="#FFFFFF" />
-                            </Pressable>
-                        )}
-
-                        {!selectedCategoryId && (
-                            <Pressable onPress={() => setShowCreateModal(true)} style={styles.headerIconButton}>
-                                <Plus size={22} color="#FFFFFF" strokeWidth={3} />
-                            </Pressable>
-                        )}
-
-                        {selectedCategoryId && (
-                            <Pressable onPress={() => {
-                                const cat = categories.find(c => c.id === selectedCategoryId);
-                                setEditingCategory(cat);
-                            }} style={styles.headerIconButton}>
-                                <MoreVertical size={22} color="#FFFFFF" />
-                            </Pressable>
-                        )}
+                        <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                            <View style={{ width: 44 }} />
+                        </View>
                     </View>
                 </View>
-            </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
 
 
@@ -526,7 +498,21 @@ export default function WishlistScreen() {
                         </ScrollView>
 
                         <View style={styles.categoriesList}>
-                            {displayedCategories.map((cat) => {
+                            {displayedCategories.length === 0 ? (
+                                <View style={styles.emptyContainer}>
+                                    <View style={[styles.emptyIconCircle, { backgroundColor: `${BRAND_COLOR}10` }]}>
+                                        <FolderHeart size={48} color={BRAND_COLOR} strokeWidth={1.5} />
+                                    </View>
+                                    <Text style={styles.emptyTitle}>Your Wishlist is Empty</Text>
+                                    <Text style={styles.emptySubtitle}>Start building your favorite collections!</Text>
+                                    <TouchableOpacity
+                                        style={[styles.shopNowButton, { backgroundColor: BRAND_COLOR }]}
+                                        onPress={() => navigation.navigate('Home')}
+                                    >
+                                        <Text style={styles.shopNowText}>Continue Shopping</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : displayedCategories.map((cat) => {
                                 const categoryItems = items.filter(i => i.categoryId === cat.id || (cat.id === 'default' && !i.categoryId));
                                 const itemCount = categoryItems.length;
                                 // Use first item image as cover, or fallback
@@ -536,27 +522,26 @@ export default function WishlistScreen() {
                                     <Pressable key={cat.id} style={styles.cardContainer} onPress={() => setSelectedCategoryId(cat.id)}>
                                         <View style={styles.cardContent}>
                                             {/* Icon */}
-                                            <FolderHeart size={28} color="#E58C1A" strokeWidth={2} />
+                                            <FolderHeart size={28} color={BRAND_COLOR} strokeWidth={2} />
 
                                             {/* Info */}
                                             <View style={{ flex: 1 }}>
                                                 <Text style={styles.cardTitle}>{cat.name}</Text>
                                                 <View style={styles.cardRatingRow}>
                                                     <View style={styles.privacyTag}>
-                                                        <Lock size={10} color="#6B7280" />
                                                         <Text style={styles.privacyTagText}>Private</Text>
                                                     </View>
                                                     {cat.occasion && (
                                                         <Text style={styles.itemCountDetail}>{cat.occasion.replace('_', ' ')}</Text>
                                                     )}
-                                                    <Text style={styles.itemCountDetail}> ·  {itemCount} items</Text>
+                                                    <Text style={styles.itemCountDetail}> · {itemCount} items</Text>
                                                 </View>
                                             </View>
 
                                             {/* CTA */}
                                             <View style={styles.viewListBtn}>
                                                 <Text style={styles.viewListText}>View List</Text>
-                                                <ChevronRight size={16} color="#E58C1A" strokeWidth={2.5} />
+                                                <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
                                             </View>
                                         </View>
                                     </Pressable>
@@ -650,54 +635,178 @@ export default function WishlistScreen() {
             />
 
 
-        </View>
-    );
-}
+                </LinearGradient>
+            </View>
+        );
+    }
 
 const styles = StyleSheet.create({
+    // Use BRAND_COLOR from a static source or define a local fallback since styles are outside the component
     container: { flex: 1, backgroundColor: COLORS.background },
     headerContainer: {
         paddingHorizontal: 20,
-        paddingBottom: 16,
-        zIndex: 10,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
+        paddingBottom: 20,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
     },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        position: 'relative',
-        height: 40,
+        marginBottom: 4,
     },
-    headerIconButton: { padding: 4, minWidth: 40, alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
-    scrollContent: { padding: 20, paddingBottom: 40, minHeight: '100%' },
+    headerIconButton: {
+        width: 44,
+        height: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerTitle: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: COLORS.textHeadline,
+    },
+    scrollContent: { padding: 16, paddingTop: 24, paddingBottom: 40, minHeight: '100%' },
 
     // Categories List (Card Style)
-    categoriesList: { gap: 8, paddingBottom: 20 },
+    categoriesList: { gap: 12, paddingBottom: 20 },
     cardContainer: {
         backgroundColor: '#FFF',
-        borderRadius: 16,
-        elevation: 3,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8,
-        marginBottom: 0,
+        borderRadius: 20,
+        padding: 18,
+        marginBottom: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+        elevation: 4,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
     },
-    cardBanner: {
-        height: 140,
-        width: '100%',
-        backgroundColor: '#E5E7EB',
-    },
-    bannerImage: { width: '100%', height: '100%' },
-    placeholderBanner: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
     cardContent: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
         gap: 14,
     },
-    cardIconContainer: {
+    cardTitle: {
+        fontSize: 18,
+        fontWeight: '900',
+        color: COLORS.primary,
+        marginBottom: 4,
+    },
+    cardRatingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    privacyTag: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        gap: 4,
+        paddingHorizontal: 6, paddingVertical: 2,
+        backgroundColor: '#F3F4F6', borderRadius: 4,
+    },
+    privacyTagText: { fontSize: 10, fontWeight: '600', color: COLORS.textMuted },
+    itemCountDetail: { fontSize: 12, color: COLORS.textMuted },
+
+    viewListBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+    },
+    viewListText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: COLORS.primary,
+    },
+
+    // Tabs
+    tabScroll: { marginBottom: 20 },
+    tabContainer: { paddingHorizontal: 4, gap: 12 },
+    tab: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        backgroundColor: '#F3F4F6',
+    },
+    tabActive: { backgroundColor: COLORS.primary },
+    tabText: { fontSize: 13, fontWeight: '700', color: '#6B7280' },
+    tabTextActive: { color: '#FFF' },
+
+    // Empty State (Corrected name to match usage)
+    emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
+    emptyIconCircle: {
+        width: 100, height: 100, borderRadius: 50,
+        backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10
+    },
+    emptyTitle: { fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 8 },
+    emptySubtitle: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginHorizontal: 40, lineHeight: 22 },
+    shopNowButton: {
+        marginTop: 32,
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 32,
+        paddingVertical: 16,
+        borderRadius: 16,
+        elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8
+    },
+    shopNowText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+    headerTitle: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: COLORS.textHeadline,
+    },
+    scrollContent: { padding: 16, paddingTop: 24, paddingBottom: 40, minHeight: '100%' },
+
+    // Categories List (Card Style)
+    categoriesList: { gap: 12, paddingBottom: 20 },
+    cardContainer: {
+        backgroundColor: '#FFF',
+        borderRadius: 20,
+        padding: 18,
+        marginBottom: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+        elevation: 4,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    cardContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+    },
+    cardTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 4,
+    },
+    cardRatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    privacyTag: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        gap: 4,
+        backgroundColor: '#F3F4F6',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    privacyTagText: { fontSize: 10, color: '#6B7280', fontWeight: '700', textTransform: 'uppercase' },
+    itemCountDetail: { fontSize: 13, color: '#9CA3AF', fontWeight: '500' },
+    viewListBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    viewListText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: COLORS.primary,
+    },
+    emptyState: {
         width: 52,
         height: 52,
         borderRadius: 14,
@@ -729,7 +838,7 @@ const styles = StyleSheet.create({
     cardTitle: {
         fontSize: 18,
         fontWeight: '900',
-        color: '#E58C1A',
+        color: BRAND_COLOR,
         marginBottom: 4,
     },
     cardRatingRow: {
@@ -753,7 +862,7 @@ const styles = StyleSheet.create({
     viewListText: {
         fontSize: 13,
         fontWeight: '700',
-        color: '#E58C1A',
+        color: BRAND_COLOR,
     },
 
     // Items Grid
@@ -794,9 +903,37 @@ const styles = StyleSheet.create({
     findRegistryBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
     findRegistryBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
 
-    // Empty State
-    emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 60 },
-    emptyIconContainer: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center' },
+    // Tabs
+    tabScroll: { marginBottom: 20 },
+    tabContainer: { paddingHorizontal: 4, gap: 12 },
+    tab: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        backgroundColor: '#F3F4F6',
+    },
+    tabActive: { backgroundColor: BRAND_COLOR },
+    tabText: { fontSize: 13, fontWeight: '700', color: '#6B7280' },
+    tabTextActive: { color: '#FFF' },
+
+    // Empty State (Corrected name to match usage)
+    emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
+    emptyIconCircle: {
+        width: 100, height: 100, borderRadius: 50,
+        backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10
+    },
+    emptyTitle: { fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 8 },
+    emptySubtitle: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginHorizontal: 40, lineHeight: 22 },
+    shopNowButton: {
+        marginTop: 32,
+        backgroundColor: BRAND_COLOR,
+        paddingHorizontal: 32,
+        paddingVertical: 16,
+        borderRadius: 16,
+        elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8
+    },
+    shopNowText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
     emptyTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 8 },
     emptyText: { fontSize: 15, color: COLORS.textMuted, textAlign: 'center', marginBottom: 32 },
     shopNowButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E58C1A', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 30, elevation: 4 },
