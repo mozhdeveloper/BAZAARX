@@ -781,7 +781,7 @@ export default function ShopPage() {
 
                           {/* Product Image */}
                           <div className="relative aspect-square overflow-hidden bg-gray-50">
-                            <img
+                            <img loading="lazy" 
                               src={imageUrl}
                               alt={product.name}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -1321,7 +1321,7 @@ export default function ShopPage() {
                       }}
                     >
                       <div className="relative aspect-square overflow-hidden bg-white/50">
-                        <img
+                        <img loading="lazy" 
                           src={product.image}
                           alt={product.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

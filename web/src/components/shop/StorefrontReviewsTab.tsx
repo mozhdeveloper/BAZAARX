@@ -183,7 +183,7 @@ export default function StorefrontReviewsTab({
                                     )}
                                 >
                                     <div className="flex items-start gap-4">
-                                        <img
+                                        <img loading="lazy" 
                                             src={review.avatar}
                                             alt={review.author}
                                             className="w-10 h-10 rounded-full object-cover border border-gray-100"
@@ -211,7 +211,7 @@ export default function StorefrontReviewsTab({
                                             {review.productName && (
                                                 <div className="flex items-center gap-3 mb-3 bg-gray-50 rounded-xl p-3">
                                                     {review.productImage && (
-                                                        <img
+                                                        <img loading="lazy" 
                                                             src={review.productImage}
                                                             alt={review.productName}
                                                             className="w-10 h-10 rounded-lg object-cover border border-gray-200 shadow-sm"
@@ -238,7 +238,7 @@ export default function StorefrontReviewsTab({
                                             {review.images && review.images.length > 0 && (
                                                 <div className="flex gap-2 mb-3 flex-wrap">
                                                     {review.images.map((img, idx) => (
-                                                        <img
+                                                        <img loading="lazy" 
                                                             key={idx}
                                                             src={img}
                                                             alt={`Review image ${idx + 1}`}

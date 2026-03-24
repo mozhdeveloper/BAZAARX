@@ -292,7 +292,7 @@ const CategoryCard: React.FC<CardProps> = ({ category, index, onClick }) => (
     {/* Image */}
     <div className="relative h-40 overflow-hidden">
       {category.image ? (
-        <img
+        <img loading="lazy" 
           src={category.image}
           alt={category.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

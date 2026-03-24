@@ -83,7 +83,7 @@ export function SellerLogin() {
             <div className="mb-10 text-center lg:text-left">
               <Link to="/" className="inline-block relative group">
                 <div className="w-16 h-16 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-orange-500/20 transition-transform group-hover:scale-105 group-active:scale-95">
-                  <img src='/BazaarX.png' alt='BazaarX Logo' className='w-10 h-10 object-contain brightness-0 invert' />
+                  <img loading="lazy" src='/BazaarX.png' alt='BazaarX Logo' className='w-10 h-10 object-contain brightness-0 invert' />
                 </div>
               </Link>
               <h1 className="text-4xl font-extrabold text-[var(--text-headline)] font-heading tracking-tight mb-3">Welcome Back</h1>
@@ -192,7 +192,7 @@ export function SellerLogin() {
               <div className="absolute w-[360px] h-[360px] border-2 border-white/20 rounded-full animate-[spin_80s_linear_infinite_reverse]"></div>
 
               <div className="z-30 w-24 h-24 bg-white rounded-full shadow-[0_0_50px_rgba(255,255,255,0.3)] flex items-center justify-center relative ring-8 ring-white/20">
-                <img src="/BazaarX.png" alt="BazaarPH" className="w-14 h-14 object-contain" />
+                <img loading="lazy" src="/BazaarX.png" alt="BazaarPH" className="w-14 h-14 object-contain" />
               </div>
 
               {/* Planets Logic */}
@@ -207,7 +207,7 @@ export function SellerLogin() {
                       transform: `rotate(${brand.angle}deg) translate(${brand.radius}px) rotate(-${brand.angle}deg) translate(-50%, -50%)`,
                     }}
                   >
-                    <img src={brand.logo} alt={brand.name} className="w-full h-full object-contain" />
+                    <img loading="lazy" src={brand.logo} alt={brand.name} className="w-full h-full object-contain" />
                   </div>
                 ))}
               </div>
@@ -223,7 +223,7 @@ export function SellerLogin() {
                       transform: `rotate(${brand.angle}deg) translate(${brand.radius}px) rotate(-${brand.angle}deg) translate(-50%, -50%)`,
                     }}
                   >
-                    <img src={brand.logo} alt={brand.name} className="w-full h-full object-contain" />
+                    <img loading="lazy" src={brand.logo} alt={brand.name} className="w-full h-full object-contain" />
                   </div>
                 ))}
               </div>
@@ -453,7 +453,7 @@ export function SellerRegister() {
           <div className="max-w-[480px] mx-auto w-full relative z-10">
             <div className="mb-8 text-center">
               <div className="w-16 h-16 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-orange-500/20 mx-auto">
-                <img src="/BazaarX.png" className="h-9 w-9 object-contain brightness-0 invert"></img>
+                <img loading="lazy" src="/BazaarX.png" className="h-9 w-9 object-contain brightness-0 invert"></img>
               </div>
               <h1 className='text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight mb-2'>
                 {isSwitchMode ? "Complete Seller Profile" : "Join BazaarX"}

@@ -369,7 +369,7 @@ export const RegistryDetailModal = ({
                         >
                           <div className="aspect-[1/1] relative bg-gray-100 overflow-hidden">
                             {product.image ? (
-                              <img
+                              <img loading="lazy" 
                                 src={product.image}
                                 alt={product.name}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

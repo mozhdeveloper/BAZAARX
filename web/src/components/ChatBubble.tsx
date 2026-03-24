@@ -308,7 +308,7 @@ export function ChatBubble() {
           <div className="bg-[var(--brand-primary)] px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               {chatTarget?.sellerAvatar ? (
-                <img
+                <img loading="lazy" 
                   src={chatTarget.sellerAvatar}
                   alt={chatTarget.sellerName}
                   className="w-10 h-10 rounded-full border-2 border-white/30 object-cover"
@@ -351,7 +351,7 @@ export function ChatBubble() {
           {/* Product context bar */}
           {chatTarget?.productId && chatTarget?.productImage && (
             <div className="bg-[var(--brand-primary)]/[0.03] px-4 py-2 border-b border-[var(--brand-primary)]/10 flex items-center gap-3">
-              <img
+              <img loading="lazy" 
                 src={chatTarget.productImage}
                 alt={chatTarget.productName}
                 className="w-10 h-10 rounded-lg object-cover border border-[var(--brand-primary)]/10"

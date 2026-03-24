@@ -78,7 +78,7 @@ const FeatureStrip: React.FC<FeatureStripProps> = ({
             className={reverse ? 'lg:col-start-1' : ''}
           >
             <div className="relative">
-              <img
+              <img loading="lazy" 
                 src={image}
                 alt={title}
                 className="w-full h-80 lg:h-96 object-cover rounded-2xl shadow-xl"

@@ -352,7 +352,7 @@ export default function OrdersPage() {
       return matchesSearch && matchesStatus;
     });
 
-    // If viewing reviewed tab, sort by review.submittedAt desc
+    // For other tabs, check if there's a specialized sort
     if (statusFilter === "reviewed") {
       return filtered.sort((a, b) => {
         const aTime = a.review?.submittedAt ? new Date(a.review.submittedAt).getTime() : getTimestamp(a.createdAt);
@@ -360,7 +360,7 @@ export default function OrdersPage() {
         return bTime - aTime;
       });
     }
-    // If viewing cancelled tab, sort by cancelledAt desc (fallback to createdAt)
+
     if (statusFilter === "cancelled") {
       return filtered.sort((a, b) => {
         const aTime = a.cancelledAt ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
@@ -370,7 +370,6 @@ export default function OrdersPage() {
       });
     }
 
-    // If viewing returned tab, sort by returnRequest.submittedAt desc
     if (statusFilter === "returned") {
       return filtered.sort((a, b) => {
         const aTime = a.returnRequest?.submittedAt ? getTimestamp(a.returnRequest.submittedAt) : getTimestamp(a.createdAt);
@@ -379,8 +378,16 @@ export default function OrdersPage() {
         return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
       });
     }
-    // Otherwise, sort by createdAt desc
-    return filtered.sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
+
+    // Default sort for "all" and other tabs:
+    // Sort by cancelledAt if the order is cancelled, otherwise by createdAt
+    return filtered.sort((a, b) => {
+      const aTime = (a.status === "cancelled" && a.cancelledAt) ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
+      const bTime = (b.status === "cancelled" && b.cancelledAt) ? getTimestamp(b.cancelledAt) : getTimestamp(b.createdAt);
+      
+      if (aTime !== bTime) return bTime - aTime;
+      return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
+    });
   }, [orders, searchQuery, statusFilter]);
 
   const formatDate = (date: Date | string) => {
@@ -572,7 +579,7 @@ export default function OrdersPage() {
                           className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-2 last:border-0 last:pb-0"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <img
+                            <img loading="lazy" 
                               src={item.image}
                               alt={item.name}
                               className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
@@ -634,7 +641,7 @@ export default function OrdersPage() {
                                       setViewingImageIndex(idx);
                                     }}
                                   >
-                                    <img
+                                    <img loading="lazy" 
                                       src={img}
                                       alt={`Review ${idx}`}
                                       className="w-full h-full object-cover"
@@ -733,7 +740,7 @@ export default function OrdersPage() {
                           >
                             <div className="flex items-center justify-between gap-3 w-full">
                               <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <img
+                                <img loading="lazy" 
                                   src={item.image}
                                   alt={item.name}
                                   className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
@@ -994,7 +1001,7 @@ export default function OrdersPage() {
               <div className="space-y-4">
                 {selectedOrderData.items.map((item, itemIndex) => (
                   <div key={getOrderItemKey(selectedOrderData.id, item, itemIndex)} className="flex gap-4">
-                    <img
+                    <img loading="lazy" 
                       src={item.image}
                       alt={item.name}
                       className="w-16 h-16 object-cover rounded-lg"
@@ -1145,7 +1152,7 @@ export default function OrdersPage() {
                       key={getOrderItemKey(viewReturnDetails.id, item, itemIndex)}
                       className="flex gap-3 bg-gray-50 rounded-lg p-3"
                     >
-                      <img
+                      <img loading="lazy" 
                         src={item.image}
                         alt={item.name}
                         className="w-16 h-16 object-cover rounded"
@@ -1290,7 +1297,7 @@ export default function OrdersPage() {
                           </span>
                           <div className="flex gap-2 mt-2 flex-wrap">
                             {viewReturnDetails.returnRequest.evidenceUrls.map((url: string, idx: number) => (
-                              <img
+                              <img loading="lazy" 
                                 key={idx}
                                 src={url}
                                 alt={`Evidence ${idx + 1}`}
@@ -1485,7 +1492,7 @@ export default function OrdersPage() {
             >
               {/* Left: Image Container */}
               <div className="flex-[1.5] bg-gray-900 relative min-h-[400px] lg:min-h-0 overflow-hidden group">
-                <img
+                <img loading="lazy" 
                   src={viewingOrderIndex !== null && viewingOrderIndex >= 0
                     ? filteredOrders[viewingOrderIndex].review.images[viewingImageIndex]
                     : viewingReviewData?.image}
@@ -1530,7 +1537,7 @@ export default function OrdersPage() {
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center font-bold text-xl text-gray-500 overflow-hidden ring-2 ring-gray-50 shrink-0">
                     {profile?.avatar ? (
-                      <img
+                      <img loading="lazy" 
                         src={profile.avatar}
                         alt={`${profile.firstName} ${profile.lastName}`}
                         className="w-full h-full object-cover"

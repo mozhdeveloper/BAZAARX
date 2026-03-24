@@ -56,7 +56,7 @@ export function MobileAppShowcase({ mode = "buyer" }: MobileAppShowcaseProps) {
         }
       >
         <div className="flex justify-center items-center px-4">
-          <img
+          <img loading="lazy" 
             src="/phone.png"
             alt="Bazaar Mobile App"
             className="h-auto w-full max-w-[300px] sm:max-w-[500px] md:max-w-4xl object-contain drop-shadow-2xl"

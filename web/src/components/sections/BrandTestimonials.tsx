@@ -80,7 +80,7 @@ function BrandTestimonials() {
                 </blockquote>
 
                 <div className="flex items-center gap-4">
-                  <img
+                  <img loading="lazy" 
                     src={TESTIMONIALS[index].img}
                     alt={TESTIMONIALS[index].name}
                     className="w-14 h-14 rounded-full object-cover border-2 border-[var(--brand-primary)]"

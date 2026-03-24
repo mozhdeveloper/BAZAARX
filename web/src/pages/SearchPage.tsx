@@ -604,7 +604,7 @@ const SearchPage: React.FC = () => {
                       className="bg-white border border-gray-100 rounded-xl p-4 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-[var(--brand-primary)]/30 transition-all group"
                     >
                       <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
-                        <img
+                        <img loading="lazy" 
                           src={store.avatar_url || 'https://via.placeholder.com/150'}
                           alt={store.store_name}
                           className="w-full h-full object-cover"
@@ -693,7 +693,7 @@ const SearchPage: React.FC = () => {
                   className="product-card-premium product-card-premium-interactive h-full flex flex-col group cursor-pointer border-0 rounded-2xl overflow-hidden"
                 >
                   <div className="relative aspect-square overflow-hidden bg-white/50">
-                    <img
+                    <img loading="lazy" 
                       src={product.image}
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -928,7 +928,7 @@ const SearchPage: React.FC = () => {
                 className="bg-[var(--bg-secondary)] rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group"
               >
                 <div className="relative overflow-hidden aspect-[4/3]">
-                  <img
+                  <img loading="lazy" 
                     src={product.image}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"

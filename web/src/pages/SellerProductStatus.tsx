@@ -234,7 +234,7 @@ const SellerProductStatus = () => {
           {/* Product Image */}
           <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
             {(isQA ? product.image : product.images[0]) ? (
-              <img src={isQA ? product.image : product.images[0]} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
+              <img loading="lazy" src={isQA ? product.image : product.images[0]} alt={product.name} className="w-full h-full object-cover" onError={handleImageError} />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Package className="w-6 h-6 text-gray-400" />

@@ -107,7 +107,7 @@ export function ZoomParallax({ images }: ZoomParallaxProps) {
 								}}
 								transition={{ type: "spring", stiffness: 400, damping: 25 }}
 							>
-								<img
+								<img loading="lazy" 
 									src={src || '/placeholder.svg'}
 									alt={alt || `${category} category`}
 									className="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-110 group-hover:saturate-125"

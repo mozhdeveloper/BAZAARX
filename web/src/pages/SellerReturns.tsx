@@ -297,7 +297,7 @@ export function SellerReturns() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               {req.items[0]?.image ? (
-                                <img src={req.items[0].image} className="h-8 w-8 rounded bg-gray-100 object-cover" alt="" />
+                                <img loading="lazy" src={req.items[0].image} className="h-8 w-8 rounded bg-gray-100 object-cover" alt="" />
                               ) : (
                                 <div className="h-8 w-8 rounded bg-gray-100 flex items-center justify-center">
                                   <Package className="h-4 w-4 text-gray-400" />
@@ -442,7 +442,7 @@ export function SellerReturns() {
                       </p>
                       <div className="flex gap-2 overflow-x-auto pb-2">
                         {selectedRequest.evidenceUrls.map((url, idx) => (
-                          <img
+                          <img loading="lazy" 
                             key={idx}
                             src={url}
                             alt={`Evidence ${idx + 1}`}
@@ -462,7 +462,7 @@ export function SellerReturns() {
                         {selectedRequest.items.map((item, idx) => (
                           <div key={idx} className="flex items-center gap-3 bg-gray-50 rounded-lg p-2">
                             {item.image ? (
-                              <img src={item.image} className="h-10 w-10 rounded object-cover" alt="" />
+                              <img loading="lazy" src={item.image} className="h-10 w-10 rounded object-cover" alt="" />
                             ) : (
                               <div className="h-10 w-10 rounded bg-gray-200 flex items-center justify-center">
                                 <Package className="h-5 w-5 text-gray-400" />

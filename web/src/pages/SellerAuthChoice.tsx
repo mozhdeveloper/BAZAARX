@@ -34,7 +34,7 @@ export function SellerAuthChoice() {
         <div className='max-w-xl space-y-8 relative z-10'>
           <div className='flex items-center space-x-3'>
             <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border border-white/20">
-              <img
+              <img loading="lazy" 
                 src='/BazaarX.png'
                 alt='BazaarX Logo'
                 className='w-8 h-8 object-contain brightness-0 invert'

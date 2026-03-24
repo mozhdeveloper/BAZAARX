@@ -222,7 +222,7 @@ export default function BuyerLoginPage() {
               <p className="text-[var(--text-muted)] text-sm mt-1">Sign in to continue shopping.</p>
             </div>
             <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
-              <img src="/BazaarX.png" alt="BazaarX" className="w-12 h-12 object-contain" />
+              <img loading="lazy" src="/BazaarX.png" alt="BazaarX" className="w-12 h-12 object-contain" />
             </div>
           </div>
 
@@ -337,7 +337,7 @@ export default function BuyerLoginPage() {
                 className="w-full h-12 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
                 disabled={isLoading}
               >
-                <img
+                <img loading="lazy" 
                   src="https://www.svgrepo.com/show/475656/google-color.svg"
                   className="w-4 h-4"
                   alt="Google"
@@ -351,7 +351,7 @@ export default function BuyerLoginPage() {
                 className="w-full h-12 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
                 disabled={isLoading}
               >
-                <img
+                <img loading="lazy" 
                   src="https://www.svgrepo.com/show/475647/facebook-color.svg"
                   className="w-4 h-4"
                   alt="Facebook"

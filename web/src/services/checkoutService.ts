@@ -329,16 +329,20 @@ export class CheckoutService {
                     }).catch(console.error);
 
                     // Order receipt email (fire-and-forget)
-                    const itemsHtml = sellerLinePricing.map(lp =>
-                        `<tr><td>${lp.item.name || 'Product'}</td><td>${lp.quantity}</td><td>₱${lp.unitPrice.toLocaleString()}</td><td>₱${(lp.unitPrice * lp.quantity).toLocaleString()}</td></tr>`
-                    ).join('');
+                    const itemsHtml = sellerLinePricing.map(lp => {
+                        const imgUrl = (lp.item.selected_variant as any)?.image || lp.item.product?.primary_image || '';
+                        const imgCell = imgUrl
+                            ? `<td style="padding:12px 0;width:56px;vertical-align:top"><img src="${imgUrl}" alt="" width="56" height="56" style="display:block;border-radius:8px;border:1px solid #E4E4E7;object-fit:cover" /></td>`
+                            : `<td style="padding:12px 0;width:56px;vertical-align:top"><div style="width:56px;height:56px;border-radius:8px;background:#F4F4F5"></div></td>`;
+                        return `<tr style="border-bottom:1px solid #E4E4E7">${imgCell}<td style="padding:12px 0 12px 12px;vertical-align:top"><p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#18181B">${lp.item.name || 'Product'}</p><p style="margin:0;font-size:13px;color:#71717A">Qty: ${lp.quantity}</p></td><td align="right" style="padding:12px 0;vertical-align:top;white-space:nowrap"><span style="font-size:14px;font-weight:600;color:#18181B">₱${(lp.unitPrice * lp.quantity).toLocaleString()}</span></td></tr>`;
+                    }).join('');
                     sendOrderReceiptEmail({
                         buyerEmail: email,
                         buyerId: userId,
                         orderNumber: orderData.order_number as string,
                         orderDate: new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }),
                         buyerName: shippingAddress.fullName || 'Valued Customer',
-                        itemsHtml: `<table>${itemsHtml}</table>`,
+                        itemsHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">${itemsHtml}</table>`,
                         subtotal: `₱${pricingSummary.subtotal.toLocaleString()}`,
                         shippingFee: `₱${pricingSummary.shipping.toLocaleString()}`,
                         totalAmount: `₱${pricingSummary.total.toLocaleString()}`,

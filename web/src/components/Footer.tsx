@@ -58,7 +58,7 @@ const Footer: React.FC = () => {
           {/* Brand Section */}
           <div className="lg:col-span-1">
             <div className="flex items-center gap-2 mb-6">
-              <img 
+              <img loading="lazy" 
                 src="/Logo.png" 
                 alt="Bazaar Logo" 
                 className="w-12 h-12 object-contain"
@@ -73,12 +73,12 @@ const Footer: React.FC = () => {
             <div className="space-y-3">
               <p className="font-semibold">Download the Bazaar App</p>
               <div className="flex gap-3">
-                <img 
+                <img loading="lazy" 
                   src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png" 
                   alt="Google Play" 
                   className="h-10 w-auto cursor-pointer hover:opacity-80 transition-opacity"
                 />
-                <img 
+                <img loading="lazy" 
                   src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/488px-Apple_logo_black.svg.png" 
                   alt="App Store" 
                   className="h-10 w-auto bg-white rounded px-2 cursor-pointer hover:opacity-80 transition-opacity"

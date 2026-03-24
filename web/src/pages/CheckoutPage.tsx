@@ -835,14 +835,14 @@ export default function CheckoutPage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/shop')}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <ChevronLeft
               size={20}
               className="group-hover:-translate-x-0.5 transition-transform"
             />
-            <span className="text-sm font-medium">Back to Shop</span>
+            <span className="text-sm font-medium">Go Back</span>
           </button>
           <div>
             <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-1">
@@ -1231,7 +1231,7 @@ export default function CheckoutPage() {
                       <div key={`${item.id}-${variant?.id || 'no-variant'}-${idx}`} className="flex items-start gap-3 text-sm">
                         {/* Product Image */}
                         <div className="w-12 h-12 rounded-lg border border-gray-100 bg-white overflow-hidden flex-shrink-0 mt-0.5">
-                          <img
+                          <img loading="lazy" 
                             src={variant?.thumbnail_url || item.image || (item.images && item.images[0])}
                             alt={item.name}
                             className="w-full h-full object-contain"

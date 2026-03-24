@@ -152,7 +152,7 @@ export function StaffLogin({ open, onClose, onLogin, currentStaff }: StaffLoginP
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center">
                     {currentStaff.avatar ? (
-                      <img 
+                      <img loading="lazy" 
                         src={currentStaff.avatar} 
                         alt={currentStaff.name}
                         className="w-full h-full rounded-full object-cover"
@@ -187,7 +187,7 @@ export function StaffLogin({ open, onClose, onLogin, currentStaff }: StaffLoginP
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
                         {staff.avatar ? (
-                          <img 
+                          <img loading="lazy" 
                             src={staff.avatar} 
                             alt={staff.name}
                             className="w-full h-full rounded-full object-cover"
@@ -219,7 +219,7 @@ export function StaffLogin({ open, onClose, onLogin, currentStaff }: StaffLoginP
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-blue-200 flex items-center justify-center">
                     {selectedStaff.avatar ? (
-                      <img 
+                      <img loading="lazy" 
                         src={selectedStaff.avatar} 
                         alt={selectedStaff.name}
                         className="w-full h-full rounded-full object-cover"
@@ -325,7 +325,7 @@ export function StaffBadge({ staff, onLogout }: { staff: StaffMember; onLogout: 
     <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
       <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
         {staff.avatar ? (
-          <img 
+          <img loading="lazy" 
             src={staff.avatar} 
             alt={staff.name}
             className="w-full h-full rounded-full object-cover"

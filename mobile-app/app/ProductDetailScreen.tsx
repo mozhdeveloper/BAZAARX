@@ -63,6 +63,7 @@ import { useWishlistStore } from '../src/stores/wishlistStore';
 import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import BackToShopButton from '../src/components/BackToShopButton';
 import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { productService } from '../src/services/productService';
 import { sellerService } from '../src/services/sellerService';
@@ -1025,6 +1026,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <Pressable onPress={() => navigation.goBack()}>
               <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
             </Pressable>
+            <BackToShopButton navigation={navigation} />
           </View>
 
           <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>

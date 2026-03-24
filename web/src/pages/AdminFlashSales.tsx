@@ -373,7 +373,7 @@ const AdminFlashSales: React.FC = () => {
                                       const isRejected = sub.status === 'rejected';
                                       return (
                                         <div key={sub.id} className="flex items-center gap-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                          <img
+                                          <img loading="lazy" 
                                             src={sub.product_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(sub.product_name || 'Product')}&background=f3f4f6`}
                                             alt=""
                                             className="w-12 h-12 rounded object-cover"

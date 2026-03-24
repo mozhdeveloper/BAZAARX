@@ -341,7 +341,7 @@ const QAForm: React.FC<QAFormProps> = ({
                                 <div className="flex flex-wrap gap-2">
                                     {photoEvidence.map((file, index) => (
                                         <div key={index} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-gray-100">
-                                            <img
+                                            <img loading="lazy" 
                                                 src={URL.createObjectURL(file)}
                                                 alt="Preview"
                                                 className="w-full h-full object-cover"

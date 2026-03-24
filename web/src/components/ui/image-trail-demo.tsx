@@ -25,7 +25,7 @@ const ImageTrailDemo = () => {
               key={index}
               className="flex relative overflow-hidden w-24 h-24 rounded-lg"
             >
-              <img
+              <img loading="lazy" 
                 src={url}
                 alt={`Trail image ${index + 1}`}
                 className="object-cover absolute inset-0 hover:scale-110 transition-transform"

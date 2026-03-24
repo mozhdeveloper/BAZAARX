@@ -67,7 +67,7 @@ export default function BazaarHistoryZoomParallax() {
             <div className="carousel-animate flex flex-col gap-6 p-6 md:p-10 cursor-pointer">
               {carouselImages.map((image, index) => (
                 <div key={index} className="w-full shrink-0">
-                  <img
+                  <img loading="lazy" 
                     src={image.src}
                     alt={image.alt}
                     className="w-full h-64 md:h-80 lg:h-96 object-cover rounded-xl shadow-2xl hover:scale-[1.02] transition-transform duration-500"

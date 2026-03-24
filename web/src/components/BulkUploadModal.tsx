@@ -389,7 +389,7 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       {/* Product Image */}
                       <div className="md:col-span-1">
-                        <img
+                        <img loading="lazy" 
                           src={group.imageUrl || "https://placehold.co/100?text=No+Image"}
                           alt={group.name}
                           className="w-full h-24 object-cover rounded-lg bg-gray-100"

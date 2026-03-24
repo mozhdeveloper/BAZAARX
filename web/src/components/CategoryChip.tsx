@@ -32,7 +32,7 @@ const CategoryChip: React.FC<CategoryCardProps> = ({
       viewport={{ once: true }}
       className="absolute w-44 h-56 bg-white rounded-2xl shadow-2xl overflow-hidden border-[6px] border-white cursor-pointer group"
     >
-      <img
+      <img loading="lazy" 
         src={category.icon}
         alt={category.name}
         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"

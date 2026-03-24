@@ -385,10 +385,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             const perSellerShipping = sellerCount > 0 ? shippingFee / sellerCount : shippingFee;
             const perSellerDiscount = sellerCount > 0 ? discount / sellerCount : discount;
             const orderTotal = orderSubtotal + perSellerShipping - perSellerDiscount;
-            const itemsHtml = sellerItems.map(item =>
-                `<tr><td style="padding:8px;border-bottom:1px solid #f0f0f0">${item.name || 'Product'} (x${item.quantity})</td>` +
-                `<td style="padding:8px;border-bottom:1px solid #f0f0f0;text-align:right">₱${(item.price * item.quantity).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td></tr>`
-            ).join('');
+            const itemsHtml = sellerItems.map(item => {
+                const imgUrl = item.image || '';
+                const imgCell = imgUrl
+                    ? `<td style="padding:12px 0;width:56px;vertical-align:top"><img src="${imgUrl}" alt="" width="56" height="56" style="display:block;border-radius:8px;border:1px solid #E4E4E7;object-fit:cover" /></td>`
+                    : `<td style="padding:12px 0;width:56px;vertical-align:top"><div style="width:56px;height:56px;border-radius:8px;background:#F4F4F5"></div></td>`;
+                return `<tr style="border-bottom:1px solid #E4E4E7">${imgCell}<td style="padding:12px 0 12px 12px;vertical-align:top"><p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#18181B">${item.name || 'Product'}</p><p style="margin:0;font-size:13px;color:#71717A">Qty: ${item.quantity}</p></td><td align="right" style="padding:12px 0;vertical-align:top;white-space:nowrap"><span style="font-size:14px;font-weight:600;color:#18181B">₱${(item.price * item.quantity).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span></td></tr>`;
+            }).join('');
             supabase.functions.invoke('send-email', {
                 body: {
                     to: email,
