@@ -17,6 +17,7 @@ import type {
   Address, BuyerProfile, PaymentMethod,
 } from './buyer/buyerTypes';
 import {
+  deriveBuyerName,
   ensureRegistryProductDefaults, ensureRegistryDefaults, UUID_REGEX, isRealUUID,
   mapDbToRegistryProduct, mapDbToRegistryItem, mapDbItemToCartItem,
 } from './buyer/buyerHelpers';
@@ -163,6 +164,7 @@ interface BuyerStore {
 
 
 let profileSubscription: any = null;
+const db: any = supabase;
 
 // mapDbItemToCartItem imported from './buyer/buyerHelpers'
 
@@ -214,7 +216,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       try {
         // 1) Update profiles table when applicable
         if (Object.keys(profileUpdates).length > 0) {
-          const { error } = await supabase
+          const { error } = await db
             .from('profiles')
             .update(profileUpdates)
             .eq('id', currentProfile.id);
@@ -223,7 +225,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
         // 2) Update buyers table for buyer-specific fields
         if (Object.keys(buyerUpdates).length > 0) {
-          const { error } = await supabase
+          const { error } = await db
             .from('buyers')
             .update(buyerUpdates)
             .eq('id', currentProfile.id);
@@ -306,7 +308,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
       try {
         if (address.isDefault) {
-          await supabase
+          await db
             .from('shipping_addresses')
             .update({ is_default: false })
             .eq('user_id', userId);
@@ -322,7 +324,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           instructions: address.deliveryInstructions || ""
         };
 
-        const { data: newAddr, error } = await supabase
+        const { data: newAddr, error } = await db
           .from('shipping_addresses')
           .insert({
             user_id: userId,
@@ -347,6 +349,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           .single();
 
         if (error) throw error;
+        if (!newAddr) throw new Error('Failed to create address');
 
         const finalAddress = {
           ...address,
@@ -372,7 +375,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
       try {
         if (isSettingDefault) {
-          await supabase
+          await db
             .from('shipping_addresses')
             .update({ is_default: false })
             .eq('user_id', userId);
@@ -406,7 +409,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         if (updatedAddress.barangay !== undefined) dbUpdate.barangay = updatedAddress.barangay;
         if (updatedAddress.region !== undefined) dbUpdate.region = updatedAddress.region;
 
-        const { error } = await supabase
+        const { error } = await db
           .from('shipping_addresses')
           .update(dbUpdate)
           .eq('id', id)
@@ -438,7 +441,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!userId) return false;
 
       try {
-        const { error } = await supabase
+        const { error } = await db
           .from('shipping_addresses')
           .delete()
           .eq('id', id)
@@ -460,8 +463,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!userId) return false;
 
       try {
-        await supabase.from('shipping_addresses').update({ is_default: false }).eq('user_id', userId);
-        const { error } = await supabase.from('shipping_addresses').update({ is_default: true }).eq('id', id).eq('user_id', userId);
+        await db.from('shipping_addresses').update({ is_default: false }).eq('user_id', userId);
+        const { error } = await db.from('shipping_addresses').update({ is_default: true }).eq('id', id).eq('user_id', userId);
 
         if (error) throw error;
 
@@ -513,7 +516,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       try {
         const user = await getCurrentUser();
         if (user?.id) {
-          await supabase.from('store_followers').upsert(
+          await db.from('store_followers').upsert(
             { buyer_id: user.id, seller_id: sellerId },
             { onConflict: 'buyer_id,seller_id' }
           );
@@ -536,7 +539,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       try {
         const user = await getCurrentUser();
         if (user?.id) {
-          await supabase.from('store_followers')
+          await db.from('store_followers')
             .delete()
             .eq('buyer_id', user.id)
             .eq('seller_id', sellerId);
@@ -556,7 +559,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       try {
         const user = await getCurrentUser();
         if (user?.id) {
-          const { data } = await supabase.from('store_followers')
+          const { data } = await db.from('store_followers')
             .select('seller_id')
             .eq('buyer_id', user.id);
           if (data) {
@@ -1267,7 +1270,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
       if (!profile) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('reviews')
         .select(`
           *,
@@ -1299,7 +1302,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const { profile, myReviews } = get();
       if (!profile) return false;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('reviews')
         .update(updates)
         .eq('id', reviewId)
@@ -1310,9 +1313,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         console.error('Error updating my review:', error.message);
         return false;
       }
+      const safeData = (data ?? {}) as Partial<Review>;
       set({
         myReviews:
-          myReviews.map((review) => (review.id === reviewId ? { ...review, ...data } : review))
+          myReviews.map((review) => (review.id === reviewId ? { ...review, ...safeData } : review))
       });
       return true;
     },
@@ -1321,7 +1325,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const { profile } = get();
       if (!profile) return false;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('reviews')
         .delete()
         .eq('id', reviewId)
@@ -1408,7 +1412,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     initializeBuyerProfile: async (userId: string, profileData: any) => {
       try {
         // First, check if buyer record exists
-        const { data: existingBuyer, error: fetchError } = await supabase
+        const { data: existingBuyer, error: fetchError } = await db
           .from('buyers')
           .select('*')
           .eq('id', userId)
@@ -1421,7 +1425,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
         if (!existingBuyer) {
           // Buyer record doesn't exist, create one
-          const { error: insertError } = await supabase
+          const { error: insertError } = await db
             .from('buyers')
             .insert([{
               id: userId,
@@ -1456,7 +1460,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         let buyerData: any = null;
         let profileInfo: any = null;
 
-        const { data: buyerWithProfile, error: buyerJoinError } = await supabase
+        const { data: buyerWithProfile, error: buyerJoinError } = await db
           .from('buyers')
           .select(`
             *,
@@ -1474,12 +1478,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           console.warn('Buyer/profile join failed, falling back to separate queries:', buyerJoinError);
 
           const [{ data: buyerOnly, error: buyerOnlyError }, { data: profileOnly, error: profileOnlyError }] = await Promise.all([
-            supabase
+            db
               .from('buyers')
               .select('*')
               .eq('id', userId)
               .single(),
-            supabase
+            db
               .from('profiles')
               .select('id, email, first_name, last_name, phone, created_at')
               .eq('id', userId)
@@ -1500,7 +1504,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
 
         // Fetch shipping addresses from the separate table
-        const { data: shippingAddresses } = await supabase
+        const { data: shippingAddresses } = await db
           .from('shipping_addresses')
           .select('*')
           .eq('user_id', userId)
@@ -1526,7 +1530,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             (firstName || lastName);
 
           if (shouldBackfill) {
-            await supabase
+            await db
               .from('profiles')
               .update({
                 first_name: firstName || null,
@@ -1610,7 +1614,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
         // Load registries from backend now that profile is set
         try {
-          const { data: regRows } = await supabase
+          const { data: regRows } = await db
             .from('registries')
             .select('*, registry_items(*)')
             .eq('buyer_id', userId)
@@ -1711,7 +1715,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
       console.log('fetching registries')
 
-      const { data: rows, error } = await supabase
+      const { data: rows, error } = await db
         .from('registries')
         .select('*, registry_items(*)')
         .eq('buyer_id', profile.id)
@@ -1738,7 +1742,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       // Optimistic update
       set((state) => ({ registries: [...state.registries, ensureRegistryDefaults(registry)] }));
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('registries')
         .insert({
           buyer_id: profile.id,
@@ -1781,7 +1785,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (updates.privacy !== undefined) dbUpdate.privacy = updates.privacy;
       if (updates.delivery !== undefined) dbUpdate.delivery = updates.delivery;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('registries')
         .update(dbUpdate)
         .eq('id', registryId);
@@ -1803,7 +1807,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         ),
       }));
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('registry_items')
         .insert({
           registry_id: registryId,
@@ -1875,7 +1879,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (updates.isMostWanted !== undefined) dbUpdates.is_most_wanted = updates.isMostWanted;
       if (updates.selectedVariant !== undefined) dbUpdates.selected_variant = updates.selectedVariant;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('registry_items')
         .update(dbUpdates)
         .eq('id', productId);
@@ -1893,7 +1897,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         ),
       }));
 
-      const { error } = await supabase
+      const { error } = await db
         .from('registry_items')
         .delete()
         .eq('id', productId);
@@ -1907,7 +1911,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         registries: state.registries.filter((r) => r.id !== registryId),
       }));
 
-      const { error } = await supabase
+      const { error } = await db
         .from('registries')
         .delete()
         .eq('id', registryId);
