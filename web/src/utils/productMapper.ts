@@ -212,6 +212,15 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         discountBadgeTooltip: p.discountBadgeTooltip || undefined,
         campaignDiscount: p.campaignDiscount || undefined,
         isVacationMode: (p.seller as any)?.is_vacation_mode === true || false,
+        // Warranty fields
+        hasWarranty: p.has_warranty || false,
+        warrantyType: p.warranty_type || undefined,
+        warrantyDurationMonths: p.warranty_duration_months || undefined,
+        warrantyProviderName: p.warranty_provider_name || undefined,
+        warrantyProviderContact: p.warranty_provider_contact || undefined,
+        warrantyProviderEmail: p.warranty_provider_email || undefined,
+        warrantyTermsUrl: p.warranty_terms_url || undefined,
+        warrantyPolicy: p.warranty_policy || undefined,
     } as any;
 };
 

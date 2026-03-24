@@ -19,8 +19,10 @@ import {
   User,
   Camera,
   ImagePlus,
+  Shield,
+  ShieldCheck,
 } from "lucide-react";
-import type { BuyerOrderSnapshot } from "../types/orders";
+import type { BuyerOrderSnapshot, OrderItemWarrantySnapshot } from "../types/orders";
 import { useCartStore } from "../stores/cartStore";
 import { Button } from "../components/ui/button";
 import { useBuyerStore, CartItem } from "../stores/buyerStore";
@@ -30,11 +32,14 @@ import TrackingModal from "../components/TrackingModal";
 import { ConfirmReceivedModal } from "../components/ConfirmReceivedModal";
 import ReturnRefundModal from "../components/ReturnRefundModal";
 import { ReviewModal } from "../components/ReviewModal";
+import { WarrantyStatusModal } from "../components/WarrantyStatusModal";
+import { WarrantyClaimModal } from "../components/WarrantyClaimModal";
 import { cn } from "../lib/utils";
 import { useToast } from "../hooks/use-toast";
 import { orderReadService } from "../services/orders/orderReadService";
 import { orderMutationService } from "../services/orders/orderMutationService";
 import { returnService } from "../services/returnService";
+import { warrantyService } from "../services/warrantyService";
 import { OrderStatusBadge } from "../components/orders/OrderStatusBadge";
 import {
   BuyerReturnSubmissionPayload,
@@ -88,6 +93,17 @@ export default function OrdersPage() {
   // Confirm received state
   const [confirmReceivedModalOpen, setConfirmReceivedModalOpen] = useState(false);
   const [orderToConfirmReceived, setOrderToConfirmReceived] = useState<any>(null);
+
+  // Warranty state
+  const [warrantyModalOpen, setWarrantyModalOpen] = useState(false);
+  const [warrantyClaimModalOpen, setWarrantyClaimModalOpen] = useState(false);
+  const [selectedWarrantyItem, setSelectedWarrantyItem] = useState<{
+    orderItemId: string;
+    orderDbId: string;
+    orderId: string;
+    itemName: string;
+    warranty: OrderItemWarrantySnapshot;
+  } | null>(null);
 
   const CANCEL_REASONS = [
     "Changed my mind",
@@ -183,6 +199,42 @@ export default function OrdersPage() {
         buyerOrders as BuyerOrderSnapshot[],
         buyerReturnRequests,
       );
+
+      // Fetch warranty status for order items
+      const orderItemIds = mergedOrders
+        .flatMap(order => order.items.map(item => item.orderItemId || item.id))
+        .filter(Boolean);
+
+      if (orderItemIds.length > 0) {
+        const warrantyStatusMap = await warrantyService.getOrderItemsWarrantyStatus(orderItemIds);
+
+        // Attach warranty info to order items
+        mergedOrders.forEach(order => {
+          order.items.forEach(item => {
+            const itemId = item.orderItemId || item.id;
+            const warrantyStatus = warrantyStatusMap.get(itemId);
+            if (warrantyStatus) {
+              item.warranty = {
+                hasWarranty: !!warrantyStatus.warrantyType,
+                warrantyType: warrantyStatus.warrantyType,
+                warrantyDurationMonths: warrantyStatus.durationMonths,
+                warrantyStartDate: warrantyStatus.startDate,
+                warrantyExpirationDate: warrantyStatus.expirationDate,
+                warrantyProviderName: null,
+                warrantyProviderContact: null,
+                warrantyProviderEmail: null,
+                warrantyTermsUrl: null,
+                warrantyPolicy: null,
+                warrantyClaimed: false,
+                warrantyClaimStatus: null,
+                canClaim: warrantyStatus.canClaim,
+                isExpired: warrantyStatus.isExpired,
+                daysRemaining: warrantyStatus.daysRemaining,
+              };
+            }
+          });
+        });
+      }
 
       hydrateBuyerOrders(mergedOrders as any);
     } catch (err) {
@@ -337,7 +389,7 @@ export default function OrdersPage() {
   };
 
   const filteredOrders = useMemo(() => {
-    const filtered = orders.filter((order) => {
+    let filtered = orders.filter((order) => {
       const matchesSearch =
         order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         order.items.some(
@@ -366,7 +418,7 @@ export default function OrdersPage() {
         const aTime = a.cancelledAt ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
         const bTime = b.cancelledAt ? getTimestamp(b.cancelledAt) : getTimestamp(b.createdAt);
         if (aTime !== bTime) return bTime - aTime;
-        return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
+        return getTimestamp(b.createdAt) - getTimestamp(b.createdAt);
       });
     }
 
@@ -375,7 +427,7 @@ export default function OrdersPage() {
         const aTime = a.returnRequest?.submittedAt ? getTimestamp(a.returnRequest.submittedAt) : getTimestamp(a.createdAt);
         const bTime = b.returnRequest?.submittedAt ? getTimestamp(b.returnRequest.submittedAt) : getTimestamp(b.createdAt);
         if (aTime !== bTime) return bTime - aTime;
-        return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
+        return getTimestamp(b.createdAt) - getTimestamp(b.createdAt);
       });
     }
 
@@ -384,7 +436,7 @@ export default function OrdersPage() {
     return filtered.sort((a, b) => {
       const aTime = (a.status === "cancelled" && a.cancelledAt) ? getTimestamp(a.cancelledAt) : getTimestamp(a.createdAt);
       const bTime = (b.status === "cancelled" && b.cancelledAt) ? getTimestamp(b.cancelledAt) : getTimestamp(b.createdAt);
-      
+
       if (aTime !== bTime) return bTime - aTime;
       return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
     });
@@ -746,9 +798,37 @@ export default function OrdersPage() {
                                   className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
                                 />
                                 <div className="flex flex-col">
-                                  <span className="text-sm font-medium text-gray-800 line-clamp-1">
-                                    {item.name}
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-800 line-clamp-1">
+                                      {item.name}
+                                    </span>
+                                    {(order.status === "received" || statusFilter === "warranty") && item.warranty?.hasWarranty && !item.warranty.isExpired && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedWarrantyItem({
+                                            orderItemId: item.orderItemId || item.id,
+                                            orderDbId: order.dbId,
+                                            orderId: order.id,
+                                            itemName: item.name,
+                                            warranty: item.warranty,
+                                          });
+                                          setWarrantyModalOpen(true);
+                                        }}
+                                        className={cn(
+                                          "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium transition-all",
+                                          item.warranty.canClaim
+                                            ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                            : "bg-orange-100 text-orange-700 hover:bg-orange-200"
+                                        )}
+                                      >
+                                        <Shield className="w-2.5 h-2.5" />
+                                        {item.warranty.daysRemaining !== undefined && item.warranty.daysRemaining > 0
+                                          ? `${item.warranty.daysRemaining}d`
+                                          : 'Warranty'}
+                                      </button>
+                                    )}
+                                  </div>
                                   {(item as any).variantDisplay && (
                                     <span className="text-xs text-[var(--text-muted)]">
                                       {(item as any).variantDisplay}
@@ -918,6 +998,32 @@ export default function OrdersPage() {
                             >
                               Buy Again
                             </Button>
+
+                            {/* Warranty Claims - for orders with active warranty items */}
+                            {order.status === "received" && order.items.some(item => item.warranty?.hasWarranty && item.warranty.canClaim && !item.warranty.warrantyClaimed) && (
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const warrantyItem = order.items.find(item => item.warranty?.hasWarranty && item.warranty.canClaim && !item.warranty.warrantyClaimed);
+                                  if (warrantyItem) {
+                                    setSelectedWarrantyItem({
+                                      orderItemId: warrantyItem.orderItemId || warrantyItem.id,
+                                      orderDbId: order.dbId,
+                                      orderId: order.id,
+                                      itemName: warrantyItem.name,
+                                      warranty: warrantyItem.warranty!,
+                                    });
+                                    setWarrantyClaimModalOpen(true);
+                                  }
+                                }}
+                                size="sm"
+                                variant="outline"
+                                className="border-green-600 text-green-600 hover:bg-green-50 hover:text-green-600 hover:border-green-600"
+                              >
+                                <ShieldCheck className="w-4 h-4 mr-1" />
+                                Claim Warranty
+                              </Button>
+                            )}
                           </>
                         ) : order.status === "cancelled" ? (
                           /* Canceled - View Details */
@@ -1732,6 +1838,42 @@ export default function OrdersPage() {
           order={orderToConfirmReceived}
           buyerId={profile.id}
           onSuccess={onConfirmReceivedSuccess}
+        />
+      )}
+
+      {/* Warranty Status Modal */}
+      {selectedWarrantyItem && (
+        <WarrantyStatusModal
+          isOpen={warrantyModalOpen}
+          onClose={() => {
+            setWarrantyModalOpen(false);
+            setSelectedWarrantyItem(null);
+          }}
+          warranty={selectedWarrantyItem.warranty}
+          itemName={selectedWarrantyItem.itemName}
+          onClaimWarranty={() => {
+            setWarrantyModalOpen(false);
+            setWarrantyClaimModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* Warranty Claim Modal */}
+      {selectedWarrantyItem && (
+        <WarrantyClaimModal
+          isOpen={warrantyClaimModalOpen}
+          onClose={() => {
+            setWarrantyClaimModalOpen(false);
+            setSelectedWarrantyItem(null);
+          }}
+          orderItemId={selectedWarrantyItem.orderItemId}
+          orderDbId={selectedWarrantyItem.orderDbId}
+          orderId={selectedWarrantyItem.orderId}
+          itemName={selectedWarrantyItem.itemName}
+          onSuccess={() => {
+            // Reload orders to get updated warranty status
+            void loadBuyerOrders();
+          }}
         />
       )}
 

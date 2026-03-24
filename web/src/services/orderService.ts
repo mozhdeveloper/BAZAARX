@@ -544,6 +544,28 @@ export class OrderService {
         // If no buyer found, we need a placeholder buyer_id due to NOT NULL constraint
         const finalBuyerId = buyerId;
 
+        // Fetch warranty information for all products
+        const productIds = items.map(item => item.productId);
+        const productWarrantyMap = new Map<string, {
+            has_warranty: boolean;
+            warranty_type: string | null;
+            warranty_duration_months: number | null;
+        }>();
+        
+        if (isSupabaseConfigured() && productIds.length > 0) {
+            const { data: warrantyData } = await supabase
+                .from('products')
+                .select('id, has_warranty, warranty_type, warranty_duration_months')
+                .in('id', productIds);
+            warrantyData?.forEach(p => {
+                productWarrantyMap.set(p.id, {
+                    has_warranty: p.has_warranty,
+                    warranty_type: p.warranty_type,
+                    warranty_duration_months: p.warranty_duration_months,
+                });
+            });
+        }
+
         // Create order data for new schema
         const orderData = {
             id: orderId,
@@ -565,27 +587,53 @@ export class OrderService {
         };
 
         // Create order items with new schema structure
-        const orderItems = items.map((item) => ({
-            id: crypto.randomUUID(),
-            order_id: orderId,
-            product_id: item.productId,
-            product_name: item.productName,
-            primary_image_url: item.image || null,
-            price: item.price,
-            price_discount: 0,
-            shipping_price: 0,
-            shipping_discount: 0,
-            quantity: item.quantity,
-            variant_id: null,
-            personalized_options:
-                item.selectedVariantLabel1 || item.selectedVariantLabel2
-                    ? {
-                        variantLabel1: item.selectedVariantLabel1,
-                        variantLabel2: item.selectedVariantLabel2,
-                    }
-                    : null,
-            rating: null,
-        }));
+        const orderDate = new Date();
+        const orderItems = items.map((item) => {
+            const warrantyInfo = productWarrantyMap.get(item.productId);
+            
+            // Calculate warranty dates if product has warranty
+            let warrantyStartDate: string | null = null;
+            let warrantyExpirationDate: string | null = null;
+            let warrantyType: string | null = null;
+            let warrantyDurationMonths: number | null = null;
+            
+            if (warrantyInfo?.has_warranty && warrantyInfo.warranty_type && warrantyInfo.warranty_duration_months) {
+                warrantyType = warrantyInfo.warranty_type;
+                warrantyDurationMonths = warrantyInfo.warranty_duration_months;
+                warrantyStartDate = orderDate.toISOString();
+                
+                // Calculate expiration date
+                const expirationDate = new Date(orderDate);
+                expirationDate.setMonth(expirationDate.getMonth() + warrantyDurationMonths);
+                warrantyExpirationDate = expirationDate.toISOString();
+            }
+            
+            return {
+                id: crypto.randomUUID(),
+                order_id: orderId,
+                product_id: item.productId,
+                product_name: item.productName,
+                primary_image_url: item.image || null,
+                price: item.price,
+                price_discount: 0,
+                shipping_price: 0,
+                shipping_discount: 0,
+                quantity: item.quantity,
+                variant_id: null,
+                personalized_options:
+                    item.selectedVariantLabel1 || item.selectedVariantLabel2
+                        ? {
+                            variantLabel1: item.selectedVariantLabel1,
+                            variantLabel2: item.selectedVariantLabel2,
+                        }
+                        : null,
+                rating: null,
+                warranty_type: warrantyType,
+                warranty_duration_months: warrantyDurationMonths,
+                warranty_start_date: warrantyStartDate,
+                warranty_expiration_date: warrantyExpirationDate,
+            };
+        });
 
         if (!isSupabaseConfigured()) {
             // Mock mode
