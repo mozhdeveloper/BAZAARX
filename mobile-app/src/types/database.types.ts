@@ -333,6 +333,15 @@ export interface Product {
   // Legacy compatibility
   is_active?: boolean;
   original_price?: number;
+  // Warranty fields
+  has_warranty?: boolean;
+  warranty_type?: string;
+  warranty_duration_months?: number;
+  warranty_provider_name?: string;
+  warranty_provider_contact?: string;
+  warranty_provider_email?: string;
+  warranty_terms_url?: string;
+  warranty_policy?: string;
 }
 
 export interface ProductImage {

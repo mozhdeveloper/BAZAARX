@@ -15,6 +15,7 @@ import {
   TouchableWithoutFeedback,
   FlatList,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -48,6 +49,11 @@ import {
   ImageIcon, // For Image filter icon
   CheckCircle,
   ThumbsUp,
+  Shield,
+  Calendar,
+  Phone,
+  Mail,
+  FileText,
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
@@ -179,6 +185,45 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   }, [product.id]);
 
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+
+  // Warranty Info State
+  const [warrantyInfo, setWarrantyInfo] = useState<{
+    hasWarranty: boolean;
+    warrantyType: string | null;
+    warrantyDurationMonths: number | null;
+    warrantyProviderName: string | null;
+    warrantyProviderContact: string | null;
+    warrantyProviderEmail: string | null;
+    warrantyTermsUrl: string | null;
+    warrantyPolicy: string | null;
+  } | null>(null);
+  const [showWarrantyModal, setShowWarrantyModal] = useState(false);
+
+  useEffect(() => {
+    const loadWarrantyInfo = async () => {
+      if (product.id) {
+        try {
+          // Extract warranty info from product data
+          const hasWarranty = product.has_warranty || product.hasWarranty || false;
+          if (hasWarranty) {
+            setWarrantyInfo({
+              hasWarranty,
+              warrantyType: product.warranty_type || product.warrantyType || null,
+              warrantyDurationMonths: product.warranty_duration_months || product.warrantyDurationMonths || null,
+              warrantyProviderName: product.warranty_provider_name || product.warrantyProviderName || null,
+              warrantyProviderContact: product.warranty_provider_contact || product.warrantyProviderContact || null,
+              warrantyProviderEmail: product.warranty_provider_email || product.warrantyProviderEmail || null,
+              warrantyTermsUrl: product.warranty_terms_url || product.warrantyTermsUrl || null,
+              warrantyPolicy: product.warranty_policy || product.warrantyPolicy || null,
+            });
+          }
+        } catch (e) {
+          console.error('[ProductDetail] Error loading warranty info:', e);
+        }
+      }
+    };
+    loadWarrantyInfo();
+  }, [product.id]);
 
   useEffect(() => {
     const fetchRelated = async () => {
@@ -1217,6 +1262,27 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 20 }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
           </View>
+
+          {/* --- WARRANTY INFORMATION SECTION (MODAL TRIGGER) --- */}
+          {warrantyInfo?.hasWarranty && (
+            <Pressable
+              style={styles.warrantyTriggerButton}
+              onPress={() => setShowWarrantyModal(true)}
+            >
+              <View style={styles.warrantyTriggerContent}>
+                <Shield size={20} color={BRAND_COLOR} />
+                <View style={styles.warrantyTriggerText}>
+                  <Text style={styles.warrantyTriggerTitle}>Warranty Information</Text>
+                  <Text style={styles.warrantyTriggerSubtitle}>
+                    {warrantyInfo.warrantyDurationMonths
+                      ? `${warrantyInfo.warrantyDurationMonths} Month${warrantyInfo.warrantyDurationMonths > 1 ? 's' : ''} Coverage`
+                      : 'Warranty Included'}
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={BRAND_COLOR} />
+            </Pressable>
+          )}
         </View>
 
         {/* --- SELLER SECTION --- */}
@@ -1624,6 +1690,158 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Warranty Information Bottom Sheet Modal */}
+      {warrantyInfo?.hasWarranty && (
+        <Modal
+          visible={showWarrantyModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowWarrantyModal(false)}
+          statusBarTranslucent={true}
+        >
+          <Pressable
+            style={styles.warrantyModalOverlay}
+            onPress={() => setShowWarrantyModal(false)}
+          >
+            <Pressable
+              style={styles.warrantyModalContent}
+              onPress={(e) => e.stopPropagation()}
+              onStartShouldSetResponder={() => true}
+            >
+              {/* Handle Bar */}
+              <View style={styles.warrantyModalHandleContainer}>
+                <View style={styles.warrantyModalHandle} />
+              </View>
+
+              {/* Header */}
+              <View style={styles.warrantyModalHeader}>
+                <View style={styles.warrantyModalTitleRow}>
+                  <Shield size={24} color={BRAND_COLOR} />
+                  <Text style={styles.warrantyModalTitle}>Warranty Information</Text>
+                </View>
+                <Pressable
+                  onPress={() => setShowWarrantyModal(false)}
+                  style={styles.warrantyModalCloseBtn}
+                >
+                  <X size={24} color="#6B7280" />
+                </Pressable>
+              </View>
+
+              {/* Warranty Badge */}
+              <View style={styles.warrantyModalBadge}>
+                <ShieldCheck size={18} color="#FFF" />
+                <Text style={styles.warrantyModalBadgeText}>
+                  {warrantyInfo.warrantyDurationMonths
+                    ? `${warrantyInfo.warrantyDurationMonths} Month${warrantyInfo.warrantyDurationMonths > 1 ? 's' : ''} Warranty`
+                    : 'Warranty Included'}
+                </Text>
+              </View>
+
+              {/* Scrollable Content */}
+              <ScrollView
+                style={styles.warrantyModalScrollView}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.warrantyModalScrollContent}
+              >
+                {warrantyInfo.warrantyType && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <BadgeCheck size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Type</Text>
+                      <Text style={styles.warrantyModalDetailValue}>
+                        {warrantyInfo.warrantyType === 'local_manufacturer' && 'Local Manufacturer Warranty'}
+                        {warrantyInfo.warrantyType === 'international_manufacturer' && 'International Manufacturer Warranty'}
+                        {warrantyInfo.warrantyType === 'shop_warranty' && 'Shop Warranty'}
+                        {warrantyInfo.warrantyType === 'no_warranty' && 'No Warranty'}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyProviderName && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <Shield size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Provider</Text>
+                      <Text style={styles.warrantyModalDetailValue}>{warrantyInfo.warrantyProviderName}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyProviderContact && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <Phone size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Contact</Text>
+                      <Pressable onPress={() => Linking.openURL(`tel:${warrantyInfo.warrantyProviderContact}`)}>
+                        <Text style={styles.warrantyModalDetailLink}>{warrantyInfo.warrantyProviderContact}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyProviderEmail && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <Mail size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Email</Text>
+                      <Pressable onPress={() => Linking.openURL(`mailto:${warrantyInfo.warrantyProviderEmail}`)}>
+                        <Text style={styles.warrantyModalDetailLink}>{warrantyInfo.warrantyProviderEmail}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyPolicy && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <FileText size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Coverage</Text>
+                      <Text style={styles.warrantyModalDetailValue}>{warrantyInfo.warrantyPolicy}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyTermsUrl && (
+                  <Pressable
+                    style={styles.warrantyModalTermsLink}
+                    onPress={() => {
+                      Linking.openURL(warrantyInfo.warrantyTermsUrl!).catch(() => {
+                        Alert.alert('Error', 'Could not open warranty terms URL');
+                      });
+                    }}
+                  >
+                    <FileText size={20} color={BRAND_COLOR} />
+                    <Text style={styles.warrantyModalTermsLinkText}>View Full Terms & Conditions</Text>
+                    <ChevronRight size={20} color={BRAND_COLOR} />
+                  </Pressable>
+                )}
+              </ScrollView>
+
+              {/* Info Box */}
+              <View style={styles.warrantyModalInfoBox}>
+                <View style={styles.warrantyModalInfoBoxRow}>
+                  <Shield size={18} color="#FB8C00" />
+                  <Text style={styles.warrantyModalInfoBoxText}>
+                    This product is covered by warranty. Contact the seller or manufacturer for warranty claims.
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
 
       {showGuestModal && (
         <GuestLoginModal
@@ -2456,5 +2674,283 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E7EB',
     marginVertical: 4,
+  },
+
+  // Warranty Section Styles
+  warrantySection: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  warrantyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  warrantyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    flex: 1,
+  },
+  warrantyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: BRAND_COLOR,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  warrantyBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  warrantyDetails: {
+    marginBottom: 12,
+  },
+  warrantyDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 10,
+  },
+  warrantyDetailContent: {
+    flex: 1,
+  },
+  warrantyDetailLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  warrantyDetailValue: {
+    fontSize: 13,
+    color: '#1F2937',
+    lineHeight: 18,
+  },
+  warrantyTermsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    paddingVertical: 4,
+  },
+  warrantyTermsLinkText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: BRAND_COLOR,
+    textDecorationLine: 'underline',
+    flex: 1,
+  },
+  warrantyInfoBox: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+  },
+  warrantyInfoBoxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  warrantyInfoBoxText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#9A3412',
+    lineHeight: 18,
+  },
+
+  // Warranty Trigger Button (in product details)
+  warrantyTriggerButton: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  warrantyTriggerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  warrantyTriggerText: {
+    gap: 2,
+  },
+  warrantyTriggerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  warrantyTriggerSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+
+  // Warranty Bottom Sheet Modal
+  warrantyModalOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end',
+  },
+  warrantyModalContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    maxHeight: '85%',
+  },
+  warrantyModalHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  warrantyModalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+  },
+  warrantyModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  warrantyModalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  warrantyModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  warrantyModalCloseBtn: {
+    padding: 4,
+  },
+  warrantyModalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: BRAND_COLOR,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  warrantyModalBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  warrantyModalScrollView: {
+    maxHeight: 350,
+  },
+  warrantyModalScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  warrantyModalDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 16,
+  },
+  warrantyModalIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFF7ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  warrantyModalDetailContent: {
+    flex: 1,
+    paddingTop: 4,
+  },
+  warrantyModalDetailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  warrantyModalDetailValue: {
+    fontSize: 14,
+    color: '#1F2937',
+    lineHeight: 20,
+  },
+  warrantyModalDetailLink: {
+    fontSize: 14,
+    color: BRAND_COLOR,
+    textDecorationLine: 'underline',
+  },
+  warrantyModalTermsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF7ED',
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  warrantyModalTermsLinkText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: BRAND_COLOR,
+  },
+  warrantyModalInfoBox: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 14,
+    marginHorizontal: 20,
+    marginTop: 16,
+  },
+  warrantyModalInfoBoxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  warrantyModalInfoBoxText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#9A3412',
+    lineHeight: 20,
   },
 });
