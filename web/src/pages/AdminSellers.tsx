@@ -182,7 +182,6 @@ const AdminSellers: React.FC = () => {
     await approveSeller(selectedSeller.id);
     setShowApproveDialog(false);
     selectSeller(null);
-    await loadSellers();
   };
 
   const handleReject = async () => {
@@ -191,8 +190,6 @@ const AdminSellers: React.FC = () => {
     setShowRejectDialog(false);
     setRejectReason("");
     selectSeller(null);
-    // Reload sellers to refresh the UI
-    await loadSellers();
   };
 
   const initializePartialReject = useCallback((seller: Seller) => {
@@ -236,7 +233,6 @@ const AdminSellers: React.FC = () => {
     setPartialRejectNote("");
     setPartialRejectionSelections({});
     selectSeller(null);
-    await loadSellers();
   };
 
   const updatePartialSelection = useCallback(
