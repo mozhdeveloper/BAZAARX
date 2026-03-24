@@ -295,7 +295,7 @@ export class SellerService {
         }
 
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('sellers')
                 .upsert({
                     id: seller.id,
@@ -330,7 +330,7 @@ export class SellerService {
         }
 
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('sellers')
                 .update({ ...updates, updated_at: new Date().toISOString() })
                 .eq('id', sellerId)
@@ -383,7 +383,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('sellers')
                 .update({
                     approval_status: 'verified',
@@ -408,7 +408,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('sellers')
                 .update({
                     approval_status: 'rejected',
@@ -433,7 +433,7 @@ export class SellerService {
 
         try {
             // Try RPC first
-            const { data, error } = await supabase.rpc('get_seller_sales_summary', {
+            const { data, error } = await (supabase as any).rpc('get_seller_sales_summary', {
                 p_seller_id: sellerId,
             });
 
@@ -459,7 +459,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('sellers')
                 .update({
                     is_vacation_mode: true,
@@ -485,7 +485,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('sellers')
                 .update({
                     is_vacation_mode: false,
@@ -652,7 +652,7 @@ export class SellerService {
             };
 
             return this.transformSeller({
-                ...seller,
+                ...(seller as any),
                 rating: metrics.rating,
                 total_reviews: metrics.total_reviews,
                 review_count: metrics.total_reviews,
@@ -682,7 +682,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('seller_business_profiles')
                 .upsert({
                     seller_id: sellerId,
@@ -712,7 +712,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('seller_payout_accounts')
                 .upsert({
                     seller_id: sellerId,
