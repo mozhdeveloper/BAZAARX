@@ -427,6 +427,29 @@ export const useOrderStore = create<OrderStore>()(
         // Add to buyer's order list
         set({ orders: [...get().orders, newOrder] });
 
+        // Send receipt email to buyer (non-blocking)
+        if (shippingAddress.email) {
+          import('../services/transactionalEmails').then(({ sendOrderReceiptEmail }) => {
+            sendOrderReceiptEmail({
+              buyerEmail: shippingAddress.email!,
+              buyerId: newOrder.id,
+              orderNumber: newOrder.transactionId,
+              orderDate: new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
+              buyerName: shippingAddress.name,
+              itemsHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">${validatedItems.map(i => {
+                const imgUrl = (i as any).image || (i as any).primary_image || '';
+                const imgCell = imgUrl
+                    ? `<td style="padding:12px 0;width:56px;vertical-align:top"><img src="${imgUrl}" alt="" width="56" height="56" style="display:block;border-radius:8px;border:1px solid #E4E4E7;object-fit:cover" /></td>`
+                    : `<td style="padding:12px 0;width:56px;vertical-align:top"><div style="width:56px;height:56px;border-radius:8px;background:#F4F4F5"></div></td>`;
+                return `<tr style="border-bottom:1px solid #E4E4E7">${imgCell}<td style="padding:12px 0 12px 12px;vertical-align:top"><p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#18181B">${i.name}</p><p style="margin:0;font-size:13px;color:#71717A">Qty: ${i.quantity}</p></td><td align="right" style="padding:12px 0;vertical-align:top;white-space:nowrap"><span style="font-size:14px;font-weight:600;color:#18181B">₱${((i.price ?? 0) * i.quantity).toFixed(2)}</span></td></tr>`;
+              }).join('')}</table>`,
+              subtotal: total.toFixed(2),
+              shippingFee: shippingFee.toFixed(2),
+              totalAmount: (total + shippingFee).toFixed(2),
+            }).catch((err: unknown) => console.warn('[OrderStore] Receipt email error:', err));
+          }).catch(() => {});
+        }
+
 
         // SYNC TO SELLER: Also add to seller's order store (local state)
         const sellerOrder: SellerOrder = {
@@ -589,9 +612,13 @@ export const useOrderStore = create<OrderStore>()(
               const trackUrl = `${BASE_URL}/orders/${actualOrderId}`;
               (
                 nextStatus === 'processing' ? emails.sendOrderConfirmedEmail({ ...base, estimatedDelivery: '3\u20137 business days' }) :
+                nextStatus === 'ready_to_ship' ? emails.sendOrderReadyToShipEmail({ ...base, estimatedPickup: 'Within 24 hours', trackUrl }) :
                 nextStatus === 'shipped' ? emails.sendOrderShippedEmail({ ...base, trackingNumber: target.trackingNumber || 'N/A', courierName: 'courier', trackingUrl: trackUrl }) :
+                nextStatus === 'out_for_delivery' ? emails.sendOrderOutForDeliveryEmail({ ...base, courierName: 'courier', trackUrl }) :
                 nextStatus === 'delivered' ? emails.sendOrderDeliveredEmail(base) :
+                nextStatus === 'failed_to_deliver' ? emails.sendOrderFailedDeliveryEmail({ ...base, failureReason: 'Delivery attempt failed', rescheduleUrl: trackUrl }) :
                 nextStatus === 'cancelled' ? emails.sendOrderCancelledEmail({ ...base, cancelReason: 'Order cancelled' }) :
+                nextStatus === 'returned' ? emails.sendOrderReturnedEmail({ ...base, refundAmount: 'Pending', refundMethod: 'Original payment method', trackUrl }) :
                 Promise.resolve()
               ).catch((emailErr: unknown) => {
                 console.warn('[OrderStore] Email dispatch error:', emailErr);

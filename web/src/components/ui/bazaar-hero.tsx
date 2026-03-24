@@ -156,7 +156,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                         className="flex items-center gap-2 hover:scale-110 transition-transform duration-300 transform origin-center"
                         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                       >
-                        <img
+                        <img loading="eager" 
                           src="/BazaarX.png"
                           alt="BazaarX Logo"
                           className="h-8 md:h-10 lg:h-12 w-auto object-contain"

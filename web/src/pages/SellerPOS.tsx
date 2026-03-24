@@ -1159,7 +1159,7 @@ export function SellerPOS() {
                     >
                       {/* Product Image with Overlays */}
                       <div className="aspect-square relative overflow-hidden bg-gray-50">
-                        <img
+                        <img loading="lazy" 
                           src={product.images[0]}
                           alt={product.name}
                           className="w-full h-full object-cover"
@@ -1314,7 +1314,7 @@ export function SellerPOS() {
                       <div className="flex items-center gap-3 p-3">
                         {/* Thumbnail */}
                         <div className="w-12 h-12 flex-shrink-0 rounded-md overflow-hidden bg-gray-100">
-                          <img
+                          <img loading="lazy" 
                             src={item.image}
                             alt={item.productName}
                             className="w-full h-full object-cover"
@@ -1546,7 +1546,7 @@ export function SellerPOS() {
                 <div className="space-y-4">
                   <div className="space-y-3">
                     <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                      <img
+                      <img loading="lazy" 
                         src={selectedProduct.images[0]}
                         alt={selectedProduct.name}
                         className="w-full h-full object-cover"
@@ -1558,7 +1558,7 @@ export function SellerPOS() {
                       <div className="grid grid-cols-4 gap-2">
                         {selectedProduct.images.slice(1, 5).map((img, idx) => (
                           <div key={idx} className="aspect-square rounded-md overflow-hidden bg-gray-100 border border-gray-200">
-                            <img src={img} alt={`${selectedProduct.name} ${idx + 2}`} className="w-full h-full object-cover" />
+                            <img loading="lazy" src={img} alt={`${selectedProduct.name} ${idx + 2}`} className="w-full h-full object-cover" />
                           </div>
                         ))}
                       </div>

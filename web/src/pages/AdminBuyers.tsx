@@ -151,7 +151,7 @@ const AdminBuyers: React.FC = () => {
           <div className="flex items-center">
             <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
               {buyer.avatar ? (
-                <img src={buyer.avatar} alt={`${buyer.firstName} ${buyer.lastName}`} className="w-14 h-14 rounded-xl object-cover" />
+                <img loading="lazy" src={buyer.avatar} alt={`${buyer.firstName} ${buyer.lastName}`} className="w-14 h-14 rounded-xl object-cover" />
               ) : (
                 <span className="text-white font-semibold text-xl">
                   {buyer.firstName.charAt(0)}{buyer.lastName.charAt(0)}
@@ -416,7 +416,7 @@ const AdminBuyers: React.FC = () => {
                 <div className="flex items-center">
                   <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0 mr-4">
                     {selectedBuyer.avatar ? (
-                      <img src={selectedBuyer.avatar} alt={`${selectedBuyer.firstName} ${selectedBuyer.lastName}`} className="w-16 h-16 rounded-xl object-cover" />
+                      <img loading="lazy" src={selectedBuyer.avatar} alt={`${selectedBuyer.firstName} ${selectedBuyer.lastName}`} className="w-16 h-16 rounded-xl object-cover" />
                     ) : (
                       <span className="text-white font-semibold text-xl">
                         {selectedBuyer.firstName.charAt(0)}{selectedBuyer.lastName.charAt(0)}

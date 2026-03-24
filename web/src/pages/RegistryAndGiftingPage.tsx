@@ -253,7 +253,7 @@ const RegistryAndGiftingPage = () => {
                   <div className="absolute top-3 right-3 text-[9px] font-black uppercase tracking-widest text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors">
                     {list.category}
                   </div>
-                  <img
+                  <img loading="lazy" 
                     src={list.imageUrl}
                     alt="Gift list"
                     className="w-12 h-12 rounded object-cover mr-4"

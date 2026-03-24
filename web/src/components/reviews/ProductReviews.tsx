@@ -325,7 +325,7 @@ export function ProductReviews({
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-lg text-gray-500 overflow-hidden">
                         {!review.isHidden && review.buyerAvatar ? (
-                          <img
+                          <img loading="lazy" 
                             src={review.buyerAvatar}
                             alt={review.buyerName}
                             className="w-full h-full object-cover"
@@ -381,7 +381,7 @@ export function ProductReviews({
                             setViewingImageIndex(index);
                           }}
                         >
-                          <img
+                          <img loading="lazy" 
                             src={imageUrl}
                             alt={`Review attachment ${index + 1}`}
                             className="w-full h-full object-cover transition-transform group-hover:scale-105"
@@ -495,7 +495,7 @@ export function ProductReviews({
             >
               {/* Left: Image Container */}
               <div className="flex-[1.5] bg-gray-900 relative min-h-[400px] lg:min-h-0 overflow-hidden group">
-                <img
+                <img loading="lazy" 
                   src={reviews[viewingReviewIndex].images[viewingImageIndex]}
                   alt="Review Full Size"
                   className="w-full h-full object-contain"
@@ -539,7 +539,7 @@ export function ProductReviews({
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center font-bold text-xl text-gray-500 overflow-hidden ring-2 ring-gray-50 shrink-0">
                     {!reviews[viewingReviewIndex].isHidden && reviews[viewingReviewIndex].buyerAvatar ? (
-                      <img
+                      <img loading="lazy" 
                         src={reviews[viewingReviewIndex].buyerAvatar}
                         alt={reviews[viewingReviewIndex].buyerName || ""}
                         className="w-full h-full object-cover"

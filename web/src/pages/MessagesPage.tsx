@@ -461,7 +461,7 @@ export default function MessagesPage() {
                               <div className={`grid gap-1 mb-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                                 {msg.images.map((img, idx) => (
                                   <div key={idx} className={`${msg.images && msg.images.length > 1 ? 'w-24 h-24' : 'w-40 h-40'} overflow-hidden rounded-lg cursor-pointer hover:opacity-90`} onClick={() => setPreviewImage(img)}>
-                                    <img src={img} alt="Sent" className="w-full h-full object-cover" />
+                                    <img loading="lazy" src={img} alt="Sent" className="w-full h-full object-cover" />
                                   </div>
                                 ))}
                               </div>

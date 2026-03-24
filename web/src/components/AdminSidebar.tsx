@@ -196,7 +196,7 @@ const Logo = ({ open, subtitle }: { open: boolean; subtitle: string }) => {
       )}
     >
       <div className="w-10 h-10 bg-gradient-to-tr from-[#D97706] to-[#B45309] rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
-        <img
+        <img loading="lazy" 
           src="/BazaarX.png"
           alt="BazaarX Logo"
           className="h-6 w-6 brightness-0 invert"

@@ -762,7 +762,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                                 : "border-gray-100/50 hover:border-[var(--brand-wash-gold)]/60",
                                         )}
                                     >
-                                        <img
+                                        <img loading="lazy" 
                                             src={img}
                                             alt={`${productData.name} view ${index + 1}`}
                                             className="w-full h-full object-cover"
@@ -779,7 +779,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             key={selectedImage}
                             className="flex-1 bg-white rounded-[2rem] overflow-hidden aspect-[4/5] lg:aspect-auto relative group shadow-md"
                         >
-                            <img
+                            <img loading="lazy" 
                                 src={productData.images[selectedImage]}
                                 alt={productData.name}
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -821,7 +821,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             >
                                 {/* Avatar */}
                                 <div className="w-14 h-14 rounded-full bg-white overflow-hidden border border-[var(--border)]/40 shrink-0 shadow-sm relative transition-transform duration-300 group-hover:scale-105">
-                                    <img
+                                    <img loading="lazy" 
                                         src={currentSeller.avatar}
                                         alt={currentSeller.name}
                                         className="w-full h-full object-cover"
@@ -989,7 +989,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                                     )}
                                                     title={option.name}
                                                 >
-                                                    <img
+                                                    <img loading="lazy" 
                                                         src={
                                                             option.image ||
                                                             normalizedProduct?.image
@@ -1456,7 +1456,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                             </p>
                                         </div>
                                     )}
-                                    <img
+                                    <img loading="lazy" 
                                         src={productData.sizeGuideImage}
                                         alt="Size Guide"
                                         className={cn(
@@ -1519,7 +1519,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                     className="w-full flex items-center gap-4 p-4 rounded-2xl border border-[var(--border)]/40 hover:border-[var(--brand-primary)]/40 hover:bg-[var(--brand-wash)]/40 transition-all group text-left shadow-sm hover:shadow-md"
                                 >
                                     <div className="w-14 h-14 rounded-xl bg-[var(--brand-wash)] overflow-hidden shrink-0 border border-[var(--border)]/20 shadow-inner">
-                                        <img
+                                        <img loading="lazy" 
                                             src={
                                                 registry.imageUrl ||
                                                 "/public/gradGift.jpeg"

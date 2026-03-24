@@ -105,7 +105,7 @@ export function VariantItem({
               >
                 {previewUrl ? (
                   <>
-                    <img src={previewUrl} alt="Variant preview" className="h-full w-full object-cover" />
+                    <img loading="lazy" src={previewUrl} alt="Variant preview" className="h-full w-full object-cover" />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <Edit className="h-4 w-4 text-white" />
                     </div>
@@ -178,7 +178,7 @@ export function VariantItem({
             {/* Variant Image Thumbnail */}
             <div className="h-10 w-10 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center flex-shrink-0">
               {previewUrl ? (
-                <img src={previewUrl} alt={`${variant.variantLabel1Value} ${variant.variantLabel2Value}`} className="h-full w-full object-cover" />
+                <img loading="lazy" src={previewUrl} alt={`${variant.variantLabel1Value} ${variant.variantLabel2Value}`} className="h-full w-full object-cover" />
               ) : (
                 <Package className="h-4 w-4 text-gray-300" />
               )}

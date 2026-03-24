@@ -158,7 +158,7 @@ export default function BuyerProfilePage() {
                             onClick={() => setIsEditModalOpen(true)}
                         >
                             <div className="w-28 h-28 md:w-32 md:h-32 rounded-full bg-white p-1 shadow-2xl overflow-hidden ring-4 ring-white/10">
-                                <img
+                                <img loading="lazy" 
                                     src={profile.avatar}
                                     alt="Profile"
                                     className="w-full h-full rounded-full object-cover transition-transform group-hover:scale-105"

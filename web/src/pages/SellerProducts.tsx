@@ -379,7 +379,7 @@ export function SellerProducts() {
                                     >
                                         <div className="relative overflow-hidden">
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
-                                            <img
+                                            <img loading="lazy" 
                                                 src={product.images[0]}
                                                 alt={product.name}
                                                 className="w-full h-40 object-cover transition-transform duration-700 group-hover:scale-110"
@@ -1493,7 +1493,7 @@ export function AddProduct() {
                                         const filePreview = imageFiles[0] ? URL.createObjectURL(imageFiles[0]) : null;
                                         const previewSrc = urlPreview || filePreview;
                                         return previewSrc ? (
-                                            <img
+                                            <img loading="lazy" 
                                                 src={previewSrc}
                                                 alt="Preview"
                                                 className="w-full h-full object-cover"

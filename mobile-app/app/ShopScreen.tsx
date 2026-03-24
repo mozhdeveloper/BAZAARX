@@ -25,6 +25,8 @@ import { productService } from '../src/services/productService';
 import { categoryService } from '../src/services/categoryService';
 import { addressService } from '../src/services/addressService';
 import { notificationService } from '../src/services/notificationService';
+import { featuredProductService, type FeaturedProductWithDetails } from '../src/services/featuredProductService';
+import { adBoostService, type AdBoostWithProduct } from '../src/services/adBoostService';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -161,7 +163,7 @@ const normalizeProductForShop = (row: any): Product => {
 
   const categoryName = typeof row.category === 'string' ? row.category : (row.category?.name || '');
   const categoryId = row.category_id || (row.category && typeof row.category === 'object' ? row.category.id : undefined);
-  
+
   // Note: if ProductService already transformed it, category is a string.
   // We want to ensure category_id is always available from the source row.
 
@@ -182,6 +184,7 @@ const normalizeProductForShop = (row: any): Product => {
 
 const sortOptions = [
   { value: 'relevance', label: 'Best Match' },
+  { value: 'featured', label: 'Featured' },
   { value: 'newest', label: 'Newest Arrivals' },
   { value: 'popularity', label: 'Popularity' },
   { value: 'price-low', label: 'Price: Low to High' },
@@ -207,10 +210,15 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [categoryChips, setCategoryChips] = useState<CategoryChip[]>(DEFAULT_CATEGORY_CHIPS);
 
-  const { searchQuery: initialSearchQuery, customResults, category: initialCategory } = route.params || {};
+  const { searchQuery: initialSearchQuery, category: initialCategory, view } = route.params || {};
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
-  const [selectedSort, setSelectedSort] = useState('relevance');
+  const [selectedSort, setSelectedSort] = useState(view === 'featured' ? 'featured' : 'relevance');
+
+  // Featured products state
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
+  const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(false);
 
   const [minPrice, setMinPrice] = useState('0');
   const [maxPrice, setMaxPrice] = useState('100000');
@@ -373,6 +381,48 @@ export default function ShopScreen({ navigation, route }: Props) {
     loadSavedLocation();
   }, [user]);
 
+  // Fetch featured products when sort is set to Featured
+  useEffect(() => {
+    if (selectedSort !== 'featured') return;
+
+    const loadFeaturedProducts = async () => {
+      setFeaturedLoading(true);
+      try {
+        const [featuredData, boostedData] = await Promise.all([
+          featuredProductService.getFeaturedProducts(100),
+          adBoostService.getActiveBoostedProducts('featured', 100),
+        ]);
+        setFeaturedProducts(featuredData || []);
+        setBoostedProducts(boostedData || []);
+      } catch (error) {
+        console.error('[ShopScreen] Error loading featured products:', error);
+      } finally {
+        setFeaturedLoading(false);
+      }
+    };
+
+    loadFeaturedProducts();
+  }, [selectedSort]);
+
+  // Load saved sort state and handle route parameters
+  useEffect(() => {
+    const loadSortState = async () => {
+      try {
+        const savedSort = await AsyncStorage.getItem('shopSortState');
+        if (view === 'featured') {
+          setSelectedSort('featured');
+          // Save featured sort state
+          await AsyncStorage.setItem('shopSortState', 'featured');
+        } else if (savedSort && sortOptions.some(option => option.value === savedSort)) {
+          setSelectedSort(savedSort);
+        }
+      } catch (error) {
+        console.error('[ShopScreen] Error loading sort state:', error);
+      }
+    };
+    loadSortState();
+  }, [view]);
+
   const handleSelectLocation = async (address: string, coords?: any, details?: any) => {
     setDeliveryAddress(address);
     if (coords) setDeliveryCoordinates(coords);
@@ -400,7 +450,7 @@ export default function ShopScreen({ navigation, route }: Props) {
   }, [dbProducts]);
 
   const filteredProducts = useMemo(() => {
-    const sourceProducts = customResults && customResults.length > 0 ? customResults : dbProducts;
+    let sourceProducts = dbProducts;
 
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const min = toNumber(minPrice, 0);
@@ -423,8 +473,8 @@ export default function ShopScreen({ navigation, route }: Props) {
       // 2. Exact UUID ID match
       // 3. Exact name match (case-insensitive)
       // 4. Slugified name match
-      const categoryMatch = 
-        selectedCategory === 'all' || 
+      const categoryMatch =
+        selectedCategory === 'all' ||
         product.category_id === selectedCategory ||
         (typeof product.category === 'string' && (
           product.category.toLowerCase() === selectedCategory.toLowerCase() ||
@@ -435,8 +485,15 @@ export default function ShopScreen({ navigation, route }: Props) {
       return searchMatch && categoryMatch && priceMatch;
     });
 
-    // Sort safely
-    if (selectedSort === 'price-low') {
+    // Sort/filter safely
+    if (selectedSort === 'featured') {
+      // Filter to show only featured/boosted products
+      const featuredProductIds = new Set([
+        ...featuredProducts.map(fp => fp.product_id),
+        ...boostedProducts.map(bp => bp.product_id)
+      ]);
+      filtered = filtered.filter(p => featuredProductIds.has(p.id));
+    } else if (selectedSort === 'price-low') {
       filtered.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     } else if (selectedSort === 'price-high') {
       filtered.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
@@ -447,7 +504,7 @@ export default function ShopScreen({ navigation, route }: Props) {
     }
 
     return filtered;
-  }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults, minPrice, maxPrice, categoryChips]);
+  }, [dbProducts, searchQuery, selectedCategory, selectedSort, minPrice, maxPrice, categoryChips, featuredProducts, boostedProducts]);
 
 
   // Memoized FlatList callbacks to prevent re-creating functions on each render
@@ -484,7 +541,17 @@ export default function ShopScreen({ navigation, route }: Props) {
           <Pressable
             key={cat.id}
             style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
-            onPress={() => setSelectedCategory(cat.id)}
+            onPress={async () => {
+              setSelectedCategory(cat.id);
+              if (cat.id === 'all' && selectedSort === 'featured') {
+                setSelectedSort('relevance');
+                try {
+                  await AsyncStorage.removeItem('shopSortState');
+                } catch (error) {
+                  console.error('[ShopScreen] Error clearing sort state:', error);
+                }
+              }
+            }}
           >
             <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
           </Pressable>
@@ -567,6 +634,39 @@ export default function ShopScreen({ navigation, route }: Props) {
         </View>
       </View>
 
+      {/* Featured Sort Indicator */}
+      {selectedSort === 'featured' && (
+        <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+          <Pressable
+            onPress={async () => {
+              setSelectedSort('relevance');
+              try {
+                await AsyncStorage.removeItem('shopSortState');
+              } catch (error) {
+                console.error('[ShopScreen] Error clearing sort state:', error);
+              }
+            }}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#FEF3C7',
+              borderWidth: 1,
+              borderColor: '#F59E0B',
+              borderRadius: 20,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              alignSelf: 'flex-start',
+            }}
+          >
+            <Star size={14} color="#B45309" fill="#B45309" style={{ marginRight: 4 }} />
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#B45309', marginRight: 4 }}>
+              Featured
+            </Text>
+            <X size={14} color="#B45309" />
+          </Pressable>
+        </View>
+      )}
+
       {/* Product list as root scroll — enables virtualization */}
       <FlatList
         data={isLoading ? [] : filteredProducts}
@@ -633,7 +733,22 @@ export default function ShopScreen({ navigation, route }: Props) {
 
               <Text style={[styles.filterSectionTitle, { marginTop: 20 }]}>Sort By</Text>
               {sortOptions.map((opt) => (
-                <Pressable key={opt.value} style={styles.filterOption} onPress={() => setSelectedSort(opt.value)}>
+                <Pressable
+                  key={opt.value}
+                  style={styles.filterOption}
+                  onPress={async () => {
+                    setSelectedSort(opt.value);
+                    try {
+                      if (opt.value === 'relevance') {
+                        await AsyncStorage.removeItem('shopSortState');
+                      } else {
+                        await AsyncStorage.setItem('shopSortState', opt.value);
+                      }
+                    } catch (error) {
+                      console.error('[ShopScreen] Error saving sort state:', error);
+                    }
+                  }}
+                >
                   <Text style={[styles.filterText, selectedSort === opt.value && { color: BRAND_COLOR }]}>{opt.label}</Text>
                   {selectedSort === opt.value && <Check size={20} color={BRAND_COLOR} />}
                 </Pressable>

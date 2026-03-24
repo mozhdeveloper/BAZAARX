@@ -324,7 +324,7 @@ export function AddProductsToCampaignDialog({
                       {/* Product Image */}
                       <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
                         {productImage ? (
-                          <img
+                          <img loading="lazy" 
                             src={productImage}
                             alt={product.name}
                             className="w-full h-full object-cover"

@@ -8,7 +8,7 @@ export function BazaarFooter() {
           {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <img src="/Logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+              <img loading="lazy" src="/Logo.png" alt="Logo" className="w-10 h-10 object-contain" />
             </div>
             <p className="text-gray-300 text-sm">
               Your premium marketplace for quality products from trusted sellers across the Philippines.

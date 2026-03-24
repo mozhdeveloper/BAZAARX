@@ -4,7 +4,12 @@
  * Sends emails via the Supabase `send-email` edge function using a direct
  * fetch() call with the anon key — no JWT required (function is deployed
  * with --no-verify-jwt).
+ *
+ * Templates are fetched from the email_templates table, rendered client-side,
+ * then the pre-rendered HTML is sent to the edge function — same approach as web.
  */
+
+import { supabase } from '../lib/supabase';
 
 export interface SendTemplatedEmailParams {
   templateSlug: string;
@@ -18,6 +23,7 @@ export interface SendTemplatedEmailParams {
 export interface SendEmailResult {
   sent: boolean;
   messageId?: string;
+  reason?: string;
   error?: string;
 }
 
@@ -35,8 +41,9 @@ class EmailService {
   }
 
   async sendTemplatedEmail(params: SendTemplatedEmailParams): Promise<SendEmailResult> {
-    if (!params.to) {
-      return { sent: false, error: 'No recipient email address' };
+    if (!params.to || !params.to.includes('@')) {
+      console.warn('[EmailService] Invalid or empty recipient email — skipping', { to: params.to, slug: params.templateSlug });
+      return { sent: false, error: 'No valid recipient email address' };
     }
 
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -44,12 +51,41 @@ class EmailService {
       return { sent: false, error: 'Email service misconfigured' };
     }
 
+    // Fetch template from email_templates table
+    const { data: template, error: tplError } = await supabase
+      .from('email_templates')
+      .select('*')
+      .eq('slug', params.templateSlug)
+      .eq('is_active', true)
+      .single();
+
+    if (tplError || !template) {
+      console.error('[EmailService] Template not found:', params.templateSlug, tplError?.message);
+      return { sent: false, error: `Template "${params.templateSlug}" not found` };
+    }
+
+    // Render template with variables
+    const variables = params.variables || {};
+    let renderedHtml = template.html_body as string;
+    let renderedSubject = template.subject as string;
+    for (const [key, value] of Object.entries(variables)) {
+      // Variables ending in _html or named 'content' contain trusted HTML — skip escaping
+      const isHtml = key.endsWith('_html') || key === 'content';
+      const safe = isHtml ? value : this.escapeHtml(value);
+      const pattern = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      renderedHtml = renderedHtml.replace(pattern, safe);
+      renderedSubject = renderedSubject.replace(pattern, value);
+    }
+
+    // Send pre-rendered HTML to edge function (matches expected payload format)
     const body = {
-      template_slug: params.templateSlug,
       to: params.to,
+      subject: renderedSubject,
+      html: renderedHtml,
       event_type: params.eventType,
+      category: (template.category as string) || 'transactional',
       recipient_id: params.recipientId,
-      variables: params.variables,
+      template_id: template.id,
       metadata: params.metadata,
     };
 
@@ -78,6 +114,15 @@ class EmailService {
       console.error('[EmailService] fetch error:', msg);
       return { sent: false, error: msg };
     }
+  }
+
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 }
 

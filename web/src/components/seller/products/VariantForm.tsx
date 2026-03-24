@@ -228,7 +228,7 @@ export function VariantForm({
                         <div className="flex gap-2 mt-1">
                             <div className="h-10 w-10 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
                                 {newVariant.image ? (
-                                    <img
+                                    <img loading="lazy" 
                                         src={newVariant.image}
                                         alt="Preview"
                                         className="h-full w-full object-cover"

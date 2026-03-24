@@ -110,7 +110,7 @@ const SharedRegistryPage = () => {
                   >
                     <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center mb-4 overflow-hidden">
                       {product.image ? (
-                        <img
+                        <img loading="lazy" 
                           src={product.image}
                           alt={product.name}
                           className="w-full h-full object-cover"

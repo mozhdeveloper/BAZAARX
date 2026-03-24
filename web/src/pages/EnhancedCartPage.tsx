@@ -270,7 +270,7 @@ export default function EnhancedCartPage() {
             className="text-center"
           >
             <div className="w-64 h-64 mx-auto mb-8 relative">
-              <img
+              <img loading="lazy" 
                 src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400&h=400&fit=crop"
                 alt="Empty cart"
                 className="w-full h-full object-cover rounded-2xl"
@@ -372,7 +372,7 @@ export default function EnhancedCartPage() {
                               onClick={() => navigate(`/seller/${sellerId}`)}
                             >
                               {group.seller.avatar ? (
-                                <img
+                                <img loading="lazy" 
                                   src={group.seller.avatar}
                                   alt=""
                                   className="w-8 h-8 rounded-full object-cover group-hover/seller:opacity-80 transition-opacity"
@@ -422,7 +422,7 @@ export default function EnhancedCartPage() {
 
                               {/* Product Image */}
                               {item.image ? (
-                                <img
+                                <img loading="lazy" 
                                   src={item.image}
                                   alt=""
                                   className="w-16 h-16 object-cover rounded-md border border-[var(--brand-wash-gold)]/30 cursor-pointer hover:opacity-80 transition-opacity"

@@ -263,7 +263,7 @@ export default function ProductRequestModal({
                   ) : (
                     <div className="relative">
                       <div className="group relative h-48 overflow-hidden rounded-lg border border-gray-200">
-                        <img
+                        <img loading="lazy" 
                           src={previewUrl}
                           alt="Preview"
                           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"

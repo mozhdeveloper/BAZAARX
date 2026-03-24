@@ -124,6 +124,12 @@ class EmailService {
   }): Promise<SendEmailResult> {
     console.log('[EmailService] ▶ sendTemplatedEmail', { slug: params.templateSlug, to: params.to, eventType: params.eventType });
 
+    // Guard: skip if no valid recipient email
+    if (!params.to || !params.to.includes('@')) {
+      console.warn('[EmailService] ✖ Invalid or empty recipient email — skipping', { to: params.to, slug: params.templateSlug });
+      return { sent: false, reason: 'No valid recipient email' };
+    }
+
     // Fetch template
     const { data: template, error } = await supabase
       .from('email_templates')
@@ -166,9 +172,11 @@ class EmailService {
     let renderedSubject = subject;
 
     for (const [key, value] of Object.entries(variables)) {
-      const escaped = this.escapeHtml(value);
+      // Variables ending in _html or named 'content' contain trusted HTML — skip escaping
+      const isHtml = key.endsWith('_html') || key === 'content';
+      const safe = isHtml ? value : this.escapeHtml(value);
       const pattern = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-      renderedHtml = renderedHtml.replace(pattern, escaped);
+      renderedHtml = renderedHtml.replace(pattern, safe);
       renderedSubject = renderedSubject.replace(pattern, value);
     }
 

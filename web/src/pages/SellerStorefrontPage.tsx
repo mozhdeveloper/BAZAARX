@@ -26,7 +26,8 @@ import {
   ThumbsUp,
   Loader2,
   CheckCircle2,
-  Zap
+  Zap,
+  Palmtree
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -331,6 +332,7 @@ export default function SellerStorefrontPage() {
       Number((realSeller as any).total_reviews || 0),
     followers: followersCount,
     isVerified: realSeller.is_verified || false,
+    isVacationMode: (realSeller as any).is_vacation_mode === true,
     tierLevel: (realSeller as any).tier_level || 'standard',
     description: realSeller.store_description || '',
     location: [realSeller.city, realSeller.province].filter(Boolean).join(', ') || 'Philippines',
@@ -431,6 +433,7 @@ export default function SellerStorefrontPage() {
       sellerLocation: seller?.location,
       sellerName: seller?.name,
       isVerified: seller?.isVerified,
+      isVacationMode: seller?.isVacationMode,
     }))
     : demoProducts.map(p => ({
       ...p,
@@ -442,6 +445,7 @@ export default function SellerStorefrontPage() {
       sellerLocation: seller?.location,
       sellerName: seller?.name,
       isVerified: seller?.isVerified,
+      isVacationMode: seller?.isVacationMode,
     }));
 
   // Get all unique categories from the displayed products
@@ -568,7 +572,7 @@ export default function SellerStorefrontPage() {
             {/* Store Avatar */}
             <div className="relative">
               <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-white p-1 shadow-2xl overflow-hidden">
-                <img
+                <img loading="lazy" 
                   src={seller.avatar}
                   alt={seller.name}
                   className="w-full h-full rounded-full object-cover"
@@ -591,6 +595,12 @@ export default function SellerStorefrontPage() {
                   <Badge className="bg-purple-500 text-white hover:bg-purple-600 border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
                     <Star className="w-3 h-3 fill-white" />
                     Premium Outlet
+                  </Badge>
+                )}
+                {seller.isVacationMode && (
+                  <Badge className="bg-orange-500 text-white hover:bg-orange-600 border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    <Palmtree className="w-3 h-3" />
+                    On Vacation
                   </Badge>
                 )}
               </div>
@@ -656,6 +666,19 @@ export default function SellerStorefrontPage() {
           </div>
         </div>
       </div>
+
+      {/* Vacation Mode Banner */}
+      {seller.isVacationMode && (
+        <div className="max-w-7xl mx-auto px-4 pt-4">
+          <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3">
+            <Palmtree className="w-5 h-5 text-orange-500 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-orange-700">This store is currently on vacation</p>
+              <p className="text-xs text-orange-600">Products are available to view but cannot be purchased at this time.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {
     activeCampaigns

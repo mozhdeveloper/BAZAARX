@@ -21,7 +21,7 @@ const StoreCard: React.FC<StoreCardProps> = ({ store, index = 0 }) => {
     >
       {/* Banner */}
       <div className="relative h-32 overflow-hidden bg-gray-100">
-        <img
+        <img loading="lazy" 
           src={store.banner}
           alt={store.name}
           loading="lazy"
@@ -41,7 +41,7 @@ const StoreCard: React.FC<StoreCardProps> = ({ store, index = 0 }) => {
         {/* Logo & Name Row */}
         <div className="flex items-center gap-3 mb-5 mt-2">
           <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white shadow-sm bg-white shrink-0">
-            <img
+            <img loading="lazy" 
               src={store.logo}
               alt={store.name}
               loading="lazy"

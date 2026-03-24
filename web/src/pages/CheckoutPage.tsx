@@ -1231,7 +1231,7 @@ export default function CheckoutPage() {
                       <div key={`${item.id}-${variant?.id || 'no-variant'}-${idx}`} className="flex items-start gap-3 text-sm">
                         {/* Product Image */}
                         <div className="w-12 h-12 rounded-lg border border-gray-100 bg-white overflow-hidden flex-shrink-0 mt-0.5">
-                          <img
+                          <img loading="lazy" 
                             src={variant?.thumbnail_url || item.image || (item.images && item.images[0])}
                             alt={item.name}
                             className="w-full h-full object-contain"

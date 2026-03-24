@@ -191,7 +191,7 @@ export class NotificationService {
       }
       
       // Map the data to include is_read field (based on read_at being null or not)
-      return (data || []).map(n => ({
+      return (data || []).map((n: any) => ({
         ...n,
         is_read: !!n.read_at
       }));
@@ -246,8 +246,8 @@ export class NotificationService {
     try {
       const tableName = this.getTableName(userType);
       
-      const { error } = await supabase
-        .from(tableName)
+      const { error } = await (supabase
+        .from(tableName) as any)
         .update({
           read_at: new Date().toISOString()
         })
@@ -278,8 +278,8 @@ export class NotificationService {
       const tableName = this.getTableName(userType);
       const userIdColumn = this.getUserIdColumn(userType);
       
-      const { error } = await supabase
-        .from(tableName)
+      const { error } = await (supabase
+        .from(tableName) as any)
         .update({
           read_at: new Date().toISOString()
         })
@@ -796,7 +796,7 @@ export class NotificationService {
           token: params.token,
           platform: params.platform,
           updated_at: new Date().toISOString(),
-        },
+        } as any,
         { onConflict: 'token' }
       );
       if (error) console.warn('[NotificationService] registerPushToken error:', error);

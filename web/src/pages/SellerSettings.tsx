@@ -238,7 +238,7 @@ export function SellerSettings() {
                           <div className="relative">
                             <div className="w-32 h-32 rounded-full overflow-hidden shadow-xl shadow-orange-500/20 bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
                               {seller?.avatar ? (
-                                <img
+                                <img loading="lazy" 
                                   src={seller.avatar}
                                   alt={seller?.name || "Seller"}
                                   className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"

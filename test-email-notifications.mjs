@@ -66,7 +66,9 @@ function section(title) {
 function renderTemplate(html, subject, variables) {
   let h = html, s = subject;
   for (const [k, v] of Object.entries(variables)) {
-    const safe = String(v)
+    // Variables ending in _html or named 'content' contain trusted HTML — skip escaping
+    const isHtml = k.endsWith('_html') || k === 'content';
+    const safe = isHtml ? String(v) : String(v)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     const re = new RegExp(`\\{\\{${k}\\}\\}`, 'g');

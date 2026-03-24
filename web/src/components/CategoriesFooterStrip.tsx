@@ -89,7 +89,7 @@ const CategoriesFooterStrip: React.FC = () => {
                 viewport={{ once: true }}
                 className="absolute w-56 h-72 bg-white rounded-[2rem] shadow-2xl overflow-hidden border-[6px] border-white cursor-pointer group"
               >
-                <img
+                <img loading="lazy" 
                   src={category.image_url || category.icon || '/placeholder-category.jpg'}
                   alt={category.name}
                   className="w-full h-full object-cover grayscale-[0.1] group-hover:grayscale-0 transition-all duration-500"

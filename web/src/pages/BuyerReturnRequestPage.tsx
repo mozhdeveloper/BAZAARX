@@ -533,7 +533,7 @@ export default function BuyerReturnRequestPage() {
                         )}
                       >
                         <div className="relative">
-                          <img
+                          <img loading="lazy" 
                             src={item.image || "/placeholder.png"}
                             alt={item.name}
                             className="w-16 h-16 rounded-lg object-cover"
@@ -608,7 +608,7 @@ export default function BuyerReturnRequestPage() {
                   <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                     {evidencePreviews.map((preview, i) => (
                       <div key={i} className="relative group">
-                        <img
+                        <img loading="lazy" 
                           src={preview}
                           alt={`Evidence ${i + 1}`}
                           className="w-full aspect-square rounded-lg object-cover border border-gray-200"
@@ -671,7 +671,7 @@ export default function BuyerReturnRequestPage() {
                       const item = items.find((i: any) => (i.productId || i.id) === itemId);
                       return (
                         <div key={itemId} className="flex items-center gap-3 py-1">
-                          <img
+                          <img loading="lazy" 
                             src={item?.image || "/placeholder.png"}
                             alt={item?.name}
                             className="w-10 h-10 rounded object-cover"
@@ -718,7 +718,7 @@ export default function BuyerReturnRequestPage() {
                       <p className="text-xs text-gray-500 mb-2">Evidence ({evidencePreviews.length} photos)</p>
                       <div className="flex gap-2 overflow-x-auto">
                         {evidencePreviews.map((p, i) => (
-                          <img key={i} src={p} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />
+                          <img loading="lazy" key={i} src={p} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />
                         ))}
                       </div>
                     </div>
