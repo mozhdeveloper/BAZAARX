@@ -889,14 +889,14 @@ export default function OrderDetailPage() {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => navigate('/shop')}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <ChevronLeft
               size={20}
               className="group-hover:-translate-x-0.5 transition-transform"
             />
-            <span className="text-sm font-medium">Back to Shop</span>
+            <span className="text-sm font-medium">Go Back</span>
           </button>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
