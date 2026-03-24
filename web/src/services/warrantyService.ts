@@ -14,6 +14,15 @@ import type {
   OrderItem,
 } from '@/types/database.types';
 
+// Re-export types for convenience
+export type {
+  WarrantyClaimType,
+  WarrantyClaimStatus,
+  WarrantyActionType,
+  WarrantyClaim,
+  WarrantyActionLog,
+};
+
 // ============================================================================
 // TYPES
 // ============================================================================

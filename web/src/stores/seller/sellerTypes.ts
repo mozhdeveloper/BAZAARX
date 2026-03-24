@@ -109,6 +109,15 @@ export interface SellerProduct {
         discountValue: number;
         maxDiscountAmount?: number;
     } | null;
+    // Warranty fields
+    hasWarranty?: boolean;
+    warrantyType?: string;
+    warrantyDurationMonths?: number;
+    warrantyProviderName?: string;
+    warrantyProviderContact?: string;
+    warrantyProviderEmail?: string;
+    warrantyTermsUrl?: string;
+    warrantyPolicy?: string;
 }
 
 export interface SellerOrder {
