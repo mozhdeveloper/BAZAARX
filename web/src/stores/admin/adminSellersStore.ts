@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { notificationService } from '@/services/notificationService';
+import { useAdminAuth } from './adminAuthStore';
 import type { Seller, SellerDocument, SellerDocumentField, PartialSellerRejectionInput, SellerRejectionRecord } from './adminTypes';
 import { SELLER_DOCUMENT_CONFIG, DOCUMENT_FIELD_LABELS, toUiSellerStatus } from './adminTypes';
 

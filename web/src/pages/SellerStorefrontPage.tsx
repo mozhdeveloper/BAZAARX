@@ -60,6 +60,27 @@ import { supabase } from '@/lib/supabase';
 import { discountService } from '@/services/discountService';
 import type { DiscountCampaign } from '@/types/discount';
 
+// Type definition for seller object used in storefront
+interface StorefrontSeller {
+  id: string;
+  name: string;
+  avatar: string;
+  rating: number;
+  totalReviews: number;
+  followers: number;
+  isVerified: boolean;
+  tierLevel: string;
+  description: string;
+  location: string;
+  established: string;
+  badges: string[];
+  responseTime: string;
+  contactNumber: string;
+  categories: string[];
+  products: any[];
+  isVacationMode?: boolean;
+}
+
 const CountdownTimer = ({ endDate }: { endDate: Date }) => {
   const [timeLeft, setTimeLeft] = useState("");
 
@@ -338,11 +359,13 @@ export default function SellerStorefrontPage() {
     established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
     badges: realSeller.is_verified ? ['Verified Seller'] : [],
     responseTime: '< 24 hours',
+    contactNumber: realSeller?.store_contact_number || 'Not provided',
     categories: (realSeller as any).product_categories || (realSeller as any).store_category || ['General'],
     products: [],
     isVacationMode: (realSeller as any).is_vacation_mode === true
   } : demoSeller ? {
     ...demoSeller,
+    contactNumber: demoSeller?.contactNumber || 'Not provided',
   } : dbSellerProduct ? {
     id: dbSellerProduct.sellerId,
     name: dbSellerProduct.sellerName || "Verified Seller",
@@ -357,6 +380,7 @@ export default function SellerStorefrontPage() {
     established: '2024',
     badges: ['Verified Seller'],
     responseTime: '< 24 hours',
+    contactNumber: 'Not provided',
     categories: ['General'],
     products: []
   } : {
@@ -373,9 +397,10 @@ export default function SellerStorefrontPage() {
     established: (demoSellers[0] as any)?.established || '2024',
     badges: demoSellers[0]?.badges || ['Verified Seller'],
     responseTime: (demoSellers[0] as any)?.responseTime || '< 24 hours',
+    contactNumber: (demoSellers[0] as any)?.contactNumber || 'Not provided',
     categories: (demoSellers[0] as any)?.categories || ['General'],
     products: (demoSellers[0] as any)?.products || []
-  } as any;
+  } as StorefrontSeller;
 
   const isPremiumOutlet = seller.tierLevel === 'premium_outlet';
 
@@ -947,6 +972,10 @@ export default function SellerStorefrontPage() {
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-gray-500 w-32 shrink-0">Location</span>
                     <span className="text-sm font-medium text-gray-900">{seller.location}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-500 w-32 shrink-0">Contact Number</span>
+                    <span className="text-sm font-medium text-gray-900">{seller.contactNumber}</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-gray-500 w-32 shrink-0">Established</span>
