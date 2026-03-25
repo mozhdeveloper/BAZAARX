@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -55,7 +55,7 @@ import {
   Mail,
   FileText,
 } from 'lucide-react-native';
-import { ProductCard } from '../src/components/ProductCard';
+import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import StoreChatModal from '../src/components/StoreChatModal';
@@ -1330,9 +1330,28 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </View>
 
         {/* --- RATINGS SECTION --- */}
-        {/* Increased top margin */}
-        <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
-          <Text style={styles.sectionTitle}>Ratings & Reviews</Text>
+        <View
+          style={{ 
+            marginTop: 15, 
+            marginBottom: 5, 
+            paddingVertical: 20, 
+            paddingHorizontal: 16 
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 22, fontWeight: '900', color: COLORS.primary }}>
+                {effectiveAverageRating.toFixed(1)}
+              </Text>
+              <Star size={20} color="#FBBF24" fill="#FBBF24" />
+              <Text style={[styles.sectionTitle, { color: COLORS.textPrimary }]}>Ratings & Reviews</Text>
+            </View>
+            {reviewsTotal > 2 && (
+              <Pressable onPress={() => setActiveTab('ratings')}>
+                <Text style={{ color: COLORS.primary, fontWeight: '700', fontSize: 13 }}>View All</Text>
+              </Pressable>
+            )}
+          </View>
 
           {/* Review Filters - Wrapped Layout */}
           {/* Added spacing from title */}
@@ -1389,13 +1408,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <ActivityIndicator size="small" color="#FB8C00" style={{ marginVertical: 20 }} />
           ) : reviews.length > 0 ? (
             <>
-              <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 15, textAlign: 'right', marginTop: 12 }}>
-                {effectiveAverageRating.toFixed(1)} out of 5 stars ({reviewsTotal.toLocaleString()} Reviews)
-              </Text>
               {reviews.map((review, index) => {
-                // Only show first 3 reviews if "details" tab is active and not showing all
-                const isDetailsTab = activeTab === 'details';
-                if (isDetailsTab && index >= 3) return null;
+                // If on details tab, only show first 2
+                if (activeTab === 'details' && index >= 2) return null;
 
                 return (
                   <View key={review.id} style={styles.reviewCard}>
@@ -1404,7 +1419,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                       style={styles.reviewerAvatar}
                     />
                     <View style={styles.reviewContent}>
-                      <Text style={styles.reviewerName}>{review.buyerName || 'Anonymous Buyer'}</Text>
+                      <Text style={[styles.reviewerName, { color: COLORS.textHeadline, opacity: 0.8 }]}>{review.buyerName || 'Anonymous Buyer'}</Text>
                       <View style={styles.reviewRatingRow}>
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star key={i} size={10} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
@@ -1413,9 +1428,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                       <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
                         {formatReviewDate(review.createdAt)}
                       </Text>
-                      <Text style={styles.reviewText}>{review.comment || 'No written feedback.'}</Text>
+                      <Text style={[styles.reviewText, { color: COLORS.textHeadline, opacity: 0.7 }]}>{review.comment || 'No written feedback.'}</Text>
                       {review.variantLabel ? (
-                        <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                        <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
                           Variant: {review.variantLabel}
                         </Text>
                       ) : null}
@@ -1425,9 +1440,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                           showsHorizontalScrollIndicator={false}
                           style={styles.reviewImagesContainer}
                         >
-                          {review.images.map((imageUrl, index) => (
+                          {review.images.map((imageUrl, idx) => (
                             <Image
-                              key={`${review.id}-${index}`}
+                              key={`${review.id}-${idx}`}
                               source={{ uri: imageUrl }}
                               style={styles.reviewImage}
                             />
@@ -1436,8 +1451,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                       ) : null}
                       {review.sellerReply ? (
                         <View style={{ marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: '#FB8C00' }}>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#C2410C' }}>Seller response</Text>
-                          <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{review.sellerReply.message}</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#C2410C', opacity: 0.8 }}>Seller response</Text>
+                          <Text style={{ fontSize: 12, color: COLORS.textHeadline, opacity: 0.6, marginTop: 2 }}>{review.sellerReply.message}</Text>
                         </View>
                       ) : null}
                       <View style={styles.reviewFooter}>
@@ -1469,14 +1484,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               })}
 
               {/* View All / Load More Logic */}
-              {activeTab === 'details' && reviews.length > 3 ? (
-                <Pressable
-                  onPress={() => setActiveTab('ratings')}
-                  style={{ marginTop: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFF5F0', borderRadius: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: '#FED7AA' }}
-                >
-                  <Text style={{ color: '#EA580C', fontWeight: '700' }}>View All</Text>
-                </Pressable>
-              ) : activeTab === 'ratings' && reviews.length < reviewsTotal ? (
+              {activeTab === 'ratings' && reviews.length < reviewsTotal ? (
                 <Pressable
                   onPress={handleLoadMoreReviews}
                   style={{ marginTop: 8, paddingVertical: 10, alignItems: 'center' }}
@@ -1498,7 +1506,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         {/* --- RECOMMENDATIONS (Matches Home Grid) --- */}
         <View style={styles.recommendations}>
           <View style={styles.recommendationHeader}>
-            <Text style={styles.sectionTitle}>You Might Also Like</Text>
+            <Text style={[styles.sectionTitle, { color: COLORS.textPrimary }]}>You Might Also Like</Text>
             <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Shop', params: {} })}>
               <Text style={styles.gridSeeAll}>View All</Text>
             </Pressable>
@@ -1506,7 +1514,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <View style={styles.gridBody}>
             {relatedProducts.map((p) => (
               <View key={p.id} style={styles.itemBoxContainerVertical}>
-                <ProductCard product={p} onPress={() => navigation.push('ProductDetail', { product: p })} />
+                <MasonryProductCard 
+                  product={p} 
+                  onPress={() => navigation.push('ProductDetail', { product: p })} 
+                  width={(width - 24) / 2}
+                />
               </View>
             ))}
           </View>
@@ -2185,12 +2197,12 @@ const styles = StyleSheet.create({
     color: BRAND_COLOR,
   },
 
-  recommendations: { paddingHorizontal: 20, paddingTop: 24, marginBottom: 20 },
-  recommendationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  recommendations: { paddingHorizontal: 6, paddingTop: 24, marginBottom: 20 },
+  recommendationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingHorizontal: 6 },
   sectionTitle: { fontSize: 18, fontWeight: '900', color: '#D97706' }, // Matched Home page orange
   gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
-  gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
+  gridBody: { flexDirection: 'row', flexWrap: 'wrap' },
+  itemBoxContainerVertical: { width: '50%', paddingHorizontal: 6, marginBottom: 12 },
 
   // Bottom Bar
   bottomBar: {

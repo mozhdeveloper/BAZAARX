@@ -26,7 +26,8 @@ import {
 } from 'lucide-react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { LucideIcon } from 'lucide-react-native';
-import { ProductCard } from '../src/components/ProductCard';
+import { FlashList } from "@shopify/flash-list";
+import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
 import LocationModal from '../src/components/LocationModal';
@@ -1070,7 +1071,12 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* FEATURED PRODUCTS SECTION */}
             {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
-              <View style={{ marginTop: 10, marginBottom: 12 }}>
+              <LinearGradient
+                colors={['#FFF9F9', '#FFF3F3', '#FFF9F9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={{ marginTop: 10, marginBottom: 12, paddingVertical: 20 }}
+              >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Products</Text>
@@ -1082,14 +1088,18 @@ export default function HomeScreen({ navigation }: Props) {
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, gap: 12 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12 }}>
                   {mergedFeaturedProducts.map(({ key, mapped }) => (
-                    <View key={key} style={{ width: 150 }}>
-                      <ProductCard product={mapped as any} onPress={() => handleProductPress(mapped as any)} />
+                    <View key={key} style={{ width: 155, marginRight: 12 }}>
+                      <MasonryProductCard 
+                        product={mapped as any} 
+                        onPress={() => handleProductPress(mapped as any)} 
+                        width={155} 
+                      />
                     </View>
                   ))}
                 </ScrollView>
-              </View>
+              </LinearGradient>
             )}
 
             <View style={styles.gridContainer}>
@@ -1098,11 +1108,23 @@ export default function HomeScreen({ navigation }: Props) {
                 <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>View All</Text></Pressable>
               </View>
               <View style={styles.gridBody}>
-                {popularProducts.map((product, i) => (
-                  <View key={`pop-${product.id}-${i}`} style={styles.itemBoxContainerVertical}>
-                    <ProductCard product={product} onPress={() => handleProductPress(product)} />
-                  </View>
-                ))}
+                <FlashList
+                  data={popularProducts.slice(0, 10)}
+                  renderItem={({ item }: { item: Product }) => (
+                    <View style={{ paddingHorizontal: 6, paddingVertical: 6 }}>
+                      <MasonryProductCard 
+                        product={item} 
+                        onPress={() => handleProductPress(item)} 
+                        width={(screenWidth - 12 - 12) / 2} 
+                      />
+                    </View>
+                  )}
+                  keyExtractor={(item: Product, index: number) => `pop-${item.id}-${index}`}
+                  numColumns={2}
+                  masonry={true}
+                  scrollEnabled={false}
+                  contentContainerStyle={{ paddingHorizontal: 6, paddingBottom: 20 }}
+                />
               </View>
             </View>
 
@@ -1282,11 +1304,11 @@ const styles = StyleSheet.create({
   productRequestText: { flex: 1 },
   productRequestTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textHeadline },
   productRequestSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  gridContainer: { paddingHorizontal: 20, marginBottom: 20 },
-  gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 20 },
+  gridContainer: { paddingHorizontal: 0, marginBottom: 20 },
+  gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 20, paddingHorizontal: 20 },
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#D97706' },
   gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
-  gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  gridBody: { paddingHorizontal: 0 },
   searchDiscovery: { padding: 20 },
   discoveryTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
   recentSection: { marginBottom: 20 },
@@ -1373,7 +1395,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   visitShopButton: {
-    backgroundColor: '#FDE1D3', // Soft peach/orange tint as seen in screenshot
+    backgroundColor: COLORS.primary, // Matches "Buy Now" button color (#D97706)
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 20,
@@ -1383,7 +1405,7 @@ const styles = StyleSheet.create({
   visitShopText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#4B2C20', // Dark brown/burgundy text
+    color: '#FFF', // Changed to white to complement the primary background
   },
   storeCircleCard: {
     width: 90,
