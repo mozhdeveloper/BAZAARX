@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Copy, Check, Gift, Plus } from "lucide-react";
+import { X, Copy, Check, Gift, Plus, ChevronDown } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -85,12 +85,15 @@ export const CreateRegistryModal = ({
       showAddress,
       instructions: deliveryInstructions.trim() || undefined,
     };
-    onCreate({
+    const payload = {
       name: registryName,
       category: finalCategory,
       privacy,
       delivery,
-    });
+    };
+
+    console.log("[CreateRegistryModal] Creating registry with payload:", payload);
+    onCreate(payload);
     // Reset form
     setRegistryName("");
     setCategory("");
@@ -121,9 +124,9 @@ export const CreateRegistryModal = ({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="w-full max-w-3xl bg-white rounded-2xl shadow-xl relative z-10 overflow-hidden max-h-[90vh] flex flex-col"
+            className="w-full max-w-3xl bg-white rounded-2xl shadow-xl relative z-10 overflow-visible max-h-[90vh] flex flex-col"
           >
-            <div className="p-6 relative overflow-y-auto max-h-[calc(90vh)] scrollbar-hide">
+            <div className="p-6 relative overflow-y-auto max-h-[calc(90vh-80px)] scrollbar-hide">
               <button
                 onClick={onClose}
                 className="absolute right-4 top-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -160,7 +163,12 @@ export const CreateRegistryModal = ({
                     <SelectTrigger className="focus:ring-[var(--brand-primary)]">
                       <SelectValue placeholder="Select an occasion" />
                     </SelectTrigger>
-                    <SelectContent className="z-[200]">
+                    <SelectContent
+                      className="z-[200]"
+                      position="popper"
+                      side="top"
+                      sideOffset={4}
+                    >
                       <SelectItem value="wedding">Wedding</SelectItem>
                       <SelectItem value="baby">Baby Shower</SelectItem>
                       <SelectItem value="birthday">Birthday</SelectItem>
@@ -251,21 +259,18 @@ export const CreateRegistryModal = ({
                 <div className="space-y-4 pt-4 border-t border-gray-100">
                   <div className="space-y-2">
                     <Label>Privacy</Label>
-                    <Select
-                      value={privacy}
-                      onValueChange={(val) =>
-                        setPrivacy(val as RegistryPrivacy)
-                      }
-                    >
-                      <SelectTrigger className="focus:ring-[var(--brand-primary)]">
-                        <SelectValue placeholder="Select privacy" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[200]">
-                        <SelectItem value="public">Public</SelectItem>
-                        <SelectItem value="link">Link only</SelectItem>
-                        <SelectItem value="private">Private</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="relative">
+                      <select
+                        value={privacy}
+                        onChange={(e) => setPrivacy(e.target.value as RegistryPrivacy)}
+                        className="flex h-10 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-10"
+                      >
+                        <option value="public">Public</option>
+                        <option value="link">Link only</option>
+                        <option value="private">Private</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" />
+                    </div>
                     <p className="text-xs text-[var(--text-muted)]">
                       Link-only is recommended: only people with the link can
                       view.
@@ -300,7 +305,12 @@ export const CreateRegistryModal = ({
                           }
                         />
                       </SelectTrigger>
-                      <SelectContent className="z-[200] max-h-64">
+                      <SelectContent
+                        className="z-[200] max-h-64"
+                        position="popper"
+                        side="top"
+                        sideOffset={4}
+                      >
                         {addresses.map((addr) => (
                           <SelectItem key={addr.id} value={addr.id}>
                             {addr.label || `${addr.firstName} ${addr.lastName}`}{" "}

@@ -14,6 +14,7 @@ import {
   Package,
   Lightbulb,
   RotateCcw,
+  Gift,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
@@ -266,6 +267,18 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                   d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
                 />
               </svg>
+            </button>
+
+            {/* Registry */}
+            <button
+              onClick={() => navigate("/registry")}
+              className={`relative p-2 rounded-full transition-all duration-300 ${location.pathname === "/registry"
+                ? "text-[var(--brand-primary)] bg-[var(--brand-wash)] shadow-sm scale-110"
+                : "text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
+                }`}
+              title="Registry"
+            >
+              <Gift className="h-6 w-6" />
             </button>
 
             {/* Messages */}

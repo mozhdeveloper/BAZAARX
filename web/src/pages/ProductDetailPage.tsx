@@ -1134,11 +1134,6 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         {/* Action Buttons */}
                         <div className="flex flex-row items-center gap-4 mb-10">
                             <button
-                                disabled={(() => {
-                                    const currentVariant = getSelectedVariant();
-                                    const stockQty = currentVariant?.stock ?? normalizedProduct?.stock ?? 0;
-                                    return stockQty === 0;
-                                })()}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (isInRegistry) {
@@ -1548,14 +1543,16 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         isOpen={isCreateRegistryModalOpen}
                         onClose={() => setIsCreateRegistryModalOpen(false)}
                         hideBrowseLink={true}
-                        onCreate={({ name, category }) => {
+                        onCreate={({ name, category, privacy, delivery }) => {
                             const newRegistry = {
                                 id: `reg-${Date.now()}`,
                                 title: name,
                                 sharedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
                                 imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
                                 category: category,
-                                products: []
+                                products: [],
+                                privacy,
+                                delivery
                             };
                             createRegistry(newRegistry);
 
