@@ -10,7 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ChevronLeft, CheckCircle, Circle, Flame, ChevronRight, Store as StoreIcon } from 'lucide-react-native';
+import { ChevronLeft, Check, Circle, Flame, ChevronRight, Store as StoreIcon } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
@@ -260,7 +260,7 @@ export default function CartScreen({ navigation, route }: any) {
             styles.checkboxBase,
             isAllSelected && { backgroundColor: BRAND_PRIMARY, borderColor: BRAND_PRIMARY }
           ]}>
-            {isAllSelected && <CheckCircle size={14} color="#FFF" />}
+            {isAllSelected && <Check size={14} color="#FFF" strokeWidth={3} />}
           </View>
           <Text style={styles.selectAllText}>Select All ({items.length})</Text>
         </Pressable>
@@ -289,7 +289,7 @@ export default function CartScreen({ navigation, route }: any) {
                     styles.checkboxBase,
                     isSellerSelected && { backgroundColor: BRAND_PRIMARY, borderColor: BRAND_PRIMARY }
                   ]}>
-                    {isSellerSelected && <CheckCircle size={14} color="#FFF" />}
+                    {isSellerSelected && <Check size={14} color="#FFF" strokeWidth={3} />}
                   </View>
                 </Pressable>
                 <Pressable
@@ -320,7 +320,7 @@ export default function CartScreen({ navigation, route }: any) {
                         styles.checkboxBase,
                         selectedSet.has(item.cartItemId) && { backgroundColor: BRAND_PRIMARY, borderColor: BRAND_PRIMARY }
                       ]}>
-                        {selectedSet.has(item.cartItemId) && <CheckCircle size={14} color="#FFF" />}
+                        {selectedSet.has(item.cartItemId) && <Check size={14} color="#FFF" strokeWidth={3} />}
                       </View>
                     </Pressable>
                     <View style={{ flex: 1 }}>
@@ -353,8 +353,8 @@ export default function CartScreen({ navigation, route }: any) {
       </ScrollView>
 
       {/* FLOATING ACTION BAR */}
-      {!isEditing && (
-        <View style={[styles.bottomBar, { bottom: insets.bottom + 80 }]}>
+      {!isEditing && items.length > 0 && (
+        <View style={[styles.bottomBar, { bottom: insets.bottom + 90 }]}>
           <View style={styles.bottomBarContent}>
             <View>
               <Text style={styles.totalInfoLabel}>Total Amount</Text>
@@ -388,10 +388,23 @@ export default function CartScreen({ navigation, route }: any) {
               style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}>
               <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
             </Pressable>
-
           </View>
         </View>
       )}
+
+      {/* Empty Cart View */}
+      {items.length === 0 && (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.textHeadline }}>Your cart is empty</Text>
+          <Pressable 
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}
+            style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: BRAND_PRIMARY, borderRadius: 12 }}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '700' }}>Start Shopping</Text>
+          </Pressable>
+        </View>
+      )}
+
       {editingItem && (() => {
         // Build an ActiveDiscount from the stored campaignDiscount on the cart item
         // so the VariantSelectionModal can display the correct discounted price.
@@ -479,14 +492,14 @@ const styles = StyleSheet.create({
   },
   checkboxWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkboxBase: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
     borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: 'transparent', // Changed from #FFF
   },
   selectAllText: { fontSize: 15, fontWeight: '700', color: COLORS.textHeadline },
 
@@ -494,18 +507,19 @@ const styles = StyleSheet.create({
 
   // REFACTORED STYLE FOR SELLER GROUP (No boxes)
   sellerCard: {
-    backgroundColor: '#FFFFFF', // Clean White
+    backgroundColor: '#FFFFFF', // Pure White
     marginHorizontal: 16,
     marginBottom: 16,
-    borderRadius: 24,
-    padding: 16,
-    shadowColor: '#A85D32', // Amber-tinted shadow
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 15,
-    elevation: 3,
-    // Removed harsh borders to allow the soft shadow to do the "blending"
-    borderWidth: 0, 
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    shadowColor: '#A85D32',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   sellerHeader: {
     flexDirection: 'row',
@@ -576,7 +590,18 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 22, fontWeight: '900', color: COLORS.textHeadline },
 
   // BOTTOM BAR
-  bottomBar: { position: 'absolute', left: 16, right: 16, backgroundColor: '#FFFFFF', borderRadius: 15, elevation: 15, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, paddingVertical: 3 },
+  bottomBar: { 
+    position: 'absolute', 
+    left: 16, 
+    right: 16, 
+    backgroundColor: '#FFFFFF', // Pure White
+    borderRadius: 15, 
+    elevation: 8, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.1, 
+    shadowRadius: 15, 
+    paddingVertical: 3 
+  },
   bottomBarContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 12 },
   totalInfoLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '700', textTransform: 'uppercase' },
   totalInfoPrice: { fontSize: 24, fontWeight: '900', color: COLORS.textHeadline },
