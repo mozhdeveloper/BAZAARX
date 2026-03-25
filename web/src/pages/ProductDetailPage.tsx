@@ -762,7 +762,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                                 : "border-gray-100/50 hover:border-[var(--brand-wash-gold)]/60",
                                         )}
                                     >
-                                        <img loading="lazy" 
+                                        <img loading="lazy"
                                             src={img}
                                             alt={`${productData.name} view ${index + 1}`}
                                             className="w-full h-full object-cover"
@@ -779,7 +779,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             key={selectedImage}
                             className="flex-1 bg-white rounded-[2rem] overflow-hidden aspect-[4/5] lg:aspect-auto relative group shadow-md"
                         >
-                            <img loading="lazy" 
+                            <img loading="lazy"
                                 src={productData.images[selectedImage]}
                                 alt={productData.name}
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -810,18 +810,18 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                     {/* Details Section (Right Side) */}
                     <div className="lg:col-span-5 flex flex-col pt-2">
                         {/* Store Profile - Compact Header */}
-                        <div className="flex items-center justify-between mb-4 pb-4 border-b border-[var(--border)]/60">
-                            <div
-                                className="flex items-center gap-4 group cursor-pointer"
-                                onClick={() =>
-                                    navigate(
-                                        `/seller/${normalizedProduct?.sellerId || "seller-001"}`,
-                                    )
-                                }
-                            >
+                        <div
+                            className="flex items-center justify-between mb-4 pb-4 border-b border-[var(--border)]/60 group cursor-pointer"
+                            onClick={() =>
+                                navigate(
+                                    `/seller/${normalizedProduct?.sellerId || "seller-001"}`,
+                                )
+                            }
+                        >
+                            <div className="flex items-center gap-4">
                                 {/* Avatar */}
-                                <div className="w-14 h-14 rounded-full bg-white overflow-hidden border border-[var(--border)]/40 shrink-0 shadow-sm relative transition-transform duration-300 group-hover:scale-105">
-                                    <img loading="lazy" 
+                                <div className="w-14 h-14 rounded-full bg-white overflow-hidden shrink-0 shadow-sm relative">
+                                    <img loading="lazy"
                                         src={currentSeller.avatar}
                                         alt={currentSeller.name}
                                         className="w-full h-full object-cover"
@@ -831,7 +831,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 {/* Info Container */}
                                 <div className="flex flex-col gap-0.5">
                                     <div className="flex items-center gap-1.5">
-                                        <h3 className="font-black text-[var(--text-headline)] text-lg leading-tight font-heading group-hover:text-[var(--brand-primary)] transition-colors whitespace-nowrap">
+                                        <h3 className="font-black text-[var(--text-headline)] text-lg leading-tight font-heading whitespace-nowrap">
                                             {normalizedProduct?.seller &&
                                                 normalizedProduct.seller !==
                                                 "Verified Seller"
@@ -839,10 +839,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                                 : currentSeller.name ||
                                                 "Official Store"}
                                         </h3>
-                                        <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--brand-primary)] transition-colors" />
                                     </div>
 
-                                    <div className="flex items-center gap-4 text-xs font-medium leading-none">
+                                    <div className="flex items-center gap-4 text-xs font-medium leading-none mt-1">
                                         <div className="flex items-center gap-1 text-[var(--text-muted)]">
                                             <MapPin className="w-3.5 h-3.5" />
                                             <span>{normalizedProduct?.location || "Metro Manila"}</span>
@@ -855,23 +854,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 </div>
                             </div>
 
-                            {/* Follow Button */}
-                            <div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        const sid = normalizedProduct?.sellerId || "seller-001";
-                                        isFollowing(sid) ? unfollowShop(sid) : followShop(sid);
-                                    }}
-                                    className={cn(
-                                        "px-3 py-1.5 rounded-full text-sm font-bold",
-                                        isFollowing(normalizedProduct?.sellerId || "seller-001")
-                                            ? "border border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary)]/90"
-                                            : "border border-[var(--brand-primary)] bg-[var(--brand-wash)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
-                                    )}
-                                >
-                                    {isFollowing(normalizedProduct?.sellerId || "seller-001") ? "Following" : "Follow"}
-                                </button>
+                            <div className="flex items-center gap-1 text-sm font-medium text-[var(--text-muted)] group-hover:text-[var(--brand-primary)] transition-colors pr-2">
+                                Visit shop
+                                <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                             </div>
                         </div>
 
@@ -989,7 +974,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                                     )}
                                                     title={option.name}
                                                 >
-                                                    <img loading="lazy" 
+                                                    <img loading="lazy"
                                                         src={
                                                             option.image ||
                                                             normalizedProduct?.image
@@ -1451,7 +1436,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                             </p>
                                         </div>
                                     )}
-                                    <img loading="lazy" 
+                                    <img loading="lazy"
                                         src={productData.sizeGuideImage}
                                         alt="Size Guide"
                                         className={cn(
@@ -1514,7 +1499,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                     className="w-full flex items-center gap-4 p-4 rounded-2xl border border-[var(--border)]/40 hover:border-[var(--brand-primary)]/40 hover:bg-[var(--brand-wash)]/40 transition-all group text-left shadow-sm hover:shadow-md"
                                 >
                                     <div className="w-14 h-14 rounded-xl bg-[var(--brand-wash)] overflow-hidden shrink-0 border border-[var(--border)]/20 shadow-inner">
-                                        <img loading="lazy" 
+                                        <img loading="lazy"
                                             src={
                                                 registry.imageUrl ||
                                                 "/public/gradGift.jpeg"

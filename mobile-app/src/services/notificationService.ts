@@ -155,6 +155,13 @@ class NotificationService {
           console.debug('[NotificationService] Request aborted (expected on unmount/focus change)');
           return [];
         }
+        
+        // Suppress "Network request failed" during session restoration or connection loss
+        if (error.message?.includes('Network request failed')) {
+          console.warn('[NotificationService] Connection unstable: Network request failed');
+          return [];
+        }
+
         // Log other Supabase errors
         console.error(`[NotificationService] Supabase Error: ${error.message}`);
         throw error;
