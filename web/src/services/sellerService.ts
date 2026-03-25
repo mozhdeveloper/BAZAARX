@@ -728,6 +728,145 @@ export class SellerService {
             throw new Error('Failed to update payout account.');
         }
     }
+
+    /**
+     * Social features - Follow a seller (uses store_followers table)
+     * Note: This requires buyer_id from buyers table
+     */
+    async followSeller(buyerId: string, sellerId: string): Promise<void> {
+        if (!isSupabaseConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        try {
+            const { error } = await (supabase as any)
+                .from('store_followers')
+                .upsert({
+                    buyer_id: buyerId,
+                    seller_id: sellerId,
+                }, { 
+                    onConflict: 'buyer_id,seller_id',
+                    ignoreDuplicates: true 
+                });
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error following seller:', error);
+            throw new Error('Failed to follow seller.');
+        }
+    }
+
+    /**
+     * Unfollow a seller
+     */
+    async unfollowSeller(buyerId: string, sellerId: string): Promise<void> {
+        if (!isSupabaseConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        try {
+            const { error } = await (supabase as any)
+                .from('store_followers')
+                .delete()
+                .eq('buyer_id', buyerId)
+                .eq('seller_id', sellerId);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error unfollowing seller:', error);
+            throw new Error('Failed to unfollow seller.');
+        }
+    }
+
+    /**
+     * Get follower count for a seller
+     */
+    async getFollowerCount(sellerId: string): Promise<number> {
+        if (!isSupabaseConfigured()) {
+            return 0;
+        }
+
+        try {
+            const { count, error } = await (supabase as any)
+                .from('store_followers')
+                .select('*', { count: 'exact', head: true })
+                .eq('seller_id', sellerId);
+
+            if (error) throw error;
+            return count || 0;
+        } catch (error) {
+            console.error('Error getting follower count:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Check if a buyer is following a seller
+     */
+    async checkIsFollowing(buyerId: string, sellerId: string): Promise<boolean> {
+        if (!isSupabaseConfigured()) {
+            return false;
+        }
+
+        try {
+            const { data, error } = await (supabase as any)
+                .from('store_followers')
+                .select('id')
+                .eq('buyer_id', buyerId)
+                .eq('seller_id', sellerId)
+                .maybeSingle();
+
+            if (error) throw error;
+            return !!data;
+        } catch (error) {
+            console.error('Error checking follow status:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get shops followed by a buyer
+     */
+    async getFollowedShops(buyerId: string): Promise<SellerData[]> {
+        if (!isSupabaseConfigured()) {
+            return [];
+        }
+
+        try {
+            const { data, error } = await (supabase as any)
+                .from('store_followers')
+                .select(`
+                    seller:sellers (
+                        *,
+                        business_profile:seller_business_profiles(*),
+                        products(count),
+                        followers:store_followers(count)
+                    )
+                `)
+                .eq('buyer_id', buyerId);
+
+            if (error) throw error;
+            if (!data) return [];
+
+            return data
+                .map(row => (row as any).seller)
+                .filter(Boolean)
+                .map(seller => {
+                    const transformed = this.transformSeller(seller);
+                    // Extract nested counts returned by Supabase
+                    const productsArr = seller.products as { count: number }[] | null;
+                    const followersArr = seller.followers as { count: number }[] | null;
+                    return {
+                        ...transformed,
+                        products_count: productsArr?.[0]?.count ?? 0,
+                        followers_count: followersArr?.[0]?.count ?? 0,
+                    };
+                });
+        } catch (error) {
+            console.error('Error getting followed shops:', error);
+            return [];
+        }
+    }
 }
 
 export const sellerService = SellerService.getInstance();
