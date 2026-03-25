@@ -96,8 +96,14 @@ export default function StoreDetailScreen() {
     const [sortBy, setSortBy] = useState('Popular');
     const [showCategoryModal, setShowCategoryModal] = useState(false);
 
-    const [searchVisible, setSearchVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchVisible, setSearchVisible] = useState(false);
+
+    const formattedJoinedDate = useMemo(() => {
+        if (!storeData.created_at) return 'March 2026';
+        const date = new Date(storeData.created_at);
+        return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }, [storeData.created_at]);
     const [menuVisible, setMenuVisible] = useState(false);
     const [chatVisible, setChatVisible] = useState(false);
     const [showGuestModal, setShowGuestModal] = useState(false);
@@ -142,8 +148,13 @@ export default function StoreDetailScreen() {
 
     const scrollRef = React.useRef<ScrollView | null>(null);
 
-    // Auto-scroll to sticky position when filters/tabs change
+    // Auto-scroll to sticky position when filters/tabs change, but not on initial mount
+    const isFirstMount = React.useRef(true);
     useEffect(() => {
+        if (isFirstMount.current) {
+            isFirstMount.current = false;
+            return;
+        }
         // Only scroll if we are below the sticky threshold or deep in the content
         // This brings the new content into view at the top of the content area
         scrollRef.current?.scrollTo({ y: 150, animated: true });
@@ -176,7 +187,7 @@ export default function StoreDetailScreen() {
 
                     const fullAddress = addressParts.length > 0
                         ? addressParts.join(', ')
-                        : (store.location && store.location !== "Address not available") ? store.location : "Philippines";
+                        : (store.location && store.location !== "Address not available") ? store.location : "";
 
                     setStoreData({
                         ...store,
@@ -184,6 +195,7 @@ export default function StoreDetailScreen() {
                         name: seller.store_name || (bp as any)?.business_name || store.name,
                         location: fullAddress,
                         address: fullAddress, // Add explicit address field
+                        city: bp?.city || (seller as any).city || "", // Add explicit city field
                         description: seller.store_description || bp?.business_type || "",
                         rating: seller.rating || store.rating || 0,
                         logo: logoUrl,
@@ -317,10 +329,10 @@ export default function StoreDetailScreen() {
 
     // Calculate actual average rating from reviews
     const averageRating = useMemo(() => {
-        if (!reviews || reviews.length === 0) return (storeData.rating || 4.9).toString();
+        if (!reviews || reviews.length === 0) return "0";
         const total = reviews.reduce((sum, rev) => sum + (rev.rating || 0), 0);
         return (total / reviews.length).toFixed(1);
-    }, [reviews, storeData.rating]);
+    }, [reviews]);
 
     // Format follower count to K/M
     const formattedFollowers = useMemo(() => {
@@ -656,7 +668,6 @@ export default function StoreDetailScreen() {
                                 ))
                             ) : (
                                 <View style={styles.emptyContainer}>
-                                    <Star size={48} color={COLORS.gray200} />
                                     <Text style={styles.emptyTitle}>No Reviews Yet</Text>
                                     <Text style={styles.emptyText}>Be the first to review products from this store!</Text>
                                 </View>
@@ -679,21 +690,21 @@ export default function StoreDetailScreen() {
                                 <Phone size={16} color={COLORS.gray400} />
                                 <Text style={styles.infoLabel}>Contact</Text>
                                 <Text style={styles.infoText}>
-                                    {storeData.store_contact_number || storeData.phone || "Contact not available"}
+                                    {storeData.store_contact_number || storeData.phone || "Not provided"}
                                 </Text>
                             </View>
 
                             <View style={styles.infoRow}>
                                 <MapPin size={16} color={COLORS.gray400} />
                                 <Text style={styles.infoLabel}>Location</Text>
-                                <Text style={styles.infoText}>{storeData.location || "Philippines"}</Text>
+                                <Text style={styles.infoText}>{storeData.location || "Not provided"}</Text>
                             </View>
 
                             <View style={styles.infoRow}>
                                 <Star size={16} color={COLORS.gray400} />
                                 <Text style={styles.infoLabel}>Ratings</Text>
                                 <Text style={styles.infoText}>
-                                    {averageRating} out of 5 ({reviews.length} reviews)
+                                    {reviews.length > 0 ? `${averageRating} out of 5 (${reviews.length} reviews)` : "No ratings yet"}
                                 </Text>
                             </View>
 
@@ -718,7 +729,7 @@ export default function StoreDetailScreen() {
                             </View>
 
                             <Pressable
-                                style={[styles.infoRow, { marginBottom: 0 }]}
+                                style={styles.infoRow}
                                 onPress={() => {
                                     const link = `bazaarx.com/store/${storeData.slug || store.slug || storeData.id}`;
                                     Clipboard.setString(link);
@@ -731,6 +742,16 @@ export default function StoreDetailScreen() {
                                     bazaarx.com/store/{storeData.slug || store.slug || storeData.name?.toLowerCase().replace(/\s+/g, '-')}
                                 </Text>
                             </Pressable>
+
+                            <View style={styles.divider} />
+                            <View>
+                                <View style={[styles.infoRow, { alignItems: 'flex-start', marginBottom: 8 }]}>
+                                    <Text style={styles.infoLabel}>Categories</Text>
+                                </View>
+                                <Text style={[styles.infoText, { color: COLORS.gray600, lineHeight: 20 }]}>
+                                    {storeCategories.length > 0 ? storeCategories.join(', ') : (storeData.categories || ["General"]).join(', ')}
+                                </Text>
+                            </View>
                         </View>
                     </View>
                 );
@@ -812,7 +833,7 @@ export default function StoreDetailScreen() {
                                     <Text style={styles.logoText}>{storeData.name?.substring(0, 1).toUpperCase() || 'S'}</Text>
                                 )}
                                 {storeData.is_verified && (
-                                    <View style={[styles.verifiedBadgeRow, { position: 'absolute', bottom: 0, right: 0, borderRadius: 10, paddingHorizontal: 0, paddingVertical: 0, width: 20, height: 20 }]}>
+                                    <View style={[styles.verifiedBadgeRow, { position: 'absolute', bottom: 2, right: 2, borderRadius: 10, paddingHorizontal: 0, paddingVertical: 0, width: 20, height: 20 }]}>
                                         <CheckCircle2 size={16} color={COLORS.white} fill={COLORS.success} />
                                     </View>
                                 )}
@@ -822,10 +843,20 @@ export default function StoreDetailScreen() {
                                     <Text style={styles.storeName}>{storeData.name}</Text>
 
                                 </View>
-
                                 <View style={styles.statsRow}>
-                                    <Text style={styles.statsText}>{storeData.location || 'Philippines'}</Text>
-                                    <Text style={styles.statsText}>   Est. 2026</Text>
+                                    {storeData.city && storeData.city !== "" && (
+                                        <>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                <MapPin size={12} color={COLORS.white} />
+                                                <Text style={styles.statsText}>{storeData.city}</Text>
+                                            </View>
+                                            <View style={{ width: 12 }} />
+                                        </>
+                                    )}
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                        <Calendar size={12} color={COLORS.white} />
+                                        <Text style={styles.statsText}>{formattedJoinedDate}</Text>
+                                    </View>
                                 </View>
 
                                 <View style={[styles.headerStatsButtonsRow, { marginTop: 12 }]}>
@@ -1089,14 +1120,12 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.white,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 3,
-        borderColor: COLORS.white,
+        borderWidth: 0,
         marginRight: 16,
         position: 'relative'
     },
     logoText: { fontSize: 24, fontWeight: 'bold', color: COLORS.primary },
     verifiedBadgeRow: {
-        backgroundColor: COLORS.white,
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
@@ -1462,7 +1491,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         backgroundColor: COLORS.white,
         padding: 20,
-        borderRadius: 16,
+        borderRadius: 12,
         marginBottom: 8,
         alignItems: 'center',
         gap: 20
