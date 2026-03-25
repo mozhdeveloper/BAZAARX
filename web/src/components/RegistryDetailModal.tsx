@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Gift, Plus, ShoppingBag, Copy, Check, Trash2 } from "lucide-react";
+import { X, Gift, Plus, ShoppingBag, Copy, Check, Trash2, ChevronDown } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -64,13 +64,21 @@ export const RegistryDetailModal = ({
 
   const liveRegistry = useMemo(() => {
     if (!registry) return null;
-    return registries.find((r) => r.id === registry.id) || registry;
+    const fromStore = registries.find((r) => r.id === registry.id);
+    console.log('[RegistryDetailModal] registry prop:', registry);
+    console.log('[RegistryDetailModal] registry.privacy:', registry.privacy);
+    console.log('[RegistryDetailModal] registry.delivery:', registry.delivery);
+    console.log('[RegistryDetailModal] matching store registry:', fromStore);
+    return fromStore || registry;
   }, [registries, registry]);
 
   useEffect(() => {
     if (liveRegistry) {
       const show = liveRegistry.delivery?.showAddress ?? false;
       const addr = liveRegistry.delivery?.addressId || "";
+      console.log('[RegistryDetailModal] liveRegistry:', liveRegistry);
+      console.log('[RegistryDetailModal] liveRegistry.privacy:', liveRegistry.privacy);
+      console.log('[RegistryDetailModal] liveRegistry.delivery:', liveRegistry.delivery);
       setPrivacy(liveRegistry.privacy || "link");
       setShowAddress(show || !!addr);
       setAddressId(addr);
@@ -199,21 +207,18 @@ export const RegistryDetailModal = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 border border-gray-100 rounded-xl p-4">
                   <div className="space-y-2">
                     <Label>Privacy</Label>
-                    <Select
-                      value={privacy}
-                      onValueChange={(val) =>
-                        setPrivacy(val as RegistryPrivacy)
-                      }
-                    >
-                      <SelectTrigger className="focus:ring-[var(--brand-primary)]">
-                        <SelectValue placeholder="Select privacy" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[200]">
-                        <SelectItem value="public">Public</SelectItem>
-                        <SelectItem value="link">Link only</SelectItem>
-                        <SelectItem value="private">Private</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="relative">
+                      <select
+                        value={privacy}
+                        onChange={(e) => setPrivacy(e.target.value as RegistryPrivacy)}
+                        className="flex h-10 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-10"
+                      >
+                        <option value="public">Public</option>
+                        <option value="link">Link only</option>
+                        <option value="private">Private</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" />
+                    </div>
                     <p className="text-xs text-[var(--text-muted)]">
                       Link-only is recommended: only people with the link can
                       view.
@@ -343,7 +348,7 @@ export const RegistryDetailModal = ({
 
                 <div className="space-y-3">
                   {!liveRegistry.products ||
-                  liveRegistry.products.length === 0 ? (
+                    liveRegistry.products.length === 0 ? (
                     <div className="border-2 border-dashed border-gray-200 rounded-xl p-12 flex flex-col items-center justify-center text-center">
                       <div className="p-4 bg-gray-50 rounded-full mb-4">
                         <ShoppingBag className="w-8 h-8 text-gray-400" />
@@ -369,7 +374,7 @@ export const RegistryDetailModal = ({
                         >
                           <div className="aspect-[1/1] relative bg-gray-100 overflow-hidden">
                             {product.image ? (
-                              <img loading="lazy" 
+                              <img loading="lazy"
                                 src={product.image}
                                 alt={product.name}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

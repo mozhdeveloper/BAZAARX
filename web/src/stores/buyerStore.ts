@@ -1758,29 +1758,76 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
 
       const tempId = registry.id;
+      
+      console.log('[createRegistry] Input registry:', registry);
+      console.log('[createRegistry] registry.privacy:', registry.privacy);
+      console.log('[createRegistry] registry.delivery:', registry.delivery);
+      console.log('[createRegistry] registry.delivery.showAddress:', registry.delivery?.showAddress);
+      console.log('[createRegistry] registry.delivery.instructions:', registry.delivery?.instructions);
+      console.log('[createRegistry] registry.delivery.addressId:', registry.delivery?.addressId);
+      
       // Optimistic update
       set((state) => ({ registries: [...state.registries, ensureRegistryDefaults(registry)] }));
 
-      const { data, error } = await db
+      // Build delivery object with only defined values, ensuring proper JSONB structure
+      const deliveryPayload: Record<string, any> = {
+        showAddress: registry.delivery?.showAddress ?? false,
+      };
+      
+      // Only include addressId if it has a value
+      if (registry.delivery?.addressId) {
+        deliveryPayload.addressId = registry.delivery.addressId;
+      }
+      
+      // Only include instructions if it has a value
+      if (registry.delivery?.instructions && registry.delivery.instructions.trim()) {
+        deliveryPayload.instructions = registry.delivery.instructions.trim();
+      }
+
+      console.log('[createRegistry] Cleaned delivery payload:', deliveryPayload);
+
+      // Stringify delivery to ensure it's sent as proper JSONB
+      const deliveryJsonString = JSON.stringify(deliveryPayload);
+      const deliveryJson = JSON.parse(deliveryJsonString);
+
+      const insertPayload: any = {
+        buyer_id: profile.id,
+        title: registry.title,
+        event_type: registry.category || 'Gift',
+        category: registry.category,
+        image_url: registry.imageUrl,
+        shared_date: registry.sharedDate,
+        privacy: registry.privacy || 'link',
+        delivery: deliveryJson,
+      };
+
+      console.log('[createRegistry] Final insert payload:', JSON.stringify(insertPayload, null, 2));
+      console.log('[createRegistry] delivery type:', typeof deliveryJson, Array.isArray(deliveryJson));
+      console.log('[createRegistry] delivery keys:', Object.keys(deliveryJson));
+
+      // Insert and get the created record in one call
+      const { data: insertedData, error: insertError } = await db
         .from('registries')
-        .insert({
-          buyer_id: profile.id,
-          title: registry.title,
-          event_type: registry.category || 'Gift',
-          category: registry.category,
-          image_url: registry.imageUrl,
-          shared_date: registry.sharedDate,
-          privacy: registry.privacy || 'link',
-          delivery: registry.delivery || { showAddress: false },
-        })
+        .insert(insertPayload as any)
         .select('*, registry_items(*)')
         .single();
 
-      if (error) {
-        console.error('Failed to create registry:', error);
+      if (insertError) {
+        console.error('Failed to create registry (insert):', insertError);
+        console.error('Error details:', JSON.stringify(insertError, null, 2));
         set((state) => ({ registries: state.registries.filter((r) => r.id !== tempId) }));
         return;
       }
+
+      console.log('[createRegistry] Insert successful');
+      console.log('[createRegistry] Inserted ID:', insertedData?.id);
+
+      const data = insertedData;
+
+      console.log('[createRegistry] DB response data:', data);
+      console.log('[createRegistry] DB response data.privacy:', data.privacy);
+      console.log('[createRegistry] DB response data.delivery:', data.delivery);
+      console.log('[createRegistry] DB response data.delivery keys:', data.delivery ? Object.keys(data.delivery) : 'null');
 
       // Swap the optimistic (temp-id) entry with the real DB record
       set((state) => ({
