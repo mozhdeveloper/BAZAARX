@@ -1404,6 +1404,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </View>
           </View>
 
+          {/* Added spacing below filters */}
+          <View style={{ height: 24 }} />
+
           {isLoadingReviews ? (
             <ActivityIndicator size="small" color="#FB8C00" style={{ marginVertical: 20 }} />
           ) : reviews.length > 0 ? (
