@@ -156,13 +156,11 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
           created_at: cancellationData?.cancelled_at || cancellationData?.created_at || new Date().toISOString(),
         };
         
-        setTimeline(prev => [...prev, cancelledNode]);
+        setTimeline(prev => [
+          ...prev.filter(entry => entry.id !== 'cancelled'),
+          cancelledNode,
+        ]);
         return;
-      }
-      
-      // Handle query error silently - just show order placed
-      if (error) {
-        console.error('Error fetching cancellation:', error);
       }
       
       const { data, error } = await supabase
