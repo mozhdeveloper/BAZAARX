@@ -58,7 +58,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
               style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
-                marginBottom: 8,
+                marginBottom: 4,
                 opacity: pressed ? 0.7 : 1,
               })}
             >
@@ -74,7 +74,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
 
         <Pressable onPress={onPress}>
           <View style={styles.priceContainer}>
-            <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#92400E' } : null]}>
+            <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#DC2626' } : null]}>
               ₱{(item.price ?? 0).toLocaleString()}
             </Text>
             {!!item.originalPrice && item.originalPrice > (item.price || 0) && (
@@ -95,6 +95,9 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
             min={1}
             variant="compact"
           />
+          <Pressable onPress={onRemove} style={styles.removeButton}>
+            <Trash2 size={16} color={COLORS.gray400} strokeWidth={1.5} />
+          </Pressable>
         </View>
       </View>
     </View>
@@ -106,9 +109,7 @@ CartItemRow.displayName = 'CartItemRow';
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    // REMOVED: backgroundColor, borderRadius, shadow, and elevation 
-    // This allows the component to be "transparent" and sit inside the parent card
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingRight: 12,
     flex: 1,
   },
@@ -124,23 +125,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   name: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '500',
     color: '#111827',
     marginBottom: 4,
-    lineHeight: 22,
+    lineHeight: 20,
   },
-  variantChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4, // Adjusted from 8
-    alignSelf: 'flex-start',
-  },
-  variantChipText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
+
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -148,16 +139,15 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   price: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#92400E',
-    letterSpacing: -0.5,
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   originalPrice: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#9CA3AF',
     textDecorationLine: 'line-through',
-    fontWeight: '500',
+    fontWeight: '400',
   },
   actionsContainer: {
     flexDirection: 'row',
@@ -175,10 +165,10 @@ const styles = StyleSheet.create({
   variantChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     alignSelf: 'flex-start',

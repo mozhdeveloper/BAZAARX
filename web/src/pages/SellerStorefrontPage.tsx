@@ -601,7 +601,7 @@ export default function SellerStorefrontPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header hideSearch />
 
       {/* Seller Header - Modern Dark Orange Style */}
@@ -1015,7 +1015,7 @@ export default function SellerStorefrontPage() {
                   {/* Description */}
                   {seller.description && (
                     <div className="p-6">
-                      <p className="text-gray-900 leading-relaxed text-sm whitespace-pre-line">{seller.description}</p>
+                      <p className="text-gray-900 text-sm">{seller.description}</p>
                     </div>
                   )}
 
@@ -1026,19 +1026,19 @@ export default function SellerStorefrontPage() {
                       <div className="flex items-center gap-4">
                         <Phone className="w-4 h-4 text-gray-400 shrink-0" />
                         <span className="text-sm text-gray-500 w-24 shrink-0">Contact</span>
-                        <span className="text-sm font-medium text-gray-900">{seller.contactNumber && seller.contactNumber !== 'Not provided' ? seller.contactNumber : "Not provided"}</span>
+                        <span className="text-sm text-gray-900">{seller.contactNumber && seller.contactNumber !== 'Not provided' ? seller.contactNumber : "Not provided"}</span>
                       </div>
 
                       <div className="flex items-center gap-4">
                         <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
                         <span className="text-sm text-gray-500 w-24 shrink-0">Location</span>
-                        <span className="text-sm font-medium text-gray-900">{seller.location || "Not provided"}</span>
+                        <span className="text-sm text-gray-900">{seller.location || "Not provided"}</span>
                       </div>
 
                       <div className="flex items-center gap-4">
                         <Star className="w-4 h-4 text-gray-400 shrink-0" />
                         <span className="text-sm text-gray-500 w-24 shrink-0">Ratings</span>
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm text-gray-900">
                           {reviewStats.total > 0 ? `${seller.rating} out of 5 (${reviewStats.total} reviews)` : "No ratings yet"}
                         </span>
                       </div>
@@ -1046,19 +1046,19 @@ export default function SellerStorefrontPage() {
                       <div className="flex items-center gap-4">
                         <CheckCircle2 className="w-4 h-4 text-gray-400 shrink-0" />
                         <span className="text-sm text-gray-500 w-24 shrink-0">Verified</span>
-                        <span className="text-sm font-medium text-gray-900">Verified Official Store</span>
+                        <span className="text-sm text-gray-900">Verified Official Store</span>
                       </div>
 
                       <div className="flex items-center gap-4">
                         <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
                         <span className="text-sm text-gray-500 w-24 shrink-0">Joined</span>
-                        <span className="text-sm font-medium text-gray-900">{seller.established}</span>
+                        <span className="text-sm text-gray-900">{seller.established}</span>
                       </div>
 
                       <div className="flex items-center gap-4">
                         <ShoppingBag className="w-4 h-4 text-gray-400 shrink-0" />
                         <span className="text-sm text-gray-500 w-24 shrink-0">Products</span>
-                        <span className="text-sm font-medium text-gray-900">{allProducts.filter(p => p.sellerId === seller.id).length} Products</span>
+                        <span className="text-sm text-gray-900">{allProducts.filter(p => p.sellerId === seller.id).length} Products</span>
                       </div>
 
                       <button
@@ -1070,11 +1070,11 @@ export default function SellerStorefrontPage() {
                             description: "Store link has been copied to your clipboard.",
                           });
                         }}
-                        className="flex flex-row items-center gap-4 text-left w-full hover:opacity-80 transition-opacity focus:outline-none"
+                        className="flex flex-row items-center gap-4 text-left w-full transition-opacity focus:outline-none"
                       >
                         <ExternalLink className="w-4 h-4 text-gray-400 shrink-0" />
                         <span className="text-sm text-gray-500 w-24 shrink-0">Shop Link</span>
-                        <span className="text-sm font-medium text-[var(--brand-primary)] underline truncate">
+                        <span className="text-sm text-[var(--brand-primary)] hover:underline truncate">
                           bazaarx.com/store/{seller.name.toLowerCase().replace(/\s+/g, '-')}
                         </span>
                       </button>
@@ -1084,7 +1084,7 @@ export default function SellerStorefrontPage() {
                   {/* Categories */}
                   <div className="p-6">
                     <h3 className="font-semibold text-base text-gray-900 mb-3">Categories</h3>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-gray-900">
                       {(sellerCategories.length > 0 ? sellerCategories : seller.categories).join(', ')}
                     </div>
                   </div>

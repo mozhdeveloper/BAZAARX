@@ -53,31 +53,30 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
       return;
     }
     let active = true;
-    let unsubGlobal: (() => void) | null = null;
 
-    const init = async () => {
-      // Initial count
+    // Initial fetch
+    const fetchCount = async () => {
       const count = await chatService.getUnreadCount(profile.id, 'buyer');
-      if (active) setUnreadMessageCount(count);
-
-      // Get conversation IDs to scope the lightweight listener
-      const convs = await chatService.getBuyerConversations(profile.id);
-      if (!active) return;
-      const convIds = convs.map(c => c.id);
-
-      // Subscribe only to new messages in buyer's conversations — no enrichConversation call
-      unsubGlobal = chatService.subscribeToMessagesGlobal(convIds, (msg) => {
-        if (msg.sender_type === 'seller') {
-          setUnreadMessageCount(prev => prev + 1);
-        }
-      });
+      if (active) {
+        setUnreadMessageCount(count);
+      }
     };
+    fetchCount();
 
-    init();
+    // Real-time listener for new messages - reload count when messages arrive
+    const unsub = chatService.subscribeToConversations(
+      profile.id,
+      'buyer',
+      () => { void fetchCount(); } // Refresh count when activity detected
+    );
+
+    // Fallback polling every 5 seconds to ensure we catch all messages
+    const interval = setInterval(() => { void fetchCount(); }, 5000);
 
     return () => {
       active = false;
-      unsubGlobal?.();
+      unsub();
+      clearInterval(interval);
     };
   }, [profile?.id, location.pathname]);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -140,7 +139,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
             onClick={() => navigate("/")}
           >
             <div className={`flex items-center gap-2 transition-all duration-300 ${transparentOnTop && !isScrolled ? "drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]" : ""}`}>
-              <img loading="eager" 
+              <img loading="eager"
                 src="/BazaarX.png"
                 alt="BazaarX Logo"
                 className="h-12 w-auto object-contain"
@@ -332,20 +331,11 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
               {profile ? (
                 <>
                   <div
-                    className="flex items-center gap-3 cursor-pointer group"
+                    className="flex items-center gap-1 cursor-pointer group"
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
                   >
-                    <div className="hidden xl:block text-right">
-                      <p className="text-sm font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors leading-none">
-                        Hi, {profile.firstName}
-                      </p>
-                      <p className="text-[10px] text-[var(--text-accent)] mt-1 uppercase tracking-wider">
-                        {profile.bazcoins} Bazcoins
-                      </p>
-                    </div>
-
                     <div className="relative">
-                      <div className="w-9 h-9 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden shadow-sm hover:scale-105 transition-transform border border-white/50">
+                      <div className="w-9 h-9 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden transition-transform border border-gray-300">
                         {profile.avatar ? (
                           <img loading="lazy" src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
                         ) : (
@@ -354,17 +344,24 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                           </span>
                         )}
                       </div>
-                      <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 shadow-sm">
+                      <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 shadow-sm group-hover:scale-110 ">
                         <ChevronDown
                           className={`h-3 w-3 text-gray-500 transition-transform ${showProfileMenu ? "rotate-180" : ""}`}
                         />
                       </div>
                     </div>
+                    <div className="hidden xl:block text-left">
+                      <p className="text-sm font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors leading-none">
+                        {profile.firstName}
+                      </p>
+                    </div>
+
+
                   </div>
 
                   {/* Profile Dropdown */}
                   {showProfileMenu && (
-                    <div className="absolute right-0 mt-2 w-56 bg-[var(--bg-secondary)] rounded-xl shadow-xl z-50 overflow-hidden text-[var(--text-primary)] animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute right-0 mt-2 w-56 bg-[var(--brand-wash)] rounded-xl shadow-xl z-50 overflow-hidden text-[var(--text-primary)] animate-in fade-in slide-in-from-top-2 duration-200">
                       <div className="p-3 bg-[var(--brand-wash)]/50">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden shadow-md text-white font-bold text-base">
@@ -374,15 +371,15 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                               <span>{profile.firstName.charAt(0)}</span>
                             )}
                           </div>
-                          <div className="hidden md:flex flex-col items-end mr-2">
-                            <span className="text-sm font-medium text-gray-700 leading-none">
+                          <div className="hidden md:flex flex-col items-start">
+                            <span className="text-sm font-medium text-gray-800 leading-none">
                               {profile.firstName} {profile.lastName}
                             </span>
                             <div className="flex items-center gap-1 mt-0.5">
-                              <div className="w-3 h-3 bg-yellow-400 rounded-full flex items-center justify-center">
+                              <div className="w-3 h-3 bg-[var(--brand-accent)] rounded-full flex items-center justify-center">
                                 <span className="text-[8px] font-bold text-white">B</span>
                               </div>
-                              <span className="text-xs text-gray-500">{profile.bazcoins} Bazcoins</span>
+                              <span className="text-xs text-[var(--text-muted)]">{profile.bazcoins} Bazcoins</span>
                             </div>
                           </div>
                         </div>
@@ -409,17 +406,6 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
                           My Returns
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            navigate("/profile?tab=following");
-                            setShowProfileMenu(false);
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] rounded-lg transition-all"
-                        >
-                          <Heart className="h-3.5 w-3.5" />
-                          Following
                         </button>
 
                         <button
@@ -474,12 +460,12 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
               ) : (
                 <button
                   onClick={() => navigate('/login')}
-                  className="flex items-center gap-3 group"
+                  className="flex items-center gap-1 group"
                 >
                   <span className="text-sm font-bold text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors">
                     Sign In
                   </span>
-                  <div className="w-9 h-9 bg-[var(--brand-primary)] rounded-full flex items-center justify-center text-white shadow-sm hover:scale-105 transition-transform border border-white/50">
+                  <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center text-[var(--brand-primary)] shadow-sm hover:scale-105 transition-transform border border-gray-200">
                     <User className="w-5 h-5" />
                   </div>
                 </button>
