@@ -21,6 +21,15 @@ export default function MessagesPage() {
   const location = useLocation();
   const { profile, viewedSellers, conversations, addConversation, addChatMessage, deleteConversation } = useBuyerStore();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+
+  // Clear unread badge optimistically when a conversation is opened
+  const handleSelectConversation = (id: string) => {
+    setSelectedConversation(id);
+    setDbConversations(prev =>
+      prev.map(c => c.id === id ? { ...c, buyer_unread_count: 0 } : c)
+    );
+    if (profile?.id) chatService.markAsRead(id, profile.id, 'buyer').catch(console.error);
+  };
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -225,12 +234,14 @@ export default function MessagesPage() {
           setDbMessages(prev =>
             prev.some(msg => msg.id === result.id) ? prev : [...prev, result]
           );
-          // Optimistic sidebar update — no round-trip needed
+          // Optimistic sidebar update + re-sort so sender's conv bumps to top
           setDbConversations(prev =>
-            prev.map(c =>
-              c.id === selectedConversation
-                ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString(), last_sender_type: 'buyer' }
-                : c
+            sortByLastMessage(
+              prev.map(c =>
+                c.id === selectedConversation
+                  ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString(), last_sender_type: 'buyer' }
+                  : c
+              )
             )
           );
         }
@@ -314,7 +325,7 @@ export default function MessagesPage() {
               </div>
             ) : useRealData ? (
               (filteredConversations as DBConversation[]).map((conv) => (
-                <div key={conv.id} onClick={() => setSelectedConversation(conv.id)} className={`p-4 cursor-pointer hover:bg-[var(--brand-wash)] transition-all border-l-4 ${selectedConversation === conv.id ? 'bg-[var(--brand-wash)] border-l-[var(--brand-primary)]' : 'border-l-transparent'}`}>
+                <div key={conv.id} onClick={() => handleSelectConversation(conv.id)} className={`p-4 cursor-pointer hover:bg-[var(--brand-wash)] transition-all border-l-4 ${selectedConversation === conv.id ? 'bg-[var(--brand-wash)] border-l-[var(--brand-primary)]' : 'border-l-transparent'}`}>
                   <div className="flex gap-3">
                     <div className="relative">
                       <Avatar className="h-12 w-12 border-2 border-white shadow-sm">

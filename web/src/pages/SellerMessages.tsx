@@ -199,12 +199,14 @@ export default function SellerMessages() {
           setDbMessages(prev =>
             prev.some(msg => msg.id === result.id) ? prev : [...prev, result]
           );
-          // Optimistic sidebar update — no round-trip needed
+          // Optimistic sidebar update + re-sort so sender's conv bumps to top
           setDbConversations(prev =>
-            prev.map(c =>
-              c.id === selectedConversation
-                ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString() }
-                : c
+            sortByLastMessage(
+              prev.map(c =>
+                c.id === selectedConversation
+                  ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString() }
+                  : c
+              )
             )
           );
         }
