@@ -1543,7 +1543,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                         isOpen={isCreateRegistryModalOpen}
                         onClose={() => setIsCreateRegistryModalOpen(false)}
                         hideBrowseLink={true}
-                        onCreate={({ name, category, privacy, delivery }) => {
+                        onCreate={({ name, category, delivery }) => {
                             const newRegistry = {
                                 id: `reg-${Date.now()}`,
                                 title: name,
@@ -1551,7 +1551,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
                                 category: category,
                                 products: [],
-                                privacy,
+                                privacy: 'link',
                                 delivery
                             };
                             createRegistry(newRegistry);

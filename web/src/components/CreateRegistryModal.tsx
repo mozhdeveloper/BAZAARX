@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Copy, Check, Gift, Plus, ChevronDown } from "lucide-react";
+import { X, Copy, Check, Gift, Plus, Globe } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -14,7 +14,6 @@ import {
 import { useNavigate } from "react-router-dom";
 import {
   useBuyerStore,
-  RegistryPrivacy,
   RegistryDeliveryPreference,
 } from "../stores/buyerStore";
 
@@ -24,7 +23,6 @@ interface CreateRegistryModalProps {
   onCreate: (payload: {
     name: string;
     category: string;
-    privacy: RegistryPrivacy;
     delivery: RegistryDeliveryPreference;
   }) => void;
   hideBrowseLink?: boolean;
@@ -46,7 +44,6 @@ export const CreateRegistryModal = ({
   const [shareLink, setShareLink] = useState("");
   const [isCopied, setIsCopied] = useState(false);
   const [products, setProducts] = useState<string[]>([]); // Placeholder for selected products
-  const [privacy, setPrivacy] = useState<RegistryPrivacy>("link");
   const [showAddress, setShowAddress] = useState(false);
   const [addressId, setAddressId] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
@@ -88,7 +85,6 @@ export const CreateRegistryModal = ({
     const payload = {
       name: registryName,
       category: finalCategory,
-      privacy,
       delivery,
     };
 
@@ -99,7 +95,6 @@ export const CreateRegistryModal = ({
     setCategory("");
     setOtherCategory("");
     setProducts([]);
-    setPrivacy("link");
     setShowAddress(false);
     setAddressId("");
     setDeliveryInstructions("");
@@ -141,6 +136,19 @@ export const CreateRegistryModal = ({
                 <p className="text-[var(--text-secondary)] text-sm mt-1">
                   Start your wishlist for your special occasion.
                 </p>
+              </div>
+
+              {/* Link-Only Banner */}
+              <div className="mb-6 bg-[var(--brand-wash)] border border-[var(--brand-primary)]/20 rounded-xl p-4 flex items-start gap-3">
+                <Globe className="w-5 h-5 text-[var(--brand-primary)] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-[var(--text-headline)]">
+                    Link-Only Access
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                    All registries are link-only. Anyone with the link can view your registry, but it won't appear in public searches.
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -255,28 +263,8 @@ export const CreateRegistryModal = ({
                   </div>
                 )}
 
-                {/* Privacy & Delivery */}
+                {/* Delivery Preference */}
                 <div className="space-y-4 pt-4 border-t border-gray-100">
-                  <div className="space-y-2">
-                    <Label>Privacy</Label>
-                    <div className="relative">
-                      <select
-                        value={privacy}
-                        onChange={(e) => setPrivacy(e.target.value as RegistryPrivacy)}
-                        className="flex h-10 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-10"
-                      >
-                        <option value="public">Public</option>
-                        <option value="link">Link only</option>
-                        <option value="private">Private</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" />
-                    </div>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Link-only is recommended: only people with the link can
-                      view.
-                    </p>
-                  </div>
-
                   <div className="space-y-2">
                     <Label>Delivery Preference</Label>
                     <div className="flex items-center gap-2 text-sm">

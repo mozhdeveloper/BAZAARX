@@ -8,7 +8,6 @@ import { RegistryDetailModal } from "../components/RegistryDetailModal";
 import { CreateRegistryModal } from "../components/CreateRegistryModal";
 import {
   useBuyerStore,
-  RegistryPrivacy,
   RegistryDeliveryPreference,
 } from "../stores/buyerStore";
 
@@ -43,12 +42,10 @@ const RegistryAndGiftingPage = () => {
   const handleCreateRegistry = async ({
     name,
     category,
-    privacy,
     delivery,
   }: {
     name: string;
     category: string;
-    privacy: RegistryPrivacy;
     delivery: RegistryDeliveryPreference;
   }) => {
     const newRegistry: RegistryItem = {
@@ -62,14 +59,14 @@ const RegistryAndGiftingPage = () => {
       }),
       imageUrl: "/gradGift.jpeg",
       products: [],
-      privacy,
+      privacy: "link",
       delivery,
     };
     await createRegistry(newRegistry);
-    
+
     // After creating, refresh registries to get the DB version with all fields
     await loadRegistries();
-    
+
     // Close create modal
     setIsCreateModalOpen(false);
   };
