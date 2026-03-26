@@ -426,6 +426,17 @@ export default function OrdersScreen({ navigation, route }: Props) {
             )[0];
             return latest?.reason || null;
           })(),
+          // Include cancellation timestamp for cancelled orders
+          cancelledAt: (() => {
+            if (!order.cancellations || order.cancellations.length === 0) {
+              return order.cancelled_at || null;
+            }
+            const latest = [...order.cancellations].sort((a: any, b: any) =>
+              new Date(b.cancelled_at || b.created_at || 0).getTime() -
+              new Date(a.cancelled_at || a.created_at || 0).getTime()
+            )[0];
+            return latest?.cancelled_at || latest?.created_at || null;
+          })(),
         } as Order & { review?: any };
       });
       setDbOrders(mapped);
