@@ -52,30 +52,31 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
       return;
     }
     let active = true;
-    
-    // Initial fetch
-    const fetchCount = async () => {
+    let unsubGlobal: (() => void) | null = null;
+
+    const init = async () => {
+      // Initial count
       const count = await chatService.getUnreadCount(profile.id, 'buyer');
-      if (active) {
-        setUnreadMessageCount(count);
-      }
+      if (active) setUnreadMessageCount(count);
+
+      // Get conversation IDs to scope the lightweight listener
+      const convs = await chatService.getBuyerConversations(profile.id);
+      if (!active) return;
+      const convIds = convs.map(c => c.id);
+
+      // Subscribe only to new messages in buyer's conversations — no enrichConversation call
+      unsubGlobal = chatService.subscribeToMessagesGlobal(convIds, (msg) => {
+        if (msg.sender_type === 'seller') {
+          setUnreadMessageCount(prev => prev + 1);
+        }
+      });
     };
-    fetchCount();
-    
-    // Real-time listener for new messages - reload count when messages arrive
-    const unsub = chatService.subscribeToConversations(
-      profile.id,
-      'buyer',
-      () => { void fetchCount(); } // Refresh count when activity detected
-    );
-    
-    // Fallback polling every 5 seconds to ensure we catch all messages
-    const interval = setInterval(() => { void fetchCount(); }, 5000);
-    
-    return () => { 
+
+    init();
+
+    return () => {
       active = false;
-      unsub(); 
-      clearInterval(interval);
+      unsubGlobal?.();
     };
   }, [profile?.id, location.pathname]);
   const profileMenuRef = useRef<HTMLDivElement>(null);

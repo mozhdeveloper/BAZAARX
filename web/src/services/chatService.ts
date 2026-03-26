@@ -495,18 +495,91 @@ class ChatService {
       return [];
     }
 
-    // Enrich each conversation
-    const enrichedConversations = await Promise.all(
-      conversations.map(async (conv) => {
-        return this.enrichConversation(conv, sellerId, 'seller');
-      })
-    );
+    // Bulk fetch last messages and unread counts in parallel
+    const [recentMsgsResult, sellerUnreadResult, buyerProfilesResult] = await Promise.all([
+      supabase
+        .from('messages')
+        .select('conversation_id, content, created_at, sender_type')
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: false })
+        .limit(200),
+      // Unread messages FROM buyers (seller hasn't read them yet)
+      supabase
+        .from('messages')
+        .select('conversation_id')
+        .in('conversation_id', conversationIds)
+        .eq('sender_type', 'buyer')
+        .eq('is_read', false),
+      supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', conversations.map(c => c.buyer_id)),
+    ]);
 
-    // Sort by last_message_at
-    return enrichedConversations.sort((a, b) => 
-      new Date(b.last_message_at || b.updated_at).getTime() - 
-      new Date(a.last_message_at || a.updated_at).getTime()
-    );
+    const lastMsgByConvId = new Map<string, { content: string; created_at: string; sender_type: string }>();
+    for (const msg of recentMsgsResult.data || []) {
+      if (!lastMsgByConvId.has(msg.conversation_id)) lastMsgByConvId.set(msg.conversation_id, msg);
+    }
+
+    const sellerUnreadByConvId = new Map<string, number>();
+    for (const msg of sellerUnreadResult.data || []) {
+      sellerUnreadByConvId.set(msg.conversation_id, (sellerUnreadByConvId.get(msg.conversation_id) || 0) + 1);
+    }
+
+    const buyerProfileById = new Map<string, { first_name?: string; last_name?: string }>();
+    for (const p of buyerProfilesResult.data || []) buyerProfileById.set(p.id, p);
+
+    const enriched = conversations
+      .map((conv) => {
+        const lastMsg = lastMsgByConvId.get(conv.id);
+        // Skip blank conversations (no messages at all)
+        if (!lastMsg) return null;
+        const profile = buyerProfileById.get(conv.buyer_id);
+        const buyerName = profile
+          ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown Customer'
+          : 'Unknown Customer';
+        return {
+          ...conv,
+          seller_id: sellerId,
+          buyer_name: buyerName,
+          last_message: lastMsg.content || '',
+          last_message_at: lastMsg.created_at || conv.updated_at,
+          last_sender_type: lastMsg.sender_type,
+          seller_unread_count: sellerUnreadByConvId.get(conv.id) || 0,
+          buyer_unread_count: 0,
+          is_online: false,
+          isOnline: false,
+        } as Conversation;
+      })
+      .filter((c): c is Conversation => c !== null);
+
+    // Fetch buyer avatars + presence in parallel
+    const buyerIds = [...new Set(enriched.map(c => c.buyer_id))];
+    const [buyersResult, presenceResult] = await Promise.all([
+      buyerIds.length > 0
+        ? supabase.from('buyers').select('id, avatar_url').in('id', buyerIds)
+        : Promise.resolve({ data: [] }),
+      buyerIds.length > 0
+        ? supabase.from('user_presence').select('user_id, is_online').in('user_id', buyerIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const avatarById = new Map<string, string>();
+    for (const b of (buyersResult as any).data || []) avatarById.set(b.id, b.avatar_url);
+    const presenceById = new Map<string, boolean>();
+    for (const p of (presenceResult as any).data || []) presenceById.set(p.user_id, p.is_online === true);
+
+    return enriched
+      .map(c => ({
+        ...c,
+        buyer_avatar: avatarById.get(c.buyer_id),
+        is_online: presenceById.get(c.buyer_id) ?? false,
+        isOnline: presenceById.get(c.buyer_id) ?? false,
+      }))
+      .sort((a, b) =>
+        new Date(b.last_message_at || b.updated_at).getTime() -
+        new Date(a.last_message_at || a.updated_at).getTime()
+      );
   }
 
   /**
@@ -686,6 +759,15 @@ class ChatService {
 
     this.unsubscribe(channelName);
 
+    // For sellers: track known conversation IDs so we can scope the listener
+    let sellerConvIds = new Set<string>();
+    if (userType === 'seller') {
+      // Pre-populate using getSellerConversations which already does multi-path discovery
+      this.getSellerConversations(userId).then((convs) => {
+        for (const c of convs) sellerConvIds.add(c.id);
+      }).catch(() => {});
+    }
+
     const handleConversationChange = async (conv: any) => {
       if (!conv) return;
 
@@ -696,11 +778,28 @@ class ChatService {
         return;
       }
 
+      // Seller path: if we don't already know this conversation, let enrichConversation
+      // determine ownership. This handles buyer-initiated conversations where the seller
+      // hasn't replied yet — enrichConversation resolves seller_id via order or messages.
+      if (!sellerConvIds.has(conv.id)) {
+        // Let enrichConversation discover the seller via order/messages (don't pre-bias with userId)
+        const enriched = await this.enrichConversation(conv, undefined, 'seller');
+        // If enrichConversation found a different seller, discard
+        if (enriched.seller_id && enriched.seller_id !== userId) return;
+        // If it found us or couldn't find any seller (brand-new buyer-initiated conv), accept
+        enriched.seller_id = userId;
+        sellerConvIds.add(conv.id);
+        onUpdate(enriched);
+        return;
+      }
+
       const enriched = await this.enrichConversation(conv, userId, 'seller');
       if (enriched.seller_id === userId) {
         onUpdate(enriched);
       }
     };
+
+    const buyerFilter = userType === 'buyer' ? `buyer_id=eq.${userId}` : undefined;
 
     const channel = supabase
       .channel(channelName)
@@ -710,6 +809,7 @@ class ChatService {
           event: '*',
           schema: 'public',
           table: 'conversations',
+          ...(buyerFilter ? { filter: buyerFilter } : {}),
         },
         async (payload) => {
           await handleConversationChange((payload.new || payload.old) as any);
@@ -726,6 +826,15 @@ class ChatService {
           const msg = payload.new as Message;
           if (!msg?.conversation_id) return;
 
+          // For buyers: quick check before DB round-trip
+          if (userType === 'buyer') {
+            // fetch conversation only if it might belong to us
+          }
+          // For sellers: skip if we know this conv isn't ours
+          if (userType === 'seller' && sellerConvIds.size > 0 && !sellerConvIds.has(msg.conversation_id)) {
+            return;
+          }
+
           const { data: conv } = await supabase
             .from('conversations')
             .select('*')
@@ -739,6 +848,43 @@ class ChatService {
         console.log(`📡 CONVERSATION STATUS [${channelName}]:`, status);
         if (err) console.error('🚨 CONVERSATION ERROR:', err);
       });
+
+    this.subscriptions.set(channelName, channel);
+    return () => this.unsubscribe(channelName);
+  }
+
+  /**
+   * Lightweight global message listener scoped to a specific set of conversation IDs.
+   * Emits only the fields needed to update sidebar badges/previews — no enrichConversation call.
+   * Used by Header and SellerSidebar to avoid duplicate heavy channels.
+   */
+  subscribeToMessagesGlobal(
+    conversationIds: string[],
+    onNewMessage: (msg: Pick<Message, 'id' | 'conversation_id' | 'content' | 'created_at' | 'sender_type'>) => void
+  ): () => void {
+    if (conversationIds.length === 0) return () => {};
+    const channelName = `global-messages:${conversationIds.slice(0, 3).join('-')}`;
+    this.unsubscribe(channelName);
+
+    const idSet = new Set(conversationIds);
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes' as any,
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as Message;
+          if (!msg?.conversation_id || !idSet.has(msg.conversation_id)) return;
+          onNewMessage({
+            id: msg.id,
+            conversation_id: msg.conversation_id,
+            content: msg.content,
+            created_at: msg.created_at,
+            sender_type: msg.sender_type,
+          });
+        }
+      )
+      .subscribe();
 
     this.subscriptions.set(channelName, channel);
     return () => this.unsubscribe(channelName);
