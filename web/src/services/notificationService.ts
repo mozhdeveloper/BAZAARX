@@ -936,7 +936,7 @@ export class NotificationService {
       message: `Your order #${params.orderNumber} was automatically cancelled because you did not confirm in time. ${params.reason}`,
       icon: 'XCircle',
       iconBg: 'bg-red-500',
-      actionUrl: `/seller/orders/${params.orderId}`,
+      actionUrl: `/seller/orders?id=${params.orderId}`,
       actionData: { orderId: params.orderId },
       priority: 'high'
     });

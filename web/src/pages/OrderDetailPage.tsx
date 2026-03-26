@@ -51,6 +51,7 @@ interface DbOrderData {
   buyer_id?: string;
   is_reviewed?: boolean;
   shipping_cost?: number;
+  cancellationReason?: string;
 }
 
 export default function OrderDetailPage() {
@@ -128,6 +129,7 @@ export default function OrderDetailPage() {
           buyer_id: detail.buyer_id,
           is_reviewed: detail.is_reviewed || false,
           shipping_cost: detail.shipping_cost || 0,
+          cancellationReason: detail.order.cancellationReason,
         };
 
         setDbOrder(extendedOrder);
@@ -445,7 +447,7 @@ export default function OrderDetailPage() {
       : []),
   ];
 
-  const showCancellationReason = isCancelled && (order as any).cancellationReason;
+  const showCancellationReason = isCancelled && order.cancellationReason;
 
   const subtotalAmount =
     order.pricing?.subtotal ??
@@ -1057,7 +1059,7 @@ export default function OrderDetailPage() {
                             )}
                             {item.status === 'cancelled' && showCancellationReason && (
                               <p className="text-xs text-red-600 mt-1 font-medium">
-                                {(order as any).cancellationReason}
+                                {order.cancellationReason}
                               </p>
                             )}
                             {item.status === 'shipped' && order.trackingNumber && (
@@ -1464,6 +1466,7 @@ export default function OrderDetailPage() {
                     buyer_id: detail.buyer_id,
                     is_reviewed: detail.is_reviewed || false,
                     shipping_cost: detail.shipping_cost || 0,
+                    cancellationReason: detail.order.cancellationReason,
                   };
                   setDbOrder(refreshedOrder);
                 }
@@ -1594,6 +1597,7 @@ export default function OrderDetailPage() {
                               buyer_id: detail.buyer_id,
                               is_reviewed: detail.is_reviewed || false,
                               shipping_cost: detail.shipping_cost || 0,
+                              cancellationReason: detail.order.cancellationReason,
                             };
                             setDbOrder(refreshedOrder);
                           }

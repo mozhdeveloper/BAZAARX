@@ -86,7 +86,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Trigger to fire after insert on order_cancellations
 DROP TRIGGER IF EXISTS trg_auto_cancel_notifications ON public.order_cancellations;
