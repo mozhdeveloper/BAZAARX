@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Lock, Eye, EyeOff, ChevronLeft } from "lucide-react";
 import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
+import { validatePassword } from "../utils/validation";
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -14,6 +15,14 @@ export default function ResetPasswordPage() {
   const [isReady, setIsReady] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
+  const livePasswordValidation =
+    password.length > 0 ? validatePassword(password) : null;
+  const livePasswordError =
+    livePasswordValidation && !livePasswordValidation.valid
+      ? livePasswordValidation.errors[0]
+      : "";
+  const hasPasswordMismatch =
+    confirmPassword.length > 0 && password !== confirmPassword;
 
   useEffect(() => {
     const verifyRecoverySession = async () => {
@@ -36,8 +45,9 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError("");
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
       return;
     }
 
@@ -100,6 +110,7 @@ export default function ResetPasswordPage() {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {livePasswordError ? <p className="text-sm text-red-600 mt-1">{livePasswordError}</p> : null}
             </div>
 
             <div>
@@ -122,13 +133,14 @@ export default function ResetPasswordPage() {
                   {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {hasPasswordMismatch ? <p className="text-sm text-red-600 mt-1">Passwords do not match.</p> : null}
             </div>
 
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
             <button
               type="submit"
-              disabled={isLoading || !isReady}
+              disabled={isLoading || !isReady || hasPasswordMismatch || !!livePasswordError}
               className="w-full h-11 rounded-lg bg-[var(--brand-primary)] text-white font-semibold hover:bg-[var(--brand-primary-dark)] transition-colors disabled:opacity-60"
             >
               {isLoading ? "Updating..." : "Update Password"}

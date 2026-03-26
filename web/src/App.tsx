@@ -193,16 +193,17 @@ function App() {
             preferences: {},
           } as any);
 
-          // Check if profile existed BEFORE upsert (used to detect first-time OAuth user)
-          const { data: existingProfileBefore } = await supabase
-            .from('profiles')
+          // Determine first OAuth login using buyer-account existence BEFORE we create it.
+          // Profiles may already exist for new OAuth users (trigger/bootstrap), so they are not reliable.
+          const { data: existingBuyerBefore } = await supabase
+            .from('buyers')
             .select('id')
             .eq('id', user.id)
             .maybeSingle();
-          const isFirstOAuthLogin = !existingProfileBefore;
-          debug('profile existence before upsert', {
+          const isFirstOAuthLogin = !existingBuyerBefore;
+          debug('buyer existence before createBuyerAccount', {
             userId: user.id,
-            existingProfileBefore: !!existingProfileBefore,
+            existingBuyerBefore: !!existingBuyerBefore,
             isFirstOAuthLogin,
           });
 
@@ -234,6 +235,7 @@ function App() {
 
           // 3. CREATE BUYER & ROLE: This handles the 'buyers' and 'user_roles' tables
           await authService.createBuyerAccount(user.id);
+          await authService.ensureUserRolesFromRecords(user.id);
 
           // 4. Fetch the latest profile to sync with the store
           const { data: profileData } = await supabase

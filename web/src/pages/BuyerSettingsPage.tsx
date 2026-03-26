@@ -50,6 +50,7 @@ import { regions, provinces, cities, barangays } from "select-philippines-addres
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AddressPicker } from '@/components/ui/address-picker';
 import { authService } from '../services/authService';
+import { validatePassword } from '../utils/validation';
 
 // Mock data
 const mockAddresses = [
@@ -100,6 +101,8 @@ const mockPaymentMethods = [
 export default function BuyerSettingsPage() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('addresses');
   const { toast } = useToast();
   const { profile, addresses, addAddress, updateAddress, deleteAddress, logout } = useBuyerStore();
@@ -147,6 +150,14 @@ export default function BuyerSettingsPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const livePasswordValidation =
+    newPassword.length > 0 ? validatePassword(newPassword) : null;
+  const livePasswordError =
+    livePasswordValidation && !livePasswordValidation.valid
+      ? livePasswordValidation.errors[0]
+      : '';
+  const hasPasswordMismatch =
+    confirmNewPassword.length > 0 && newPassword !== confirmNewPassword;
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
 
@@ -365,10 +376,11 @@ export default function BuyerSettingsPage() {
       return;
     }
 
-    if (newPassword.length < 8) {
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.valid) {
       toast({
         title: 'Weak password',
-        description: 'New password must be at least 8 characters.',
+        description: passwordValidation.errors[0] || 'Password does not meet minimum security requirements.',
         variant: 'destructive',
       });
       return;
@@ -423,36 +435,59 @@ export default function BuyerSettingsPage() {
 
   // Load notification consent from DB on mount
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    const loadConsent = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
-      supabase
-        .from('user_consent')
+
+      const consentTable = (supabase as any).from('user_consent');
+      const { data: rows } = await consentTable
         .select('channel, consent_type, is_consented')
-        .eq('user_id', user.id)
-        .then(({ data: rows }) => {
-          if (!rows?.length) return;
-          const get = (channel: string, type: string) =>
-            rows.find(r => r.channel === channel && r.consent_type === type)?.is_consented ?? true;
-          setNotifications({
-            email: get('email', 'transactional'),
-            sms: get('sms', 'transactional'),
-            push: get('push', 'transactional'),
-            orderUpdates: get('email', 'transactional'),
-            promotions: get('email', 'marketing'),
-            newsletter: get('email', 'newsletter'),
-          });
-        });
-    });
+        .eq('user_id', user.id);
+
+      const consentRows = (rows ?? []) as Array<{
+        channel: string;
+        consent_type: string;
+        is_consented: boolean;
+      }>;
+      if (!consentRows.length) return;
+
+      const get = (channel: string, type: string) =>
+        consentRows.find((r) => r.channel === channel && r.consent_type === type)?.is_consented ?? true;
+
+      setNotifications({
+        email: get('email', 'transactional'),
+        sms: get('sms', 'transactional'),
+        push: get('push', 'transactional'),
+        orderUpdates: get('email', 'transactional'),
+        promotions: get('email', 'marketing'),
+        newsletter: get('email', 'newsletter'),
+      });
+    };
+
+    loadConsent().catch(console.error);
   }, []);
 
   const saveConsent = (channel: string, consentType: string, isConsented: boolean) => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
-      supabase.from('user_consent').upsert(
-        { user_id: user.id, channel, consent_type: consentType, is_consented: isConsented, updated_at: new Date().toISOString() },
+
+      const consentTable = (supabase as any).from('user_consent');
+      await consentTable.upsert(
+        {
+          user_id: user.id,
+          channel,
+          consent_type: consentType,
+          is_consented: isConsented,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: 'user_id,channel,consent_type' }
-      ).catch(console.error);
-    });
+      );
+    })().catch(console.error);
   };
 
   const [privacy, setPrivacy] = useState({
@@ -881,18 +916,50 @@ export default function BuyerSettingsPage() {
 
                   <div>
                     <Label>New Password</Label>
-                    <Input type="password" placeholder="Enter new password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                    <div className="relative">
+                      <Input
+                        type={showNewPassword ? 'text' : 'password'}
+                        placeholder="Enter new password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {livePasswordError ? <p className="text-sm text-red-600 mt-1">{livePasswordError}</p> : null}
                   </div>
 
                   <div>
                     <Label>Confirm New Password</Label>
-                    <Input type="password" placeholder="Confirm new password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} />
+                    <div className="relative">
+                      <Input
+                        type={showConfirmNewPassword ? 'text' : 'password'}
+                        placeholder="Confirm new password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {hasPasswordMismatch ? <p className="text-sm text-red-600 mt-1">Passwords do not match.</p> : null}
                   </div>
 
                   <Button
                     type="button"
                     onClick={handleUpdatePassword}
-                    disabled={isUpdatingPassword}
+                    disabled={isUpdatingPassword || hasPasswordMismatch || !!livePasswordError}
                     className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                   >
                     {isUpdatingPassword ? (

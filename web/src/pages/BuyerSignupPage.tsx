@@ -17,6 +17,7 @@ import { useBuyerStore } from "../stores/buyerStore";
 import { Checkbox } from "../components/ui/checkbox";
 import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
+import { validatePassword } from "../utils/validation";
 import {
   clearRoleSwitchContext,
   readRoleSwitchContext,
@@ -41,8 +42,21 @@ export default function BuyerSignupPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [emailCheckState, setEmailCheckState] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
+  const [emailCheckMessage, setEmailCheckMessage] = useState("");
   const [switchContext, setSwitchContext] = useState<RoleSwitchContext | null>(null);
   const isSwitchMode = switchContext?.targetMode === "buyer";
+  const livePasswordValidation =
+    !isSwitchMode && formData.password.length > 0
+      ? validatePassword(formData.password)
+      : null;
+  const livePasswordError =
+    livePasswordValidation && !livePasswordValidation.valid
+      ? livePasswordValidation.errors[0]
+      : "";
+  const hasPasswordMismatch =
+    formData.confirmPassword.length > 0 &&
+    formData.password !== formData.confirmPassword;
 
   useEffect(() => {
     const state = location.state as { roleSwitchContext?: RoleSwitchContext } | null;
@@ -75,10 +89,43 @@ export default function BuyerSignupPage() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.name === "email") {
+      setEmailCheckState("idle");
+      setEmailCheckMessage("");
+    }
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
+  };
+
+  const runEmailCheck = async () => {
+    if (isSwitchMode) return false;
+
+    const email = formData.email.trim();
+    if (!email) {
+      setEmailCheckState("idle");
+      setEmailCheckMessage("");
+      return false;
+    }
+
+    if (!validateEmail(email)) {
+      setEmailCheckState("error");
+      setEmailCheckMessage("Please enter a valid email format.");
+      return false;
+    }
+
+    setEmailCheckState("checking");
+    const exists = await authService.checkEmailExists(email);
+    if (exists) {
+      setEmailCheckState("taken");
+      setEmailCheckMessage("This email is already registered. Please sign in instead.");
+      return true;
+    }
+
+    setEmailCheckState("available");
+    setEmailCheckMessage("Email is available.");
+    return false;
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -96,13 +143,22 @@ export default function BuyerSignupPage() {
       return;
     }
 
+    if (!isSwitchMode) {
+      const taken = await runEmailCheck();
+      if (taken) {
+        setError("This email is already registered. Please sign in instead.");
+        return;
+      }
+    }
+
     if (!formData.phone || !validatePhone(formData.phone)) {
       setError("Please enter a valid Philippine phone number.");
       return;
     }
 
-    if (!formData.password || formData.password.length < 8) {
-      setError("Password must be at least 8 characters long.");
+    const passwordValidation = validatePassword(formData.password);
+    if (!passwordValidation.valid) {
+      setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
       return;
     }
 
@@ -420,11 +476,27 @@ export default function BuyerSignupPage() {
                   placeholder="you@example.com"
                   value={formData.email}
                   onChange={handleChange}
+                  onBlur={() => {
+                    void runEmailCheck();
+                  }}
                   readOnly={isSwitchMode}
                   className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-0 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                   disabled={isLoading}
                 />
               </div>
+              {!isSwitchMode && emailCheckState !== "idle" && (
+                <p
+                  className={`text-xs mt-1 ${
+                    emailCheckState === "available"
+                      ? "text-green-600"
+                      : emailCheckState === "checking"
+                        ? "text-[var(--text-muted)]"
+                        : "text-red-600"
+                  }`}
+                >
+                  {emailCheckState === "checking" ? "Checking email availability..." : emailCheckMessage}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -479,6 +551,9 @@ export default function BuyerSignupPage() {
                     {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                 </div>
+                {!isSwitchMode && livePasswordError && (
+                  <p className="text-xs text-red-600 ml-1">{livePasswordError}</p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -509,6 +584,9 @@ export default function BuyerSignupPage() {
                     {showConfirmPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
                 </div>
+                {hasPasswordMismatch && (
+                  <p className="text-xs text-red-600 ml-1">Passwords do not match.</p>
+                )}
               </div>
             </div>
 
@@ -542,7 +620,7 @@ export default function BuyerSignupPage() {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || hasPasswordMismatch || (!isSwitchMode && !!livePasswordError)}
               className="btn-primary w-full h-14 text-md uppercase rounded-[var(--radius-md)] shadow-[var(--shadow-medium)] flex items-center justify-center gap-2 mt-2"
             >
               {isLoading ? (

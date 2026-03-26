@@ -16,6 +16,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
+import { validatePassword } from "../utils/validation";
 
 interface BuyerAuthModalProps {
   isOpen: boolean;
@@ -41,6 +42,18 @@ export function BuyerAuthModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
+  const livePasswordValidation =
+    mode === "signup" && password.length > 0
+      ? validatePassword(password)
+      : null;
+  const livePasswordError =
+    livePasswordValidation && !livePasswordValidation.valid
+      ? livePasswordValidation.errors[0]
+      : "";
+  const hasPasswordMismatch =
+    mode === "signup" &&
+    confirmPassword.length > 0 &&
+    password !== confirmPassword;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +73,9 @@ export function BuyerAuthModal({
           setIsLoading(false);
           return;
         }
-        if (password.length < 6) {
-          setError("Password must be at least 6 characters");
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.valid) {
+          setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
           setIsLoading(false);
           return;
         }
@@ -301,6 +315,9 @@ export function BuyerAuthModal({
                         )}
                       </button>
                     </div>
+                    {livePasswordError ? (
+                      <p className="text-sm text-red-600 mt-2">{livePasswordError}</p>
+                    ) : null}
                   </div>
 
                   {/* Confirm Password (Signup Only) */}
@@ -337,6 +354,9 @@ export function BuyerAuthModal({
                           )}
                         </button>
                       </div>
+                      {hasPasswordMismatch ? (
+                        <p className="text-sm text-red-600 mt-2">Passwords do not match.</p>
+                      ) : null}
                     </div>
                   )}
 
@@ -356,10 +376,10 @@ export function BuyerAuthModal({
                     </div>
                   )}
 
-                  {/* Submit Button */}
+                  {/* Submit Button */} || !!livePasswordError
                   <Button
                     type="submit"
-                    disabled={isLoading}
+                    disabled={isLoading || hasPasswordMismatch}
                     className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-orange-500/30"
                   >
                     {isLoading ? (

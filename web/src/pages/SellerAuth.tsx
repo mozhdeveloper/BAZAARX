@@ -13,6 +13,7 @@ import {
   type RoleSwitchContext,
 } from '@/services/roleSwitchContext';
 import { supabase } from '@/lib/supabase';
+import { validatePassword } from '@/utils/validation';
 
 
 export function SellerLogin() {
@@ -45,19 +46,30 @@ export function SellerLogin() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError('Please enter both email and password.');
+      return;
+    }
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+    if (!isValidEmail) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
     try {
       await new Promise(resolve => setTimeout(resolve, 800)); // Simulate loading for effect
-      const success = await login(email, password);
+      const success = await login(trimmedEmail, password);
       if (success) {
         const currentSeller = useAuthStore.getState().seller;
         navigate(resolveSellerLandingPath(currentSeller));
       } else {
-        setError('Invalid email or password');
+        setError('Incorrect credentials. Please check your email and password.');
       }
     } catch (err) {
-      setError("Something went wrong. Please try again.");
+      setError('Incorrect credentials. Please check your email and password.');
     } finally {
       setIsLoading(false);
     }
@@ -250,13 +262,27 @@ export function SellerRegister() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [emailCheckState, setEmailCheckState] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
+  const [emailCheckMessage, setEmailCheckMessage] = useState("");
+  const [emailCheckMode, setEmailCheckMode] = useState<"new" | "buyer-only" | "blocked" | null>(null);
   const [step, setStep] = useState(1);
   const [switchContext, setSwitchContext] = useState<RoleSwitchContext | null>(null);
+  const isSwitchMode = switchContext?.targetMode === "seller";
+  const livePasswordValidation =
+    !isSwitchMode && formData.password.length > 0
+      ? validatePassword(formData.password)
+      : null;
+  const livePasswordError =
+    livePasswordValidation && !livePasswordValidation.valid
+      ? livePasswordValidation.errors[0]
+      : "";
+  const hasPasswordMismatch =
+    formData.confirmPassword.length > 0 &&
+    formData.password !== formData.confirmPassword;
 
   const { register, hydrateSellerFromSession } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const isSwitchMode = switchContext?.targetMode === "seller";
 
   useEffect(() => {
     const state = location.state as { roleSwitchContext?: RoleSwitchContext } | null;
@@ -289,19 +315,75 @@ export function SellerRegister() {
   const validateStoreContact = (value: string) =>
     /^(\+63|0)?9\d{9}$/.test(value.replace(/\s/g, ""));
 
-  const handleNext = () => {
+  const validateEmail = (value: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+  const runSellerEmailCheck = async (): Promise<"new" | "buyer-only" | "blocked" | "invalid"> => {
+    if (isSwitchMode) return "new";
+
+    const email = formData.email.trim();
+    if (!email || !validateEmail(email)) {
+      setEmailCheckState("error");
+      setEmailCheckMessage("Please enter a valid email format.");
+      setEmailCheckMode(null);
+      return "invalid";
+    }
+
+    setEmailCheckState("checking");
+    const status = await authService.getEmailRoleStatus(email);
+
+    if (!status.exists) {
+      setEmailCheckState("available");
+      setEmailCheckMessage("Email is available.");
+      setEmailCheckMode("new");
+      return "new";
+    }
+
+    const hasSellerRole = status.roles.includes("seller");
+    const isBuyerOnly = status.roles.length === 1 && status.roles[0] === "buyer";
+
+    if (isBuyerOnly) {
+      setEmailCheckState("available");
+      setEmailCheckMessage("Existing buyer account found. You can continue to create a seller profile.");
+      setEmailCheckMode("buyer-only");
+      return "buyer-only";
+    }
+
+    setEmailCheckState("taken");
+    setEmailCheckMessage(
+      hasSellerRole
+        ? "This email is already registered as a seller. Please sign in instead."
+        : "This email is already registered with restricted roles. Use another email."
+    );
+    setEmailCheckMode("blocked");
+    return "blocked";
+  };
+
+  const handleNext = async () => {
     if (step === 1) {
       if (!formData.email || !formData.password || !formData.confirmPassword) {
         setError("Please fill in all fields");
+        return;
+      }
+      if (!validateEmail(formData.email)) {
+        setError("Please enter a valid email address");
+        return;
+      }
+      const mode = isSwitchMode ? "new" : await runSellerEmailCheck();
+      if (!isSwitchMode && mode === "blocked") {
+        setError("This email is already registered. Please sign in instead.");
         return;
       }
       if (formData.password !== formData.confirmPassword) {
         setError("Passwords do not match");
         return;
       }
-      if (formData.password.length < 6) {
-        setError("Password must be at least 6 characters");
-        return;
+      if (mode === "new") {
+        const passwordValidation = validatePassword(formData.password);
+        if (!passwordValidation.valid) {
+          setError(passwordValidation.errors[0] || "Password does not meet minimum security requirements.");
+          return;
+        }
       }
       setError("");
       setStep(2);
@@ -339,6 +421,13 @@ export function SellerRegister() {
     setIsLoading(true);
     setError("");
 
+    const mode = isSwitchMode ? "new" : await runSellerEmailCheck();
+    if (!isSwitchMode && (mode === "blocked" || mode === "invalid")) {
+      setError("This email cannot be used for seller signup.");
+      setIsLoading(false);
+      return;
+    }
+
     if (isSwitchMode) {
       if (!formData.password || !formData.confirmPassword) {
         setError("Please set and confirm your password");
@@ -347,11 +436,6 @@ export function SellerRegister() {
       }
       if (formData.password !== formData.confirmPassword) {
         setError("Passwords do not match");
-        setIsLoading(false);
-        return;
-      }
-      if (formData.password.length < 6) {
-        setError("Password must be at least 6 characters");
         setIsLoading(false);
         return;
       }
@@ -394,6 +478,38 @@ export function SellerRegister() {
       return;
     }
 
+    if (mode === "buyer-only") {
+      try {
+        const { data: verifyData, error: verifyError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (verifyError || !verifyData.user?.id) {
+          setError("Incorrect current buyer password. Please try again.");
+          setIsLoading(false);
+          return;
+        }
+
+        await authService.upgradeCurrentUserToSeller({
+          store_name: formData.storeName.trim(),
+          store_description: formData.storeDescription.trim(),
+          phone: formData.storeContact.trim() || undefined,
+        });
+
+        await hydrateSellerFromSession();
+        clearRoleSwitchContext();
+        setIsLoading(false);
+        const currentSeller = useAuthStore.getState().seller;
+        navigate(resolveSellerLandingPath(currentSeller));
+      } catch (err) {
+        console.error("Buyer-to-seller upgrade from signup failed:", err);
+        setError("Unable to convert buyer account to seller. Please try again.");
+        setIsLoading(false);
+      }
+      return;
+    }
+
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       const success = await register({
@@ -412,7 +528,7 @@ export function SellerRegister() {
         setIsLoading(false);
       }
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError('Incorrect credentials or account details. Please review your input and try again.');
       setIsLoading(false);
     }
   };
@@ -508,7 +624,15 @@ export function SellerRegister() {
                           type="email"
                           name="email"
                           value={formData.email}
-                          onChange={handleChange}
+                          onChange={(e) => {
+                            setEmailCheckState("idle");
+                            setEmailCheckMessage("");
+                            setEmailCheckMode(null);
+                            handleChange(e);
+                          }}
+                          onBlur={() => {
+                            void runSellerEmailCheck();
+                          }}
                           readOnly={isSwitchMode}
                           placeholder="name@example.com"
                           className={`w-full pl-12 pr-4 py-4 border rounded-xl outline-none transition-all text-sm font-medium ${isSwitchMode
@@ -518,6 +642,19 @@ export function SellerRegister() {
                           required
                         />
                       </div>
+                      {!isSwitchMode && emailCheckState !== "idle" && (
+                        <p
+                          className={`text-xs mt-2 ${
+                            emailCheckState === "available"
+                              ? "text-green-600"
+                              : emailCheckState === "checking"
+                                ? "text-gray-500"
+                                : "text-red-600"
+                          }`}
+                        >
+                          {emailCheckState === "checking" ? "Checking email availability..." : emailCheckMessage}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -529,6 +666,9 @@ export function SellerRegister() {
                         <input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange} placeholder={isSwitchMode ? "Enter your current password" : "Create a strong password"} className="w-full pl-12 pr-12 py-4 bg-white border border-gray-200 rounded-xl focus:ring-0 focus:border-[var(--brand-primary)] outline-none transition-all text-sm font-medium" required />
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                       </div>
+                      {!isSwitchMode && livePasswordError && (
+                        <p className="text-xs text-red-600">{livePasswordError}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -539,9 +679,12 @@ export function SellerRegister() {
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[var(--brand-primary)] transition-colors" />
                         <input type={showConfirmPassword ? "text" : "password"} name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm your password" className="w-full pl-12 pr-12 py-4 bg-white border border-gray-200 rounded-xl focus:ring-0 focus:border-[var(--brand-primary)] outline-none transition-all text-sm font-medium" required />
                       </div>
+                      {hasPasswordMismatch && (
+                        <p className="text-xs text-red-600">Passwords do not match.</p>
+                      )}
                     </div>
 
-                    <button type="button" onClick={handleNext} className="w-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 text-white h-14 rounded-xl text-lg font-bold shadow-xl shadow-orange-500/20 mt-4 flex items-center justify-center gap-2 transition-all hover:translate-x-1">
+                    <button type="button" onClick={() => { void handleNext(); }} disabled={hasPasswordMismatch || (!isSwitchMode && !!livePasswordError)} className="w-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 text-white h-14 rounded-xl text-lg font-bold shadow-xl shadow-orange-500/20 mt-4 flex items-center justify-center gap-2 transition-all hover:translate-x-1 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-x-0">
                       <span>Next Step</span> <ArrowRight size={20} />
                     </button>
                   </motion.div>

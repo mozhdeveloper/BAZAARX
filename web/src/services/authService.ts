@@ -7,6 +7,7 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Profile, Buyer, Seller, UserRole, UserRoleRecord, FullProfile } from '@/types/database.types';
 import { sendWelcomeEmail } from '@/services/transactionalEmails';
+import { validatePassword } from '@/utils/validation';
 
 // Service-specific types
 export interface SignUpData {
@@ -33,6 +34,12 @@ export interface ProfileContact {
   phone: string | null;
 }
 
+export interface EmailRoleStatus {
+  exists: boolean;
+  userId: string | null;
+  roles: UserRole[];
+}
+
 const defaultBuyerPreferences = {
   language: 'en',
   currency: 'PHP',
@@ -49,6 +56,78 @@ const defaultBuyerPreferences = {
 };
 
 export class AuthService {
+  /**
+   * Check whether an email is already used by an existing profile.
+   * Used for live signup validation (buyer/seller).
+   */
+  async checkEmailExists(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return false;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking email availability:', error);
+        return false;
+      }
+
+      return (data ?? []).length > 0;
+    } catch (error) {
+      console.error('Unexpected email check error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get role status for an email (used by seller signup rules and role-switch checks).
+   */
+  async getEmailRoleStatus(email: string): Promise<EmailRoleStatus> {
+    if (!isSupabaseConfigured()) {
+      return { exists: false, userId: null, roles: [] };
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return { exists: false, userId: null, roles: [] };
+    }
+
+    try {
+      const { data: profileRows, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .limit(1);
+
+      if (profileError || !profileRows || profileRows.length === 0) {
+        return { exists: false, userId: null, roles: [] };
+      }
+
+      const userId = (profileRows[0] as { id: string }).id;
+      const { data: roleRows, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
+
+      if (roleError) {
+        console.error('Error fetching role status by email:', roleError);
+        return { exists: true, userId, roles: [] };
+      }
+
+      const roles = ((roleRows ?? []) as Array<{ role: UserRole }>).map((row) => row.role);
+      return { exists: true, userId, roles };
+    } catch (error) {
+      console.error('Unexpected email role status error:', error);
+      return { exists: false, userId: null, roles: [] };
+    }
+  }
+
   /**
    * Sign up a new user
    * @param email - User email address
@@ -71,6 +150,11 @@ export class AuthService {
                        ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ')[0] : null);
     const last_name = 'last_name' in userData ? userData.last_name :
                       ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ').slice(1).join(' ') : null);
+
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      throw new Error(passwordValidation.errors[0] || 'Password does not meet minimum security requirements.');
+    }
 
     try {
       // Sign up with Supabase Auth
@@ -418,6 +502,8 @@ export class AuthService {
         if (buyerError) {
           console.error('Error upserting buyer record:', buyerError);
         }
+
+        await this.ensureUserRolesFromRecords(data.user.id);
       }
 
       return { user: data.user, session: data.session };
@@ -650,6 +736,11 @@ export class AuthService {
       return;
     }
 
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+      throw new Error(passwordValidation.errors[0] || 'Password does not meet minimum security requirements.');
+    }
+
     try {
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
@@ -688,7 +779,8 @@ export class AuthService {
       }
 
       if (existingBuyer) {
-        // Buyer record already exists
+        // Buyer record already exists - still ensure role integrity
+        await this.addUserRole(userId, 'buyer');
         return true;
       }
 
@@ -846,6 +938,39 @@ export class AuthService {
     }
 
     return { userId: user.id };
+  }
+
+  /**
+   * Ensure user_roles is aligned with existing normalized role tables.
+   * Used to heal missing role rows for legacy accounts and OAuth callbacks.
+   */
+  async ensureUserRolesFromRecords(userId: string): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+
+    const [{ data: buyerRow, error: buyerError }, { data: sellerRow, error: sellerError }] = await Promise.all([
+      supabase
+        .from('buyers')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle(),
+      supabase
+        .from('sellers')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle(),
+    ]);
+
+    if (buyerError) {
+      console.error('Error checking buyer record for role sync:', buyerError);
+    } else if (buyerRow) {
+      await this.addUserRole(userId, 'buyer');
+    }
+
+    if (sellerError) {
+      console.error('Error checking seller record for role sync:', sellerError);
+    } else if (sellerRow) {
+      await this.addUserRole(userId, 'seller');
+    }
   }
 
   /**
