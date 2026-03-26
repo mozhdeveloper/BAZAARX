@@ -199,6 +199,82 @@ The following files are local AI standards and are **never committed**:
 
 ---
 
+## Session Log — March 26, 2026
+
+### Bug Fix — Missing `@shopify/flash-list` Module (Mobile)
+
+**Prompt:** "Fix the problem in the terminal — `Cannot find module '@shopify/flash-list' or its corresponding type declarations.` at `mobile-app/app/HomeScreen.tsx:29`"
+
+**Root Cause:** The `@shopify/flash-list` package was imported but not installed in `mobile-app/package.json`.
+
+**Action Taken:**
+- Ran `npm install @shopify/flash-list` in `mobile-app/` directory
+- Module now resolves correctly and TypeScript error cleared
+
+---
+
+### UI Refactor — Return / Refund Form Layout Optimization (Web)
+
+**Prompt:** "Make all the form of request return / refund fit in the screen and buyer don't have to scroll to pick the choices. Also the steps above, make it fit in the screen and does not have to scroll sideways."
+
+**Changes Made to `web/src/pages/BuyerReturnRequestPage.tsx`:**
+
+**1. Step Progress Bar (Compact)**
+- Reduced padding: `px-3 py-1.5` → `px-2 py-1`
+- Reduced font size: `text-xs` → `text-[10px]`
+- Reduced icon sizes: `w-3.5 h-3.5` → `w-3 h-3`, `w-5 h-5` → `w-4 h-4`
+- Hidden step labels on mobile, show only numbers
+- Reduced connectors between steps: `w-6` → `w-2 sm:w-3`
+- Adjusted margins: `mb-8` → `mb-6`
+- Added horizontal scroll with overflow handling for smaller screens
+
+**2. Reason Selection (2-Column Grid)**
+- Changed layout from full-width stack to `grid-cols-1 sm:grid-cols-2`
+- Reduced padding: `p-4` → `p-3`
+- Reduced gap: `gap-3` → `gap-2`
+- Reduced icon wrapper: `p-2 rounded-lg` → `p-1.5 rounded-lg` with `w-4 h-4` icons
+- Reduced text sizes: `text-lg` → `text-base` heading, descriptions use `text-[11px]`
+- Added `line-clamp-2` to descriptions for consistent height
+
+**3. Return Type Options (2-Column Grid)**
+- Applied same 2-column grid layout as reason selection
+- Reduced all spacing and icon sizes proportionally
+- Compact badge: `text-[10px]` → `text-[9px]`
+
+**4. Item Selection (Compact Cards)**
+- Reduced image size: `w-16 h-16` → `w-12 h-12`
+- Reduced padding: `p-4` → `p-2`
+- Reduced gaps: `gap-4` → `gap-3`
+- Adjusted text sizes and removed/condensed spacing
+
+**5. Evidence Upload (Compact)**
+- Reduced upload area padding: `p-8` → `p-5`
+- Reduced icon size: `w-8 h-8` → `w-6 h-6`
+- Reduced text sizes and margins
+- Preview grid gap: `gap-3` → `gap-2`
+- Reduced remove button: `w-5 h-5` → `w-4 h-4`
+- Description textarea rows: `rows={3}` → `rows={2}`
+
+**6. Review Section (Compact Cards)**
+- Reduced all summary cards padding: `p-3` → `p-2`
+- Reduced gap for items list: `gap-3 py-1` → `gap-2 py-0.5`
+- Reduced image sizes: `w-10 h-10` → `w-8 h-8`, evidence preview `w-14 h-14` → `w-10 h-10`
+- Adjusted text sizes throughout: headers `text-base`, content `text-xs`
+- Reduced resolution path hint padding and icon sizes
+
+**7. Overall Layout**
+- Header sizes: `text-2xl` → `text-xl` main title, `text-sm` → `text-xs` subtitle
+- Card content padding: `p-6` → `p-4`
+- Navigation buttons: `px-6` → `px-4` with `size="sm"`
+- Button text size: `text-sm` → `text-xs`
+- All section spacing reduced: `space-y-3` → `space-y-2` or `space-y-3` where appropriate
+
+**Result:** All reason options, return type options, and form fields now display without vertical or horizontal scrolling on most screen sizes. The 2-column grid layout makes efficient use of space while maintaining visual clarity and touchable button sizes.
+
+**Branch:** `style/retur-refund-ui`
+
+---
+
 ## Session Log — March 11, 2026
 
 ### Feature — `BackToShopButton` on Flash Sale Screens (Mobile + Web)
