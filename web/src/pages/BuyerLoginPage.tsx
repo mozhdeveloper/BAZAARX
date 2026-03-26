@@ -139,6 +139,8 @@ export default function BuyerLoginPage() {
     try {
       const result = await authService.signInWithProvider("google");
       if (result?.url) {
+        sessionStorage.setItem('oauth_intent', 'buyer');
+        sessionStorage.removeItem('oauth_redirect_done');
         window.location.assign(result.url); // Manually trigger the redirect
       }
     } catch (err) {
@@ -159,6 +161,8 @@ export default function BuyerLoginPage() {
     try {
       const result = await authService.signInWithProvider("facebook");
       if (result?.url) {
+        sessionStorage.setItem('oauth_intent', 'buyer');
+        sessionStorage.removeItem('oauth_redirect_done');
         window.location.assign(result.url); // Manually trigger the redirect
       }
     } catch (err) {

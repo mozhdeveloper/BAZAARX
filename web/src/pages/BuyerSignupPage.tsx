@@ -238,15 +238,33 @@ export default function BuyerSignupPage() {
   const handleGoogleSignup = async () => {
     setError("");
     setIsLoading(true);
-    await authService.signInWithProvider("google");
-    setTimeout(() => setIsLoading(false), 3000);
+    try {
+      const result = await authService.signInWithProvider("google");
+      if (result?.url) {
+        sessionStorage.setItem('oauth_intent', 'buyer');
+        sessionStorage.removeItem('oauth_redirect_done');
+        window.location.assign(result.url); // Manually trigger the redirect
+      }
+    } catch (err) {
+      setError("Failed to initialize Google Sign-In.");
+      setIsLoading(false);
+    }
   };
 
   const handleFacebookSignup = async () => {
     setError("");
     setIsLoading(true);
-    await authService.signInWithProvider("facebook");
-    setTimeout(() => setIsLoading(false), 3000);
+    try {
+      const result = await authService.signInWithProvider("facebook");
+      if (result?.url) {
+        sessionStorage.setItem('oauth_intent', 'buyer');
+        sessionStorage.removeItem('oauth_redirect_done');
+        window.location.assign(result.url); // Manually trigger the redirect
+      }
+    } catch (err) {
+      setError("Failed to initialize Facebook Sign-In.");
+      setIsLoading(false);
+    }
   };
 
   return (

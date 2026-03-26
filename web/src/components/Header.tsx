@@ -29,6 +29,7 @@ import {
   newArrivals,
 } from "../data/products";
 import { prefetchRoute } from "@/lib/prefetch";
+import { authService } from "../services/authService";
 
 interface HeaderProps {
   transparentOnTop?: boolean;
@@ -83,6 +84,18 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
   // Check if we're on the search page
   const isSearchPage = location.pathname === "/search";
+
+  const handleSignOut = async () => {
+    try {
+      await authService.signOut();
+    } catch (error) {
+      console.error('Header sign-out failed:', error);
+    } finally {
+      logout();
+      setShowProfileMenu(false);
+      navigate('/login');
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -447,9 +460,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
                         <button
                           onClick={() => {
-                            logout();
-                            setShowProfileMenu(false);
-                            navigate('/login');
+                            void handleSignOut();
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-all"
                         >

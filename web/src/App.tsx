@@ -137,8 +137,23 @@ function App() {
   // Global auth state listener — handles token refresh, sign-out, and session sync
   useEffect(() => {
     const handleAuthChange = async (event: string, session: any) => {
-      // Track if this is an OAuth redirect (INITIAL_SESSION after page load with token)
-      const isOAuthRedirect = event === 'INITIAL_SESSION' && window.location.hash.includes('access_token');
+      const debug = (...args: any[]) => {
+        console.log('[AuthDebug]', ...args);
+      };
+
+      // Track if this is an OAuth redirect callback (Supabase appends access_token in hash)
+      const oauthIntent = sessionStorage.getItem('oauth_intent');
+      const oauthRedirectDone = sessionStorage.getItem('oauth_redirect_done');
+      const isOAuthRedirect = oauthIntent === 'buyer' || window.location.hash.includes('access_token');
+      debug('onAuthStateChange', {
+        event,
+        pathname: window.location.pathname,
+        hash: window.location.hash,
+        oauthIntent,
+        oauthRedirectDone,
+        isOAuthRedirect,
+        hasSessionUser: !!session?.user,
+      });
 
       // 1. Catch BOTH events: SIGNED_IN (direct login) and INITIAL_SESSION (page load after Google redirect)
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
@@ -175,6 +190,32 @@ function App() {
             totalSpent: 0,
             preferences: {},
           } as any);
+
+          // Check if profile existed BEFORE upsert (used to detect first-time OAuth user)
+          const { data: existingProfileBefore } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', user.id)
+            .maybeSingle();
+          const isFirstOAuthLogin = !existingProfileBefore;
+          debug('profile existence before upsert', {
+            userId: user.id,
+            existingProfileBefore: !!existingProfileBefore,
+            isFirstOAuthLogin,
+          });
+
+          // Redirect immediately once we know first-time vs returning OAuth user.
+          // Use BrowserRouter-compatible history navigation (no full reload).
+          if (isOAuthRedirect && oauthRedirectDone !== '1') {
+            const targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/shop';
+            sessionStorage.setItem('oauth_redirect_done', '1');
+            sessionStorage.removeItem('oauth_intent');
+            debug('immediate oauth navigation', { userId: user.id, targetPath, currentPath: window.location.pathname });
+            if (window.location.pathname !== targetPath) {
+              window.history.replaceState({}, '', targetPath);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          }
 
           // 2. CREATE/UPDATE PROFILE: Force insert into the 'profiles' table
           const { error: profileUpsertError } = await supabase.from('profiles').upsert({
@@ -236,10 +277,7 @@ function App() {
           // 7. Initialize the cart (non-blocking)
           void useBuyerStore.getState().initializeCart();
 
-          // 8. Redirect to shop if this was an OAuth redirect
-          if (isOAuthRedirect) {
-            window.location.hash = '/shop';
-          }
+          // Redirect already handled above for OAuth flows.
           
         } catch (err) {
           console.error("Error during Google Auth sync:", err);
@@ -247,9 +285,12 @@ function App() {
       }
 
       if (event === 'SIGNED_OUT') {
+        debug('signed out event cleanup', { userId: session?.user?.id || null });
         localStorage.removeItem('seller-auth-storage');
         localStorage.removeItem('admin-auth');
         localStorage.removeItem('buyer-store');
+        sessionStorage.removeItem('oauth_intent');
+        sessionStorage.removeItem('oauth_redirect_done');
         useBuyerStore.getState().logout();
       }
     };
