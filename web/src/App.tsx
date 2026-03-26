@@ -60,6 +60,8 @@ const ProductRequestDetailPage = lazy(() => import("./pages/ProductRequestDetail
 const CommunityRequestsPage = lazy(() => import("./pages/CommunityRequestsPage"));
 const BuyerLoginPage = lazy(() => import("./pages/BuyerLoginPage"));
 const BuyerSignupPage = lazy(() => import("./pages/BuyerSignupPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const BuyerSupport = lazyNamed(() => import("./pages/BuyerSupport"), "BuyerSupport");
 const MyTickets = lazy(() => import("./pages/MyTickets"));
 const BuyerOnboardingPage = lazy(() => import("./pages/BuyerOnboardingPage"));
@@ -314,6 +316,9 @@ function App() {
             <Route path="/sell" element={<SellerLandingPage />} />
             <Route path="/login" element={<BuyerLoginPage />} />
             <Route path="/signup" element={<BuyerSignupPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/forgot" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
               path="/buyer-onboarding"
               element={

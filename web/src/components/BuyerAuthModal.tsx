@@ -345,6 +345,10 @@ export function BuyerAuthModal({
                     <div className="flex justify-end">
                       <button
                         type="button"
+                        onClick={() => {
+                          onClose();
+                          navigate('/forgot-password');
+                        }}
                         className="text-sm text-orange-600 font-semibold hover:text-orange-700"
                       >
                         Forgot Password?

@@ -159,7 +159,7 @@ export function SellerLogin() {
                   </div>
                   <span className="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Remember me</span>
                 </label>
-                <Link to="/forgot" className="text-sm font-bold text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] transition-colors hover:underline">Forgot Password?</Link>
+                <Link to="/forgot-password" className="text-sm font-bold text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] transition-colors hover:underline">Forgot Password?</Link>
               </div>
 
               <Button
