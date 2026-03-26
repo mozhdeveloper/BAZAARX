@@ -891,6 +891,56 @@ export class NotificationService {
       priority: 'high'
     });
   }
+
+  /**
+   * Notify buyer when order is auto-cancelled due to seller not confirming
+   */
+  async notifyBuyerOrderAutoCancelled(params: {
+    buyerId: string;
+    orderId: string;
+    orderNumber: string;
+    reason: string;
+  }): Promise<Notification> {
+    if (!params.buyerId) throw new Error('buyerId is missing');
+
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: 'buyer_order_auto_cancelled',
+      title: 'Order Auto-Cancelled',
+      message: `Your order #${params.orderNumber} was automatically cancelled. ${params.reason}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: `/orders/${params.orderId}`,
+      actionData: { orderId: params.orderId },
+      priority: 'high'
+    });
+  }
+
+  /**
+   * Notify seller when their order is auto-cancelled due to not confirming
+   */
+  async notifySellerOrderAutoCancelled(params: {
+    sellerId: string;
+    orderId: string;
+    orderNumber: string;
+    reason: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_order_auto_cancelled',
+      title: 'Order Auto-Cancelled',
+      message: `Your order #${params.orderNumber} was automatically cancelled because you did not confirm in time. ${params.reason}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: `/seller/orders/${params.orderId}`,
+      actionData: { orderId: params.orderId },
+      priority: 'high'
+    });
+  }
 }
 
 export const notificationService = NotificationService.getInstance();

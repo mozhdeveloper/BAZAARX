@@ -191,7 +191,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             *
           ),
           cancellations:order_cancellations (
-            id
+            id, reason, cancelled_at, cancelled_by, created_at
           ),
           vouchers:order_vouchers (
             *,
@@ -409,12 +409,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
           confirmedAt: (order.history || []).find((h: any) => h.status === 'processing' || h.status === 'confirmed')?.created_at || order.paid_at || null,
           shippedAt: (order.history || []).find((h: any) => h.status === 'shipped')?.created_at || (order.shipments || []).find((s: any) => s.shipped_at)?.shipped_at || null,
           deliveredAt: (order.history || []).find((h: any) => h.status === 'delivered')?.created_at || (order.shipments || []).find((s: any) => s.status === 'delivered' || s.status === 'received')?.delivered_at || null,
-          receivedAt: (order.history || []).find((h: any) => h.status === 'received')?.created_at || (order.shipment_status === 'received' ? order.updated_at : null),
+          receivedAt: (order.history || []).find((h: any) => h.status === 'received')?.created_at || order.shipment_status === 'received' ? order.updated_at : null,
           updatedAt: order.updated_at,
           buyerUiStatus,
           isReviewed,
           returnRequestId,
           review: order.reviews && order.reviews.length > 0 ? order.reviews[0] : null,
+          // Include cancellation reason for cancelled orders
+          cancellationReason: (order.cancellations && order.cancellations.length > 0) 
+            ? order.cancellations[0]?.reason 
+            : order.cancellation_reason || null,
         } as Order & { review?: any };
       });
       setDbOrders(mapped);

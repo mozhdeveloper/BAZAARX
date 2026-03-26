@@ -540,6 +540,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 ...(isReturned ? [{ label: 'Return Requested', ts: null, done: true, icon: RotateCcw, amber: true }] : []),
               ];
 
+          const showCancellationReason = isCancelled && (order as any).cancellationReason;
+
           return (
             <View style={{ backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 12, marginBottom: 16, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8 }}>
@@ -575,6 +577,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                   </View>
                 );
               })}
+              {showCancellationReason && (
+                <View style={{ marginTop: 8, paddingHorizontal: 34, paddingBottom: 4 }}>
+                  <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '500' }}>
+                    {(order as any).cancellationReason}
+                  </Text>
+                </View>
+              )}
             </View>
           );
         })()}

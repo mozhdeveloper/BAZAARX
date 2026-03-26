@@ -133,6 +133,38 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const fetchTimelineHistory = async () => {
     try {
       const orderUuid = order.orderId || order.id;
+      
+      // Check if order is cancelled - if so, simplify timeline
+      const uiStatus = order.buyerUiStatus || order.status;
+      const isCancelled = uiStatus === 'cancelled';
+      
+      // For cancelled orders, fetch cancellation info and show simplified timeline
+      if (isCancelled) {
+        const { data: cancellationData } = await supabase
+          .from('order_cancellations')
+          .select('*')
+          .eq('order_id', orderUuid)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        // Build simplified timeline for cancelled orders
+        const cancelledNode: OrderStatusEntry = {
+          id: 'cancelled',
+          status: 'Order Cancelled',
+          description: cancellationData?.reason || 'Order was cancelled',
+          created_at: cancellationData?.cancelled_at || cancellationData?.created_at || new Date().toISOString(),
+        };
+        
+        setTimeline(prev => [...prev, cancelledNode]);
+        return;
+      }
+      
+      // Handle query error silently - just show order placed
+      if (error) {
+        console.error('Error fetching cancellation:', error);
+      }
+      
       const { data, error } = await supabase
         .from('order_status_history')
         .select('*')
@@ -170,6 +202,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const getStatusIcon = (status: string) => {
     const s = status.toLowerCase();
     if (s.includes('placed')) return Package;
+    if (s.includes('cancelled') || s.includes('cancel')) return Package;
     if (s.includes('sorting') || s.includes('overseas')) return Plane;
     if (s.includes('warehouse') || s.includes('hub')) return Warehouse;
     if (s.includes('out') || s.includes('delivery')) return Truck;
@@ -293,7 +326,8 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
             timeline.map((item, index) => {
               const isLast = index === timeline.length - 1;
               const StatusIcon = getStatusIcon(item.status);
-
+              const isCancelledItem = item.status.toLowerCase().includes('cancelled');
+              
               return (
                 <View key={item.id || index} style={styles.timelineItem}>
                   {/* Left Column (Icon & Line) */}
@@ -306,19 +340,19 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
                           { transform: [{ scale: pulseAnim }] },
                         ]}
                       >
-                        <View style={styles.currentStepCenter}>
-                          <StatusIcon size={16} color={COLORS.primary} strokeWidth={2.5} />
+                        <View style={[styles.currentStepCenter, isCancelledItem && { backgroundColor: '#EF4444' }]}>
+                          <StatusIcon size={16} color="#FFFFFF" strokeWidth={2.5} />
                         </View>
                       </Animated.View>
                     ) : (
-                      <View style={styles.completedStep}>
-                        <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} fill={COLORS.primary} />
+                      <View style={[styles.completedStep, isCancelledItem && { backgroundColor: '#EF4444' }]}>
+                        <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} fill={isCancelledItem ? '#EF4444' : COLORS.primary} />
                       </View>
                     )}
                     
                     {/* Connecting Line */}
                     {index < timeline.length - 1 && (
-                      <View style={[styles.timelineLine, styles.timelineLineActive]} />
+                      <View style={[styles.timelineLine, isCancelledItem ? { backgroundColor: '#EF4444' } : styles.timelineLineActive]} />
                     )}
                   </View>
 
@@ -328,6 +362,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
                       style={[
                         styles.timelineStepTitle,
                         isLast ? styles.timelineStepTitleCurrent : styles.timelineStepTitleCompleted,
+                        isCancelledItem && { color: '#EF4444' },
                       ]}
                     >
                       {item.status}
