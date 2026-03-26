@@ -307,6 +307,8 @@ export const useAuthStore = create<AuthStore>()(
                         return false;
                     }
 
+                    await authService.addUserRole(user.id, "seller");
+
                     const mappedSeller = mapDbSellerToSeller(savedSeller);
                     mappedSeller.email =
                         normalizedRegisterEmail || mappedSeller.email;
