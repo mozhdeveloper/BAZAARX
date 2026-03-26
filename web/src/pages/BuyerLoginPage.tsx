@@ -128,7 +128,7 @@ export default function BuyerLoginPage() {
       navigate("/shop");
     } catch (err) {
       console.error("Login exception:", err);
-      setError("Something went wrong. Please try again.");
+      setError("Incorrect credentials or account details. Please review your input and try again.");
       setIsLoading(false);
     }
   };
