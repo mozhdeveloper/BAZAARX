@@ -74,7 +74,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, on
         {/* Rating */}
         <View style={styles.ratingContainer}>
           <Star size={12} fill="#F59E0B" color="#F59E0B" />
-          <Text style={styles.ratingText}>{product.rating || 4.9}</Text>
+          <Text style={styles.ratingText}>{product.rating || 5.0} ({product.review_count || 0})</Text>
         </View>
 
         {/* Price & Sold */}
@@ -215,7 +215,7 @@ export const MasonryProductCard: React.FC<MasonryProductCardProps> = React.memo(
         <View style={masonryStyles.footer}>
           <View style={masonryStyles.ratingBox}>
             <Star size={10} fill="#F59E0B" color="#F59E0B" />
-            <Text style={masonryStyles.ratingText}>{product.rating || 4.9}</Text>
+            <Text style={masonryStyles.ratingText}>{product.rating || 5.0} ({product.review_count || 0})</Text>
           </View>
           <Text style={masonryStyles.soldText}>{(product.sold || product.sales_count || (product as any).sold_count || 0).toLocaleString()} sold</Text>
         </View>
@@ -253,16 +253,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: '#DC2626', // Red
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
     zIndex: 10,
   },
   discountText: {
     color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   flashBadge: {
     position: 'absolute',
@@ -505,15 +506,17 @@ const masonryStyles = StyleSheet.create({
     position: 'absolute',
     top: 5,
     right: 5,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#DC2626',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    zIndex: 10,
   },
   discountText: {
-    color: '#EF4444',
+    color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   vacationBadge: {
     position: 'absolute',

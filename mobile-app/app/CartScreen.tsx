@@ -16,9 +16,9 @@ import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
+import { DeleteConfirmationModal } from '../src/components/DeleteConfirmationModal';
 import { CartItem, Product } from '../src/types';
 import type { ActiveDiscount } from '../src/types/discount';
-import { Alert } from 'react-native';
 
 
 export default function CartScreen({ navigation, route }: any) {
@@ -42,7 +42,7 @@ export default function CartScreen({ navigation, route }: any) {
 
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk'; item?: CartItem } | null>(null);
 
   useEffect(() => {
     const requestedIds: string[] | undefined = route?.params?.selectedCartItemIds;
@@ -97,47 +97,25 @@ export default function CartScreen({ navigation, route }: any) {
 
   // Delete Handlers
   const handleRemoveSingle = (item: CartItem) => {
-    Alert.alert(
-      'Remove Item',
-      'Are you sure you want to remove this item from your cart?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => removeItem(item.cartItemId) // Using cartItemId as per store update
-        }
-      ]
-    );
-  };
-
-  const handleClearAll = () => {
-    Alert.alert(
-      'Clear Cart',
-      'Are you sure you want to remove all items?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: clearCart }
-      ]
-    );
+    setDeleteTarget({ type: 'single', item });
   };
 
   const handleDeleteSelected = () => {
-    Alert.alert(
-      'Delete Selected',
-      `Remove ${selectedIds.length} item(s) from your cart?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            removeItems(selectedIds);
-            setSelectedIds([]); // Clear selection after delete
-          }
-        }
-      ]
-    );
+    setDeleteTarget({ type: 'bulk' });
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+
+    if (deleteTarget.type === 'bulk') {
+      removeItems(selectedIds);
+      setSelectedIds([]);
+    } else if (deleteTarget.type === 'single' && deleteTarget.item) {
+      removeItem(deleteTarget.item.cartItemId);
+      // Also remove from selection if it was selected
+      setSelectedIds(prev => prev.filter(id => id !== deleteTarget.item?.cartItemId));
+    }
+    setDeleteTarget(null);
   };
 
   const groupedItems = useMemo(() => {
@@ -245,11 +223,7 @@ export default function CartScreen({ navigation, route }: any) {
             <ChevronLeft size={28} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Cart</Text>
-          <Pressable onPress={() => setIsEditing(!isEditing)} style={styles.editButton}>
-            <Text style={[styles.editText, { color: BRAND_PRIMARY }]}>
-              {isEditing ? 'Done' : 'Edit'}
-            </Text>
-          </Pressable>
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -258,13 +232,13 @@ export default function CartScreen({ navigation, route }: any) {
         <Pressable style={styles.checkboxWrapper} onPress={() => isAllSelected ? setSelectedIds([]) : setSelectedIds(items.map(i => i.cartItemId))}>
           <View style={[
             styles.checkboxBase,
-            isAllSelected && { backgroundColor: BRAND_PRIMARY, borderColor: BRAND_PRIMARY }
+            isAllSelected && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
           ]}>
-            {isAllSelected && <Check size={14} color="#FFF" strokeWidth={3} />}
+            {isAllSelected && <Check size={12} color="#FFF" strokeWidth={2.5} />}
           </View>
           <Text style={styles.selectAllText}>Select All ({items.length})</Text>
         </Pressable>
-        {isEditing && selectedIds.length > 0 && (
+        {selectedIds.length > 0 && (
           <Pressable onPress={handleDeleteSelected}>
             <Text style={[styles.clearText, { color: '#EF4444' }]}>Delete ({selectedIds.length})</Text>
           </Pressable>
@@ -273,23 +247,23 @@ export default function CartScreen({ navigation, route }: any) {
 
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={{ paddingBottom: 200 }} // Increased padding to ensure visibility
+        contentContainerStyle={{ paddingBottom: 170 }}
         showsVerticalScrollIndicator={false}
       >
         {/* SELLER GROUPS */}
-        {Object.entries(groupedItems).map(([sellerName, sellerProducts]) => {
+        {Object.entries(groupedItems).map(([sellerName, sellerProducts], idx) => {
           const isSellerSelected = sellerProducts.every(item => selectedSet.has(item.cartItemId));
 
           return (
-            <View key={sellerName} style={styles.sellerCard}>
+            <View key={sellerName} style={[styles.sellerCard, idx === Object.entries(groupedItems).map(() => 0).length - 1 && { marginBottom: 0 }]}>
               {/* STORE HEADER */}
               <View style={styles.sellerHeader}>
                 <Pressable onPress={() => toggleSellerGroup(sellerProducts)} style={styles.headerCheckbox}>
                   <View style={[
                     styles.checkboxBase,
-                    isSellerSelected && { backgroundColor: BRAND_PRIMARY, borderColor: BRAND_PRIMARY }
+                    isSellerSelected && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
                   ]}>
-                    {isSellerSelected && <Check size={14} color="#FFF" strokeWidth={3} />}
+                    {isSellerSelected && <Check size={12} color="#FFF" strokeWidth={2.5} />}
                   </View>
                 </Pressable>
                 <Pressable
@@ -301,9 +275,7 @@ export default function CartScreen({ navigation, route }: any) {
                     }
                   }}
                 >
-                  <View style={styles.storeIcon}>
-                    <StoreIcon size={14} color="#5D4037" strokeWidth={2.5} />
-                  </View>
+
                   <Text style={styles.sellerName}>{sellerName}</Text>
                   <ChevronRight size={16} color="#9CA3AF" />
                 </Pressable>
@@ -318,9 +290,9 @@ export default function CartScreen({ navigation, route }: any) {
                     <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)}>
                       <View style={[
                         styles.checkboxBase,
-                        selectedSet.has(item.cartItemId) && { backgroundColor: BRAND_PRIMARY, borderColor: BRAND_PRIMARY }
+                        selectedSet.has(item.cartItemId) && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
                       ]}>
-                        {selectedSet.has(item.cartItemId) && <Check size={14} color="#FFF" strokeWidth={3} />}
+                        {selectedSet.has(item.cartItemId) && <Check size={12} color="#FFF" strokeWidth={2.5} />}
                       </View>
                     </Pressable>
                     <View style={{ flex: 1 }}>
@@ -353,14 +325,14 @@ export default function CartScreen({ navigation, route }: any) {
       </ScrollView>
 
       {/* FLOATING ACTION BAR */}
-      {!isEditing && items.length > 0 && (
-        <View style={[styles.bottomBar, { bottom: insets.bottom + 90 }]}>
+      {items.length > 0 && (
+        <View style={[styles.bottomBar, { bottom: insets.bottom + 80 }]}>
           <View style={styles.bottomBarContent}>
             <View>
-              <Text style={styles.totalInfoLabel}>Total Amount</Text>
+
               <Text style={[styles.totalInfoPrice, { color: BRAND_PRIMARY }]}>₱{total.toLocaleString()}</Text>
               {totalSavings > 0 && (
-                <Text style={styles.savingsText}>You saved ₱{totalSavings.toLocaleString()}</Text>
+                <Text style={styles.savingsText}>Saved ₱{totalSavings.toLocaleString()}</Text>
               )}
             </View>
             <Pressable
@@ -396,7 +368,7 @@ export default function CartScreen({ navigation, route }: any) {
       {items.length === 0 && (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.textHeadline }}>Your cart is empty</Text>
-          <Pressable 
+          <Pressable
             onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}
             style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: BRAND_PRIMARY, borderRadius: 12 }}
           >
@@ -439,6 +411,17 @@ export default function CartScreen({ navigation, route }: any) {
           />
         );
       })()}
+
+      <DeleteConfirmationModal
+        visible={!!deleteTarget}
+        title={deleteTarget?.type === 'bulk' ? 'Delete Selected Items?' : 'Remove Item?'}
+        description={deleteTarget?.type === 'bulk'
+          ? `Are you sure you want to remove ${selectedIds.length} items from your cart?`
+          : 'Are you sure you want to remove this item from your cart?'
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </View>
   );
 }
@@ -464,18 +447,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
-  editButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  editText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  clearTextWrapper: {
-    position: 'absolute',
-    right: 0,
-  },
   clearText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 13 },
 
   selectAllBar: {
@@ -492,16 +463,16 @@ const styles = StyleSheet.create({
   },
   checkboxWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkboxBase: {
-    width: 20,
-    height: 20,
-    borderRadius: 5,
-    borderWidth: 1.5,
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1,
     borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent', // Changed from #FFF
   },
-  selectAllText: { fontSize: 15, fontWeight: '700', color: COLORS.textHeadline },
+  selectAllText: { fontSize: 14, fontWeight: '500', color: COLORS.textHeadline },
 
   scrollContainer: { flex: 1, paddingTop: 8 },
 
@@ -509,15 +480,10 @@ const styles = StyleSheet.create({
   sellerCard: {
     backgroundColor: '#FFFFFF', // Pure White
     marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 20,
-    paddingVertical: 12,
+    marginBottom: 10,
+    borderRadius: 12,
+    paddingVertical: 8,
     paddingHorizontal: 10,
-    shadowColor: '#A85D32',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 2,
     borderWidth: 1,
     borderColor: '#F1F5F9',
   },
@@ -533,29 +499,30 @@ const styles = StyleSheet.create({
   storeIcon: {
     width: 28,
     height: 28,
-    borderRadius: 8,
+    borderRadius: 6,
     backgroundColor: '#F7E9DE',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#EBD9C8',
   },
-  sellerName: { fontSize: 17, fontWeight: '800', color: '#431407' }, // Darker coffee color to match parchment theme
+  sellerName: { fontSize: 15, fontWeight: '700', color: '#431407' }, // Darker coffee color to match parchment theme
 
   cardDivider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 12, opacity: 0.5 },
 
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'center', // Changed from flex-start to center
-    paddingVertical: 12,
+    alignItems: 'flex-start',
+    paddingVertical: 2,
     backgroundColor: 'transparent',
   },
   itemCheckbox: {
-    width: 32,
+    width: 24,
     height: 90,
+    marginTop: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 4,
   },
   itemSeparator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 0, opacity: 0.3 },
 
@@ -564,7 +531,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 8,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#FEE2E2',
@@ -590,22 +557,20 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 22, fontWeight: '900', color: COLORS.textHeadline },
 
   // BOTTOM BAR
-  bottomBar: { 
-    position: 'absolute', 
-    left: 16, 
-    right: 16, 
+  bottomBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
     backgroundColor: '#FFFFFF', // Pure White
-    borderRadius: 15, 
-    elevation: 8, 
-    shadowColor: '#000', 
-    shadowOpacity: 0.1, 
-    shadowRadius: 15, 
-    paddingVertical: 3 
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    paddingVertical: 3
   },
   bottomBarContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 12 },
-  totalInfoLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '700', textTransform: 'uppercase' },
-  totalInfoPrice: { fontSize: 24, fontWeight: '900', color: COLORS.textHeadline },
-  checkoutBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 15 },
-  checkoutBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
-  savingsText: { fontSize: 12, color: '#DC2626', fontWeight: '600', marginTop: 2 },
+  totalInfoLabel: { fontSize: 14, color: COLORS.gray500, fontWeight: '500' },
+  totalInfoPrice: { fontSize: 20, fontWeight: '500', color: COLORS.textHeadline },
+  checkoutBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+  checkoutBtnText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
+  savingsText: { fontSize: 12, color: '#DC2626', fontWeight: '400', marginTop: 2 },
 });

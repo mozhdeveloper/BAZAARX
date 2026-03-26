@@ -555,8 +555,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: COLORS.background,
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     paddingTop: 20,
     paddingHorizontal: 20,
     maxHeight: '85%',

@@ -137,8 +137,8 @@ export default function BuyerProfilePage() {
                     <div className="absolute inset-0 bg-gradient-to-t from-[#2b1200]/50 via-[#4d2000]/50 to-[#7a3300]/20" />
                 </div>
 
-                <div className="max-w-6xl mx-auto px-4 relative z-10">
-                    <div className="mb-4">
+                <div className="max-w-7xl mx-auto px-4 relative z-10">
+                    <div className="-mt-2 mb-6">
                         <button
                             onClick={() => navigate('/shop')}
                             className="flex items-center gap-1 text-white/80 hover:text-[var(--brand-primary)] transition-colors mb-4 group px-3 -ml-2"
@@ -153,18 +153,18 @@ export default function BuyerProfilePage() {
 
                     <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8">
                         {/* Profile Avatar */}
-                        <div
-                            className="relative group cursor-pointer"
-                            onClick={() => setIsEditModalOpen(true)}
-                        >
-                            <div className="w-28 h-28 md:w-32 md:h-32 rounded-full bg-white p-1 shadow-2xl overflow-hidden ring-4 ring-white/10">
-                                <img loading="lazy" 
+                        <div className="relative mt-2">
+                            <div className="w-28 h-28 md:w-32 md:h-32 rounded-full border-2 border-gray-200/50 shadow-2xl overflow-hidden">
+                                <img loading="lazy"
                                     src={profile.avatar}
                                     alt="Profile"
-                                    className="w-full h-full rounded-full object-cover transition-transform group-hover:scale-105"
+                                    className="w-full h-full rounded-full object-cover transition-transform"
                                 />
                             </div>
-                            <div className="absolute bottom-1 right-1 bg-[var(--bg-secondary)] text-[var(--brand-primary)] p-1.5 rounded-full shadow-lg border-2 border-[var(--brand-primary)]">
+                            <div
+                                className="absolute bottom-2 right-2 bg-white/30 text-white/70 p-1.5 rounded-full shadow-lg hover:text-white hover:scale-110 transition-transform cursor-pointer"
+                                onClick={() => setIsEditModalOpen(true)}
+                            >
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
                                     width="14"
@@ -183,9 +183,9 @@ export default function BuyerProfilePage() {
                         </div>
 
                         {/* Profile Details */}
-                        <div className="flex-1 text-center md:text-left mt-6 -mb-6">
+                        <div className="flex-1 text-center md:text-left -mb-2">
                             <div className="flex flex-col md:flex-row items-center gap-3 mb-2">
-                                <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+                                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
                                     {profile.firstName} {profile.lastName}
                                 </h1>
                                 <Badge className="bg-[var(--bg-secondary)] text-[var(--brand-primary)] hover:bg-[var(--bg-secondary)] border-none py-0.5 px-3 flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
@@ -194,37 +194,37 @@ export default function BuyerProfilePage() {
                             </div>
 
                             <div className="flex flex-col gap-1 mb-5">
-                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-white/80 text-sm font-medium">
-                                    <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
+                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-white/70 text-sm">
+                                    <span className="flex items-center">
                                         {profile.email}
                                     </span>
                                 </div>
 
-                                {/* Profile Stats - Styled like Seller Storefront */}
+                                {/* Profile Stats */}
                                 <div className="flex items-center justify-center md:justify-start gap-6 mt-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-white text-base font-bold">
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-white/60 text-sm">
                                             {profile.totalOrders || 0}
                                         </span>
-                                        <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">
+                                        <span className="text-white/60 text-sm">
                                             Orders
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-white text-base font-bold">
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-white/60 text-sm">
                                                 {profile.bazcoins || 0}
                                             </span>
-                                            <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">
+                                            <span className="text-white/60 text-sm">
                                                 Bazcoins
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-white text-base font-bold">
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-white/60 text-sm">
                                             {followedShops?.length || 0}
                                         </span>
-                                        <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">
+                                        <span className="text-white/60 text-sm">
                                             Following
                                         </span>
                                     </div>
@@ -252,7 +252,7 @@ export default function BuyerProfilePage() {
                                         navigate(result.route);
                                     }
                                 }}
-                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold h-10 px-6 rounded-xl shadow-lg shadow-orange-600/20 flex items-center gap-2"
+                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold h-10 px-4 rounded-lg flex items-center gap-2"
                             >
                                 <Store className="w-4 h-4" />
                                 {isSeller ? "Switch to Seller Mode" : "Start Selling"}
@@ -262,7 +262,7 @@ export default function BuyerProfilePage() {
                 </div>
             </div>
 
-            <div className="max-w-6xl mx-auto px-4 pt-10 pb-12 relative z-20">
+            <div className="max-w-7xl mx-auto px-4 pt-10 pb-12 relative z-20">
                 {/* Content Tabs */}
                 <Tabs
                     value={activeTab}

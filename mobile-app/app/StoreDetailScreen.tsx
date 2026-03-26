@@ -1120,7 +1120,8 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.white,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 0,
+        borderWidth: 1,
+        borderColor: COLORS.gray300,
         marginRight: 16,
         position: 'relative'
     },

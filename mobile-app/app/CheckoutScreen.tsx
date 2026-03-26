@@ -20,8 +20,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp, Palmtree } from 'lucide-react-native';
+import { ChevronLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp, Palmtree, Store } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
+import { Svg, Path } from 'react-native-svg';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
@@ -319,8 +320,17 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     };
   }, [checkoutItems]);
 
+  const groupedCheckoutItems = useMemo(() => {
+    return checkoutItems.reduce((groups, item) => {
+      const seller = item.seller || 'BazaarX Store';
+      if (!groups[seller]) groups[seller] = [];
+      groups[seller].push(item);
+      return groups;
+    }, {} as Record<string, typeof checkoutItems>);
+  }, [checkoutItems]);
+
   // Optimize total calculation with useMemo
-  const { subtotal, shippingFee, discount, total } = useMemo(() => {
+  const { subtotal, shippingFee, discount, total, totalSavings } = useMemo(() => {
     // subtotal is the discounted price (what customer sees)
     const subtotal = checkoutSubtotal;
     let shippingFee = subtotal > 500 ? 0 : 50;
@@ -341,9 +351,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
 
     const total = Math.max(0, subtotal + shippingFee - discount - bazcoinDiscount);
+    const totalSavings = campaignDiscountTotal + (discount || 0) + (bazcoinDiscount || 0);
 
-    return { subtotal, shippingFee, discount, total };
-  }, [checkoutSubtotal, appliedVoucher, bazcoinDiscount]);
+    return { subtotal, shippingFee, discount, total, totalSavings };
+  }, [checkoutSubtotal, appliedVoucher, bazcoinDiscount, campaignDiscountTotal]);
 
   useEffect(() => {
     regions().then(res => setRegionList(res));
@@ -1172,11 +1183,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           return;
         }
 
-        // Priority: 1) Address from HomeScreen location modal (via route params)
-        //           2) "Current Location" from database (saved by HomeScreen)
-        //           3) AsyncStorage fallback (if route params not available)
-        //           4) Default saved address
-        //           5) First saved address
+        // Initial Address Selection Priority:
+        // 1) Default saved address (Highest reliability for regular checkout)
+        // 2) Address from HomeScreen location modal (via route params)
+        // 3) "Current Location" from database (saved by HomeScreen)
+        // 4) AsyncStorage fallback (if route params not available)
+        // 5) First saved address (last resort)
+        const defaultSavedAddr = addressData.find(a => a.is_default);
+
         let homeScreenAddress = params?.deliveryAddress;
         let homeScreenCoords = params?.deliveryCoordinates;
 
@@ -1221,7 +1235,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           // Silent fail
         }
 
-        if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
+        if (defaultSavedAddr) {
+          // Use default address if user had set one explicitly
+          setSelectedAddress(defaultSavedAddr);
+          setTempSelectedAddress(defaultSavedAddr);
+        } else if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
           // Check if this matches a saved address (including "Current Location" from DB)
           const matchingAddress = addressData.find(addr =>
             addr.label === 'Current Location' ||
@@ -1256,11 +1274,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             setTempSelectedAddress(tempAddr);
           }
         } else {
-          // Use default or first saved address
-          const defaultAddr = addressData.find(a => a.is_default) || addressData[0];
-          if (defaultAddr) {
-            setSelectedAddress(defaultAddr);
-            setTempSelectedAddress(defaultAddr);
+          // Use first saved address
+          const firstAddr = addressData[0];
+          if (firstAddr) {
+            setSelectedAddress(firstAddr);
+            setTempSelectedAddress(firstAddr);
           }
         }
 
@@ -1493,69 +1511,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
             showsVerticalScrollIndicator={false}
           >
-            {/* Compact Order List */}
-            <View style={styles.sectionCard}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Order Items ({checkoutItems.length})</Text>
-              </View>
-
-              {checkoutItems.map((item) => (
-                <View key={item.id} style={styles.compactOrderItem}>
-                  <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactThumbnail} />
-                  <View style={styles.compactOrderInfo}>
-                    <Text style={styles.compactProductName} numberOfLines={1}>{item.name}</Text>
-                    <View style={styles.compactDetailsRow}>
-                      {/* Show selected variant using dynamic labels if available */}
-                      {item.selectedVariant?.option1Value && (
-                        <View style={styles.compactVariantTag}>
-                          <Text style={styles.compactVariantText}>
-                            {item.selectedVariant.option1Label || 'Color'}: {item.selectedVariant.option1Value}
-                          </Text>
-                        </View>
-                      )}
-                      {item.selectedVariant?.option2Value && (
-                        <View style={styles.compactVariantTag}>
-                          <Text style={styles.compactVariantText}>
-                            {item.selectedVariant.option2Label || 'Size'}: {item.selectedVariant.option2Value}
-                          </Text>
-                        </View>
-                      )}
-                      {/* Legacy support for color/size fields */}
-                      {!item.selectedVariant?.option1Value && item.selectedVariant?.color && (
-                        <View style={styles.compactVariantTag}>
-                          <Text style={styles.compactVariantText}>{item.selectedVariant.color}</Text>
-                        </View>
-                      )}
-                      {!item.selectedVariant?.option2Value && item.selectedVariant?.size && (
-                        <View style={styles.compactVariantTag}>
-                          <Text style={styles.compactVariantText}>{item.selectedVariant.size}</Text>
-                        </View>
-                      )}
-                      {/* Fallback if no variant selected */}
-                      {!item.selectedVariant?.option1Value && !item.selectedVariant?.option2Value &&
-                        !item.selectedVariant?.color && !item.selectedVariant?.size && (
-                          <Text style={styles.compactVariantText}>Standard</Text>
-                        )}
-                    </View>
-                  </View>
-                  <View style={styles.compactPriceContainer}>
-                    <Text style={styles.compactPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
-                    <Text style={styles.compactQuantity}>x{item.quantity}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
             {/* Shipping Address Card */}
             <View style={styles.sectionCard}>
-              <View style={styles.sectionHeaderWithBadge}>
-                <View style={styles.sectionHeader}>
-                  <MapPin size={20} color={COLORS.primary} />
-                  <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Delivery Address</Text>
-                </View>
-                <View style={styles.shippingBadge}>
-                  <Text style={styles.shippingBadgeText}>Shipping Available</Text>
-                </View>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Shipping Information</Text>
               </View>
 
               {isLoadingAddresses ? (
@@ -1567,20 +1526,25 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <View>
                   <Pressable
                     style={{
-                      backgroundColor: '#F9FAFB',
-                      borderRadius: 12,
-                      padding: 16,
-                      borderWidth: 1.5,
-                      borderColor: '#E5E7EB'
+                      paddingVertical: 0,
                     }}
                     onPress={() => {
                       console.log('[Checkout] Opening address modal');
                       setShowAddressModal(true);
                     }}
                   >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                      <View style={{ width: 20, paddingTop: 2 }}>
+                        <Svg width="16" height="16" viewBox="0 0 24 24">
+                          <Path
+                            d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+                            fill={COLORS.primary}
+                            fillRule="evenodd"
+                          />
+                        </Svg>
+                      </View>
                       <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
                           <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
                             {selectedAddress.first_name} {selectedAddress.last_name}
                           </Text>
@@ -1590,15 +1554,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                             </View>
                           )}
                         </View>
-                        <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{selectedAddress.phone}</Text>
-                        <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>
-                          {selectedAddress.street}, {selectedAddress.barangay}
-                        </Text>
-                        <Text style={{ fontSize: 14, color: '#4B5563' }}>
-                          {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
+                        <Text style={{ fontSize: 14, color: COLORS.gray500, marginBottom: 1 }}>{selectedAddress.phone}</Text>
+                        <Text style={{ fontSize: 14, color: COLORS.gray500, lineHeight: 20 }}>
+                          {selectedAddress.street}, {selectedAddress.barangay}, {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
                         </Text>
                       </View>
-                      <ChevronRight size={20} color={COLORS.primary} />
+                      <ChevronRight size={18} color={COLORS.gray400} style={{ marginTop: 2, marginLeft: 8 }} />
                     </View>
                   </Pressable>
                 </View>
@@ -1617,7 +1578,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 >
                   <Plus size={24} color={COLORS.primary} />
                   <Text style={{ marginTop: 8, fontSize: 15, fontWeight: '700', color: COLORS.textHeadline }}>
-                    Add Delivery Address
+                    Add Shipping Information
                   </Text>
                   <Text style={{ fontSize: 12, color: '#6B7280' }}>
                     Tap to add your shipping address
@@ -1626,10 +1587,62 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               )}
             </View>
 
+            {/* Compact Order List */}
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
-                <CreditCard size={20} color={COLORS.primary} />
-                <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Payment Method</Text>
+                <Text style={styles.sectionTitle}>Order ({checkoutItems.length})</Text>
+              </View>
+
+              {Object.entries(groupedCheckoutItems).map(([sellerName, sellerItems], groupIdx) => (
+                <View key={sellerName} style={groupIdx > 0 && { marginTop: 16 }}>
+                  <View style={styles.sellerHeaderRow}>
+                    <Store size={14} color={COLORS.gray500} />
+                    <Text style={styles.sellerNameHeader}>{sellerName}</Text>
+                  </View>
+                  {sellerItems.map((item) => (
+                    <View key={item.id} style={styles.compactOrderItem}>
+                      <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactThumbnail} />
+                      <View style={styles.compactOrderInfo}>
+                        <Text style={styles.compactProductName} numberOfLines={1}>{item.name}</Text>
+                        <View style={styles.compactDetailsRow}>
+                          {/* Show selected variants */}
+                          {item.selectedVariant && (
+                            <Text style={styles.compactVariantText}>
+                              {[item.selectedVariant.option1Value, item.selectedVariant.option2Value]
+                                .filter(Boolean)
+                                .join(' / ')}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.compactPriceRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            {item.originalPrice && item.originalPrice > (item.price || 0) ? (
+                              <>
+                                <Text style={[styles.compactPrice, { color: '#DC2626' }]}>₱{(item.price || 0).toLocaleString()}</Text>
+                                <Text style={styles.compactOriginalPrice}>₱{item.originalPrice.toLocaleString()}</Text>
+                              </>
+                            ) : (
+                              <Text style={[styles.compactPrice, { color: COLORS.primary }]}>₱{(item.price || 0).toLocaleString()}</Text>
+                            )}
+                          </View>
+                          <Text style={styles.compactQuantity}>x{item.quantity}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                  <View style={styles.sellerFooterRow}>
+                    <Text style={styles.sellerFooterText}>Total ({sellerItems.length} {sellerItems.length === 1 ? 'item' : 'items'}): </Text>
+                    <Text style={styles.sellerFooterAmount}>
+                      ₱{sellerItems.reduce((acc, i) => acc + (i.price || 0) * i.quantity, 0).toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Payment Method</Text>
               </View>
 
               <Pressable
@@ -1755,15 +1768,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 </View>
               </Pressable>
 
-              {/* Payment Status Info */}
-              <View style={styles.paymentInfoBanner}>
-                <Shield size={16} color={paymentMethod === 'cod' ? '#6B7280' : '#10B981'} />
-                <Text style={styles.paymentInfoText}>
-                  {paymentMethod === 'cod'
-                    ? '💵 You will pay when you receive your order'
-                    : '✅ Your payment will be processed instantly and securely'}
-                </Text>
-              </View>
+
             </View>
 
             {/* Voucher Code Card */}
@@ -1844,8 +1849,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             </View>
 
             {/* Order Summary */}
-            <View style={styles.sectionCard}>
-              <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Order Summary</Text>
+            <View style={[styles.sectionCard, { marginBottom: 24 }]}>
+              <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Payment Details</Text>
 
               {/* Show original subtotal and campaign discount if applicable */}
               {campaignDiscountTotal > 0 && (
@@ -1856,7 +1861,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Campaign Discount</Text>
-                    <Text style={[styles.summaryValue, { color: '#000000' }]}>-₱{campaignDiscountTotal.toLocaleString()}</Text>
+                    <Text style={[styles.summaryValue, { color: COLORS.primary }]}>-₱{campaignDiscountTotal.toLocaleString()}</Text>
                   </View>
                 </>
               )}
@@ -1874,14 +1879,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               {discount > 0 && (
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Voucher Discount</Text>
-                  <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{discount.toLocaleString()}</Text>
+                  <Text style={[styles.summaryValue, { color: COLORS.primary }]}>-₱{discount.toLocaleString()}</Text>
                 </View>
               )}
 
               {useBazcoins && bazcoinDiscount > 0 && (
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Bazcoins Redeemed</Text>
-                  <Text style={[styles.summaryValue, { color: '#EAB308' }]}>-₱{bazcoinDiscount.toLocaleString()}</Text>
+                  <Text style={[styles.summaryValue, { color: COLORS.primary }]}>-₱{bazcoinDiscount.toLocaleString()}</Text>
                 </View>
               )}
 
@@ -1892,45 +1897,50 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <Text style={styles.totalAmountLarge}>₱{total.toLocaleString()}</Text>
               </View>
 
-               <View style={{ marginTop: 16, backgroundColor: '#FEFCE8', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FEF08A', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                 <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
-                   <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>B</Text>
-                 </View>
-                 <View>
-                   <Text style={{ fontSize: 13, fontWeight: '600', color: '#854D0E' }}>You will earn {earnedBazcoins} Bazcoins</Text>
-                   <Text style={{ fontSize: 11, color: '#A16207' }}>Receive coins upons successful delivery</Text>
-                 </View>
-               </View>
+              <View style={{ marginTop: 16, backgroundColor: '#FEFCE8', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FEF08A', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>B</Text>
+                </View>
+                <View>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#854D0E' }}>You will earn {earnedBazcoins} Bazcoins</Text>
+                  <Text style={{ fontSize: 11, color: '#A16207' }}>Receive coins upons successful delivery</Text>
+                </View>
+              </View>
 
-               {hasVacationSeller && (
-                 <View style={{ marginTop: 12, backgroundColor: '#FFF7ED', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FFEDD5', flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-                   <Palmtree size={20} color="#EA580C" style={{ marginTop: 2 }} />
-                   <View style={{ flex: 1 }}>
-                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#C2410C' }}>Some sellers are currently unavailable</Text>
-                     <Text style={{ fontSize: 11, color: '#EA580C', marginTop: 4 }}>
-                       The following seller(s) are on vacation: <Text style={{ fontWeight: '700' }}>{vacationSellers.join(', ')}</Text>. Please remove their items from your cart to proceed.
-                     </Text>
-                   </View>
-                 </View>
-               )}
-             </View>
-           </ScrollView>
+              {hasVacationSeller && (
+                <View style={{ marginTop: 12, backgroundColor: '#FFF7ED', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FFEDD5', flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                  <Palmtree size={20} color="#EA580C" style={{ marginTop: 2 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#C2410C' }}>Some sellers are currently unavailable</Text>
+                    <Text style={{ fontSize: 11, color: '#EA580C', marginTop: 4 }}>
+                      The following seller(s) are on vacation: <Text style={{ fontWeight: '700' }}>{vacationSellers.join(', ')}</Text>. Please remove their items from your cart to proceed.
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          </ScrollView>
 
-           {/* Bottom Action Bar */}
-           <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
-             <View style={styles.totalContainer}>
-               <Text style={styles.totalLabel}>Total</Text>
-               <Text style={styles.totalAmount}>₱{total.toLocaleString()}</Text>
-             </View>
-             <Pressable
-               onPress={handlePlaceOrder}
-               disabled={isProcessing || !selectedAddress || hasVacationSeller}
-               style={({ pressed }) => [
-                 styles.checkoutButton,
-                 pressed && styles.checkoutButtonPressed,
-                 (isProcessing || !selectedAddress || hasVacationSeller) && { opacity: 0.5 }
-               ]}
-             >
+          {/* Bottom Action Bar */}
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.totalContainer}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[styles.totalAmount, { color: COLORS.primary }]}>₱{total.toLocaleString()}</Text>
+                {totalSavings > 0 && (
+                  <Text style={styles.totalSavedAmount}>Saved ₱{totalSavings.toLocaleString()}</Text>
+                )}
+              </View>
+            </View>
+            <Pressable
+              onPress={handlePlaceOrder}
+              disabled={isProcessing || !selectedAddress || hasVacationSeller}
+              style={({ pressed }) => [
+                styles.checkoutButton,
+                pressed && styles.checkoutButtonPressed,
+                (isProcessing || !selectedAddress || hasVacationSeller) && { opacity: 0.5 }
+              ]}
+            >
               {isProcessing ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
@@ -1972,7 +1982,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             ]}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Delivery Address</Text>
+              <Text style={styles.modalTitle}>Select Shipping Information</Text>
               <Pressable onPress={handleCloseAddressModal}>
                 <X size={24} color="#1F2937" />
               </Pressable>
@@ -2734,14 +2744,11 @@ const styles = StyleSheet.create({
   sectionCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 16,
+    marginTop: 12,
+    borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -2752,8 +2759,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#111827', // Black
   },
   shippingBadge: {
@@ -2764,17 +2771,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     alignSelf: 'flex-start',
   },
-  shippingBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
   compactOrderItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   compactThumbnail: {
     width: 56,
@@ -2788,9 +2788,38 @@ const styles = StyleSheet.create({
   },
   compactProductName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: COLORS.textHeadline,
-    marginBottom: 6,
+    marginBottom: 0,
+  },
+  sellerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  sellerFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F9FAFB',
+  },
+  sellerFooterText: {
+    fontSize: 14,
+    color: COLORS.gray500,
+  },
+  sellerFooterAmount: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  sellerNameHeader: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
   },
   compactDetailsRow: {
     flexDirection: 'row',
@@ -2798,16 +2827,10 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: 'wrap',
   },
-  compactVariantTag: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
   compactVariantText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#4B5563',
+    fontSize: 12,
+    fontWeight: '400',
+    color: COLORS.textMuted,
   },
   compactSelector: {
     flexDirection: 'row',
@@ -2825,10 +2848,18 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#6B7280',
   },
-  compactPriceContainer: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginLeft: 12,
+  compactPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 4,
+  },
+  compactOriginalPrice: {
+    fontSize: 11,
+    color: COLORS.gray400,
+    textDecorationLine: 'line-through',
+    marginBottom: 2,
   },
   compactPrice: {
     fontSize: 14,
@@ -2837,8 +2868,8 @@ const styles = StyleSheet.create({
   },
   compactQuantity: {
     fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted,
+    fontWeight: '400',
+    color: COLORS.gray400,
     marginTop: 2,
   },
   autofillButton: {
@@ -2884,7 +2915,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#E5E7EB',
     marginBottom: 12,
     backgroundColor: '#F9FAFB',
@@ -2894,10 +2925,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(217, 119, 6, 0.05)',
   },
   radio: {
-    width: 20,
-    height: 20,
+    width: 14,
+    height: 14,
     borderRadius: 10,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2933,11 +2964,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
     marginTop: 8,
   },
   inlineFormHeader: {
@@ -3025,14 +3051,14 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 10,
     fontSize: 15,
     color: '#111827',
   },
   applyButton: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderRadius: 12,
     justifyContent: 'center',
   },
@@ -3088,12 +3114,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 10,
+    borderTopColor: '#F1F5F9',
   },
   totalContainer: {
     flexDirection: 'row',
@@ -3104,17 +3125,23 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.textMuted,
+    color: COLORS.gray500,
   },
   totalAmount: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
     color: COLORS.primary,
   },
+  totalSavedAmount: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#DC2626',
+    marginTop: 2,
+  },
   checkoutButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 14,
+    paddingVertical: 14,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3158,10 +3185,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   radioSmall: {
-    width: 16,
-    height: 16,
+    width: 14,
+    height: 14,
     borderRadius: 8,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3170,9 +3197,9 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
   radioInnerSmall: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: COLORS.primary,
   },
   savedCardInfo: {
@@ -3200,27 +3227,27 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#4B5563',
+    color: COLORS.gray500,
   },
   summaryValue: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: '500',
+    color: '#000000',
   },
   divider: {
     height: 1,
-    backgroundColor: '#F3F4F6',
-    marginVertical: 12,
+    backgroundColor: COLORS.gray100,
+    marginVertical: 10,
   },
   totalLabelLarge: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: '#000000',
   },
   totalAmountLarge: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
   },
   customAddressModal: {
     backgroundColor: 'white',
@@ -3266,10 +3293,10 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
   radioCircle: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     borderRadius: 12,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3281,7 +3308,7 @@ const styles = StyleSheet.create({
   radioInner: {
     width: 12,
     height: 12,
-    borderRadius: 6,
+    borderRadius: 8,
     backgroundColor: COLORS.primary,
   },
 });
