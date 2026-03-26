@@ -251,6 +251,7 @@ const mapDbOrderToOrder = (dbOrder: any) => {
     // Legacy support fields if needed
     buyer_name: `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim(),
     cancellationReason: cancellationReason,
+    cancelledAt: latestCancellation?.cancelled_at || latestCancellation?.created_at || null,
   };
 };
 
