@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Gift, Plus, ShoppingBag, Copy, Check, Trash2, ChevronDown } from "lucide-react";
+import { X, Gift, Plus, ShoppingBag, Copy, Check, Trash2, Globe } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -9,7 +9,6 @@ import {
   useBuyerStore,
   RegistryProduct,
   RegistryItem,
-  RegistryPrivacy,
 } from "../stores/buyerStore";
 import { EditRegistryItemModal } from "./EditRegistryItemModal";
 import {
@@ -52,7 +51,6 @@ export const RegistryDetailModal = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [privacy, setPrivacy] = useState<RegistryPrivacy>("link");
   const [showAddress, setShowAddress] = useState(false);
   const [addressId, setAddressId] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
@@ -79,7 +77,6 @@ export const RegistryDetailModal = ({
       console.log('[RegistryDetailModal] liveRegistry:', liveRegistry);
       console.log('[RegistryDetailModal] liveRegistry.privacy:', liveRegistry.privacy);
       console.log('[RegistryDetailModal] liveRegistry.delivery:', liveRegistry.delivery);
-      setPrivacy(liveRegistry.privacy || "link");
       setShowAddress(show || !!addr);
       setAddressId(addr);
       setDeliveryInstructions(liveRegistry.delivery?.instructions || "");
@@ -118,7 +115,7 @@ export const RegistryDetailModal = ({
 
   const handleSavePreferences = () => {
     updateRegistryMeta(liveRegistry.id, {
-      privacy,
+      privacy: "link",
       delivery: {
         addressId: addressId || undefined,
         showAddress,
@@ -203,26 +200,20 @@ export const RegistryDetailModal = ({
               </div>
 
               <div className="space-y-6">
-                {/* Privacy & Delivery preferences */}
+                {/* Link-Only Banner & Delivery preferences */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 border border-gray-100 rounded-xl p-4">
                   <div className="space-y-2">
-                    <Label>Privacy</Label>
-                    <div className="relative">
-                      <select
-                        value={privacy}
-                        onChange={(e) => setPrivacy(e.target.value as RegistryPrivacy)}
-                        className="flex h-10 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-10"
-                      >
-                        <option value="public">Public</option>
-                        <option value="link">Link only</option>
-                        <option value="private">Private</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" />
+                    <div className="flex items-start gap-2 h-full">
+                      <Globe className="w-5 h-5 text-[var(--brand-primary)] shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--text-headline)]">
+                          Link-Only Access
+                        </p>
+                        <p className="text-xs text-[var(--text-secondary)] mt-1">
+                          This registry is link-only. Anyone with the link can view it, but it won't appear in public searches.
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Link-only is recommended: only people with the link can
-                      view.
-                    </p>
                   </div>
 
                   <div className="space-y-3">
