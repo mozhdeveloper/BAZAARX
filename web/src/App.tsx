@@ -14,6 +14,10 @@ import { OrderErrorFallback } from "./components/OrderErrorFallback";
 import { AppErrorFallback } from "./components/AppErrorFallback";
 import { supabase } from "./lib/supabase";
 
+// for google auth
+import { authService } from "./services/authService";
+import { useBuyerStore, deriveBuyerName } from "./stores/buyerStore";
+
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
 // ---------------------------------------------------------------------------
@@ -132,14 +136,128 @@ function App() {
 
   // Global auth state listener — handles token refresh, sign-out, and session sync
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const handleAuthChange = async (event: string, session: any) => {
+      // Track if this is an OAuth redirect (INITIAL_SESSION after page load with token)
+      const isOAuthRedirect = event === 'INITIAL_SESSION' && window.location.hash.includes('access_token');
+
+      // 1. Catch BOTH events: SIGNED_IN (direct login) and INITIAL_SESSION (page load after Google redirect)
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+        const { user } = session;
+
+        try {
+          // Extract details provided by Google
+          const email = user.email || "";
+          const googleFirstName = user.user_metadata?.first_name || user.user_metadata?.full_name?.split(' ')[0] || "";
+          const googleLastName = user.user_metadata?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || "";
+
+          // Set minimal local profile immediately to prevent "Sign In" flicker after redirect
+          // Use Google's avatar_url if available, otherwise use fallback
+          const instantName = deriveBuyerName({
+            first_name: googleFirstName,
+            last_name: googleLastName,
+            full_name: user.user_metadata?.full_name || null,
+            email,
+          });
+
+          const avatarUrl = user.user_metadata?.avatar_url ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(instantName.displayFullName)}&background=FF6B35&color=fff`;
+
+          useBuyerStore.getState().setProfile({
+            id: user.id,
+            email,
+            firstName: instantName.firstName,
+            lastName: instantName.lastName,
+            phone: "",
+            avatar: avatarUrl,
+            bazcoins: 0,
+            memberSince: new Date(),
+            totalOrders: 0,
+            totalSpent: 0,
+            preferences: {},
+          } as any);
+
+          // 2. CREATE/UPDATE PROFILE: Force insert into the 'profiles' table
+          const { error: profileUpsertError } = await supabase.from('profiles').upsert({
+            id: user.id,
+            email: email,
+            first_name: googleFirstName,
+            last_name: googleLastName,
+            last_login_at: new Date().toISOString(),
+          } as any, { onConflict: 'id' });
+
+          if (profileUpsertError) {
+             console.error("Failed to save profile to DB:", profileUpsertError);
+          }
+
+          // 3. CREATE BUYER & ROLE: This handles the 'buyers' and 'user_roles' tables
+          await authService.createBuyerAccount(user.id);
+
+          // 4. Fetch the latest profile to sync with the store
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          const { data: buyerData } = await supabase
+            .from("buyers")
+            .select("bazcoins, avatar_url")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          const profile = (profileData as any) || {};
+          const buyer = (buyerData as any) || {};
+
+          // 5. Derive names safely
+          const { firstName, lastName, displayFullName } = deriveBuyerName({
+            first_name: profile.first_name || googleFirstName,
+            last_name: profile.last_name || googleLastName,
+            full_name: user.user_metadata?.full_name || null, 
+            email: email,
+          });
+
+          // 6. Update the global store so the UI changes from "Sign In" to the Profile Avatar
+          useBuyerStore.getState().setProfile({
+            id: user.id,
+            email: email,
+            firstName,
+            lastName,
+            phone: profile.phone || "",
+            avatar: buyer.avatar_url || 
+                    user.user_metadata?.avatar_url || 
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayFullName)}&background=FF6B35&color=fff`,
+            bazcoins: buyer.bazcoins || 0,
+            memberSince: profile.created_at ? new Date(profile.created_at) : new Date(),
+            totalOrders: 0,
+            totalSpent: 0,
+            preferences: {}, 
+          } as any);
+
+          // 7. Initialize the cart (non-blocking)
+          void useBuyerStore.getState().initializeCart();
+
+          // 8. Redirect to shop if this was an OAuth redirect
+          if (isOAuthRedirect) {
+            window.location.hash = '/shop';
+          }
+          
+        } catch (err) {
+          console.error("Error during Google Auth sync:", err);
+        }
+      }
+
       if (event === 'SIGNED_OUT') {
-        // Clear all persisted auth stores on sign-out
         localStorage.removeItem('seller-auth-storage');
         localStorage.removeItem('admin-auth');
         localStorage.removeItem('buyer-store');
+        useBuyerStore.getState().logout();
       }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      void handleAuthChange(event, session);
     });
+    
     return () => subscription.unsubscribe();
   }, []);
 

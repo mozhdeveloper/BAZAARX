@@ -100,7 +100,7 @@ export class AuthService {
               last_name: last_name || null,
               phone: userData.phone || null,
               last_login_at: null,
-            },
+            } as any,
             {
               onConflict: 'id',
               ignoreDuplicates: false,
@@ -212,7 +212,7 @@ export class AuthService {
           store_description: sellerData.store_description || null,
           avatar_url: null,
           approval_status: 'pending', // New sellers start as pending
-        })
+        } as any)
         .select()
         .single();
 
@@ -259,7 +259,7 @@ export class AuthService {
 
     const { error } = await supabase
       .from('user_roles')
-      .insert({ user_id: userId, role });
+      .insert({ user_id: userId, role } as any);
 
     if (error) {
       console.error('Error adding user role:', error);
@@ -285,7 +285,7 @@ export class AuthService {
       return [];
     }
 
-    return data?.map(r => r.role as UserRole) || [];
+    return (data as Array<{ role: UserRole }> | null)?.map(r => r.role) || [];
   }
 
   /**
@@ -365,17 +365,18 @@ export class AuthService {
 
         // Source-of-truth rule: do not overwrite existing profile names from auth metadata.
         // Use metadata only to bootstrap when the profile row does not exist yet.
-        const { data: existingProfile, error: existingProfileError } = await supabase
+        const { data: existingProfileRaw, error: existingProfileError } = await supabase
           .from('profiles')
           .select('id')
           .eq('id', data.user.id)
           .maybeSingle();
+        const existingProfile = existingProfileRaw as { id: string } | null;
 
         if (existingProfileError) {
           console.error('Error checking existing profile during sign in:', existingProfileError);
-        } else if (existingProfile?.id) {
-          const { error: profileUpdateError } = await supabase
-            .from('profiles')
+        } else if (existingProfile && existingProfile.id) {
+          const { error: profileUpdateError } = await (supabase
+            .from('profiles') as any)
             .update({
               email: normalizedEmail,
               last_login_at: lastLoginAt,
@@ -395,7 +396,7 @@ export class AuthService {
               last_name: data.user.user_metadata?.last_name || null,
               phone: data.user.user_metadata?.phone || null,
               last_login_at: lastLoginAt,
-            });
+            } as any);
 
           if (profileInsertError) {
             console.error('Error inserting profile during sign in:', profileInsertError);
@@ -410,7 +411,7 @@ export class AuthService {
               id: data.user.id,
               preferences: {},
               bazcoins: 0,
-            },
+            } as any,
             { onConflict: 'id', ignoreDuplicates: true }
           );
 
@@ -562,16 +563,18 @@ export class AuthService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data: profileContactData, error } = await supabase
         .from('profiles')
         .select('email, phone')
         .eq('id', userId)
         .maybeSingle();
+      const data = profileContactData as ProfileContact | null;
 
       if (error) throw error;
+      if (!data) return null;
       return {
-        email: data?.email || null,
-        phone: data?.phone || null,
+        email: data.email || null,
+        phone: data.phone || null,
       };
     } catch (error) {
       console.error('Error fetching profile contact:', error);
@@ -604,8 +607,8 @@ export class AuthService {
     }
 
     try {
-      const { error } = await supabase
-        .from('profiles')
+      const { error } = await (supabase
+        .from('profiles') as any)
         .update(updates)
         .eq('id', userId);
 
@@ -696,7 +699,7 @@ export class AuthService {
           avatar_url: null,
           preferences: defaultBuyerPreferences,
           bazcoins: 0,
-        },
+        } as any,
         { onConflict: 'id' }
       );
 
@@ -735,11 +738,12 @@ export class AuthService {
       throw new Error('Auth session missing');
     }
 
-    const { data: existingProfile } = await supabase
+    const { data: existingProfileRaw } = await supabase
       .from('profiles')
       .select('email, first_name, last_name, phone')
       .eq('id', user.id)
       .maybeSingle();
+    const existingProfile = existingProfileRaw as Pick<Profile, 'email' | 'first_name' | 'last_name' | 'phone'> | null;
 
     await this.addUserRole(user.id, 'seller');
 
@@ -752,7 +756,7 @@ export class AuthService {
           store_description: payload.store_description || null,
           store_contact_number: payload.phone?.trim() || null,
           approval_status: 'pending',
-        },
+        } as any,
         { onConflict: 'id' },
       );
 
@@ -762,9 +766,9 @@ export class AuthService {
     }
 
     const phoneToSave = payload.phone?.trim();
-    if (phoneToSave && phoneToSave !== existingProfile?.phone) {
-      const { error: profileUpdateError } = await supabase
-        .from('profiles')
+    if (phoneToSave && phoneToSave !== (existingProfile ? existingProfile.phone : null)) {
+      const { error: profileUpdateError } = await (supabase
+        .from('profiles') as any)
         .update({ phone: phoneToSave })
         .eq('id', user.id);
 
@@ -807,7 +811,7 @@ export class AuthService {
           avatar_url: null,
           preferences: defaultBuyerPreferences,
           bazcoins: 0,
-        },
+        } as any,
         { onConflict: 'id' },
       );
 
@@ -816,24 +820,25 @@ export class AuthService {
       throw new Error('Failed to initialize buyer profile.');
     }
 
-    const { data: existingProfile } = await supabase
+    const { data: existingProfileRaw } = await supabase
       .from('profiles')
       .select('email, phone')
       .eq('id', user.id)
       .maybeSingle();
+    const existingProfile = existingProfileRaw as Pick<Profile, 'email' | 'phone'> | null;
 
     const profileUpsert = {
       id: user.id,
-      email: existingProfile?.email || payload.email || user.email || null,
+      email: (existingProfile ? existingProfile.email : null) || payload.email || user.email || null,
       first_name: payload.first_name.trim(),
       last_name: payload.last_name.trim(),
-      phone: existingProfile?.phone || payload.phone || null,
+      phone: (existingProfile ? existingProfile.phone : null) || payload.phone || null,
       last_login_at: new Date().toISOString(),
     };
 
     const { error: profileError } = await supabase
       .from('profiles')
-      .upsert(profileUpsert, { onConflict: 'id' });
+      .upsert(profileUpsert as any, { onConflict: 'id' });
 
     if (profileError) {
       console.error('Error updating profile during buyer upgrade:', profileError);
@@ -858,7 +863,7 @@ export class AuthService {
           avatar_url: null,
           preferences: {},
           bazcoins: 0,
-        },
+        } as any,
         { onConflict: 'id' }
       );
 
@@ -871,7 +876,7 @@ export class AuthService {
         {
           id: userId,
           permissions: {},
-        },
+        } as any,
         { onConflict: 'id' }
       );
 
