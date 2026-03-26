@@ -51,6 +51,7 @@ interface DbOrderData {
   buyer_id?: string;
   is_reviewed?: boolean;
   shipping_cost?: number;
+  cancellationReason?: string;
 }
 
 export default function OrderDetailPage() {
@@ -128,6 +129,7 @@ export default function OrderDetailPage() {
           buyer_id: detail.buyer_id,
           is_reviewed: detail.is_reviewed || false,
           shipping_cost: detail.shipping_cost || 0,
+          cancellationReason: detail.order.cancellationReason,
         };
 
         setDbOrder(extendedOrder);
@@ -396,19 +398,21 @@ export default function OrderDetailPage() {
       completed:
         isShippedOrBeyond ||
         order.status === "confirmed" ||
-        (isCancelled && !!order.confirmedAt),
+        // Only mark confirmed as completed if order was actually confirmed BEFORE cancellation
+        // For auto-cancelled orders (never confirmed), do not mark confirmed as done
+        (!isCancelled && !!order.confirmedAt),
       date: order.confirmedAt || null,
     },
     {
       status: "shipped",
       label: "Shipped",
-      completed: isShippedOrBeyond,
+      completed: isShippedOrBeyond && !isCancelled,
       date: isShippedOrBeyond ? (order.shippedAt || null) : null,
     },
     {
       status: "delivered",
       label: "Delivered",
-      completed: isDeliveredOrBeyond,
+      completed: isDeliveredOrBeyond && !isCancelled,
       date: isDeliveredOrBeyond ? (order.deliveredAt || null) : null,
     },
     ...(order.status === "received" || order.status === "reviewed"
@@ -442,6 +446,8 @@ export default function OrderDetailPage() {
       ]
       : []),
   ];
+
+  const showCancellationReason = isCancelled && order.cancellationReason;
 
   const subtotalAmount =
     order.pricing?.subtotal ??
@@ -1051,6 +1057,11 @@ export default function OrderDetailPage() {
                                 {formatDate(item.date)}
                               </p>
                             )}
+                            {item.status === 'cancelled' && showCancellationReason && (
+                              <p className="text-xs text-red-600 mt-1 font-medium">
+                                {order.cancellationReason}
+                              </p>
+                            )}
                             {item.status === 'shipped' && order.trackingNumber && (
                               <div className="mt-2 flex items-center gap-2 text-[10px] sm:text-xs">
                                 <span className="font-mono font-semibold text-[var(--text-muted)]">Tracking Number:</span>
@@ -1455,6 +1466,7 @@ export default function OrderDetailPage() {
                     buyer_id: detail.buyer_id,
                     is_reviewed: detail.is_reviewed || false,
                     shipping_cost: detail.shipping_cost || 0,
+                    cancellationReason: detail.order.cancellationReason,
                   };
                   setDbOrder(refreshedOrder);
                 }
@@ -1585,6 +1597,7 @@ export default function OrderDetailPage() {
                               buyer_id: detail.buyer_id,
                               is_reviewed: detail.is_reviewed || false,
                               shipping_cost: detail.shipping_cost || 0,
+                              cancellationReason: detail.order.cancellationReason,
                             };
                             setDbOrder(refreshedOrder);
                           }

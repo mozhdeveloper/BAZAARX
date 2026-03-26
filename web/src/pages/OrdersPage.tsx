@@ -768,9 +768,6 @@ export default function OrdersPage() {
                           ? `Received ${formatDateTime(order.updatedAt)}`
                           : order.deliveredAt ? `Delivered ${formatDateTime(order.deliveredAt)}` : `Placed ${formatDateTime(order.createdAt)}`)}
                         {order.status === "returned" && `Placed ${formatDateTime(order.createdAt)}`}
-                        {order.status === "cancelled" && (order.cancelledAt
-                          ? `Cancelled ${formatDateTime(order.cancelledAt)}`
-                          : `Placed ${formatDateTime(order.createdAt)}`)}
                       </span>
                     </div>
                     <div

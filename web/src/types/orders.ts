@@ -122,6 +122,7 @@ export interface BuyerOrderSnapshot {
   deliveredAt?: Date;
   deliveryDate?: Date;
   cancelledAt?: Date;
+  cancellationReason?: string;
   receivedAt?: Date;
   updatedAt?: Date;
   items: BuyerOrderItemSnapshot[];

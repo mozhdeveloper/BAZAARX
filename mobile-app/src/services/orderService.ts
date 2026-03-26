@@ -193,6 +193,13 @@ const mapDbOrderToOrder = (dbOrder: any) => {
   const recipient = dbOrder.recipient || {};
   const address = dbOrder.shipping_address || {};
 
+  // Get latest cancellation if exists
+  const cancellations = dbOrder.cancellations || [];
+  const latestCancellation = cancellations.length > 0 
+    ? cancellations.sort((a: any, b: any) => new Date(b.cancelled_at || b.created_at).getTime() - new Date(a.cancelled_at || a.created_at).getTime())[0]
+    : null;
+  const cancellationReason = latestCancellation?.reason || null;
+
   // Construct full address string
   const fullAddress = [
     address.address_line_1,
@@ -243,6 +250,7 @@ const mapDbOrderToOrder = (dbOrder: any) => {
     
     // Legacy support fields if needed
     buyer_name: `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim(),
+    cancellationReason: cancellationReason,
   };
 };
 
@@ -876,7 +884,10 @@ export class OrderService {
             )
           ),
           recipient:order_recipients (*),
-          shipping_address:shipping_addresses (*)
+          shipping_address:shipping_addresses (*),
+          cancellations:order_cancellations (
+            id, reason, cancelled_at, cancelled_by, created_at
+          )
         `)
         .eq(isUuid ? 'id' : 'order_number', orderId)
         .single();

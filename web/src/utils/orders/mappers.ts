@@ -274,6 +274,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     updatedAt,
     deliveryDate: deliveredAt,
     cancelledAt,
+    cancellationReason: order.cancellation_reason || undefined,
     receivedAt,
     items,
     shippingAddress: {
