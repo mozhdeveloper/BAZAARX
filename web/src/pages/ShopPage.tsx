@@ -504,31 +504,16 @@ export default function ShopPage() {
 
 
 
-  // Trigger skeleton loading on filter/category changes
-  useEffect(() => {
-    setIsProductsLoading(true);
-    const timer = setTimeout(() => setIsProductsLoading(false), 300);
-    return () => clearTimeout(timer);
-  }, [selectedCategory, selectedSort, selectedPriceSort, priceRange, minRating, searchQuery]);
-
   const resetFilters = () => {
     setSelectedSort("newest");
     setSelectedPriceSort("price-default");
     setPriceRange([0, 100000]);
     setMinRating(0);
-    setSearchParams(prev => {
-      const params = new URLSearchParams(prev);
-      params.delete("sort");
-      params.delete("priceSort");
-      params.delete("category");
-      return params;
-    });
-    setSelectedCategory("All Categories");
-    if (searchQuery) {
-      const element = document.getElementById("shop-results-header");
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+    setSearchParams("");
+
+    const element = document.getElementById("shop-results-header");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
     } else {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -797,11 +782,11 @@ export default function ShopPage() {
 
                           {/* Product Image */}
                           <div className="relative aspect-square overflow-hidden bg-gray-50">
-                            <img loading="lazy" 
+                            <img 
                               src={imageUrl}
                               alt={product.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               loading="lazy"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
                               }}
