@@ -229,6 +229,26 @@ export class CheckoutService {
                 itemsBySeller[sId].push(item);
             });
 
+            // Fetch warranty information for all products
+            const productWarrantyMap = new Map<string, {
+                has_warranty: boolean;
+                warranty_type: string | null;
+                warranty_duration_months: number | null;
+            }>();
+            if (uniqueProductIds.length > 0) {
+                const { data: warrantyData } = await supabase
+                    .from('products')
+                    .select('id, has_warranty, warranty_type, warranty_duration_months')
+                    .in('id', uniqueProductIds);
+                warrantyData?.forEach(p => {
+                    productWarrantyMap.set(p.id, {
+                        has_warranty: p.has_warranty,
+                        warranty_type: p.warranty_type,
+                        warranty_duration_months: p.warranty_duration_months,
+                    });
+                });
+            }
+
             const addressJson = JSON.stringify({
                 fullName: shippingAddress.fullName, street: shippingAddress.street,
                 city: shippingAddress.city, province: shippingAddress.province,
@@ -258,18 +278,44 @@ export class CheckoutService {
 
                     const sellerLinePricing = linePricing.filter(lp => lp.item.product?.seller_id === sellerId);
 
-                    const orderItemsData = sellerLinePricing.map(lp => ({
-                        order_id: orderData.id,
-                        product_id: lp.item.product_id,
-                        product_name: (lp.item.selected_variant as any)?.name || lp.item.product?.name || 'Product',
-                        primary_image_url: (lp.item.selected_variant as any)?.image || lp.item.product?.primary_image || null,
-                        quantity: lp.quantity,
-                        price: lp.unitPrice,
-                        variant_id: (lp.item.selected_variant as any)?.id || null,
-                        price_discount: lp.campaignDiscountPerUnit,
-                        shipping_price: 0,
-                        shipping_discount: 0
-                    }));
+                    const orderDate = new Date();
+                    const orderItemsData = sellerLinePricing.map(lp => {
+                        const warrantyInfo = lp.item.product_id ? productWarrantyMap.get(lp.item.product_id) : null;
+                        
+                        // Calculate warranty dates if product has warranty
+                        let warrantyStartDate: string | null = null;
+                        let warrantyExpirationDate: string | null = null;
+                        let warrantyType: string | null = null;
+                        let warrantyDurationMonths: number | null = null;
+                        
+                        if (warrantyInfo?.has_warranty && warrantyInfo.warranty_type && warrantyInfo.warranty_duration_months) {
+                            warrantyType = warrantyInfo.warranty_type;
+                            warrantyDurationMonths = warrantyInfo.warranty_duration_months;
+                            warrantyStartDate = orderDate.toISOString();
+                            
+                            // Calculate expiration date
+                            const expirationDate = new Date(orderDate);
+                            expirationDate.setMonth(expirationDate.getMonth() + warrantyDurationMonths);
+                            warrantyExpirationDate = expirationDate.toISOString();
+                        }
+                        
+                        return {
+                            order_id: orderData.id,
+                            product_id: lp.item.product_id,
+                            product_name: (lp.item.selected_variant as any)?.name || lp.item.product?.name || 'Product',
+                            primary_image_url: (lp.item.selected_variant as any)?.image || lp.item.product?.primary_image || null,
+                            quantity: lp.quantity,
+                            price: lp.unitPrice,
+                            variant_id: (lp.item.selected_variant as any)?.id || null,
+                            price_discount: lp.campaignDiscountPerUnit,
+                            shipping_price: 0,
+                            shipping_discount: 0,
+                            warranty_type: warrantyType,
+                            warranty_duration_months: warrantyDurationMonths,
+                            warranty_start_date: warrantyStartDate,
+                            warranty_expiration_date: warrantyExpirationDate,
+                        };
+                    });
 
                     // Stock deductions — use stock already fetched in Phase 1 (no re-fetch)
                     const stockUpdates = sellerLinePricing

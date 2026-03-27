@@ -18,15 +18,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, SlidersHorizontal, X, Check, Camera, Star, CheckCircle2, Bell, MapPin, ChevronDown } from 'lucide-react-native';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import CameraSearchModal from '../src/components/CameraSearchModal';
-import { ProductCard } from '../src/components/ProductCard';
 import LocationModal from '../src/components/LocationModal';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { FlashList } from "@shopify/flash-list";
+import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
 import { productService } from '../src/services/productService';
 import { categoryService } from '../src/services/categoryService';
 import { addressService } from '../src/services/addressService';
 import { notificationService } from '../src/services/notificationService';
-import { featuredProductService, type FeaturedProductWithDetails } from '../src/services/featuredProductService';
-import { adBoostService, type AdBoostWithProduct } from '../src/services/adBoostService';
+import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
+import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -222,8 +223,8 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [isProductsLoading, setIsProductsLoading] = useState(false);
 
   // Featured products state
-  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductWithDetails[]>([]);
-  const [boostedProducts, setBoostedProducts] = useState<AdBoostWithProduct[]>([]);
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
+  const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
 
   const [minPrice, setMinPrice] = useState('0');
@@ -556,11 +557,7 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const keyExtractor = useCallback((item: Product) => item.id, []);
 
-  const renderProductItem = useCallback(({ item: product }: { item: Product }) => (
-    <View style={styles.cardWrapper}>
-      <ProductCard product={product} onPress={() => handleProductPress(product)} />
-    </View>
-  ), [handleProductPress]);
+  // renderProductItem removed in favor of inline renderItem in MasonryFlashList constants
 
   const listEmptyComponent = useMemo(() => {
     if (isLoading) return <ActivityIndicator color={BRAND_COLOR} style={{ marginTop: 50 }} />;
@@ -735,10 +732,12 @@ export default function ShopScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      <FlatList
+      {/* Featured Sort Indicator — replaced by filter chips above */}
+
+      {/* Product list as root scroll — enables virtualization */}
+      <FlashList
         data={(isLoading || isProductsLoading) ? [] : filteredProducts}
         keyExtractor={keyExtractor}
-        numColumns={2}
         ListHeaderComponent={listHeaderComponent}
         ListFooterComponent={<View style={{ height: 100 }} />}
         refreshControl={
@@ -754,7 +753,7 @@ export default function ShopScreen({ navigation, route }: Props) {
             <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
                 {[...Array(6)].map((_, i) => (
-                  <View key={`skel-${i}`} style={{ width: (width - 48) / 2, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6' }}>
+                  <View key={`skel-${i}`} style={{ width: (width - 40 - 12) / 2, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6' }}>
                     <View style={{ aspectRatio: 1, backgroundColor: '#E5E7EB' }} />
                     <View style={{ padding: 12, gap: 8 }}>
                       <View style={{ height: 14, backgroundColor: '#E5E7EB', borderRadius: 6, width: '85%' }} />
@@ -767,14 +766,19 @@ export default function ShopScreen({ navigation, route }: Props) {
             </View>
           ) : listEmptyComponent
         }
-        initialNumToRender={8}
-        maxToRenderPerBatch={10}
-        windowSize={7}
-        removeClippedSubviews={true}
-        updateCellsBatchingPeriod={100}
-        columnWrapperStyle={[styles.productsGrid, { paddingHorizontal: 20 }]}
-        contentContainerStyle={{ paddingTop: 15 }}
-        renderItem={renderProductItem}
+        numColumns={2}
+        masonry={true}
+        onEndReachedThreshold={0.5}
+        contentContainerStyle={{ paddingTop: 15, paddingHorizontal: 14, paddingBottom: 100 }}
+        renderItem={({ item }: { item: Product }) => (
+          <View style={{ paddingHorizontal: 6, paddingVertical: 6 }}>
+            <MasonryProductCard 
+              product={item} 
+              onPress={() => handleProductPress(item)} 
+              width={(width - 40 - 12) / 2} 
+            />
+          </View>
+        )}
         showsVerticalScrollIndicator={false}
       />
 

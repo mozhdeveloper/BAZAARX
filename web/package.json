@@ -88,6 +88,7 @@
     "lucide-react": "^0.556.0",
     "motion": "^12.23.26",
     "next": "^16.1.4",
+    "next-share": "^0.27.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.4",
     "react-countup": "^6.5.3",

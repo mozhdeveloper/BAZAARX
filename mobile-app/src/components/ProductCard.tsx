@@ -74,7 +74,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, on
         {/* Rating */}
         <View style={styles.ratingContainer}>
           <Star size={12} fill="#F59E0B" color="#F59E0B" />
-          <Text style={styles.ratingText}>{product.rating || 4.9}</Text>
+          <Text style={styles.ratingText}>{product.rating || 5.0} ({product.review_count || 0})</Text>
         </View>
 
         {/* Price & Sold */}
@@ -82,8 +82,8 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, on
           <View style={styles.priceContainer}>
             <Text style={[
               styles.price,
-              hasDiscount && { color: isFlash ? '#DC2626' : '#EA580C' }, // Vibrant Orange for Standard
-              isFlash && { fontSize: 18 } // Slightly larger for Flash
+              hasDiscount && { color: isFlash ? '#DC2626' : '#EA580C' }, 
+              isFlash && { fontSize: 18 }
             ]}>
               ₱{regularPrice.toLocaleString()}
             </Text>
@@ -92,7 +92,7 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, on
             )}
           </View>
           {!(hasDiscount && isFlash) && (
-            <Text style={styles.soldText}>{(product.sold || 0).toLocaleString()} sold</Text>
+            <Text style={styles.soldText}>{(product.sold || product.sales_count || (product as any).sold_count || 0).toLocaleString()} sold</Text>
           )}
         </View>
 
@@ -103,14 +103,14 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, on
                 style={[
                   styles.flashProgressFill,
                   {
-                    width: `${Math.min(100, Math.max(5, (product.sold || 0) / ((product.sold || 0) + (product.stock || 1)) * 100))}%`
+                    width: `${Math.min(100, Math.max(5, (product.sold || (product as any).sold_count || 0) / ((product.sold || (product as any).sold_count || 0) + (product.stock || 1)) * 100))}%`
                   }
                 ]}
               />
             </View>
             <View style={styles.flashSoldRow}>
               <Flame size={14} color="#DC2626" fill="#DC2626" />
-              <Text style={styles.flashSoldText}>{(product.sold || 0).toLocaleString()} SOLD</Text>
+              <Text style={styles.flashSoldText}>{(product.sold || product.sales_count || (product as any).sold_count || 0).toLocaleString()} SOLD</Text>
             </View>
           </View>
         )}
@@ -130,6 +130,95 @@ export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, on
             <Text style={styles.sellerRating}>({product.sellerRating})</Text>
           </View>
         </View> */}
+      </View>
+    </Pressable>
+  );
+});
+
+interface MasonryProductCardProps {
+  product: Product;
+  onPress: () => void;
+  width: number;
+}
+
+export const MasonryProductCard: React.FC<MasonryProductCardProps> = React.memo(({ product, onPress, width }) => {
+  const regularPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price || 0));
+  const pbPrice = product.originalPrice ?? product.original_price;
+  const originalPrice = typeof pbPrice === 'number' ? pbPrice : parseFloat(String(pbPrice || 0));
+
+  const hasDiscount = !!(originalPrice > 0 && regularPrice > 0 && originalPrice > regularPrice);
+
+  const discountPercent = hasDiscount
+    ? (product.campaignDiscountType === 'percentage' && (product.campaignDiscountValue || (product as any).discountBadgePercent)
+      ? Math.round(product.campaignDiscountValue ?? (product as any).discountBadgePercent)
+      : Math.round(((originalPrice - regularPrice) / originalPrice) * 100))
+    : 0;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        masonryStyles.container,
+        { width: width },
+        pressed && masonryStyles.pressed,
+      ]}
+      android_ripple={{ color: '#FFE5D9' }}
+    >
+      <View style={masonryStyles.imageContainer}>
+        <Image 
+          source={{ uri: safeImageUri(product.image) }} 
+          style={masonryStyles.image} 
+          contentFit="cover" 
+          cachePolicy="memory-disk" 
+          transition={200} 
+        />
+
+        {hasDiscount && (
+          <View style={masonryStyles.discountBadge}>
+            <Text style={masonryStyles.discountText}>{discountPercent}% OFF</Text>
+          </View>
+        )}
+
+        {product.is_vacation_mode && (
+          <View style={masonryStyles.vacationBadge}>
+            <Palmtree size={10} color="#FFFFFF" />
+            <Text style={masonryStyles.vacationBadgeText}>Vacation</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={masonryStyles.infoContainer}>
+        <Text style={masonryStyles.productName} numberOfLines={3}>
+          {product.name}
+        </Text>
+
+        <View style={masonryStyles.tagsRow}>
+          {product.isFreeShipping && (
+            <View style={[masonryStyles.tag, { backgroundColor: '#ECFDF5' }]}>
+              <Text style={[masonryStyles.tagText, { color: '#059669' }]}>Free Shipping</Text>
+            </View>
+          )}
+          {(product as any).isSulitDeal && (
+            <View style={[masonryStyles.tag, { backgroundColor: '#FFF7ED' }]}>
+              <Text style={[masonryStyles.tagText, { color: '#EA580C' }]}>Sulit Deal</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={masonryStyles.priceRow}>
+          <Text style={masonryStyles.price}>₱{regularPrice.toLocaleString()}</Text>
+          {hasDiscount && (
+            <Text style={masonryStyles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
+          )}
+        </View>
+
+        <View style={masonryStyles.footer}>
+          <View style={masonryStyles.ratingBox}>
+            <Star size={10} fill="#F59E0B" color="#F59E0B" />
+            <Text style={masonryStyles.ratingText}>{product.rating || 5.0} ({product.review_count || 0})</Text>
+          </View>
+          <Text style={masonryStyles.soldText}>{(product.sold || product.sales_count || (product as any).sold_count || 0).toLocaleString()} sold</Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -164,16 +253,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: '#DC2626', // Red
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
     zIndex: 10,
   },
   discountText: {
     color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   flashBadge: {
     position: 'absolute',
@@ -234,17 +324,16 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   infoContainer: {
-    padding: 10,
+    padding: 6,
     flex: 1,
     justifyContent: 'space-between',
   },
   productName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.textPrimary, // Rich Warm Brown
-    marginBottom: 6,
-    lineHeight: 17,
-    height: 34, // Fixed height for 2 lines to maintain grid alignment
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#000000',
+    marginBottom: 4,
+    lineHeight: 14,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -343,3 +432,122 @@ const styles = StyleSheet.create({
 });
 
 ProductCard.displayName = 'ProductCard';
+
+const masonryStyles = StyleSheet.create({
+  container: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  pressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+  imageContainer: {
+    width: "100%",
+    backgroundColor: "#F3F4F6",
+    position: 'relative',
+  },
+  image: {
+    width: "100%",
+    aspectRatio: 1,
+  },
+  infoContainer: {
+    padding: 10,
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  productName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary, // Rich Warm Brown
+    marginBottom: 6,
+    lineHeight: 17,
+    height: 34, // Fixed height for 2 lines to maintain grid alignment
+  },
+  priceRow: {
+    gap: 4,
+  },
+  price: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  originalPrice: {
+    fontSize: 10,
+    color: '#A8A29E',
+    textDecorationLine: 'line-through',
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  ratingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  ratingText: {
+    fontSize: 10,
+    color: '#6B7280',
+  },
+  soldText: {
+    fontSize: 10,
+    color: '#6B7280',
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 10,
+  },
+  discountText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  vacationBadge: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  vacationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 4,
+  },
+  tag: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 2,
+  },
+  tagText: {
+    fontSize: 9,
+    fontWeight: '600',
+  }
+});

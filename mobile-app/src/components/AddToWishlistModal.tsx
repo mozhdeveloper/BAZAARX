@@ -110,11 +110,11 @@ export const AddToWishlistModal = ({ visible, onClose, product }: AddToWishlistM
         handleCloseInternal();
     };
 
-    const handleCreateAndAdd = () => {
+    const handleCreateAndAdd = async () => {
         if (!newListName.trim()) return;
         const occasionValue = selectedOccasion === 'other' ? (customOccasion.trim() || 'other') : selectedOccasion;
-        const newId = createCategory(newListName, 'private', occasionValue);
-        addItem(product, 'medium', 1, newId);
+        const newId = await createCategory(newListName, 'private', occasionValue);
+        await addItem(product, 'medium', 1, newId);
         setNewListName('');
         setCustomOccasion('');
         setSelectedOccasion(OCCASIONS[2].id);

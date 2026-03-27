@@ -309,12 +309,12 @@ class ChatService {
     let isOnline = false;
     const targetUserId = callerType === 'seller' ? conv.buyer_id : resolvedSellerId;
     if (targetUserId) {
-        const { data: presence } = await supabase
-            .from('user_presence')
-            .select('is_online')
-            .eq('user_id', targetUserId)
-            .maybeSingle();
-        isOnline = presence?.is_online === true;
+      const { data: presence } = await supabase
+        .from('user_presence')
+        .select('is_online')
+        .eq('user_id', targetUserId)
+        .maybeSingle();
+      isOnline = presence?.is_online === true;
     }
 
     // Get conversation stats
@@ -356,7 +356,8 @@ class ChatService {
       .from('conversations')
       .select('*')
       .eq('buyer_id', buyerId)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(50);
 
     if (convError) {
       console.error('[ChatService] Error fetching buyer conversations:', convError);
@@ -483,7 +484,7 @@ class ChatService {
     const { data: conversations, error: convError } = await supabase
       .from('conversations')
       .select('*')
-      .in('id', conversationIds)
+      .in('id', conversationIds.slice(0, 50))
       .order('updated_at', { ascending: false });
 
     if (convError) {
@@ -495,18 +496,91 @@ class ChatService {
       return [];
     }
 
-    // Enrich each conversation
-    const enrichedConversations = await Promise.all(
-      conversations.map(async (conv) => {
-        return this.enrichConversation(conv, sellerId, 'seller');
-      })
-    );
+    // Bulk fetch last messages and unread counts in parallel
+    const [recentMsgsResult, sellerUnreadResult, buyerProfilesResult] = await Promise.all([
+      supabase
+        .from('messages')
+        .select('conversation_id, content, created_at, sender_type')
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: false })
+        .limit(200),
+      // Unread messages FROM buyers (seller hasn't read them yet)
+      supabase
+        .from('messages')
+        .select('conversation_id')
+        .in('conversation_id', conversationIds)
+        .eq('sender_type', 'buyer')
+        .eq('is_read', false),
+      supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', conversations.map(c => c.buyer_id)),
+    ]);
 
-    // Sort by last_message_at
-    return enrichedConversations.sort((a, b) => 
-      new Date(b.last_message_at || b.updated_at).getTime() - 
-      new Date(a.last_message_at || a.updated_at).getTime()
-    );
+    const lastMsgByConvId = new Map<string, { content: string; created_at: string; sender_type: string }>();
+    for (const msg of recentMsgsResult.data || []) {
+      if (!lastMsgByConvId.has(msg.conversation_id)) lastMsgByConvId.set(msg.conversation_id, msg);
+    }
+
+    const sellerUnreadByConvId = new Map<string, number>();
+    for (const msg of sellerUnreadResult.data || []) {
+      sellerUnreadByConvId.set(msg.conversation_id, (sellerUnreadByConvId.get(msg.conversation_id) || 0) + 1);
+    }
+
+    const buyerProfileById = new Map<string, { first_name?: string; last_name?: string }>();
+    for (const p of buyerProfilesResult.data || []) buyerProfileById.set(p.id, p);
+
+    const enriched = conversations
+      .map((conv) => {
+        const lastMsg = lastMsgByConvId.get(conv.id);
+        // Skip blank conversations (no messages at all)
+        if (!lastMsg) return null;
+        const profile = buyerProfileById.get(conv.buyer_id);
+        const buyerName = profile
+          ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown Customer'
+          : 'Unknown Customer';
+        return {
+          ...conv,
+          seller_id: sellerId,
+          buyer_name: buyerName,
+          last_message: lastMsg.content || '',
+          last_message_at: lastMsg.created_at || conv.updated_at,
+          last_sender_type: lastMsg.sender_type,
+          seller_unread_count: sellerUnreadByConvId.get(conv.id) || 0,
+          buyer_unread_count: 0,
+          is_online: false,
+          isOnline: false,
+        } as Conversation;
+      })
+      .filter((c): c is Conversation => c !== null);
+
+    // Fetch buyer avatars + presence in parallel
+    const buyerIds = [...new Set(enriched.map(c => c.buyer_id))];
+    const [buyersResult, presenceResult] = await Promise.all([
+      buyerIds.length > 0
+        ? supabase.from('buyers').select('id, avatar_url').in('id', buyerIds)
+        : Promise.resolve({ data: [] }),
+      buyerIds.length > 0
+        ? supabase.from('user_presence').select('user_id, is_online').in('user_id', buyerIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const avatarById = new Map<string, string>();
+    for (const b of (buyersResult as any).data || []) avatarById.set(b.id, b.avatar_url);
+    const presenceById = new Map<string, boolean>();
+    for (const p of (presenceResult as any).data || []) presenceById.set(p.user_id, p.is_online === true);
+
+    return enriched
+      .map(c => ({
+        ...c,
+        buyer_avatar: avatarById.get(c.buyer_id),
+        is_online: presenceById.get(c.buyer_id) ?? false,
+        isOnline: presenceById.get(c.buyer_id) ?? false,
+      }))
+      .sort((a, b) =>
+        new Date(b.last_message_at || b.updated_at).getTime() -
+        new Date(a.last_message_at || a.updated_at).getTime()
+      );
   }
 
   /**
@@ -602,6 +676,37 @@ class ChatService {
       // Don't fail the message send if notification fails
     }
 
+    // Broadcast sidebar update to the receiver (bypasses RLS)
+    try {
+      let receiverId: string | null = null;
+      if (senderType === 'buyer' && conv?.order_id) {
+        receiverId = await this.getSellerIdFromOrder(conv.order_id);
+      } else if (senderType === 'buyer') {
+        receiverId = await this.getSellerIdFromMessages(conversationId);
+      } else if (senderType === 'seller' && conv?.buyer_id) {
+        receiverId = conv.buyer_id;
+      }
+
+      if (receiverId) {
+        console.log('📤 Broadcasting sidebar_update to:', receiverId);
+        const broadcastChannel = supabase.channel(`sidebar:${receiverId}`);
+        await broadcastChannel.subscribe();
+        await broadcastChannel.send({
+          type: 'broadcast',
+          event: 'sidebar_update',
+          payload: {
+            conversationId,
+            lastMessage: content,
+            lastMessageAt: message?.created_at ?? new Date().toISOString(),
+            senderType,
+          },
+        });
+        supabase.removeChannel(broadcastChannel);
+      }
+    } catch (broadcastError) {
+      console.error('[ChatService] Broadcast error (non-fatal):', broadcastError);
+    }
+
     return message;
   }
 
@@ -612,7 +717,7 @@ class ChatService {
   async markAsRead(conversationId: string, userId: string, userType: 'buyer' | 'seller'): Promise<void> {
     // Mark all messages from the other party as read
     const otherType = userType === 'buyer' ? 'seller' : 'buyer';
-    
+
     await supabase
       .from('messages')
       .update({ is_read: true })
@@ -633,7 +738,7 @@ class ChatService {
     onMessage: (message: Message) => void
   ): () => void {
     const channelName = `messages:${conversationId}`;
-    
+
     this.unsubscribe(channelName);
 
     const channel = supabase
@@ -647,8 +752,10 @@ class ChatService {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          console.log("🔥 REALTIME PAYLOAD RECEIVED:", payload); // <-- ADD THIS
+          console.log('🔥 REALTIME PAYLOAD RECEIVED:', payload);
           const newMsg = payload.new as Message;
+          if (!newMsg?.id) return;
+          console.log('📩 subscribeToMessages: delivering to callback, sender_type:', newMsg.sender_type);
           onMessage(newMsg);
         }
       )
@@ -686,6 +793,15 @@ class ChatService {
 
     this.unsubscribe(channelName);
 
+    // For sellers: track known conversation IDs so we can scope the listener
+    let sellerConvIds = new Set<string>();
+    if (userType === 'seller') {
+      // Pre-populate using getSellerConversations which already does multi-path discovery
+      this.getSellerConversations(userId).then((convs) => {
+        for (const c of convs) sellerConvIds.add(c.id);
+      }).catch(() => { });
+    }
+
     const handleConversationChange = async (conv: any) => {
       if (!conv) return;
 
@@ -696,11 +812,53 @@ class ChatService {
         return;
       }
 
+      // Seller path: if we don't already know this conversation, let enrichConversation
+      // determine ownership. This handles buyer-initiated conversations where the seller
+      // hasn't replied yet — enrichConversation resolves seller_id via order or messages.
+      if (!sellerConvIds.has(conv.id)) {
+        // Let enrichConversation discover the seller via order/messages (don't pre-bias with userId)
+        const enriched = await this.enrichConversation(conv, undefined, 'seller');
+        // If enrichConversation found a different seller, discard
+        if (enriched.seller_id && enriched.seller_id !== userId) return;
+        // If it found us or couldn't find any seller (brand-new buyer-initiated conv), accept
+        enriched.seller_id = userId;
+        sellerConvIds.add(conv.id);
+        onUpdate(enriched);
+        return;
+      }
+
       const enriched = await this.enrichConversation(conv, userId, 'seller');
       if (enriched.seller_id === userId) {
         onUpdate(enriched);
       }
     };
+
+    const buyerFilter = userType === 'buyer' ? `buyer_id=eq.${userId}` : undefined;
+
+    // Also subscribe to a personal broadcast channel for sidebar updates
+    const broadcastChannelName = `sidebar:${userId}`;
+    this.unsubscribe(broadcastChannelName);
+    const broadcastChannel = supabase
+      .channel(broadcastChannelName)
+      .on('broadcast', { event: 'sidebar_update' }, (event) => {
+        const payload = event.payload;
+        if (!payload?.conversationId) return;
+        console.log('📬 SIDEBAR BROADCAST RECEIVED:', payload);
+        // Optimistic update: push partial data immediately (no DB round-trip)
+        onUpdate({
+          id: payload.conversationId,
+          last_message: payload.lastMessage,
+          last_message_at: payload.lastMessageAt,
+          last_sender_type: payload.senderType,  // prevents stale "You:" prefix
+          updated_at: payload.lastMessageAt,
+          _optimistic: true,
+          _senderType: payload.senderType,
+        } as any);
+      })
+      .subscribe((status) => {
+        console.log(`📡 BROADCAST STATUS [${broadcastChannelName}]:`, status);
+      });
+    this.subscriptions.set(broadcastChannelName, broadcastChannel);
 
     const channel = supabase
       .channel(channelName)
@@ -710,9 +868,12 @@ class ChatService {
           event: '*',
           schema: 'public',
           table: 'conversations',
+          ...(buyerFilter ? { filter: buyerFilter } : {}),
         },
         async (payload) => {
-          await handleConversationChange((payload.new || payload.old) as any);
+          const updatedConv = (payload.new || payload.old) as any;
+          console.log(`🔔 subscribeToConversations [${userType}] conversations UPDATE:`, updatedConv?.id);
+          await handleConversationChange(updatedConv);
         }
       )
       .on(
@@ -725,6 +886,14 @@ class ChatService {
         async (payload) => {
           const msg = payload.new as Message;
           if (!msg?.conversation_id) return;
+          console.log(`🔔 subscribeToConversations [${userType}] messages INSERT:`, msg.conversation_id, 'sender:', msg.sender_type);
+
+          // For buyers: skip if this conversation doesn't belong to them (checked inside handleConversationChange)
+          // For sellers: skip if we know this conv isn't ours
+          if (userType === 'seller' && sellerConvIds.size > 0 && !sellerConvIds.has(msg.conversation_id)) {
+            console.log('🔔 seller: skipping unknown conv', msg.conversation_id);
+            return;
+          }
 
           const { data: conv } = await supabase
             .from('conversations')
@@ -745,6 +914,43 @@ class ChatService {
   }
 
   /**
+   * Lightweight global message listener scoped to a specific set of conversation IDs.
+   * Emits only the fields needed to update sidebar badges/previews — no enrichConversation call.
+   * Used by Header and SellerSidebar to avoid duplicate heavy channels.
+   */
+  subscribeToMessagesGlobal(
+    conversationIds: string[],
+    onNewMessage: (msg: Pick<Message, 'id' | 'conversation_id' | 'content' | 'created_at' | 'sender_type'>) => void
+  ): () => void {
+    if (conversationIds.length === 0) return () => { };
+    const channelName = `global-messages:${conversationIds.slice(0, 3).join('-')}`;
+    this.unsubscribe(channelName);
+
+    const idSet = new Set(conversationIds);
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes' as any,
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as Message;
+          if (!msg?.conversation_id || !idSet.has(msg.conversation_id)) return;
+          onNewMessage({
+            id: msg.id,
+            conversation_id: msg.conversation_id,
+            content: msg.content,
+            created_at: msg.created_at,
+            sender_type: msg.sender_type,
+          });
+        }
+      )
+      .subscribe();
+
+    this.subscriptions.set(channelName, channel);
+    return () => this.unsubscribe(channelName);
+  }
+
+  /**
    * Subscribe to presence updates
    */
   subscribeToPresenceUpdates(onPresenceChange: (userId: string, isOnline: boolean) => void): () => void {
@@ -759,7 +965,7 @@ class ChatService {
         (payload) => {
           const newRecord = payload.new as any;
           if (newRecord && newRecord.user_id) {
-             onPresenceChange(newRecord.user_id, newRecord.is_online === true);
+            onPresenceChange(newRecord.user_id, newRecord.is_online === true);
           }
         }
       )
@@ -799,11 +1005,13 @@ class ChatService {
    */
   async getUnreadCount(userId: string, userType: 'buyer' | 'seller'): Promise<number> {
     if (userType === 'buyer') {
-      // Count unread messages from sellers in buyer's conversations
+      // Count unread messages from sellers in buyer's conversations (cap at 50 most recent)
       const { data: convs } = await supabase
         .from('conversations')
         .select('id')
-        .eq('buyer_id', userId);
+        .eq('buyer_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(50);
 
       if (!convs || convs.length === 0) return 0;
 

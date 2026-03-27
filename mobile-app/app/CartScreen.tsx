@@ -10,15 +10,15 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ChevronLeft, CheckCircle, Circle, Flame, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, Check, Circle, Flame, ChevronRight, Store as StoreIcon } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
+import { DeleteConfirmationModal } from '../src/components/DeleteConfirmationModal';
 import { CartItem, Product } from '../src/types';
 import type { ActiveDiscount } from '../src/types/discount';
-import { Alert } from 'react-native';
 
 
 export default function CartScreen({ navigation, route }: any) {
@@ -42,6 +42,7 @@ export default function CartScreen({ navigation, route }: any) {
 
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk'; item?: CartItem } | null>(null);
 
   useEffect(() => {
     const requestedIds: string[] | undefined = route?.params?.selectedCartItemIds;
@@ -96,47 +97,25 @@ export default function CartScreen({ navigation, route }: any) {
 
   // Delete Handlers
   const handleRemoveSingle = (item: CartItem) => {
-    Alert.alert(
-      'Remove Item',
-      'Are you sure you want to remove this item from your cart?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => removeItem(item.cartItemId) // Using cartItemId as per store update
-        }
-      ]
-    );
-  };
-
-  const handleClearAll = () => {
-    Alert.alert(
-      'Clear Cart',
-      'Are you sure you want to remove all items?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: clearCart }
-      ]
-    );
+    setDeleteTarget({ type: 'single', item });
   };
 
   const handleDeleteSelected = () => {
-    Alert.alert(
-      'Delete Selected',
-      `Remove ${selectedIds.length} item(s) from your cart?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            removeItems(selectedIds);
-            setSelectedIds([]); // Clear selection after delete
-          }
-        }
-      ]
-    );
+    setDeleteTarget({ type: 'bulk' });
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+
+    if (deleteTarget.type === 'bulk') {
+      removeItems(selectedIds);
+      setSelectedIds([]);
+    } else if (deleteTarget.type === 'single' && deleteTarget.item) {
+      removeItem(deleteTarget.item.cartItemId);
+      // Also remove from selection if it was selected
+      setSelectedIds(prev => prev.filter(id => id !== deleteTarget.item?.cartItemId));
+    }
+    setDeleteTarget(null);
   };
 
   const groupedItems = useMemo(() => {
@@ -251,8 +230,13 @@ export default function CartScreen({ navigation, route }: any) {
       {/* SELECT ALL BAR */}
       <View style={styles.selectAllBar}>
         <Pressable style={styles.checkboxWrapper} onPress={() => isAllSelected ? setSelectedIds([]) : setSelectedIds(items.map(i => i.cartItemId))}>
-          {isAllSelected ? <CheckCircle size={22} color={BRAND_PRIMARY} fill={BRAND_PRIMARY + '15'} /> : <Circle size={22} color="#D1D5DB" />}
-          <Text style={styles.selectAllText}>Select All Items</Text>
+          <View style={[
+            styles.checkboxBase,
+            isAllSelected && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+          ]}>
+            {isAllSelected && <Check size={12} color="#FFF" strokeWidth={2.5} />}
+          </View>
+          <Text style={styles.selectAllText}>Select All ({items.length})</Text>
         </Pressable>
         {selectedIds.length > 0 && (
           <Pressable onPress={handleDeleteSelected}>
@@ -263,23 +247,24 @@ export default function CartScreen({ navigation, route }: any) {
 
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={{ paddingBottom: 200 }} // Increased padding to ensure visibility
+        contentContainerStyle={{ paddingBottom: 170 }}
         showsVerticalScrollIndicator={false}
       >
         {/* SELLER GROUPS */}
-        {Object.entries(groupedItems).map(([sellerName, sellerProducts]) => {
+        {Object.entries(groupedItems).map(([sellerName, sellerProducts], idx) => {
           const isSellerSelected = sellerProducts.every(item => selectedSet.has(item.cartItemId));
 
           return (
-            <View key={sellerName} style={styles.sellerCard}>
+            <View key={sellerName} style={[styles.sellerCard, idx === Object.entries(groupedItems).map(() => 0).length - 1 && { marginBottom: 0 }]}>
               {/* STORE HEADER */}
               <View style={styles.sellerHeader}>
                 <Pressable onPress={() => toggleSellerGroup(sellerProducts)} style={styles.headerCheckbox}>
-                  {isSellerSelected ? (
-                    <CheckCircle size={20} color={BRAND_PRIMARY} fill={BRAND_PRIMARY + '15'} />
-                  ) : (
-                    <Circle size={20} color="#D1D5DB" />
-                  )}
+                  <View style={[
+                    styles.checkboxBase,
+                    isSellerSelected && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                  ]}>
+                    {isSellerSelected && <Check size={12} color="#FFF" strokeWidth={2.5} />}
+                  </View>
                 </Pressable>
                 <Pressable
                   style={styles.storeInfo}
@@ -290,6 +275,7 @@ export default function CartScreen({ navigation, route }: any) {
                     }
                   }}
                 >
+
                   <Text style={styles.sellerName}>{sellerName}</Text>
                   <ChevronRight size={16} color="#9CA3AF" />
                 </Pressable>
@@ -302,11 +288,12 @@ export default function CartScreen({ navigation, route }: any) {
                 <View key={item.cartItemId}>
                   <View style={styles.itemRow}>
                     <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)}>
-                      {selectedSet.has(item.cartItemId) ? (
-                        <CheckCircle size={20} color={BRAND_PRIMARY} />
-                      ) : (
-                        <Circle size={20} color="#D1D5DB" />
-                      )}
+                      <View style={[
+                        styles.checkboxBase,
+                        selectedSet.has(item.cartItemId) && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                      ]}>
+                        {selectedSet.has(item.cartItemId) && <Check size={12} color="#FFF" strokeWidth={2.5} />}
+                      </View>
                     </Pressable>
                     <View style={{ flex: 1 }}>
                       <CartItemRow
@@ -331,61 +318,65 @@ export default function CartScreen({ navigation, route }: any) {
                 </View>
               ))}
 
-              {/* Per-Seller Subtotal */}
-              {(() => {
-                const sellerSelected = sellerProducts.filter(item => selectedSet.has(item.cartItemId));
-                if (sellerSelected.length === 0) return null;
-                const sellerSub = sellerSelected.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
-                return (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingHorizontal: 4 }}>
-                    <Text style={{ fontSize: 13, color: '#6B7280' }}>Subtotal ({sellerSelected.length} item{sellerSelected.length !== 1 ? 's' : ''})</Text>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: BRAND_PRIMARY }}>₱{sellerSub.toLocaleString()}</Text>
-                  </View>
-                );
-              })()}
+              {/* Per-Seller Subtotal Removed to match reference UI */}
             </View>
           );
         })}
       </ScrollView>
 
       {/* FLOATING ACTION BAR */}
-      <View style={[styles.bottomBar, { bottom: insets.bottom + 80 }]}>
-        <View style={styles.bottomBarContent}>
-          <View>
-            <Text style={styles.totalInfoLabel}>Total Amount</Text>
-            <Text style={[styles.totalInfoPrice, { color: BRAND_PRIMARY }]}>₱{total.toLocaleString()}</Text>
-            {totalSavings > 0 && (
-              <Text style={styles.savingsText}>You saved ₱{totalSavings.toLocaleString()}</Text>
-            )}
+      {items.length > 0 && (
+        <View style={[styles.bottomBar, { bottom: insets.bottom + 80 }]}>
+          <View style={styles.bottomBarContent}>
+            <View>
+
+              <Text style={[styles.totalInfoPrice, { color: BRAND_PRIMARY }]}>₱{total.toLocaleString()}</Text>
+              {totalSavings > 0 && (
+                <Text style={styles.savingsText}>Saved ₱{totalSavings.toLocaleString()}</Text>
+              )}
+            </View>
+            <Pressable
+              disabled={selectedIds.length === 0}
+              onPress={async () => {
+                // Clear any previous quick order to prioritize cart selection
+                clearQuickOrder();
+
+                // Get delivery address from AsyncStorage
+                try {
+                  const deliveryAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+                  const coordsStr = await AsyncStorage.getItem('currentDeliveryCoordinates');
+                  const deliveryCoordinates = coordsStr ? JSON.parse(coordsStr) : null;
+
+                  navigation.navigate('Checkout', {
+                    selectedItems,
+                    deliveryAddress,
+                    deliveryCoordinates
+                  });
+                } catch (error) {
+                  console.error('Error reading delivery address:', error);
+                  navigation.navigate('Checkout', { selectedItems });
+                }
+              }}
+              style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}>
+              <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
+            </Pressable>
           </View>
-          <Pressable
-            disabled={selectedIds.length === 0}
-            onPress={async () => {
-              // Clear any previous quick order to prioritize cart selection
-              clearQuickOrder();
-
-              // Get delivery address from AsyncStorage
-              try {
-                const deliveryAddress = await AsyncStorage.getItem('currentDeliveryAddress');
-                const coordsStr = await AsyncStorage.getItem('currentDeliveryCoordinates');
-                const deliveryCoordinates = coordsStr ? JSON.parse(coordsStr) : null;
-
-                navigation.navigate('Checkout', {
-                  selectedItems,
-                  deliveryAddress,
-                  deliveryCoordinates
-                });
-              } catch (error) {
-                console.error('Error reading delivery address:', error);
-                navigation.navigate('Checkout', { selectedItems });
-              }
-            }}
-            style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}>
-            <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
-          </Pressable>
-
         </View>
-      </View>
+      )}
+
+      {/* Empty Cart View */}
+      {items.length === 0 && (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.textHeadline }}>Your cart is empty</Text>
+          <Pressable
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}
+            style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: BRAND_PRIMARY, borderRadius: 12 }}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '700' }}>Start Shopping</Text>
+          </Pressable>
+        </View>
+      )}
+
       {editingItem && (() => {
         // Build an ActiveDiscount from the stored campaignDiscount on the cart item
         // so the VariantSelectionModal can display the correct discounted price.
@@ -420,6 +411,17 @@ export default function CartScreen({ navigation, route }: any) {
           />
         );
       })()}
+
+      <DeleteConfirmationModal
+        visible={!!deleteTarget}
+        title={deleteTarget?.type === 'bulk' ? 'Delete Selected Items?' : 'Remove Item?'}
+        description={deleteTarget?.type === 'bulk'
+          ? `Are you sure you want to remove ${selectedIds.length} items from your cart?`
+          : 'Are you sure you want to remove this item from your cart?'
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </View>
   );
 }
@@ -445,10 +447,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline },
-  clearTextWrapper: {
-    position: 'absolute',
-    right: 0,
-  },
   clearText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 13 },
 
   selectAllBar: {
@@ -464,24 +462,30 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   checkboxWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  selectAllText: { fontSize: 14, fontWeight: '600', color: '#9CA3AF' },
+  checkboxBase: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent', // Changed from #FFF
+  },
+  selectAllText: { fontSize: 14, fontWeight: '500', color: COLORS.textHeadline },
 
   scrollContainer: { flex: 1, paddingTop: 8 },
 
   // REFACTORED STYLE FOR SELLER GROUP (No boxes)
   sellerCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 12,
+    backgroundColor: '#FFFFFF', // Pure White
+    marginHorizontal: 16,
     marginBottom: 10,
-    borderRadius: 14,
-    padding: 10,
-    borderWidth: 0.5,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.02,
-    shadowRadius: 2,
-    elevation: 0,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   sellerHeader: {
     flexDirection: 'row',
@@ -491,32 +495,43 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   headerCheckbox: { marginRight: 12 },
-  storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sellerName: { fontSize: 17, fontWeight: '800', color: '#111827' }, // Black subheader
+  storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  storeIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#F7E9DE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#EBD9C8',
+  },
+  sellerName: { fontSize: 15, fontWeight: '700', color: '#431407' }, // Darker coffee color to match parchment theme
 
-  cardDivider: { height: 1, backgroundColor: '#E5E7EB', marginBottom: 12 },
+  cardDivider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 12, opacity: 0.5 },
 
   itemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 12,
+    paddingVertical: 2,
     backgroundColor: 'transparent',
   },
   itemCheckbox: {
-    width: 44,
+    width: 24,
     height: 90,
-    paddingTop: 12,
+    marginTop: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 4,
   },
-  itemSeparator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 12, opacity: 0.6 },
+  itemSeparator: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 0, opacity: 0.3 },
 
   savingsBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 8,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#FEE2E2',
@@ -542,11 +557,20 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 22, fontWeight: '900', color: COLORS.textHeadline },
 
   // BOTTOM BAR
-  bottomBar: { position: 'absolute', left: 16, right: 16, backgroundColor: '#FFFFFF', borderRadius: 15, elevation: 15, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, paddingVertical: 3 },
+  bottomBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    backgroundColor: '#FFFFFF', // Pure White
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    paddingVertical: 3
+  },
   bottomBarContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 12 },
-  totalInfoLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '700', textTransform: 'uppercase' },
-  totalInfoPrice: { fontSize: 24, fontWeight: '900', color: COLORS.textHeadline },
-  checkoutBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 15 },
-  checkoutBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
-  savingsText: { fontSize: 12, color: '#DC2626', fontWeight: '600', marginTop: 2 },
+  totalInfoLabel: { fontSize: 14, color: COLORS.gray500, fontWeight: '500' },
+  totalInfoPrice: { fontSize: 20, fontWeight: '500', color: COLORS.textHeadline },
+  checkoutBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+  checkoutBtnText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
+  savingsText: { fontSize: 12, color: '#DC2626', fontWeight: '400', marginTop: 2 },
 });

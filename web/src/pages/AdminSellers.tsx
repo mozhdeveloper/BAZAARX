@@ -92,12 +92,12 @@ const AdminSellers: React.FC = () => {
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showPartialRejectDialog, setShowPartialRejectDialog] = useState(false);
-  const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [partialRejectNote, setPartialRejectNote] = useState("");
   const [partialRejectionSelections, setPartialRejectionSelections] = useState<
     Record<string, { checked: boolean; reason: string }>
   >({});
+  const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
 
   useEffect(() => {
@@ -136,12 +136,12 @@ const AdminSellers: React.FC = () => {
     () => getFilteredSellers("blacklisted"),
     [getFilteredSellers],
   );
-  const resubmissionSellers = useMemo(
-    () => getFilteredSellers("needs_resubmission"),
-    [getFilteredSellers],
-  );
   const suspendedSellers = useMemo(
     () => getFilteredSellers("suspended"),
+    [getFilteredSellers],
+  );
+  const resubmissionSellers = useMemo(
+    () => getFilteredSellers("needs_resubmission"),
     [getFilteredSellers],
   );
   const filteredPendingSellers = useMemo(
@@ -182,7 +182,6 @@ const AdminSellers: React.FC = () => {
     await approveSeller(selectedSeller.id);
     setShowApproveDialog(false);
     selectSeller(null);
-    await loadSellers();
   };
 
   const handleReject = async () => {
@@ -191,8 +190,6 @@ const AdminSellers: React.FC = () => {
     setShowRejectDialog(false);
     setRejectReason("");
     selectSeller(null);
-    // Reload sellers to refresh the UI
-    await loadSellers();
   };
 
   const initializePartialReject = useCallback((seller: Seller) => {
@@ -236,7 +233,6 @@ const AdminSellers: React.FC = () => {
     setPartialRejectNote("");
     setPartialRejectionSelections({});
     selectSeller(null);
-    await loadSellers();
   };
 
   const updatePartialSelection = useCallback(
@@ -302,12 +298,6 @@ const AdminSellers: React.FC = () => {
             Rejected
           </Badge>
         );
-      case "suspended":
-        return (
-          <Badge className="bg-[var(--brand-accent-light)] text-[var(--brand-primary)] border-[var(--brand-primary)]/20 shadow-none pointer-events-none">
-            Suspended
-          </Badge>
-        );
       case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 pointer-events-none">
@@ -324,6 +314,12 @@ const AdminSellers: React.FC = () => {
         return (
           <Badge className="bg-red-200 text-red-900 border-red-300 font-bold pointer-events-none">
             Blacklisted
+          </Badge>
+        );
+      case "suspended":
+        return (
+          <Badge className="bg-[var(--brand-accent-light)] text-[var(--brand-primary)] border-[var(--brand-primary)]/20 shadow-none pointer-events-none">
+            Suspended
           </Badge>
         );
       default:
@@ -1047,16 +1043,13 @@ const AdminSellers: React.FC = () => {
 
               {/* Status Information */}
               {(selectedSeller.status === "rejected" ||
-                selectedSeller.status === "needs_resubmission" ||
-                selectedSeller.status === "suspended") && (
+                selectedSeller.status === "needs_resubmission") && (
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-red-500" />
                       {selectedSeller.status === "rejected"
                         ? "Rejection"
-                        : selectedSeller.status === "needs_resubmission"
-                          ? "Resubmission"
-                          : "Suspension"}{" "}
+                        : "Resubmission"}{" "}
                       Details
                     </h4>
                     <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
@@ -1064,35 +1057,45 @@ const AdminSellers: React.FC = () => {
                         Reason:
                       </p>
                       <p className="text-sm text-red-800">
-                        {selectedSeller.status === "rejected" ||
-                          selectedSeller.status === "needs_resubmission"
-                          ? selectedSeller.rejectionReason
-                          : selectedSeller.suspensionReason}
+                        {selectedSeller.rejectionReason}
                       </p>
-                      {(selectedSeller.status === "rejected" ||
-                        selectedSeller.status === "needs_resubmission") &&
-                        selectedSeller.rejectedAt && (
-                          <p className="text-xs text-red-600 mt-2">
-                            Reviewed on{" "}
-                            {new Date(
-                              selectedSeller.rejectedAt,
-                            ).toLocaleDateString()}{" "}
-                            by {selectedSeller.rejectedBy}
-                          </p>
-                        )}
-                      {selectedSeller.status === "suspended" &&
-                        selectedSeller.suspendedAt && (
-                          <p className="text-xs text-red-600 mt-2">
-                            Suspended on{" "}
-                            {new Date(
-                              selectedSeller.suspendedAt,
-                            ).toLocaleDateString()}{" "}
-                            by {selectedSeller.suspendedBy}
-                          </p>
-                        )}
+                      {selectedSeller.rejectedAt && (
+                        <p className="text-xs text-red-600 mt-2">
+                          Reviewed on{" "}
+                          {new Date(
+                            selectedSeller.rejectedAt,
+                          ).toLocaleDateString()}{" "}
+                          by {selectedSeller.rejectedBy}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
+
+              {/* Suspended Status Information */}
+              {selectedSeller.status === "suspended" && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-orange-500" />
+                    Suspension Details
+                  </h4>
+                  <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg">
+                    <p className="text-sm font-medium text-orange-900 mb-1">
+                      Reason:
+                    </p>
+                    <p className="text-sm text-orange-800">
+                      {selectedSeller.suspensionReason || selectedSeller.rejectionReason}
+                    </p>
+                    {selectedSeller.suspendedAt && (
+                      <p className="text-xs text-orange-600 mt-2">
+                        Suspended on{" "}
+                        {new Date(selectedSeller.suspendedAt).toLocaleDateString()}
+                        {selectedSeller.suspendedBy && ` by ${selectedSeller.suspendedBy}`}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Documents */}
               <div>
@@ -1245,19 +1248,21 @@ const AdminSellers: React.FC = () => {
 
                     <Button
                       variant="outline"
+                      disabled={!hasCompleteRequirements(selectedSeller)}
                       onClick={() => {
                         initializePartialReject(selectedSeller);
                         setShowPartialRejectDialog(true);
                       }}
-                      className="text-gray-500 border-gray-200 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/5 transition-all"
+                      className="text-gray-500 border-gray-200 hover:text-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Partial Reject
                     </Button>
 
                     <Button
                       variant="outline"
+                      disabled={!hasCompleteRequirements(selectedSeller)}
                       onClick={() => setShowRejectDialog(true)}
-                      className="text-gray-500 border-gray-200 hover:text-red-600 hover:border-red-600 hover:bg-base ml-auto transition-all"
+                      className="text-gray-500 border-gray-200 hover:text-red-600 hover:border-red-600 hover:bg-base ml-auto transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Reject
                     </Button>
@@ -1474,8 +1479,7 @@ const AdminSellers: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Suspend Seller</DialogTitle>
             <DialogDescription>
-              Please provide a reason for suspending "
-              {selectedSeller?.businessName}".
+              Please provide a reason for suspending "{selectedSeller?.storeName}".
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -1486,20 +1490,16 @@ const AdminSellers: React.FC = () => {
             />
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              className="border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-600"
-              onClick={() => {
-                setShowSuspendDialog(false);
-                setSuspendReason("");
-              }}
-            >
+            <Button variant="outline" onClick={() => {
+              setShowSuspendDialog(false);
+              setSuspendReason('');
+            }}>
               Cancel
             </Button>
             <Button
               onClick={handleSuspend}
               disabled={!suspendReason.trim() || isLoading}
-              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-sm"
+              className="bg-orange-600 hover:bg-orange-700 text-white"
             >
               {isLoading ? (
                 <>
@@ -1507,7 +1507,7 @@ const AdminSellers: React.FC = () => {
                   Suspending...
                 </>
               ) : (
-                "Suspend Seller"
+                'Suspend Seller'
               )}
             </Button>
           </DialogFooter>

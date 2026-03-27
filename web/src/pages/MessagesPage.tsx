@@ -21,6 +21,15 @@ export default function MessagesPage() {
   const location = useLocation();
   const { profile, viewedSellers, conversations, addConversation, addChatMessage, deleteConversation } = useBuyerStore();
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+
+  // Clear unread badge optimistically when a conversation is opened
+  const handleSelectConversation = (id: string) => {
+    setSelectedConversation(id);
+    setDbConversations(prev =>
+      prev.map(c => c.id === id ? { ...c, buyer_unread_count: 0 } : c)
+    );
+    if (profile?.id) chatService.markAsRead(id, profile.id, 'buyer').catch(console.error);
+  };
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -37,17 +46,29 @@ export default function MessagesPage() {
   const isValidUUID = (id: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+  // Sort helper — newest last_message_at first
+  const sortByLastMessage = (list: DBConversation[]) =>
+    [...list].sort(
+      (a, b) =>
+        new Date(b.last_message_at || b.updated_at).getTime() -
+        new Date(a.last_message_at || a.updated_at).getTime()
+    );
+
   const filteredConversations = useMemo(() => {
     if (useRealData) {
-      return dbConversations.filter(conv =>
-        (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conv.last_message.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      return dbConversations
+        .filter(conv =>
+          // Hide blank conversations (no last message)
+          !!conv.last_message &&
+          ((conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+          conv.last_message.toLowerCase().includes(searchQuery.toLowerCase()))
+        );
     }
     return conversations
       .filter(conv =>
-        conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+        conv.lastMessage &&
+        (conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase()))
       )
       .sort((a, b) => (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0) - (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0));
   }, [useRealData, dbConversations, conversations, searchQuery]);
@@ -94,12 +115,33 @@ export default function MessagesPage() {
     const unsubscribe = chatService.subscribeToMessages(
       selectedConversation,
       (newMsg) => {
+        console.log('📩 [MessagesPage] subscribeToMessages callback fired:', newMsg.sender_type, newMsg.id?.slice(0, 8));
         setDbMessages(prev => {
           if (prev.some(msg => msg.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
         if (newMsg.sender_type === 'seller' && profile?.id) {
           chatService.markAsRead(selectedConversation, profile.id, 'buyer');
+        }
+        // Always update sidebar preview + re-sort when a seller message arrives
+        if (newMsg.sender_type === 'seller') {
+          setDbConversations(prev =>
+            sortByLastMessage(
+              prev.map(c =>
+                c.id === newMsg.conversation_id
+                  ? {
+                      ...c,
+                      last_message: newMsg.content,
+                      last_message_at: newMsg.created_at,
+                      // Only increment unread badge if this conversation isn't open
+                      buyer_unread_count: newMsg.conversation_id !== selectedConversation
+                        ? (c.buyer_unread_count || 0) + 1
+                        : c.buyer_unread_count,
+                    }
+                  : c
+              )
+            )
+          );
         }
       }
     );
@@ -166,7 +208,7 @@ export default function MessagesPage() {
     };
   }, [useRealData]);
 
-  // Real-time sidebar: keep last_message + timestamp current for all conversations
+  // Real-time sidebar: keep last_message + timestamp current, always re-sorted
   useEffect(() => {
     if (!profile?.id) return;
     const unsubscribe = chatService.subscribeToConversations(
@@ -175,15 +217,23 @@ export default function MessagesPage() {
       (updatedConv) => {
         setDbConversations(prev => {
           const exists = prev.some(c => c.id === updatedConv.id);
-          if (exists) {
-            return prev.map(c => c.id === updatedConv.id ? updatedConv : c);
-          }
-          return [updatedConv, ...prev];
+          const next = exists
+            ? prev.map(c => {
+                if (c.id !== updatedConv.id) return c;
+                const merged = { ...c, ...updatedConv };
+                // Increment unread badge for incoming seller messages (unless conversation is open)
+                if ((updatedConv as any)._senderType === 'seller' && c.id !== selectedConversation) {
+                  merged.buyer_unread_count = (c.buyer_unread_count || 0) + 1;
+                }
+                return merged;
+              })
+            : [updatedConv, ...prev];
+          return sortByLastMessage(next);
         });
       }
     );
     return unsubscribe;
-  }, [profile?.id]);
+  }, [profile?.id, selectedConversation]);
 
 
 
@@ -201,12 +251,14 @@ export default function MessagesPage() {
           setDbMessages(prev =>
             prev.some(msg => msg.id === result.id) ? prev : [...prev, result]
           );
-          // Optimistic sidebar update — no round-trip needed
+          // Optimistic sidebar update + re-sort so sender's conv bumps to top
           setDbConversations(prev =>
-            prev.map(c =>
-              c.id === selectedConversation
-                ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString(), last_sender_type: 'buyer' }
-                : c
+            sortByLastMessage(
+              prev.map(c =>
+                c.id === selectedConversation
+                  ? { ...c, last_message: messageText.trim(), last_message_at: new Date().toISOString(), last_sender_type: 'buyer' }
+                  : c
+              )
             )
           );
         }
@@ -290,7 +342,7 @@ export default function MessagesPage() {
               </div>
             ) : useRealData ? (
               (filteredConversations as DBConversation[]).map((conv) => (
-                <div key={conv.id} onClick={() => setSelectedConversation(conv.id)} className={`p-4 cursor-pointer hover:bg-[var(--brand-wash)] transition-all border-l-4 ${selectedConversation === conv.id ? 'bg-[var(--brand-wash)] border-l-[var(--brand-primary)]' : 'border-l-transparent'}`}>
+                <div key={conv.id} onClick={() => handleSelectConversation(conv.id)} className={`p-4 cursor-pointer hover:bg-[var(--brand-wash)] transition-all border-l-4 ${selectedConversation === conv.id ? 'bg-[var(--brand-wash)] border-l-[var(--brand-primary)]' : 'border-l-transparent'}`}>
                   <div className="flex gap-3">
                     <div className="relative">
                       <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
@@ -424,32 +476,61 @@ export default function MessagesPage() {
                   reversed flex axis, keeping gaps visually between messages. */}
               <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 space-y-reverse bg-gray-50/50 flex flex-col-reverse">
                 {useRealData ? (
-                  reversedDbMessages.map((msg) => {
-                    if (msg.message_type === 'system') {
-                      return (
-                        <div key={msg.id} className="flex justify-center items-center my-6 w-full opacity-90 pointer-events-none">
-                          <div className="h-px bg-orange-200 flex-1"></div>
-                          <div className="mx-4 bg-orange-50 text-orange-600 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-orange-100 shadow-sm">
-                            {msg.message_content}
+                  (() => {
+                    // Build list with date separators
+                    // Iterate oldest→newest so that flex-col-reverse places date labels ABOVE their group
+                    const items: React.ReactNode[] = [];
+                    let lastDateLabel = '';
+                    dbMessages.forEach((msg, idx) => {
+                      const msgDate = new Date(msg.created_at);
+                      const dateLabel = msgDate.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                      if (dateLabel !== lastDateLabel) {
+                        items.push(
+                          <div key={`sep-${idx}`} className="flex justify-center items-center my-4 w-full pointer-events-none">
+                            <div className="h-px bg-[var(--brand-wash-gold)]/30 flex-1" />
+                            <span className="mx-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-widest bg-gray-50/80 px-2 py-0.5 rounded-full">{dateLabel}</span>
+                            <div className="h-px bg-[var(--brand-wash-gold)]/30 flex-1" />
                           </div>
-                          <div className="h-px bg-orange-200 flex-1"></div>
+                        );
+                        lastDateLabel = dateLabel;
+                      }
+                      if (msg.message_type === 'system') {
+                        items.push(
+                          <div key={msg.id} className="flex justify-center items-center my-6 w-full opacity-90 pointer-events-none">
+                            <div className="h-px bg-orange-200 flex-1"></div>
+                            <div className="mx-4 bg-orange-50 text-orange-600 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-orange-100 shadow-sm">
+                              {msg.message_content}
+                            </div>
+                            <div className="h-px bg-orange-200 flex-1"></div>
+                          </div>
+                        );
+                        return;
+                      }
+                      const isBuyer = msg.sender_type === 'buyer';
+                      const fullTimestamp = msgDate.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                      items.push(
+                        <div key={msg.id} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
+                            <div
+                              title={fullTimestamp}
+                              className={`px-4 py-3 rounded-2xl shadow-sm cursor-default group relative ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-sm' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-tl-sm border border-[var(--brand-wash-gold)]/20'}`}
+                            >
+                              <p className="text-sm leading-relaxed">{msg.content}</p>
+                              {/* Hover timestamp tooltip */}
+                              <span className={`absolute bottom-full mb-1 ${isBuyer ? 'right-0' : 'left-0'} hidden group-hover:block text-[10px] text-white bg-gray-700/90 rounded px-2 py-0.5 whitespace-nowrap z-10`}>
+                                {fullTimestamp}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-gray-400 mt-1.5 px-1 font-medium">
+                              {msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
                         </div>
                       );
-                    }
-                    const isBuyer = msg.sender_type === 'buyer';
-                    return (
-                      <div key={msg.id} className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
-                          <div className={`px-4 py-3 rounded-2xl shadow-sm ${isBuyer ? 'bg-[var(--brand-primary)] text-white rounded-tr-sm' : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-tl-sm border border-[var(--brand-wash-gold)]/20'}`}>
-                            <p className="text-sm leading-relaxed">{msg.content}</p>
-                          </div>
-                          <span className="text-[10px] text-gray-400 mt-1.5 px-1 font-medium">
-                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
+                    });
+                    // Reverse so flex-col-reverse renders them visually top→bottom (oldest first)
+                    return items.reverse();
+                  })()
                 ) : (
                   reversedLocalMessages.map((msg) => {
                     const isBuyer = msg.senderId === 'buyer';

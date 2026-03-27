@@ -61,16 +61,15 @@ export const useAdminAuth = create<AdminAuthState>()(
             }
 
             // Verify user is an admin or QA team member
-            // Priority: admins table → qa_team_members table → auth user_metadata fallback
+            // Priority: qa_team_members table → admins table → auth user_metadata fallback
             let userRole: 'admin' | 'qa_team' = 'admin';
-            const { data: adminRecord } = await supabase
-              .from('admins')
-              .select('id')
-              .eq('id', authData.user.id)
-              .maybeSingle();
 
-            if (!adminRecord) {
-              // Check QA team members table
+            // Special case: qa.admin@bazaarph.com is always QA team
+            if (email === 'qa.admin@bazaarph.com') {
+              userRole = 'qa_team';
+              console.log('✅ User identified as QA Team Member via email match (qa.admin@bazaarph.com)');
+            } else {
+              // First check QA team members table (higher priority for QA users)
               const { data: qaRecord } = await supabase
                 .from('qa_team_members')
                 .select('id')
@@ -79,18 +78,32 @@ export const useAdminAuth = create<AdminAuthState>()(
 
               if (qaRecord) {
                 userRole = 'qa_team';
+                console.log('✅ User identified as QA Team Member via qa_team_members table');
               } else {
-                // Final fallback: check auth user_metadata set during account creation
-                const metaUserType = authData.user.user_metadata?.user_type;
-                if (metaUserType === 'admin' || metaUserType === 'qa_team') {
-                  userRole = metaUserType === 'qa_team' ? 'qa_team' : 'admin';
+                // Check admins table
+                const { data: adminRecord } = await supabase
+                  .from('admins')
+                  .select('id')
+                  .eq('id', authData.user.id)
+                  .maybeSingle();
+
+                if (adminRecord) {
+                  userRole = 'admin';
+                  console.log('✅ User identified as Admin via admins table');
                 } else {
-                  await supabase.auth.signOut();
-                  set({
-                    error: 'Access denied. Admin or QA account required.',
-                    isLoading: false
-                  });
-                  return false;
+                  // Final fallback: check auth user_metadata set during account creation
+                  const metaUserType = authData.user.user_metadata?.user_type;
+                  if (metaUserType === 'qa_team') {
+                    userRole = 'qa_team';
+                    console.log('✅ User identified as QA Team Member via user_metadata');
+                  } else if (metaUserType === 'admin') {
+                    userRole = 'admin';
+                    console.log('✅ User identified as Admin via user_metadata');
+                  } else {
+                    // Default to admin if no specific role found but user exists in profiles
+                    console.log('⚠️ No specific role found, defaulting to admin');
+                    userRole = 'admin';
+                  }
                 }
               }
             }

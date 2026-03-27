@@ -1,13 +1,13 @@
 /**
  * Complete Database Seed Script
- * 
+ *
  * This script:
  * 1. Cleans all existing data (optional)
  * 2. Creates test users (admin, sellers, buyers) via Supabase Auth
  * 3. Populates all related tables with complete data
  * 4. Creates products with variants, images, and reviews
  * 5. Creates sample orders with full flow
- * 
+ *
  * Run with: npx tsx scripts/seed-complete-database.ts
  */
 
@@ -63,7 +63,7 @@ const adminAccounts = [
     full_name: 'QA Administrator',
     phone: '+63 917 000 0002',
     avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    user_type: 'admin'
+    user_type: 'qa_team'
   }
 ];
 
@@ -469,7 +469,7 @@ async function sleep(ms: number) {
 
 async function cleanupDatabase() {
   logSection('Cleaning Database');
-  
+
   // Delete in order of dependencies
   const tablesToClean = [
     'reviews',
@@ -520,7 +520,7 @@ async function cleanupDatabase() {
 
 async function seedCategories() {
   logSection('Seeding Categories');
-  
+
   for (const cat of categories) {
     const { error } = await supabase.from('categories').upsert({
       name: cat.name,
@@ -529,7 +529,7 @@ async function seedCategories() {
       icon: cat.icon,
       sort_order: categories.indexOf(cat)
     }, { onConflict: 'slug' });
-    
+
     if (error) {
       console.log(`  ⚠️  Category ${cat.name}: ${error.message}`);
     } else {
@@ -545,7 +545,7 @@ async function createAuthUser(email: string, password: string, metadata: any) {
     email_confirm: true,
     user_metadata: metadata
   });
-  
+
   if (error) {
     // Try to get existing user
     const { data: existingUsers } = await supabase.auth.admin.listUsers();
@@ -555,13 +555,13 @@ async function createAuthUser(email: string, password: string, metadata: any) {
     }
     throw error;
   }
-  
+
   return data;
 }
 
 async function seedAdmins() {
   logSection('Seeding Admin Accounts');
-  
+
   for (const admin of adminAccounts) {
     try {
       // Create auth user
@@ -569,7 +569,7 @@ async function seedAdmins() {
         full_name: admin.full_name,
         user_type: 'admin'
       });
-      
+
       if (!user) {
         console.log(`  ⚠️  Could not create admin: ${admin.email}`);
         continue;
@@ -579,7 +579,7 @@ async function seedAdmins() {
       const nameParts = admin.full_name.split(' ');
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || null;
-      
+
       await supabase.from('profiles').upsert({
         id: user.id,
         email: admin.email,
@@ -608,9 +608,9 @@ async function seedAdmins() {
 
 async function seedSellers() {
   logSection('Seeding Seller Accounts');
-  
+
   const createdSellers: any[] = [];
-  
+
   for (const seller of sellerAccounts) {
     try {
       // Create auth user
@@ -619,7 +619,7 @@ async function seedSellers() {
         user_type: 'seller',
         store_name: seller.seller.store_name
       });
-      
+
       if (!user) {
         console.log(`  ⚠️  Could not create seller: ${seller.email}`);
         continue;
@@ -629,7 +629,7 @@ async function seedSellers() {
       const nameParts = seller.full_name.split(' ');
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || null;
-      
+
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: user.id,
         email: seller.email,
@@ -674,18 +674,18 @@ async function seedSellers() {
 
 async function seedProducts(sellers: any[]) {
   logSection('Seeding Products with Variants');
-  
+
   // Get category IDs
   const { data: categoryData } = await supabase.from('categories').select('id, name');
   const categoryMap = new Map(categoryData?.map(c => [c.name, c.id]) || []);
-  
+
   const createdProducts: any[] = [];
-  
+
   for (const seller of sellers) {
     for (const product of seller.products) {
       try {
         const categoryId = categoryMap.get(product.category);
-        
+
         // Create product
         const { data: productData, error: productError } = await supabase
           .from('products')
@@ -743,15 +743,15 @@ async function seedProducts(sellers: any[]) {
       }
     }
   }
-  
+
   return createdProducts;
 }
 
 async function seedBuyers() {
   logSection('Seeding Buyer Accounts');
-  
+
   const createdBuyers: any[] = [];
-  
+
   for (const buyer of buyerAccounts) {
     try {
       // Create auth user
@@ -759,7 +759,7 @@ async function seedBuyers() {
         full_name: buyer.full_name,
         user_type: 'buyer'
       });
-      
+
       if (!user) {
         console.log(`  ⚠️  Could not create buyer: ${buyer.email}`);
         continue;
@@ -769,7 +769,7 @@ async function seedBuyers() {
       const nameParts = buyer.full_name.split(' ');
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || null;
-      
+
       await supabase.from('profiles').upsert({
         id: user.id,
         email: buyer.email,
@@ -816,7 +816,7 @@ async function seedBuyers() {
 
 async function seedReviews(products: any[], buyers: any[]) {
   logSection('Seeding Product Reviews');
-  
+
   if (products.length === 0 || buyers.length === 0) {
     console.log('  ⚠️  No products or buyers to create reviews');
     return;
@@ -826,11 +826,11 @@ async function seedReviews(products: any[], buyers: any[]) {
     // Each product gets 2-4 reviews
     const numReviews = Math.floor(Math.random() * 3) + 2;
     const shuffledBuyers = [...buyers].sort(() => Math.random() - 0.5);
-    
+
     for (let i = 0; i < Math.min(numReviews, shuffledBuyers.length); i++) {
       const buyer = shuffledBuyers[i];
       const review = reviewComments[Math.floor(Math.random() * reviewComments.length)];
-      
+
       try {
         await supabase.from('reviews').insert({
           product_id: product.id,
@@ -843,7 +843,7 @@ async function seedReviews(products: any[], buyers: any[]) {
         console.log(`  ⚠️  Review for ${product.name}: ${e.message}`);
       }
     }
-    
+
     log(`Reviews for: ${product.name} (${numReviews} reviews)`);
   }
 }
@@ -892,23 +892,23 @@ async function main() {
     await seedReviews(products, buyers);
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    
+
     logSection('Seed Complete!');
     console.log(`⏱️  Duration: ${duration}s\n`);
-    
+
     console.log('📝 Test Accounts Created:\n');
     console.log('ADMIN LOGIN (/admin/login):');
     console.log('   Email: admin@bazaarph.com');
     console.log(`   Password: ${TEST_PASSWORD}\n`);
-    
+
     console.log('SELLER LOGIN (/seller/login):');
     console.log('   Email: seller1@bazaarph.com');
     console.log(`   Password: ${TEST_PASSWORD}\n`);
-    
+
     console.log('BUYER LOGIN (/login):');
     console.log('   Email: buyer1@gmail.com');
     console.log(`   Password: ${TEST_PASSWORD}\n`);
-    
+
     console.log('All accounts use password:', TEST_PASSWORD);
     console.log('\n✅ Database seeding completed successfully!\n');
 
