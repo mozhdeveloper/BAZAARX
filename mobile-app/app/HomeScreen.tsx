@@ -760,7 +760,7 @@ export default function HomeScreen({ navigation }: Props) {
               <View style={styles.resultsSection}>
                 <Text style={styles.discoveryTitle}>{filteredProducts.length + filteredStores.length} results found</Text>
                 {filteredProducts.length === 0 && filteredStores.length === 0 && (
-                  <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
+                  <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20 }}>
                     <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                       <Search size={32} color="#FF6A00" />
                     </View>
@@ -1284,7 +1284,7 @@ const styles = StyleSheet.create({
   categoryIconBox: { justifyContent: 'center', alignItems: 'center' },
   categoryLabel: { fontSize: 11, color: COLORS.textHeadline, fontWeight: '700', textAlign: 'center', lineHeight: 14, marginTop: 10 },
   itemBoxContainerVertical: { width: (SCREEN_WIDTH - 48) / 2, marginBottom: 12 },
-  section: { paddingHorizontal: 20, marginTop: 5, marginBottom: 5, paddingVertical: 12 },
+  section: { paddingHorizontal: 20, marginTop: 5, marginBottom: 5, paddingVertical: 4 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
   productRequestButtonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
   productRequestContent: { flexDirection: 'row', alignItems: 'center', gap: 15 },

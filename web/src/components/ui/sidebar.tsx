@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 import { Link, LinkProps, useLocation } from "react-router-dom";
 import React, { useState, createContext, useContext } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronLeft } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";
 
 interface Links {
   label: string;
@@ -66,7 +67,9 @@ export const Sidebar = ({
 }) => {
   return (
     <SidebarProvider open={open} setOpen={setOpen} animate={animate}>
-      {children}
+      <TooltipProvider delayDuration={0}>
+        {children}
+      </TooltipProvider>
     </SidebarProvider>
   );
 };
@@ -89,19 +92,26 @@ export const DesktopSidebar = ({
   return (
     <motion.div
       className={cn(
-        "h-full px-4 py-4 hidden md:flex md:flex-col bg-white border-r border-gray-100 flex-shrink-0 shadow-sm",
-        !open && "[&>*]:overflow-hidden [&>*]:scrollbar-hide",
+        "h-full px-4 py-4 hidden md:flex md:flex-col bg-white border-r border-gray-100 flex-shrink-0 shadow-sm relative",
         className
       )}
+      initial={false}
       animate={{
         width: animate ? (open ? "280px" : "72px") : "280px",
       }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
       {...props}
     >
-      {children}
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "absolute top-8 -right-3 h-6 w-6 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-md z-[60] hover:bg-gray-50 transition-all duration-300",
+          open ? "rotate-180" : "rotate-0"
+        )}
+      >
+        <ChevronRight className="h-4 w-4 text-gray-600" />
+      </button>
+      {children as React.ReactNode}
     </motion.div>
   );
 };
@@ -181,7 +191,7 @@ export const SidebarLink = ({
 
   const showBadge = typeof badge === "number" && badge > 0;
 
-  return (
+  const content = (
     <Link
       to={link.href}
       className={cn(
@@ -222,4 +232,24 @@ export const SidebarLink = ({
       </motion.span>
     </Link>
   );
+
+  if (!open) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {content}
+        </TooltipTrigger>
+        <TooltipContent
+          side="right"
+          className="z-[100] bg-white text-gray-900 border border-gray-100 shadow-md font-medium"
+          sideOffset={10}
+        >
+          {link.label}
+          {showBadge && badge > 0 && ` (${badge})`}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return content;
 };
