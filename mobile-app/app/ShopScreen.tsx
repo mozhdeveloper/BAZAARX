@@ -21,7 +21,6 @@ import CameraSearchModal from '../src/components/CameraSearchModal';
 import { ProductCard } from '../src/components/ProductCard';
 import LocationModal from '../src/components/LocationModal';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
-// Use the service you provided
 import { productService } from '../src/services/productService';
 import { categoryService } from '../src/services/categoryService';
 import { addressService } from '../src/services/addressService';
@@ -319,7 +318,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     }
   }, []);
 
-  // --- FILTER RESET ON BLUR (dedicated useEffect) ---
   useEffect(() => {
     const resetAllFilters = async () => {
       setSelectedSort('relevance');
@@ -334,7 +332,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       try {
         await AsyncStorage.removeItem('shopSortState');
       } catch (e) { /* ignore */ }
-      // Clear stale navigation params so re-focus doesn't re-apply old filters
       navigation.setParams({ searchQuery: undefined, category: undefined, view: undefined });
     };
 
@@ -342,7 +339,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     return () => unsubBlur();
   }, [navigation]);
 
-  // --- NOTIFICATION LOGIC ---
   useEffect(() => {
     mountedRef.current = true;
 
@@ -381,7 +377,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       pollIntervalRef.current = null;
     }
 
-    // Polling every 30 seconds as fallback safety net (matching HomeScreen)
     if (user?.id && !isGuest) {
       pollIntervalRef.current = setInterval(() => {
         if (mountedRef.current && user?.id) {
@@ -395,7 +390,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     };
   }, [navigation, user?.id, isGuest]);
 
-  // Cleanup subscriptions on unmount
   useEffect(() => {
     return () => {
       mountedRef.current = false;
@@ -460,13 +454,10 @@ export default function ShopScreen({ navigation, route }: Props) {
   useEffect(() => {
     const unsubFocus = navigation.addListener('focus', async () => {
       try {
-        // Only apply sort override when explicitly navigated with view param
         if (route.params?.view === 'featured') {
           setSelectedSort('featured');
           await AsyncStorage.setItem('shopSortState', 'featured');
         }
-        // No longer restoring sort from AsyncStorage on plain tab re-focus
-        // to avoid race condition with blur reset clearing the sort state
       } catch (error) {
         console.error('[ShopScreen] Error loading sort state:', error);
       }
@@ -531,7 +522,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       return searchMatch && categoryMatch && priceMatch;
     });
 
-    // Apply attribute filter
     if (selectedSort === 'featured') {
       const featuredProductIds = new Set([
         ...featuredProducts.map(fp => fp.product_id),
@@ -544,7 +534,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     }
 
-    // Apply price sort independently (composable with attribute filter)
     if (selectedPriceSort === 'price-low') {
       filtered = [...filtered].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     } else if (selectedPriceSort === 'price-high') {
@@ -554,7 +543,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     return filtered;
   }, [dbProducts, searchQuery, selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice, categoryChips, featuredProducts, boostedProducts]);
 
-  // Trigger skeleton loading on filter/category changes
   useEffect(() => {
     setIsProductsLoading(true);
     const timer = setTimeout(() => setIsProductsLoading(false), 300);
@@ -562,7 +550,6 @@ export default function ShopScreen({ navigation, route }: Props) {
   }, [selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice, searchQuery]);
 
 
-  // Memoized FlatList callbacks to prevent re-creating functions on each render
   const handleProductPress = useCallback((product: Product) => {
     navigation.navigate('ProductDetail', { product });
   }, [navigation]);
@@ -575,7 +562,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     </View>
   ), [handleProductPress]);
 
-  // Unified empty/loading component for FlatList
   const listEmptyComponent = useMemo(() => {
     if (isLoading) return <ActivityIndicator color={BRAND_COLOR} style={{ marginTop: 50 }} />;
     return (
@@ -588,7 +574,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     );
   }, [isLoading]);
 
-  // Scrollable header: category chips
   const listHeaderComponent = useMemo(() => (
     <View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
@@ -605,7 +590,6 @@ export default function ShopScreen({ navigation, route }: Props) {
             ))}
           </ScrollView>
 
-          {/* Active Filter Chips */}
           {(selectedSort !== 'relevance' || selectedPriceSort !== 'price-default' || minPrice !== '0' || maxPrice !== '100000') && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
               {selectedSort !== 'relevance' && (
@@ -688,7 +672,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       <View
         style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.background }]}
       >
-        {/* Location Row */}
         <View style={styles.locationRow}>
           <Pressable onPress={() => setShowLocationModal(true)}>
             <Text style={styles.locationLabel}>Location</Text>
@@ -720,7 +703,6 @@ export default function ShopScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
 
-        {/* Search Row */}
         <View style={styles.headerTop}>
           <View style={[styles.searchBarWrapper, (isSearchFocused || !showFiltersModal) && { marginRight: 0 }]}>
             <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: COLORS.primary, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
@@ -753,9 +735,6 @@ export default function ShopScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      {/* Featured Sort Indicator — replaced by filter chips above */}
-
-      {/* Product list as root scroll — enables virtualization */}
       <FlatList
         data={(isLoading || isProductsLoading) ? [] : filteredProducts}
         keyExtractor={keyExtractor}
