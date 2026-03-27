@@ -665,6 +665,48 @@ git push origin feat/notification-badge
    - Subscription status logging added
 
 **Phase 4 — Buyer Cancellation → Seller Notification:**
+
+---
+
+## Session Log — March 27, 2026
+
+### Bug Fix — Global Flash Sale Products Not Fetching: "column products_1.rating does not exist" (Web)
+
+**Prompt:** "In web buyer's module the global flash sale is not showing or fetching. Check the image thoroughly and Check all the related code to it, don't change anything with the code I want you to just fix the errors."
+
+**Error Details:**
+- **Error Message**: `column products_1.rating does not exist`
+- **HTTP Status**: 400 (Bad Request) from Supabase API
+- **Impact**: Global flash sale products unable to fetch/display in buyer module
+- **Location**: `discountService.ts:951` via `getGlobalFlashSaleProducts()`
+
+**Root Cause:**
+- `getGlobalFlashSaleProducts()` attempted to SELECT a non-existent `rating` column directly from the `products` table
+- The `products` table has no `rating` column — ratings are stored in the `reviews` table and linked via relationship
+- Supabase rejected the query with a 400 error before any rows could be fetched
+
+**Solution Applied:**
+
+**File Changed:**
+1. `web/src/services/discountService.ts` (`getGlobalFlashSaleProducts()` function)
+   - **Line 907:** Removed `rating,` from the SELECT statement (column does not exist)
+   - **Lines 930-947:** Added rating calculation logic:
+     ```typescript
+     // Calculate average rating from reviews
+     const avgRating = p?.reviews && p?.reviews.length > 0 
+       ? p.reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / p.reviews.length 
+       : 0;
+     ```
+   - **Line 946:** Changed from `rating: p?.rating || 0` → `rating: avgRating` (calculates average from reviews array)
+   - Kept `reviews(rating)` in SELECT (line 908) — this correctly fetches the reviews relationship with ratings
+
+**Result:**
+✅ Supabase query now executes successfully (no 400 error)
+✅ Global flash sale products fetch and display correctly
+✅ Product ratings calculated as proper average from customer reviews
+✅ Review count still accurate (`reviewsCount: p?.reviews?.length || 0`)
+
+**Branch:** `fix/global-flash-sale`**
 1. `web/src/services/notificationService.ts` + `mobile-app/src/services/notificationService.ts`
    - Added `notifySellerOrderCancelled()` helper with type `'seller_order_cancelled'`, icon `'XCircle'`, priority `'high'`
 2. `mobile-app/src/services/orderService.ts`
