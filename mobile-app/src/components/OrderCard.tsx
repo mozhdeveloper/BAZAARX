@@ -152,6 +152,11 @@ export const OrderCard: React.FC<OrderCardProps> = React.memo(({
             {(order as any).cancellationReason}
           </Text>
         )}
+        {buyerUiStatus === 'cancelled' && (order as any).cancelledAt && (
+          <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+            Cancelled: {new Date((order as any).cancelledAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        )}
       </View>
 
       <Pressable onPress={onPress}>
