@@ -495,20 +495,22 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Interactive Status Banner */}
+        {/* Interactive Status Banner - Hide for cancelled orders */}
         {(() => {
           const uiStatus = order.buyerUiStatus || order.status;
           const isCancelled = uiStatus === 'cancelled';
           
+          if (isCancelled) return null;
+          
           return (
             <Pressable
               style={[styles.statusBanner, { backgroundColor: getStatusColor() }]}
-              onPress={isCancelled ? undefined : () => navigation.navigate('DeliveryTracking', { order })}
+              onPress={() => navigation.navigate('DeliveryTracking', { order })}
             >
               <View style={styles.statusContent}>
                 <View style={styles.statusLeft}>
                   <Text style={styles.statusTitle}>{getStatusText()}</Text>
-                  {!isCancelled && <Text style={styles.tapToTrack}>Tap to Track {'>'}</Text>}
+                  <Text style={styles.tapToTrack}>Tap to Track {'>'}</Text>
                 </View>
                 <View style={styles.statusIconContainer}>
                   <StatusIcon size={48} color="#FFFFFF" strokeWidth={1.5} />
