@@ -115,6 +115,7 @@ export default function MessagesPage() {
     const unsubscribe = chatService.subscribeToMessages(
       selectedConversation,
       (newMsg) => {
+        console.log('📩 [MessagesPage] subscribeToMessages callback fired:', newMsg.sender_type, newMsg.id?.slice(0, 8));
         setDbMessages(prev => {
           if (prev.some(msg => msg.id === newMsg.id)) return prev;
           return [...prev, newMsg];
@@ -122,13 +123,21 @@ export default function MessagesPage() {
         if (newMsg.sender_type === 'seller' && profile?.id) {
           chatService.markAsRead(selectedConversation, profile.id, 'buyer');
         }
-        // Increment unread badge in sidebar for the conversation that received the message
-        if (newMsg.sender_type === 'seller' && newMsg.conversation_id !== selectedConversation) {
+        // Always update sidebar preview + re-sort when a seller message arrives
+        if (newMsg.sender_type === 'seller') {
           setDbConversations(prev =>
             sortByLastMessage(
               prev.map(c =>
                 c.id === newMsg.conversation_id
-                  ? { ...c, buyer_unread_count: (c.buyer_unread_count || 0) + 1, last_message: newMsg.content, last_message_at: newMsg.created_at }
+                  ? {
+                      ...c,
+                      last_message: newMsg.content,
+                      last_message_at: newMsg.created_at,
+                      // Only increment unread badge if this conversation isn't open
+                      buyer_unread_count: newMsg.conversation_id !== selectedConversation
+                        ? (c.buyer_unread_count || 0) + 1
+                        : c.buyer_unread_count,
+                    }
                   : c
               )
             )
@@ -209,14 +218,22 @@ export default function MessagesPage() {
         setDbConversations(prev => {
           const exists = prev.some(c => c.id === updatedConv.id);
           const next = exists
-            ? prev.map(c => c.id === updatedConv.id ? updatedConv : c)
+            ? prev.map(c => {
+                if (c.id !== updatedConv.id) return c;
+                const merged = { ...c, ...updatedConv };
+                // Increment unread badge for incoming seller messages (unless conversation is open)
+                if ((updatedConv as any)._senderType === 'seller' && c.id !== selectedConversation) {
+                  merged.buyer_unread_count = (c.buyer_unread_count || 0) + 1;
+                }
+                return merged;
+              })
             : [updatedConv, ...prev];
           return sortByLastMessage(next);
         });
       }
     );
     return unsubscribe;
-  }, [profile?.id]);
+  }, [profile?.id, selectedConversation]);
 
 
 
