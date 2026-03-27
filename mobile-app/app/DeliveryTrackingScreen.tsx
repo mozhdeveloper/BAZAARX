@@ -313,6 +313,12 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
               <Text style={[styles.estimateDate, { color: '#6B7280' }]}>No delivery will be made</Text>
             </View>
           ) : (
+            <View style={styles.estimateSection}>
+              <Text style={styles.estimateLabel}>Estimated Delivery</Text>
+              <Text style={styles.estimateDate}>{order.scheduledDate || 'Calculating...'}</Text>
+            </View>
+          )}
+        </View>
 
         {/* Dynamic Delivery Timeline Card */}
         <View style={styles.timelineCard}>
