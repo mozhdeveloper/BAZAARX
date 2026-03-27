@@ -46,36 +46,36 @@ function getNotificationStyles(type: string, actionData?: any) {
     const subType: string = (actionData as any)?.announcement_type ?? "info";
     switch (subType) {
       case "urgent":
-        return { icon: <AlertTriangle className="w-5 h-5 text-red-500" />, bg: "bg-red-50" };
+        return { icon: <AlertTriangle className="w-[18px] h-[18px] text-red-500" /> };
       case "maintenance":
-        return { icon: <Wrench className="w-5 h-5 text-yellow-500" />, bg: "bg-yellow-50" };
+        return { icon: <Wrench className="w-[18px] h-[18px] text-yellow-500" /> };
       case "promo":
-        return { icon: <Tag className="w-5 h-5 text-green-500" />, bg: "bg-green-50" };
+        return { icon: <Tag className="w-[18px] h-[18px] text-green-500" /> };
       default: // info
-        return { icon: <Info className="w-5 h-5 text-blue-500" />, bg: "bg-blue-50" };
+        return { icon: <Info className="w-[18px] h-[18px] text-blue-500" /> };
     }
   }
 
   if (t.includes("delivered") || t.includes("shipped") || t === "shipped") {
-    return { icon: <Truck className="w-5 h-5 text-orange-500" />, bg: undefined };
+    return { icon: <Truck className="w-[18px] h-[18px] text-orange-500" /> };
   }
   if (t.includes("placed") || t.includes("confirmed") || t === "seller_confirmed") {
-    return { icon: <CheckCircle className="w-5 h-5 text-green-500" />, bg: undefined };
+    return { icon: <CheckCircle className="w-[18px] h-[18px] text-green-500" /> };
   }
   if (t.includes("cancelled")) {
-    return { icon: <XCircle className="w-5 h-5 text-red-600" />, bg: undefined };
+    return { icon: <XCircle className="w-[18px] h-[18px] text-red-600" /> };
   }
   if (t.includes("processing")) {
-    return { icon: <Package className="w-5 h-5 text-blue-500" />, bg: undefined };
+    return { icon: <Package className="w-[18px] h-[18px] text-blue-500" /> };
   }
   if (t === "seller_new_review" || t.includes("review")) {
-    return { icon: <Star className="w-5 h-5 text-amber-500" />, bg: "bg-amber-50" };
+    return { icon: <Star className="w-[18px] h-[18px] text-amber-500" /> };
   }
   if (t === "seller_review_reply") {
-    return { icon: <MessageSquare className="w-5 h-5 text-amber-500" />, bg: "bg-amber-50" };
+    return { icon: <MessageSquare className="w-[18px] h-[18px] text-amber-500" /> };
   }
 
-  return { icon: <Bell className="w-5 h-5 text-gray-600" />, bg: undefined };
+  return { icon: <Bell className="w-[18px] h-[18px] text-gray-600" /> };
 }
 
 function getTimeAgo(timestamp: Date): string {
@@ -161,7 +161,7 @@ export function NotificationsDropdown() {
       unsubscribeRef.current = notificationService.subscribeToNotifications(
         buyerId,
         'buyer',
-        (newNotification) => { 
+        (newNotification) => {
           console.log('[NotificationsDropdown] New notification received via real-time:', newNotification);
           // Instantly add to UI without waiting for full reload
           addNotificationToState(newNotification);
@@ -352,10 +352,7 @@ export function NotificationsDropdown() {
                     )}
                   >
                     {/* Icon Box */}
-                    <div className={cn(
-                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center",
-                      style.bg ?? "bg-gray-100"
-                    )}>
+                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
                       {style.icon}
                     </div>
 
@@ -399,9 +396,7 @@ export function NotificationsDropdown() {
                       !n.read ? "bg-white" : "bg-white"
                     )}
                   >
-                    <div className={cn(
-                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                    )}>
+                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
                       {style.icon}
                     </div>
                     <div className="flex-1 min-w-0 space-y-1">

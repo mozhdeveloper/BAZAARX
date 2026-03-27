@@ -585,91 +585,91 @@ export default function ShopScreen({ navigation, route }: Props) {
   const listHeaderComponent = useMemo(() => (
     <View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-            {categoryChips.map((cat) => (
-              <Pressable
-                key={cat.id}
-                style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
-                onPress={async () => {
-                  setSelectedCategory(cat.id);
-                }}
-              >
-                <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+        {categoryChips.map((cat) => (
+          <Pressable
+            key={cat.id}
+            style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
+            onPress={async () => {
+              setSelectedCategory(cat.id);
+            }}
+          >
+            <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
-          {/* Active Filter Chips */}
-          {(selectedSort !== 'relevance' || selectedPriceSort !== 'price-default' || minPrice !== '0' || maxPrice !== '100000') && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
-              {selectedSort !== 'relevance' && (
-                <Pressable
-                  onPress={async () => {
-                    setSelectedSort('relevance');
-                    try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
-                  }}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7',
-                    borderWidth: 1, borderColor: '#F59E0B', borderRadius: 20,
-                    paddingHorizontal: 12, paddingVertical: 6,
-                  }}
-                >
-                  <Star size={12} color="#B45309" fill="#B45309" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#B45309', marginRight: 4 }}>
-                    {attributeSortOptions.find(o => o.value === selectedSort)?.label || selectedSort}
-                  </Text>
-                  <X size={12} color="#B45309" />
-                </Pressable>
-              )}
-              {selectedPriceSort !== 'price-default' && (
-                <Pressable
-                  onPress={() => setSelectedPriceSort('price-default')}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', backgroundColor: '#DBEAFE',
-                    borderWidth: 1, borderColor: '#3B82F6', borderRadius: 20,
-                    paddingHorizontal: 12, paddingVertical: 6,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#1D4ED8', marginRight: 4 }}>
-                    Price: {priceSortOptions.find(o => o.value === selectedPriceSort)?.label || selectedPriceSort}
-                  </Text>
-                  <X size={12} color="#1D4ED8" />
-                </Pressable>
-              )}
-              {(minPrice !== '0' || maxPrice !== '100000') && (
-                <Pressable
-                  onPress={() => {
-                    setMinPrice('0'); setMaxPrice('100000');
-                    setMinInput('0'); setMaxInput('100000');
-                    setMultiSliderValue([0, 100000]);
-                  }}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', backgroundColor: '#D1FAE5',
-                    borderWidth: 1, borderColor: '#10B981', borderRadius: 20,
-                    paddingHorizontal: 12, paddingVertical: 6,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#065F46', marginRight: 4 }}>
-                    ₱{Number(minPrice).toLocaleString()} – ₱{Number(maxPrice).toLocaleString()}
-                  </Text>
-                  <X size={12} color="#065F46" />
-                </Pressable>
-              )}
-              <Pressable
-                onPress={async () => {
-                  setSelectedSort('relevance');
-                  setSelectedPriceSort('price-default');
-                  setMinPrice('0'); setMaxPrice('100000');
-                  setMinInput('0'); setMaxInput('100000');
-                  setMultiSliderValue([0, 100000]);
-                  try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
-                }}
-                style={{ paddingHorizontal: 8, paddingVertical: 6, justifyContent: 'center' }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '500', color: COLORS.textMuted, textDecorationLine: 'underline' }}>Clear all</Text>
-              </Pressable>
-            </ScrollView>
+      {/* Active Filter Chips */}
+      {(selectedSort !== 'relevance' || selectedPriceSort !== 'price-default' || minPrice !== '0' || maxPrice !== '100000') && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
+          {selectedSort !== 'relevance' && (
+            <Pressable
+              onPress={async () => {
+                setSelectedSort('relevance');
+                try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
+              }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7',
+                borderWidth: 1, borderColor: '#F59E0B', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Star size={12} color="#B45309" fill="#B45309" style={{ marginRight: 4 }} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#B45309', marginRight: 4 }}>
+                {attributeSortOptions.find(o => o.value === selectedSort)?.label || selectedSort}
+              </Text>
+              <X size={12} color="#B45309" />
+            </Pressable>
           )}
-        </View>
+          {selectedPriceSort !== 'price-default' && (
+            <Pressable
+              onPress={() => setSelectedPriceSort('price-default')}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#DBEAFE',
+                borderWidth: 1, borderColor: '#3B82F6', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#1D4ED8', marginRight: 4 }}>
+                Price: {priceSortOptions.find(o => o.value === selectedPriceSort)?.label || selectedPriceSort}
+              </Text>
+              <X size={12} color="#1D4ED8" />
+            </Pressable>
+          )}
+          {(minPrice !== '0' || maxPrice !== '100000') && (
+            <Pressable
+              onPress={() => {
+                setMinPrice('0'); setMaxPrice('100000');
+                setMinInput('0'); setMaxInput('100000');
+                setMultiSliderValue([0, 100000]);
+              }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#D1FAE5',
+                borderWidth: 1, borderColor: '#10B981', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#065F46', marginRight: 4 }}>
+                ₱{Number(minPrice).toLocaleString()} – ₱{Number(maxPrice).toLocaleString()}
+              </Text>
+              <X size={12} color="#065F46" />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={async () => {
+              setSelectedSort('relevance');
+              setSelectedPriceSort('price-default');
+              setMinPrice('0'); setMaxPrice('100000');
+              setMinInput('0'); setMaxInput('100000');
+              setMultiSliderValue([0, 100000]);
+              try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
+            }}
+            style={{ paddingHorizontal: 8, paddingVertical: 6, justifyContent: 'center' }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '500', color: COLORS.textMuted, textDecorationLine: 'underline' }}>Clear all</Text>
+          </Pressable>
+        </ScrollView>
+      )}
+    </View>
   ), [categoryChips, selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice]);
 
   return (
@@ -753,7 +753,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         data={(isLoading || isProductsLoading) ? [] : filteredProducts}
         keyExtractor={keyExtractor}
         ListHeaderComponent={listHeaderComponent}
-        ListFooterComponent={<View style={{ height: 100 }} />}
+        ListFooterComponent={<View style={{ height: 60 }} />}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -783,13 +783,13 @@ export default function ShopScreen({ navigation, route }: Props) {
         numColumns={2}
         masonry={true}
         onEndReachedThreshold={0.5}
-        contentContainerStyle={{ paddingTop: 15, paddingHorizontal: 14, paddingBottom: 100 }}
+        contentContainerStyle={{ paddingTop: 15, paddingHorizontal: 14, paddingBottom: 60 }}
         renderItem={({ item }: { item: Product }) => (
           <View style={{ paddingHorizontal: 6, paddingVertical: 6 }}>
-            <MasonryProductCard 
-              product={item} 
-              onPress={() => handleProductPress(item)} 
-              width={(width - 40 - 12) / 2} 
+            <MasonryProductCard
+              product={item}
+              onPress={() => handleProductPress(item)}
+              width={(width - 40 - 12) / 2}
             />
           </View>
         )}

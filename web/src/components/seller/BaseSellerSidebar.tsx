@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { LogOut, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useAuthStore } from "@/stores/sellerStore";
 import type { SellerNavLink } from "@/config/sellerLinks";
 import { roleSwitchService } from "@/services/roleSwitchService";
@@ -19,20 +20,17 @@ type BaseSellerSidebarProps = {
 const SellerLogo = ({
   open,
   subtitle,
-  homeHref,
 }: {
   open: boolean;
   subtitle: string;
-  homeHref: string;
 }) => (
-  <Link
-    to={homeHref}
+  <div
     className={cn(
       "flex items-center py-2 group transition-all duration-300",
       open ? "justify-start px-2 gap-3" : "justify-center px-0 gap-0"
     )}
   >
-    <div className="w-10 h-10 bg-gradient-to-tr from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
+    <div className="w-10 h-10 bg-gradient-to-tr from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0">
       <img loading="lazy" 
         src="/BazaarX.png"
         alt="BazaarX Logo"
@@ -56,7 +54,7 @@ const SellerLogo = ({
         {subtitle}
       </span>
     </motion.div>
-  </Link>
+  </div>
 );
 
 export const BaseSellerSidebar = ({
@@ -176,8 +174,8 @@ export const BaseSellerSidebar = ({
 
   return (
     <Sidebar open={open} setOpen={setOpen}>
-      <SidebarBody className="justify-between gap-1 bg-white z-50 transition-all duration-300">
-        <SellerLogo open={open} subtitle={subtitle} homeHref={homeHref} />
+      <SidebarBody className="justify-between gap-1 bg-white z-50">
+        <SellerLogo open={open} subtitle={subtitle} />
 
         <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pt-1">
           <div className="mt-1 flex flex-col gap-1">
@@ -218,48 +216,79 @@ export const BaseSellerSidebar = ({
             }}
           />
 
-          <button
-            onClick={async () => {
-              const result = await roleSwitchService.switchToBuyerMode();
-              if (result.navigationState) {
-                navigate(result.route, { state: result.navigationState });
-              } else {
-                navigate(result.route);
-              }
-            }}
-            className="flex items-center gap-3 w-full px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-amber-50 rounded-xl transition-all group overflow-hidden"
-          >
-            <Users className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors" />
-            <motion.span
-              animate={{
-                opacity: open ? 1 : 0,
-                width: open ? "auto" : 0,
-                display: open ? "block" : "none",
+          {!open ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={async () => {
+                    const result = await roleSwitchService.switchToBuyerMode();
+                    if (result.navigationState) {
+                      navigate(result.route, { state: result.navigationState });
+                    } else {
+                      navigate(result.route);
+                    }
+                  }}
+                  className="flex items-center justify-center w-full px-0 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-gray-50 rounded-xl transition-all group overflow-hidden"
+                >
+                  <Users className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10} className="bg-white text-gray-900 border border-gray-100 shadow-md font-medium z-[100]">
+                Switch to Buyer Mode
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <button
+              onClick={async () => {
+                const result = await roleSwitchService.switchToBuyerMode();
+                if (result.navigationState) {
+                  navigate(result.route, { state: result.navigationState });
+                } else {
+                  navigate(result.route);
+                }
               }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="whitespace-nowrap overflow-hidden"
+              className="flex items-center gap-3 w-full px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-gray-50 rounded-xl transition-all group overflow-hidden"
             >
-              Switch to Buyer Mode
-            </motion.span>
-          </button>
+              <Users className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-[var(--brand-primary)] transition-colors" />
+              <motion.span
+                animate={{ opacity: 1, width: "auto" }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="whitespace-nowrap overflow-hidden block"
+              >
+                Switch to Buyer Mode
+              </motion.span>
+            </button>
+          )}
 
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-red-600 hover:bg-red-50 rounded-xl transition-all group overflow-hidden"
-          >
-            <LogOut className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-red-500 transition-colors" />
-            <motion.span
-              animate={{
-                opacity: open ? 1 : 0,
-                width: open ? "auto" : 0,
-                display: open ? "block" : "none",
-              }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="whitespace-nowrap overflow-hidden"
+          {!open ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center justify-center w-full px-0 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-red-600 hover:bg-gray-50 rounded-xl transition-all group overflow-hidden"
+                >
+                  <LogOut className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-red-500 transition-colors" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10} className="bg-white text-gray-900 border border-gray-100 shadow-md font-medium z-[100]">
+                Logout
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 w-full px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-red-600 hover:bg-gray-50 rounded-xl transition-all group overflow-hidden"
             >
-              Logout
-            </motion.span>
-          </button>
+              <LogOut className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-red-500 transition-colors" />
+              <motion.span
+                animate={{ opacity: 1, width: "auto" }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="whitespace-nowrap overflow-hidden block"
+              >
+                Logout
+              </motion.span>
+            </button>
+          )}
         </div>
       </SidebarBody>
     </Sidebar>
