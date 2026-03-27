@@ -4,6 +4,5 @@
       "Bash(npx *)",
       "Bash(findstr *)"
     ]
-  },
-  "$version": 3
+  }
 }
