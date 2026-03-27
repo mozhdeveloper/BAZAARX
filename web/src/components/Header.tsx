@@ -164,12 +164,17 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                       const query = (e.target as HTMLInputElement).value;
                       if (location.pathname === "/stores") {
                         navigate(`/stores${query ? "?q=" + encodeURIComponent(query) : ""}`);
-                        // Force a re-render or state update if needed, though navigate should trigger location change in StoresPage
+                      } else if (location.pathname === "/shop") {
+                        const existingParams = new URLSearchParams(location.search);
+                        if (query) {
+                          existingParams.set("q", query);
+                        } else {
+                          existingParams.delete("q");
+                        }
+                        const paramStr = existingParams.toString();
+                        navigate(`/shop${paramStr ? "?" + paramStr : ""}`);
                       } else {
-                        navigate(
-                          `/search${query ? "?q=" + encodeURIComponent(query) : ""
-                          }`
-                        );
+                        navigate(`/search${query ? "?q=" + encodeURIComponent(query) : ""}`);
                       }
                     }
                   }}

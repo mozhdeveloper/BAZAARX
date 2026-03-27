@@ -361,7 +361,11 @@ export default function ShopPage() {
     }
 
     if (sortParam && attributeSortOptions.some(option => option.value === sortParam)) {
-      setSelectedSort(sortParam);
+      if (queryParam && sortParam === "featured") {
+        setSelectedSort("newest");
+      } else {
+        setSelectedSort(sortParam);
+      }
     } else if (!sortParam) {
       setSelectedSort("newest");
     }
@@ -501,7 +505,6 @@ export default function ShopPage() {
   }, [selectedCategory, selectedSort, selectedPriceSort, priceRange, minRating, searchQuery]);
 
   const resetFilters = () => {
-    setSearchQuery("");
     setSelectedSort("newest");
     setSelectedPriceSort("price-default");
     setPriceRange([0, 100000]);
@@ -514,7 +517,14 @@ export default function ShopPage() {
       return params;
     });
     setSelectedCategory("All Categories");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (searchQuery) {
+      const element = document.getElementById("shop-results-header");
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   return (
@@ -593,7 +603,7 @@ export default function ShopPage() {
 
           <div className="pt-2 pb-0">
             {/* Flash Sale Section — one block per active campaign */}
-            {flashSaleProducts.length > 0 && (() => {
+            {searchQuery === "" && flashSaleProducts.length > 0 && (() => {
               // Group products by campaign
               const campaignMap = new Map<string, { id: string; name: string; endsAt: string; color: string; products: any[] }>();
               for (const p of flashSaleProducts) {
@@ -670,7 +680,7 @@ export default function ShopPage() {
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
-          {selectedSort !== 'featured' && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
+          {searchQuery === "" && selectedSort !== 'featured' && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
             <div className="mb-10">
               {/* Section Header */}
               <div className="flex items-center justify-between mb-5 px-1">
@@ -1163,7 +1173,7 @@ export default function ShopPage() {
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-none shadow-xl bg-white/95 backdrop-blur-md">
-                        {attributeSortOptions.map((option) => (
+                        {attributeSortOptions.filter(option => searchQuery === "" || option.value !== "featured").map((option) => (
                           <SelectItem
                             key={option.value}
                             value={option.value}

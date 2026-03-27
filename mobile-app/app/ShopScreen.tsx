@@ -319,7 +319,30 @@ export default function ShopScreen({ navigation, route }: Props) {
     }
   }, []);
 
-  // --- LOCATION & NOTIFICATION LOGIC ---
+  // --- FILTER RESET ON BLUR (dedicated useEffect) ---
+  useEffect(() => {
+    const resetAllFilters = async () => {
+      setSelectedSort('relevance');
+      setSelectedPriceSort('price-default');
+      setSelectedCategory('all');
+      setSearchQuery('');
+      setMinPrice('0');
+      setMaxPrice('100000');
+      setMinInput('0');
+      setMaxInput('100000');
+      setMultiSliderValue([0, 100000]);
+      try {
+        await AsyncStorage.removeItem('shopSortState');
+      } catch (e) { /* ignore */ }
+      // Clear stale navigation params so re-focus doesn't re-apply old filters
+      navigation.setParams({ searchQuery: undefined, category: undefined, view: undefined });
+    };
+
+    const unsubBlur = navigation.addListener('blur', resetAllFilters);
+    return () => unsubBlur();
+  }, [navigation]);
+
+  // --- NOTIFICATION LOGIC ---
   useEffect(() => {
     mountedRef.current = true;
 
@@ -335,23 +358,7 @@ export default function ShopScreen({ navigation, route }: Props) {
       }
     };
 
-    const resetAllFilters = async () => {
-      setSelectedSort('relevance');
-      setSelectedPriceSort('price-default');
-      setSelectedCategory('all');
-      setSearchQuery('');
-      setMinPrice('0');
-      setMaxPrice('100000');
-      setMinInput('0');
-      setMaxInput('100000');
-      setMultiSliderValue([0, 100000]);
-      try {
-        await AsyncStorage.removeItem('shopSortState');
-      } catch (e) { /* ignore */ }
-    };
-
     const unsubFocus = navigation.addListener('focus', loadNotifications);
-    const unsubBlur = navigation.addListener('blur', resetAllFilters);
     loadNotifications();
 
     if (user?.id && !isGuest && !unsubRealtimeRef.current) {
@@ -374,18 +381,17 @@ export default function ShopScreen({ navigation, route }: Props) {
       pollIntervalRef.current = null;
     }
 
-    // Aggressive polling every 2 seconds as fallback safety net
+    // Polling every 30 seconds as fallback safety net (matching HomeScreen)
     if (user?.id && !isGuest) {
       pollIntervalRef.current = setInterval(() => {
         if (mountedRef.current && user?.id) {
           loadNotifications();
         }
-      }, 2000);
+      }, 30000);
     }
 
     return () => {
       unsubFocus();
-      unsubBlur();
     };
   }, [navigation, user?.id, isGuest]);
 
@@ -454,15 +460,13 @@ export default function ShopScreen({ navigation, route }: Props) {
   useEffect(() => {
     const unsubFocus = navigation.addListener('focus', async () => {
       try {
+        // Only apply sort override when explicitly navigated with view param
         if (route.params?.view === 'featured') {
           setSelectedSort('featured');
           await AsyncStorage.setItem('shopSortState', 'featured');
-        } else {
-          const savedSort = await AsyncStorage.getItem('shopSortState');
-          if (savedSort && attributeSortOptions.some(option => option.value === savedSort)) {
-            setSelectedSort(savedSort);
-          }
         }
+        // No longer restoring sort from AsyncStorage on plain tab re-focus
+        // to avoid race condition with blur reset clearing the sort state
       } catch (error) {
         console.error('[ShopScreen] Error loading sort state:', error);
       }
