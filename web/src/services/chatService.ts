@@ -309,12 +309,12 @@ class ChatService {
     let isOnline = false;
     const targetUserId = callerType === 'seller' ? conv.buyer_id : resolvedSellerId;
     if (targetUserId) {
-        const { data: presence } = await supabase
-            .from('user_presence')
-            .select('is_online')
-            .eq('user_id', targetUserId)
-            .maybeSingle();
-        isOnline = presence?.is_online === true;
+      const { data: presence } = await supabase
+        .from('user_presence')
+        .select('is_online')
+        .eq('user_id', targetUserId)
+        .maybeSingle();
+      isOnline = presence?.is_online === true;
     }
 
     // Get conversation stats
@@ -356,7 +356,8 @@ class ChatService {
       .from('conversations')
       .select('*')
       .eq('buyer_id', buyerId)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(50);
 
     if (convError) {
       console.error('[ChatService] Error fetching buyer conversations:', convError);
@@ -483,7 +484,7 @@ class ChatService {
     const { data: conversations, error: convError } = await supabase
       .from('conversations')
       .select('*')
-      .in('id', conversationIds)
+      .in('id', conversationIds.slice(0, 50))
       .order('updated_at', { ascending: false });
 
     if (convError) {
@@ -675,6 +676,37 @@ class ChatService {
       // Don't fail the message send if notification fails
     }
 
+    // Broadcast sidebar update to the receiver (bypasses RLS)
+    try {
+      let receiverId: string | null = null;
+      if (senderType === 'buyer' && conv?.order_id) {
+        receiverId = await this.getSellerIdFromOrder(conv.order_id);
+      } else if (senderType === 'buyer') {
+        receiverId = await this.getSellerIdFromMessages(conversationId);
+      } else if (senderType === 'seller' && conv?.buyer_id) {
+        receiverId = conv.buyer_id;
+      }
+
+      if (receiverId) {
+        console.log('📤 Broadcasting sidebar_update to:', receiverId);
+        const broadcastChannel = supabase.channel(`sidebar:${receiverId}`);
+        await broadcastChannel.subscribe();
+        await broadcastChannel.send({
+          type: 'broadcast',
+          event: 'sidebar_update',
+          payload: {
+            conversationId,
+            lastMessage: content,
+            lastMessageAt: message?.created_at ?? new Date().toISOString(),
+            senderType,
+          },
+        });
+        supabase.removeChannel(broadcastChannel);
+      }
+    } catch (broadcastError) {
+      console.error('[ChatService] Broadcast error (non-fatal):', broadcastError);
+    }
+
     return message;
   }
 
@@ -685,7 +717,7 @@ class ChatService {
   async markAsRead(conversationId: string, userId: string, userType: 'buyer' | 'seller'): Promise<void> {
     // Mark all messages from the other party as read
     const otherType = userType === 'buyer' ? 'seller' : 'buyer';
-    
+
     await supabase
       .from('messages')
       .update({ is_read: true })
@@ -706,7 +738,7 @@ class ChatService {
     onMessage: (message: Message) => void
   ): () => void {
     const channelName = `messages:${conversationId}`;
-    
+
     this.unsubscribe(channelName);
 
     const channel = supabase
@@ -720,8 +752,10 @@ class ChatService {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          console.log("🔥 REALTIME PAYLOAD RECEIVED:", payload); // <-- ADD THIS
+          console.log('🔥 REALTIME PAYLOAD RECEIVED:', payload);
           const newMsg = payload.new as Message;
+          if (!newMsg?.id) return;
+          console.log('📩 subscribeToMessages: delivering to callback, sender_type:', newMsg.sender_type);
           onMessage(newMsg);
         }
       )
@@ -765,7 +799,7 @@ class ChatService {
       // Pre-populate using getSellerConversations which already does multi-path discovery
       this.getSellerConversations(userId).then((convs) => {
         for (const c of convs) sellerConvIds.add(c.id);
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     const handleConversationChange = async (conv: any) => {
@@ -801,6 +835,31 @@ class ChatService {
 
     const buyerFilter = userType === 'buyer' ? `buyer_id=eq.${userId}` : undefined;
 
+    // Also subscribe to a personal broadcast channel for sidebar updates
+    const broadcastChannelName = `sidebar:${userId}`;
+    this.unsubscribe(broadcastChannelName);
+    const broadcastChannel = supabase
+      .channel(broadcastChannelName)
+      .on('broadcast', { event: 'sidebar_update' }, (event) => {
+        const payload = event.payload;
+        if (!payload?.conversationId) return;
+        console.log('📬 SIDEBAR BROADCAST RECEIVED:', payload);
+        // Optimistic update: push partial data immediately (no DB round-trip)
+        onUpdate({
+          id: payload.conversationId,
+          last_message: payload.lastMessage,
+          last_message_at: payload.lastMessageAt,
+          last_sender_type: payload.senderType,  // prevents stale "You:" prefix
+          updated_at: payload.lastMessageAt,
+          _optimistic: true,
+          _senderType: payload.senderType,
+        } as any);
+      })
+      .subscribe((status) => {
+        console.log(`📡 BROADCAST STATUS [${broadcastChannelName}]:`, status);
+      });
+    this.subscriptions.set(broadcastChannelName, broadcastChannel);
+
     const channel = supabase
       .channel(channelName)
       .on(
@@ -812,7 +871,9 @@ class ChatService {
           ...(buyerFilter ? { filter: buyerFilter } : {}),
         },
         async (payload) => {
-          await handleConversationChange((payload.new || payload.old) as any);
+          const updatedConv = (payload.new || payload.old) as any;
+          console.log(`🔔 subscribeToConversations [${userType}] conversations UPDATE:`, updatedConv?.id);
+          await handleConversationChange(updatedConv);
         }
       )
       .on(
@@ -825,13 +886,12 @@ class ChatService {
         async (payload) => {
           const msg = payload.new as Message;
           if (!msg?.conversation_id) return;
+          console.log(`🔔 subscribeToConversations [${userType}] messages INSERT:`, msg.conversation_id, 'sender:', msg.sender_type);
 
-          // For buyers: quick check before DB round-trip
-          if (userType === 'buyer') {
-            // fetch conversation only if it might belong to us
-          }
+          // For buyers: skip if this conversation doesn't belong to them (checked inside handleConversationChange)
           // For sellers: skip if we know this conv isn't ours
           if (userType === 'seller' && sellerConvIds.size > 0 && !sellerConvIds.has(msg.conversation_id)) {
+            console.log('🔔 seller: skipping unknown conv', msg.conversation_id);
             return;
           }
 
@@ -862,7 +922,7 @@ class ChatService {
     conversationIds: string[],
     onNewMessage: (msg: Pick<Message, 'id' | 'conversation_id' | 'content' | 'created_at' | 'sender_type'>) => void
   ): () => void {
-    if (conversationIds.length === 0) return () => {};
+    if (conversationIds.length === 0) return () => { };
     const channelName = `global-messages:${conversationIds.slice(0, 3).join('-')}`;
     this.unsubscribe(channelName);
 
@@ -905,7 +965,7 @@ class ChatService {
         (payload) => {
           const newRecord = payload.new as any;
           if (newRecord && newRecord.user_id) {
-             onPresenceChange(newRecord.user_id, newRecord.is_online === true);
+            onPresenceChange(newRecord.user_id, newRecord.is_online === true);
           }
         }
       )
@@ -945,11 +1005,13 @@ class ChatService {
    */
   async getUnreadCount(userId: string, userType: 'buyer' | 'seller'): Promise<number> {
     if (userType === 'buyer') {
-      // Count unread messages from sellers in buyer's conversations
+      // Count unread messages from sellers in buyer's conversations (cap at 50 most recent)
       const { data: convs } = await supabase
         .from('conversations')
         .select('id')
-        .eq('buyer_id', userId);
+        .eq('buyer_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(50);
 
       if (!convs || convs.length === 0) return 0;
 

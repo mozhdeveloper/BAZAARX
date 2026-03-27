@@ -110,14 +110,22 @@ export default function SellerMessages() {
         setDbConversations(prev => {
           const exists = prev.some(c => c.id === updatedConv.id);
           const next = exists
-            ? prev.map(c => c.id === updatedConv.id ? updatedConv : c)
+            ? prev.map(c => {
+                if (c.id !== updatedConv.id) return c;
+                const merged = { ...c, ...updatedConv };
+                // Increment unread badge for incoming buyer messages (unless conversation is open)
+                if ((updatedConv as any)._senderType === 'buyer' && c.id !== selectedConversation) {
+                  merged.seller_unread_count = (c.seller_unread_count || 0) + 1;
+                }
+                return merged;
+              })
             : [updatedConv, ...prev];
           return sortByLastMessage(next);
         });
       }
     );
     return unsubscribe;
-  }, [seller?.id]);
+  }, [seller?.id, selectedConversation]);
 
   useEffect(() => {
     if (!selectedConversation || !useRealData) return;
@@ -136,13 +144,21 @@ export default function SellerMessages() {
       if (newMsg.sender_type === 'buyer' && seller?.id) {
         chatService.markAsRead(selectedConversation, seller.id, 'seller');
       }
-      // Increment seller unread badge for non-selected conversations
-      if (newMsg.sender_type === 'buyer' && newMsg.conversation_id !== selectedConversation) {
+      // Always update sidebar preview + re-sort when a buyer message arrives
+      if (newMsg.sender_type === 'buyer') {
         setDbConversations(prev =>
           sortByLastMessage(
             prev.map(c =>
               c.id === newMsg.conversation_id
-                ? { ...c, seller_unread_count: (c.seller_unread_count || 0) + 1, last_message: newMsg.content, last_message_at: newMsg.created_at }
+                ? {
+                    ...c,
+                    last_message: newMsg.content,
+                    last_message_at: newMsg.created_at,
+                    // Only increment unread badge if this conversation isn't currently open
+                    seller_unread_count: newMsg.conversation_id !== selectedConversation
+                      ? (c.seller_unread_count || 0) + 1
+                      : c.seller_unread_count,
+                  }
                 : c
             )
           )
