@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Share, Alert, Pressable, Modal, TextInput, Switch, KeyboardAvoidingView, Platform, Animated, Keyboard, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Heart, ShoppingBag, Share2, MoreVertical, Edit2, Search, FolderHeart, Plus, Lock, Globe, User, X, Store, ChevronRight, Trash2, Eye } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ProductCard } from '../src/components/ProductCard';
-import { useWishlistStore, WishlistItem } from '../src/stores/wishlistStore';
-import { useAuthStore } from '../src/stores/authStore';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ChevronLeft, ChevronRight, Edit2, FolderHeart, Heart, Trash2, X } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { ProductCard } from '../src/components/ProductCard';
 import { COLORS } from '../src/constants/theme';
+import { useAuthStore } from '../src/stores/authStore';
+import { useWishlistStore, WishlistItem } from '../src/stores/wishlistStore';
 
 const { width } = Dimensions.get('window');
 
@@ -356,8 +356,8 @@ export default function WishlistScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
 
-    const { items, categories, createCategory, updateItem, removeItem, shareWishlist, updateCategory, deleteCategory } = useWishlistStore();
-    const { isGuest } = useAuthStore();
+    const { items, categories, createCategory, updateItem, removeItem, shareWishlist, updateCategory, deleteCategory, loadWishlist } = useWishlistStore();
+    const { isGuest, user } = useAuthStore();
 
     // UI State
     const [showGuestModal, setShowGuestModal] = useState(false);
@@ -375,6 +375,13 @@ export default function WishlistScreen() {
             setShowGuestModal(true);
         }
     }, [isGuest]);
+
+    // Reload wishlist when screen is focused (picks up web changes)
+    useEffect(() => {
+        if (user?.id && !isGuest) {
+            loadWishlist(user.id);
+        }
+    }, [user?.id]);
 
     const handleProductPress = useCallback((product: any) => {
         navigation.navigate('ProductDetail', { product });
@@ -394,9 +401,9 @@ export default function WishlistScreen() {
         }
     }, [selectedCategoryId, shareWishlist]);
 
-    const currentCategoryName = useMemo(() => 
+    const currentCategoryName = useMemo(() =>
         categories.find(c => c.id === selectedCategoryId)?.name || 'My Wishlists',
-    [categories, selectedCategoryId]);
+        [categories, selectedCategoryId]);
 
     const handleCreateList = useCallback((name: string, privacy: 'private' | 'shared', occasion?: string) => {
         createCategory(name, privacy, occasion);
@@ -428,7 +435,7 @@ export default function WishlistScreen() {
     const displayedItems = useMemo(() => selectedCategoryId
         ? items.filter(item => item.categoryId === selectedCategoryId || (selectedCategoryId === 'default' && !item.categoryId))
         : items,
-    [items, selectedCategoryId]);
+        [items, selectedCategoryId]);
 
     return (
         <View style={styles.container}>
@@ -470,175 +477,178 @@ export default function WishlistScreen() {
 
 
 
-                {/* --- CATEGORIES VIEW (1 COLUMN VERTICAL) --- */}
-                {!selectedCategoryId && (
-                    <View>
-                        {/* Occasion Tabs */}
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            style={styles.tabScroll}
-                            contentContainerStyle={styles.tabContainer}
-                        >
-                            <Pressable
-                                style={[styles.tab, activeOccasion === 'all' && styles.tabActive]}
-                                onPress={() => setActiveOccasion('all')}
+                    {/* --- CATEGORIES VIEW (1 COLUMN VERTICAL) --- */}
+                    {!selectedCategoryId && (
+                        <View>
+                            {/* Occasion Tabs */}
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={styles.tabScroll}
+                                contentContainerStyle={styles.tabContainer}
                             >
-                                <Text style={[styles.tabText, activeOccasion === 'all' && styles.tabTextActive]}>All</Text>
-                            </Pressable>
-                            {OCCASIONS.map(occ => (
                                 <Pressable
-                                    key={occ.id}
-                                    style={[styles.tab, activeOccasion === occ.id && styles.tabActive]}
-                                    onPress={() => setActiveOccasion(occ.id)}
+                                    style={[styles.tab, activeOccasion === 'all' && styles.tabActive]}
+                                    onPress={() => setActiveOccasion('all')}
                                 >
-                                    <Text style={[styles.tabText, activeOccasion === occ.id && styles.tabTextActive]}>{occ.label}</Text>
+                                    <Text style={[styles.tabText, activeOccasion === 'all' && styles.tabTextActive]}>All</Text>
                                 </Pressable>
-                            ))}
-                        </ScrollView>
-
-                        <View style={styles.categoriesList}>
-                            {displayedCategories.length === 0 ? (
-                                <View style={styles.emptyContainer}>
-                                    <View style={[styles.emptyIconCircle, { backgroundColor: `${BRAND_COLOR}10` }]}>
-                                        <FolderHeart size={48} color={BRAND_COLOR} strokeWidth={1.5} />
-                                    </View>
-                                    <Text style={styles.emptyTitle}>Your Wishlist is Empty</Text>
-                                    <Text style={styles.emptySubtitle}>Start building your favorite collections!</Text>
-                                    <TouchableOpacity
-                                        style={[styles.shopNowButton, { backgroundColor: BRAND_COLOR }]}
-                                        onPress={() => navigation.navigate('Home')}
+                                {OCCASIONS.map(occ => (
+                                    <Pressable
+                                        key={occ.id}
+                                        style={[styles.tab, activeOccasion === occ.id && styles.tabActive]}
+                                        onPress={() => setActiveOccasion(occ.id)}
                                     >
-                                        <Text style={styles.shopNowText}>Continue Shopping</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            ) : displayedCategories.map((cat) => {
-                                const categoryItems = items.filter(i => i.categoryId === cat.id || (cat.id === 'default' && !i.categoryId));
-                                const itemCount = categoryItems.length;
-                                // Use first item image as cover, or fallback
-                                const coverImage = cat.image || categoryItems[0]?.image;
+                                        <Text style={[styles.tabText, activeOccasion === occ.id && styles.tabTextActive]}>{occ.label}</Text>
+                                    </Pressable>
+                                ))}
+                            </ScrollView>
 
-                                return (
-                                    <Pressable key={cat.id} style={styles.cardContainer} onPress={() => setSelectedCategoryId(cat.id)}>
-                                        <View style={styles.cardContent}>
-                                            {/* Icon */}
-                                            <FolderHeart size={28} color={BRAND_COLOR} strokeWidth={2} />
+                            <View style={styles.categoriesList}>
+                                {displayedCategories.length === 0 ? (
+                                    <View style={styles.emptyContainer}>
+                                        <View style={[styles.emptyIconCircle, { backgroundColor: `${BRAND_COLOR}10` }]}>
+                                            <FolderHeart size={48} color={BRAND_COLOR} strokeWidth={1.5} />
+                                        </View>
+                                        <Text style={styles.emptyTitle}>Your Wishlist is Empty</Text>
+                                        <Text style={styles.emptySubtitle}>Start building your favorite collections!</Text>
+                                        <TouchableOpacity
+                                            style={[styles.shopNowButton, { backgroundColor: BRAND_COLOR }]}
+                                            onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+                                        >
+                                            <Text style={styles.shopNowText}>Continue Shopping</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : displayedCategories.map((cat) => {
+                                    const categoryItems = items.filter(i => i.categoryId === cat.id || (cat.id === 'default' && !i.categoryId));
+                                    const itemCount = categoryItems.length;
+                                    // Use first item image as cover, or fallback
+                                    const coverImage = cat.image || categoryItems[0]?.image;
 
-                                            {/* Info */}
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.cardTitle}>{cat.name}</Text>
-                                                <View style={styles.cardRatingRow}>
-                                                    <View style={styles.privacyTag}>
-                                                        <Text style={styles.privacyTagText}>Private</Text>
+                                    return (
+                                        <Pressable key={cat.id} style={styles.cardContainer} onPress={() => setSelectedCategoryId(cat.id)}>
+                                            <View style={styles.cardContent}>
+                                                {/* Icon */}
+                                                <FolderHeart size={28} color={BRAND_COLOR} strokeWidth={2} />
+
+                                                {/* Info */}
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.cardTitle}>{cat.name}</Text>
+                                                    <View style={styles.cardRatingRow}>
+                                                        <View style={styles.privacyTag}>
+                                                            <Text style={styles.privacyTagText}>Private</Text>
+                                                        </View>
+                                                        {cat.occasion && (
+                                                            <Text style={styles.itemCountDetail}>{cat.occasion.replace('_', ' ')}</Text>
+                                                        )}
+                                                        <Text style={styles.itemCountDetail}> · {itemCount} items</Text>
                                                     </View>
-                                                    {cat.occasion && (
-                                                        <Text style={styles.itemCountDetail}>{cat.occasion.replace('_', ' ')}</Text>
-                                                    )}
-                                                    <Text style={styles.itemCountDetail}> · {itemCount} items</Text>
+                                                </View>
+
+                                                {/* CTA */}
+                                                <View style={styles.viewListBtn}>
+                                                    <Text style={styles.viewListText}>View List</Text>
+                                                    <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
+                                                </View>
+                                            </View>
+                                        </Pressable>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    )}
+
+                    {/* --- ITEMS VIEW --- */}
+                    {selectedCategoryId && (
+                        <View>
+                            {displayedItems.length === 0 ? (
+                                <View style={styles.emptyContainer}>
+                                    <View style={[styles.emptyIconCircle, { backgroundColor: '#F3F4F6' }]}>
+                                        <Heart size={48} color="#D1D5DB" fill="#D1D5DB" />
+                                    </View>
+                                    <Text style={styles.emptyTitle}>Ready to add items?</Text>
+                                    <Text style={styles.emptyText}>Start building your collection here!</Text>
+                                    <Pressable style={styles.shopNowButton} onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}>
+                                        <Text style={styles.shopNowText}>Start Shopping</Text>
+                                    </Pressable>
+                                </View>
+                            ) : (
+                                <View style={styles.itemsGrid}>
+                                    {displayedItems.map((item) => (
+                                        <View key={item.id} style={styles.listItem}>
+                                            <View style={styles.itemCardContainer}>
+                                                <ProductCard
+                                                    product={item}
+                                                    onPress={() => handleProductPress(item)}
+                                                />
+
+
+                                                {/* Overlay Controls */}
+                                                <View style={styles.itemControls}>
+                                                    <Pressable style={styles.editIconBtn} onPress={() => setEditingItem(item)}>
+                                                        <Edit2 size={16} color="#FFF" />
+                                                    </Pressable>
                                                 </View>
                                             </View>
 
-                                            {/* CTA */}
-                                            <View style={styles.viewListBtn}>
-                                                <Text style={styles.viewListText}>View List</Text>
-                                                <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
-                                            </View>
-                                        </View>
-                                    </Pressable>
-                                );
-                            })}
-                        </View>
-                    </View>
-                )}
 
-                {/* --- ITEMS VIEW --- */}
-                {selectedCategoryId && (
-                    <View>
-                        {displayedItems.length === 0 ? (
-                            <View style={styles.emptyState}>
-                                <View style={styles.emptyIconContainer}>
-                                    <Heart size={48} color="#D1D5DB" fill="#D1D5DB" />
+                                        </View>
+                                    ))}
                                 </View>
-                                <Text style={styles.emptyTitle}>This list is empty</Text>
-                                <Text style={styles.emptyText}>Go add some items to it!</Text>
-                                <Pressable style={styles.shopNowButton} onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}>
-                                    <Text style={styles.shopNowText}>Start Shopping</Text>
-                                </Pressable>
-                            </View>
-                        ) : (
-                            <View style={styles.itemsGrid}>
-                                {displayedItems.map((item) => (
-                                    <View key={item.id} style={styles.listItem}>
-                                        <View style={styles.itemCardContainer}>
-                                            <ProductCard
-                                                product={item}
-                                                onPress={() => handleProductPress(item)}
-                                            />
+                            )}
+                        </View>
+                    )}
+
+                </ScrollView>
+
+                <GuestLoginModal
+                    visible={showGuestModal}
+                    onClose={() => {
+                        navigation.navigate('MainTabs', { screen: 'Home' });
+                    }}
+                    message="Sign up to create a registry."
+                    hideCloseButton={true}
+                    cancelText="Go back to Home"
+                />
+
+                <CreateListModal
+                    visible={showCreateModal}
+                    onClose={() => setShowCreateModal(false)}
+                    onCreate={handleCreateList}
+                />
+
+                <ItemEditModal
+                    visible={!!editingItem}
+                    item={editingItem}
+                    onClose={() => setEditingItem(null)}
+                    onSave={(itemId: string, updates: any, shouldDelete: boolean) => {
+                        // itemId here is registryItemId from the editing item
+                        const target = items.find(i => i.id === itemId || i.registryItemId === itemId);
+                        const rid = target?.registryItemId || itemId;
+                        if (shouldDelete) {
+                            removeItem(rid);
+                        } else {
+                            updateItem(rid, updates);
+                        }
+                    }}
+                />
+
+                <EditCategoryModal
+                    visible={!!editingCategory}
+                    category={editingCategory}
+                    onClose={() => setEditingCategory(null)}
+                    onSave={updateCategory}
+                    onDelete={(id: string) => {
+                        deleteCategory(id);
+                        setSelectedCategoryId(null); // Go back home
+                    }}
+                />
 
 
-                                            {/* Overlay Controls */}
-                                            <View style={styles.itemControls}>
-                                                <Pressable style={styles.editIconBtn} onPress={() => setEditingItem(item)}>
-                                                    <Edit2 size={16} color="#FFF" />
-                                                </Pressable>
-                                            </View>
-                                        </View>
-
-
-                                    </View>
-                                ))}
-                            </View>
-                        )}
-                    </View>
-                )}
-
-            </ScrollView>
-
-            <GuestLoginModal
-                visible={showGuestModal}
-                onClose={() => {
-                    navigation.navigate('MainTabs', { screen: 'Home' });
-                }}
-                message="Sign up to create a registry."
-                hideCloseButton={true}
-                cancelText="Go back to Home"
-            />
-
-            <CreateListModal
-                visible={showCreateModal}
-                onClose={() => setShowCreateModal(false)}
-                onCreate={handleCreateList}
-            />
-
-            <ItemEditModal
-                visible={!!editingItem}
-                item={editingItem}
-                onClose={() => setEditingItem(null)}
-                onSave={(itemId: string, updates: any, shouldDelete: boolean) => {
-                    if (shouldDelete) {
-                        removeItem(itemId);
-                    } else {
-                        updateItem(itemId, updates);
-                    }
-                }}
-            />
-
-            <EditCategoryModal
-                visible={!!editingCategory}
-                category={editingCategory}
-                onClose={() => setEditingCategory(null)}
-                onSave={updateCategory}
-                onDelete={(id: string) => {
-                    deleteCategory(id);
-                    setSelectedCategoryId(null); // Go back home
-                }}
-            />
-
-
-                </LinearGradient>
-            </View>
-        );
-    }
+            </LinearGradient>
+        </View>
+    );
+}
 
 const styles = StyleSheet.create({
     // Use BRAND_COLOR from a static source or define a local fallback since styles are outside the component
@@ -699,9 +709,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 8,
     },
-    privacyTag: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
+    privacyTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 4,
         paddingHorizontal: 6, paddingVertical: 2,
         backgroundColor: '#F3F4F6', borderRadius: 4,
@@ -720,92 +730,14 @@ const styles = StyleSheet.create({
         color: COLORS.primary,
     },
 
-    // Tabs
-    tabScroll: { marginBottom: 20 },
-    tabContainer: { paddingHorizontal: 4, gap: 12 },
-    tab: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-    },
-    tabActive: { backgroundColor: COLORS.primary },
-    tabText: { fontSize: 13, fontWeight: '700', color: '#6B7280' },
-    tabTextActive: { color: '#FFF' },
-
     // Empty State (Corrected name to match usage)
-    emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
+    emptyContainer: { width: '100%', alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
     emptyIconCircle: {
         width: 100, height: 100, borderRadius: 50,
         backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
         marginBottom: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10
     },
-    emptyTitle: { fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 8 },
     emptySubtitle: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginHorizontal: 40, lineHeight: 22 },
-    shopNowButton: {
-        marginTop: 32,
-        backgroundColor: COLORS.primary,
-        paddingHorizontal: 32,
-        paddingVertical: 16,
-        borderRadius: 16,
-        elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8
-    },
-    shopNowText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-    headerTitle: {
-        fontSize: 22,
-        fontWeight: '800',
-        color: COLORS.textHeadline,
-    },
-    scrollContent: { padding: 16, paddingTop: 24, paddingBottom: 40, minHeight: '100%' },
-
-    // Categories List (Card Style)
-    categoriesList: { gap: 12, paddingBottom: 20 },
-    cardContainer: {
-        backgroundColor: '#FFF',
-        borderRadius: 20,
-        padding: 18,
-        marginBottom: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
-        elevation: 4,
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
-    },
-    cardContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-    },
-    cardTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 4,
-    },
-    cardRatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    privacyTag: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        gap: 4,
-        backgroundColor: '#F3F4F6',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 6,
-    },
-    privacyTagText: { fontSize: 10, color: '#6B7280', fontWeight: '700', textTransform: 'uppercase' },
-    itemCountDetail: { fontSize: 13, color: '#9CA3AF', fontWeight: '500' },
-    viewListBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    viewListText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: COLORS.primary,
-    },
     emptyState: {
         width: 52,
         height: 52,
@@ -835,36 +767,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginTop: 4,
     },
-    cardTitle: {
-        fontSize: 18,
-        fontWeight: '900',
-        color: BRAND_COLOR,
-        marginBottom: 4,
-    },
-    cardRatingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    privacyTag: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: 6, paddingVertical: 2,
-        backgroundColor: '#F3F4F6', borderRadius: 4,
-    },
-    privacyTagText: { fontSize: 10, fontWeight: '600', color: COLORS.textMuted },
-    itemCountDetail: { fontSize: 12, color: COLORS.textMuted },
-
-    viewListBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 2,
-    },
-    viewListText: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: BRAND_COLOR,
-    },
-
     // Items Grid
     itemsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     listItem: { width: (width - 48) / 2, marginBottom: 12 },
@@ -902,38 +804,6 @@ const styles = StyleSheet.create({
     findRegistrySubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
     findRegistryBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
     findRegistryBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
-
-    // Tabs
-    tabScroll: { marginBottom: 20 },
-    tabContainer: { paddingHorizontal: 4, gap: 12 },
-    tab: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-    },
-    tabActive: { backgroundColor: BRAND_COLOR },
-    tabText: { fontSize: 13, fontWeight: '700', color: '#6B7280' },
-    tabTextActive: { color: '#FFF' },
-
-    // Empty State (Corrected name to match usage)
-    emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
-    emptyIconCircle: {
-        width: 100, height: 100, borderRadius: 50,
-        backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center',
-        marginBottom: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10
-    },
-    emptyTitle: { fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 8 },
-    emptySubtitle: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginHorizontal: 40, lineHeight: 22 },
-    shopNowButton: {
-        marginTop: 32,
-        backgroundColor: BRAND_COLOR,
-        paddingHorizontal: 32,
-        paddingVertical: 16,
-        borderRadius: 16,
-        elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8
-    },
-    shopNowText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
     emptyTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 8 },
     emptyText: { fontSize: 15, color: COLORS.textMuted, textAlign: 'center', marginBottom: 32 },
     shopNowButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E58C1A', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 30, elevation: 4 },

@@ -55,6 +55,12 @@ export const validatePassword = (
   if (!/\d/.test(password)) {
     errors.push('Password must contain at least one number');
   }
+  if (!/[!@#$%^&*(),.?":{}|<>\-_[\]\\/`~+=;']/.test(password)) {
+    errors.push('Password must contain at least one special character');
+  }
+  if (/\s/.test(password)) {
+    errors.push('Password must not contain spaces');
+  }
 
   return {
     valid: errors.length === 0,

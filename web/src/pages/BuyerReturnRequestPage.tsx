@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
+  ChevronLeft,
   Camera,
   CheckCircle,
   AlertTriangle,
@@ -100,6 +100,7 @@ export default function BuyerReturnRequestPage() {
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [evidencePreviews, setEvidencePreviews] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
 
   // Load order
   useEffect(() => {
@@ -138,6 +139,7 @@ export default function BuyerReturnRequestPage() {
   // Scroll to top when step changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setSelectedImageIndex(null); // Close modal when navigating steps
   }, [currentStep]);
 
   // Derived
@@ -275,6 +277,7 @@ export default function BuyerReturnRequestPage() {
           files: evidenceFiles,
           refundAmount: isReplacement ? 0 : selectedItemsTotal,
           submittedAt: new Date(),
+          status: resolutionPath === "instant" ? "refunded" : "seller_review",
         });
       }
 
@@ -331,8 +334,11 @@ export default function BuyerReturnRequestPage() {
                     : "This order is not eligible for return at this time."}
               </p>
               <Button onClick={() => navigate(`/order/${orderId}`)} variant="outline">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Order
+                <ChevronLeft
+                  size={20}
+                  className="group-hover:-translate-x-0.5 transition-transform"
+                />
+                <span className="text-sm font-medium">Back to Order</span>
               </Button>
             </CardContent>
           </Card>
@@ -345,86 +351,116 @@ export default function BuyerReturnRequestPage() {
   return (
     <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
-      <div className="max-w-3xl mx-auto px-4 py-6 pb-24">
+      <div className="max-w-6xl mx-auto px-4 py-6 pb-12">
         {/* Back button */}
         <button
           onClick={() => navigate(`/order/${orderId}`)}
-          className="flex items-center text-sm text-gray-500 hover:text-[var(--brand-primary)] mb-4 transition-colors"
+          className="flex items-center text-xs text-gray-500 hover:text-[var(--brand-primary)] mb-2 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4 mr-1" />
+          <ChevronLeft size={20} className="group-hover:-translate-x-0.5 transition-transform"/>
           Back to Order #{orderData?.orderNumber || orderId}
         </button>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Request Return / Refund</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-1">Request Return / Refund</h1>
         <p className="text-sm text-gray-500 mb-6">
           Order #{orderData?.orderNumber || orderId} &middot; Follow the steps below
         </p>
 
-        {/* Step Progress */}
-        <div className="flex items-center mb-8 overflow-x-auto pb-2">
-          {STEPS.map((step, i) => (
-            <div key={step} className="flex items-center">
-              <button
-                onClick={() => {
-                  if (i <= currentStepIndex) setCurrentStep(step);
-                }}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                  i < currentStepIndex
-                    ? "bg-green-100 text-green-700"
-                    : i === currentStepIndex
-                      ? "bg-[var(--brand-primary)] text-white shadow-md"
-                      : "bg-gray-100 text-gray-400"
-                )}
-              >
-                {i < currentStepIndex ? (
-                  <CheckCircle className="w-3.5 h-3.5" />
-                ) : (
-                  <span className="w-5 h-5 rounded-full border-2 border-current flex items-center justify-center text-[10px] font-bold">
-                    {i + 1}
-                  </span>
-                )}
-                {STEP_LABELS[step]}
-              </button>
-              {i < STEPS.length - 1 && (
-                <div className={cn("w-6 h-0.5 mx-1", i < currentStepIndex ? "bg-green-300" : "bg-gray-200")} />
-              )}
+        {/* Main Layout: Vertical Steps on Left + Content on Right */}
+        <div className="flex gap-8">
+          {/* Step Progress - Vertical Sidebar */}
+          <div className="w-37 flex-shrink-0 flex flex-col pt-12">
+            <div className="flex flex-col gap-6 justify-center">
+              {STEPS.map((step, i) => (
+                <div key={step} className="relative">
+                  {/* Step Box */}
+                  <button
+                    onClick={() => {
+                      if (i <= currentStepIndex) setCurrentStep(step);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg border-2 transition-all text-left",
+                      i < currentStepIndex
+                        ? "bg-green-50 border-green-300 hover:border-green-400"
+                        : i === currentStepIndex
+                          ? "bg-orange-50 border-[var(--brand-primary)] shadow-sm"
+                          : "bg-gray-50 border-gray-200 hover:border-gray-300"
+                    )}
+                  >
+                    {/* Step Icon/Number Circle */}
+                    <div className={cn(
+                      "flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-sm font-bold transition-all",
+                      i < currentStepIndex
+                        ? "bg-green-500 text-white"
+                        : i === currentStepIndex
+                          ? "bg-[var(--brand-primary)] text-white shadow-md"
+                          : "bg-gray-300 text-white"
+                    )}>
+                      {i < currentStepIndex ? (
+                        <CheckCircle className="w-5 h-5" />
+                      ) : (
+                        <span>{i + 1}</span>
+                      )}
+                    </div>
+                    
+                    {/* Step Label */}
+                    <p className={cn(
+                      "text-xs font-semibold line-clamp-2 leading-tight",
+                      i === currentStepIndex ? "text-gray-900" : "text-gray-600"
+                    )}>
+                      {STEP_LABELS[step]}
+                    </p>
+                  </button>
+                  
+                  {/* Vertical Connector to Next Step */}
+                  {i < STEPS.length - 1 && (
+                    <div className={cn(
+                      "absolute left-1/2 -translate-x-1/2 top-full w-0.5 h-12",
+                      i < currentStepIndex ? "bg-green-300" : "bg-gray-300"
+                    )} />
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+
+          {/* Form Content - Right Side */}
+          <div className="flex-1">
 
         {/* Step Content */}
         <Card className="shadow-sm border-orange-100/50">
-          <CardContent className="p-6">
+          <CardContent className="p-5">
             {/* STEP 1: Reason */}
             {currentStep === "reason" && (
               <div className="space-y-3">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">What went wrong?</h2>
-                <p className="text-sm text-gray-500 mb-4">Select the reason for your return or refund request.</p>
-                <div className="grid gap-3">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">What went wrong?</h2>
+                <p className="text-xs text-gray-500 mb-4">Select the reason for your return or refund request.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {REASON_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
                       onClick={() => setSelectedReason(opt.value)}
                       className={cn(
-                        "flex items-start gap-4 p-4 rounded-xl border-2 transition-all text-left",
+                        "relative flex gap-2.5 p-3 rounded-lg border-2 transition-all text-left items-center",
                         selectedReason === opt.value
-                          ? "border-[var(--brand-primary)] bg-orange-50/50 shadow-sm"
+                          ? "border-[var(--brand-primary)] bg-orange-50/50 shadow-sm pr-8"
                           : "border-gray-100 hover:border-orange-200 hover:bg-orange-50/30"
                       )}
                     >
                       <div className={cn(
-                        "mt-0.5 p-2 rounded-lg",
+                        "w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center",
                         selectedReason === opt.value ? "bg-[var(--brand-primary)] text-white" : "bg-gray-100 text-gray-500"
                       )}>
                         {opt.icon}
                       </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{opt.label}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <p className="font-semibold text-gray-900 text-sm">{opt.label}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{opt.description}</p>
                       </div>
                       {selectedReason === opt.value && (
-                        <CheckCircle className="w-5 h-5 text-[var(--brand-primary)] mt-1 flex-shrink-0" />
+                        <div className="flex-shrink-0 flex items-center justify-center" style={{ width: '20px', height: '100%' }}>
+                          <CheckCircle className="w-4 h-4 text-[var(--brand-primary)]" />
+                        </div>
                       )}
                     </button>
                   ))}
@@ -435,39 +471,41 @@ export default function BuyerReturnRequestPage() {
             {/* STEP 2: Return Type */}
             {currentStep === "type" && (
               <div className="space-y-3">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Preferred Solution</h2>
-                <p className="text-sm text-gray-500 mb-4">How would you like this resolved?</p>
-                <div className="grid gap-3">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">Preferred Solution</h2>
+                <p className="text-xs text-gray-500 mb-4">How would you like this resolved?</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {RETURN_TYPE_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
                       onClick={() => setSelectedType(opt.value)}
                       className={cn(
-                        "flex items-start gap-4 p-4 rounded-xl border-2 transition-all text-left relative",
+                        "relative flex gap-2.5 p-3 rounded-lg border-2 transition-all text-left items-center",
                         selectedType === opt.value
-                          ? "border-[var(--brand-primary)] bg-orange-50/50 shadow-sm"
+                          ? "border-[var(--brand-primary)] bg-orange-50/50 shadow-sm pr-8"
                           : "border-gray-100 hover:border-orange-200 hover:bg-orange-50/30"
                       )}
                     >
                       <div className={cn(
-                        "mt-0.5 p-2 rounded-lg",
+                        "w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center",
                         selectedType === opt.value ? "bg-[var(--brand-primary)] text-white" : "bg-gray-100 text-gray-500"
                       )}>
                         {opt.icon}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-gray-900">{opt.label}</p>
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <div className="flex items-center gap-1">
+                          <p className="font-semibold text-gray-900 text-sm">{opt.label}</p>
                           {(opt as any).badge && (
-                            <Badge className="bg-green-100 text-green-700 border-none text-[10px] px-1.5 py-0.5">
+                            <Badge className="bg-green-100 text-green-700 border-none text-[8px] px-1 py-0">
                               {(opt as any).badge}
                             </Badge>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 break-words whitespace-normal">{opt.description}</p>
                       </div>
                       {selectedType === opt.value && (
-                        <CheckCircle className="w-5 h-5 text-[var(--brand-primary)] mt-1 flex-shrink-0" />
+                        <div className="flex-shrink-0 flex items-center justify-center" style={{ width: '20px', height: '100%' }}>
+                          <CheckCircle className="w-4 h-4 text-[var(--brand-primary)]" />
+                        </div>
                       )}
                     </button>
                   ))}
@@ -476,7 +514,7 @@ export default function BuyerReturnRequestPage() {
                 {/* Resolution path hint */}
                 {resolutionPath && (
                   <div className={cn(
-                    "mt-4 p-3 rounded-lg border flex items-start gap-3",
+                    "mt-2 p-2 rounded-lg border flex items-start gap-2",
                     resolutionPath === "instant"
                       ? "bg-green-50 border-green-200"
                       : resolutionPath === "seller_review"
@@ -484,15 +522,15 @@ export default function BuyerReturnRequestPage() {
                         : "bg-amber-50 border-amber-200"
                   )}>
                     {resolutionPath === "instant" ? (
-                      <Zap className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                      <Zap className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" />
                     ) : resolutionPath === "seller_review" ? (
-                      <Clock className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <Clock className="w-3.5 h-3.5 text-blue-600 mt-0.5 flex-shrink-0" />
                     ) : (
-                      <Truck className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <Truck className="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
                     )}
                     <div>
                       <p className={cn(
-                        "text-xs font-semibold",
+                        "text-[15px] font-semibold",
                         resolutionPath === "instant" ? "text-green-700" : resolutionPath === "seller_review" ? "text-blue-700" : "text-amber-700"
                       )}>
                         {resolutionPath === "instant"
@@ -502,14 +540,14 @@ export default function BuyerReturnRequestPage() {
                             : "Return Required"}
                       </p>
                       <p className={cn(
-                        "text-[11px] mt-0.5",
+                        "text-[12px] mt-0.5",
                         resolutionPath === "instant" ? "text-green-600" : resolutionPath === "seller_review" ? "text-blue-600" : "text-amber-600"
                       )}>
                         {resolutionPath === "instant"
-                          ? "Your refund will be processed automatically."
+                          ? "Refund processed automatically."
                           : resolutionPath === "seller_review"
-                            ? "Seller has 48 hours to respond. If no response, it auto-escalates to admin."
-                            : "You'll need to ship the item back before the refund is processed."}
+                            ? "Seller has 48h to respond, auto-escalates if no response."
+                            : "Ship item back before refund."}
                       </p>
                     </div>
                   </div>
@@ -520,9 +558,9 @@ export default function BuyerReturnRequestPage() {
             {/* STEP 3: Select Items */}
             {currentStep === "items" && (
               <div className="space-y-3">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Which items are affected?</h2>
-                <p className="text-sm text-gray-500 mb-4">Select the items you want to return or get a refund for.</p>
-                <div className="grid gap-3">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">Which items are affected?</h2>
+                <p className="text-xs text-gray-500 mb-4">Select the items you want to return or get a refund for.</p>
+                <div className="grid gap-2.5">
                   {items.map((item: any) => {
                     const itemId = item.productId || item.id;
                     const isSelected = selectedItems.has(itemId);
@@ -531,28 +569,28 @@ export default function BuyerReturnRequestPage() {
                         key={itemId}
                         onClick={() => toggleItem(itemId, item.quantity || 1)}
                         className={cn(
-                          "flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left",
+                          "flex items-center gap-3 p-2.5 rounded-lg border-2 transition-all text-left",
                           isSelected
                             ? "border-[var(--brand-primary)] bg-orange-50/50"
                             : "border-gray-100 hover:border-orange-200"
                         )}
                       >
-                        <div className="relative">
+                        <div className="relative flex-shrink-0">
                           <img loading="lazy" 
                             src={item.image || "/placeholder.png"}
                             alt={item.name}
-                            className="w-16 h-16 rounded-lg object-cover"
+                            className="w-12 h-12 rounded-lg object-cover"
                           />
                           {isSelected && (
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-[var(--brand-primary)] rounded-full flex items-center justify-center">
-                              <CheckCircle className="w-3.5 h-3.5 text-white" />
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--brand-primary)] rounded-full flex items-center justify-center">
+                              <CheckCircle className="w-3 h-3 text-white" />
                             </div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{item.name}</p>
-                          <p className="text-xs text-gray-500">Qty: {item.quantity || 1}</p>
-                          <p className="text-sm font-semibold text-[var(--brand-primary)]">
+                          <p className="font-semibold text-gray-900 text-sm break-words line-clamp-2">{item.name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Qty: {item.quantity || 1}</p>
+                          <p className="text-xs font-semibold text-[var(--brand-primary)]">
                             ₱{Number(item.price || 0).toLocaleString()}
                           </p>
                         </div>
@@ -562,11 +600,11 @@ export default function BuyerReturnRequestPage() {
                 </div>
 
                 {selectedItems.size > 0 && (
-                  <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
-                    <p className="text-sm font-medium text-gray-700">
+                  <div className="mt-3 p-2.5 bg-orange-50 rounded-lg border border-orange-100">
+                    <p className="text-xs font-semibold text-gray-700">
                       {selectedItems.size} item{selectedItems.size > 1 ? "s" : ""} selected
                       {!isReplacement && (
-                        <> &middot; Refund: <span className="text-[var(--brand-primary)] font-bold">₱{selectedItemsTotal.toLocaleString()}</span></>
+                        <> &middot; Refund: <span className="text-[var(--brand-primary)]">₱{selectedItemsTotal.toLocaleString()}</span></>
                       )}
                     </p>
                   </div>
@@ -576,9 +614,9 @@ export default function BuyerReturnRequestPage() {
 
             {/* STEP 4: Evidence */}
             {currentStep === "evidence" && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Upload Evidence</h2>
-                <p className="text-sm text-gray-500">
+              <div className="space-y-3">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">Upload Evidence</h2>
+                <p className="text-xs text-gray-500 mb-3">
                   {needsEvidence
                     ? "Photos are required for your selected reason. Please upload clear images showing the issue."
                     : "Photos are optional but help speed up the process."}
@@ -587,7 +625,7 @@ export default function BuyerReturnRequestPage() {
                 {/* Upload area */}
                 <label
                   className={cn(
-                    "block w-full border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors",
+                    "block w-full border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors",
                     evidenceFiles.length >= 5
                       ? "border-gray-200 bg-gray-50 cursor-not-allowed"
                       : "border-orange-200 hover:border-[var(--brand-primary)] hover:bg-orange-50/30"
@@ -601,45 +639,78 @@ export default function BuyerReturnRequestPage() {
                     className="hidden"
                     disabled={evidenceFiles.length >= 5}
                   />
-                  <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-gray-700">
+                  <Camera className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                  <p className="text-xs font-medium text-gray-700">
                     {evidenceFiles.length >= 5 ? "Maximum 5 photos reached" : "Click to upload photos"}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">Up to 5 photos &middot; JPG, PNG</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Up to 5 photos &middot; JPG, PNG</p>
                 </label>
 
                 {/* Previews */}
                 {evidencePreviews.length > 0 && (
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {evidencePreviews.map((preview, i) => (
                       <div key={i} className="relative group">
-                        <img loading="lazy" 
-                          src={preview}
-                          alt={`Evidence ${i + 1}`}
-                          className="w-full aspect-square rounded-lg object-cover border border-gray-200"
-                        />
+                        <button
+                          onClick={() => setSelectedImageIndex(i)}
+                          className="w-full cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                          <img loading="lazy" 
+                            src={preview}
+                            alt={`Evidence ${i + 1}`}
+                            className="w-full aspect-square rounded-lg object-cover border border-gray-200"
+                          />
+                        </button>
                         <button
                           onClick={() => removeEvidence(i)}
-                          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-2 h-2" />
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
 
+                {/* Image Modal - Show on evidence and review steps */}
+                {selectedImageIndex !== null && (currentStep === "evidence" || currentStep === "review") && (
+                  <div 
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                    onClick={() => setSelectedImageIndex(null)}
+                  >
+                    <div 
+                      className="relative bg-white rounded-lg max-w-2xl max-h-[80vh] overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <img
+                        src={evidencePreviews[selectedImageIndex]}
+                        alt={`Evidence ${selectedImageIndex + 1}`}
+                        className="w-full h-auto max-h-[75vh] object-contain"
+                      />
+                      <button
+                        onClick={() => setSelectedImageIndex(null)}
+                        className="absolute top-4 right-4 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <X className="w-4 h-4 text-gray-700" />
+                      </button>
+                      <div className="absolute bottom-4 left-4 bg-black/60 text-white px-3 py-1 rounded-full text-xs font-medium">
+                        {selectedImageIndex + 1} of {evidencePreviews.length}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Description */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  <label className="text-xs font-medium text-gray-700 mb-1 block">
                     Additional Details (optional)
                   </label>
                   <Textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Describe the issue in detail..."
-                    rows={3}
-                    className="resize-none"
+                    rows={2}
+                    className="resize-none text-sm"
                   />
                 </div>
               </div>
@@ -647,45 +718,45 @@ export default function BuyerReturnRequestPage() {
 
             {/* STEP 5: Review */}
             {currentStep === "review" && (
-              <div className="space-y-5">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Review Your Request</h2>
-                <p className="text-sm text-gray-500 mb-4">Please confirm the details below before submitting.</p>
+              <div className="space-y-3">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">Review Your Request</h2>
+                <p className="text-xs text-gray-500 mb-4">Please confirm the details below before submitting.</p>
 
                 {/* Summary cards */}
-                <div className="grid gap-3">
+                <div className="grid gap-2">
                   {/* Reason */}
-                  <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
                     <p className="text-xs text-gray-500 mb-0.5">Reason</p>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-xs font-medium text-gray-900">
                       {REASON_OPTIONS.find((r) => r.value === selectedReason)?.label || selectedReason}
                     </p>
                   </div>
 
                   {/* Resolution type */}
-                  <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
                     <p className="text-xs text-gray-500 mb-0.5">Preferred Solution</p>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-xs font-medium text-gray-900">
                       {RETURN_TYPE_OPTIONS.find((t) => t.value === selectedType)?.label || selectedType}
                     </p>
                   </div>
 
                   {/* Items */}
-                  <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-                    <p className="text-xs text-gray-500 mb-2">Items ({selectedItems.size})</p>
+                  <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
+                    <p className="text-xs text-gray-500 mb-1">Items ({selectedItems.size})</p>
                     {Array.from(selectedItems.entries()).map(([itemId, sel]) => {
                       const item = items.find((i: any) => (i.productId || i.id) === itemId);
                       return (
-                        <div key={itemId} className="flex items-center gap-3 py-1">
+                        <div key={itemId} className="flex items-center gap-2 py-0.5">
                           <img loading="lazy" 
                             src={item?.image || "/placeholder.png"}
                             alt={item?.name}
-                            className="w-10 h-10 rounded object-cover"
+                            className="w-8 h-8 rounded object-cover"
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-900 truncate">{item?.name}</p>
-                            <p className="text-xs text-gray-500">Qty: {sel.quantity}</p>
+                            <p className="text-xs text-gray-900 truncate">{item?.name}</p>
+                            <p className="text-[10px] text-gray-500">Qty: {sel.quantity}</p>
                           </div>
-                          <p className="text-sm font-semibold text-gray-900">
+                          <p className="text-xs font-semibold text-gray-900">
                             ₱{(Number(item?.price || 0) * sel.quantity).toLocaleString()}
                           </p>
                         </div>
@@ -695,22 +766,22 @@ export default function BuyerReturnRequestPage() {
 
                   {/* Refund amount — only for Return & Refund, not Replacement */}
                   {!isReplacement ? (
-                    <div className="p-4 rounded-lg border bg-orange-50 border-orange-200">
+                    <div className="p-3 rounded-lg border bg-orange-50 border-orange-200">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-700">Refund Amount</p>
-                        <p className="text-lg font-bold text-[var(--brand-primary)]">
+                        <p className="text-xs font-medium text-gray-700">Refund Amount</p>
+                        <p className="text-sm font-bold text-[var(--brand-primary)]">
                           ₱{selectedItemsTotal.toLocaleString()}
                         </p>
                       </div>
                     </div>
                   ) : (
-                    <div className="p-4 rounded-lg border bg-blue-50 border-blue-200">
-                      <div className="flex items-center gap-3">
-                        <Package className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                    <div className="p-3 rounded-lg border bg-blue-50 border-blue-200">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-blue-600 flex-shrink-0" />
                         <div>
-                          <p className="text-sm font-semibold text-blue-800">Replacement Item</p>
-                          <p className="text-xs text-blue-600 mt-0.5">
-                            The seller will ship a brand new replacement once the return is approved. No cash refund will be issued.
+                          <p className="text-xs font-semibold text-blue-800">Replacement Item</p>
+                          <p className="text-[10px] text-blue-600 mt-0.5">
+                            The seller will ship a brand new replacement once approved.
                           </p>
                         </div>
                       </div>
@@ -719,28 +790,36 @@ export default function BuyerReturnRequestPage() {
 
                   {/* Evidence */}
                   {evidencePreviews.length > 0 && (
-                    <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-                      <p className="text-xs text-gray-500 mb-2">Evidence ({evidencePreviews.length} photos)</p>
-                      <div className="flex gap-2 overflow-x-auto">
+                    <div className="p-4 rounded-lg bg-gray-50 border border-gray-100">
+                      <p className="text-sm font-semibold text-gray-900 mb-3">Evidence ({evidencePreviews.length} photos)</p>
+                      <div className="flex gap-3 overflow-x-auto">
                         {evidencePreviews.map((p, i) => (
-                          <img loading="lazy" key={i} src={p} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />
+                          <button key={i} onClick={() => setSelectedImageIndex(i)} className="relative group flex-shrink-0 hover:scale-105 transition-transform">
+                            <img loading="lazy" src={p} alt={`Evidence ${i + 1}`} className="w-24 h-24 rounded-lg object-cover border-2 border-gray-200 group-hover:border-[var(--brand-primary)] shadow-md" />
+                            <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Camera className="w-5 h-5 text-white drop-shadow-lg" />
+                              </div>
+                            </div>
+                          </button>
                         ))}
                       </div>
+                      <p className="text-xs text-gray-500 mt-2">Click any photo to view full size</p>
                     </div>
                   )}
 
                   {/* Description */}
                   {description && (
-                    <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                    <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
                       <p className="text-xs text-gray-500 mb-0.5">Additional Details</p>
-                      <p className="text-sm text-gray-700">{description}</p>
+                      <p className="text-xs text-gray-700">{description}</p>
                     </div>
                   )}
 
                   {/* Resolution path */}
                   {resolutionPath && (
                     <div className={cn(
-                      "p-3 rounded-lg border flex items-start gap-3",
+                      "p-2 rounded-lg border flex items-start gap-2",
                       resolutionPath === "instant"
                         ? "bg-green-50 border-green-200"
                         : resolutionPath === "seller_review"
@@ -748,16 +827,23 @@ export default function BuyerReturnRequestPage() {
                           : "bg-amber-50 border-amber-200"
                     )}>
                       <ShieldCheck className={cn(
-                        "w-5 h-5 mt-0.5 flex-shrink-0",
+                        "w-4 h-4 mt-0.5 flex-shrink-0",
                         resolutionPath === "instant" ? "text-green-600" : resolutionPath === "seller_review" ? "text-blue-600" : "text-amber-600"
                       )} />
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">
+                        <p className="text-xs font-semibold text-gray-900">
                           {resolutionPath === "instant"
-                            ? "Instant Refund — Your refund will be processed immediately."
+                            ? "Instant Refund"
                             : resolutionPath === "seller_review"
-                              ? "Seller Review — The seller has 48 hours to respond. Auto-escalates to admin if no response."
-                              : "Return Required — You'll receive a return label to ship the item back."}
+                              ? "Seller Review (48h)"
+                              : "Return Required"}
+                        </p>
+                        <p className="text-[11px] text-gray-600 mt-0.5">
+                          {resolutionPath === "instant"
+                            ? "Your refund will be processed immediately."
+                            : resolutionPath === "seller_review"
+                              ? "Seller has 48 hours to respond. Auto-escalates if no response."
+                              : "You'll receive a return label to ship back the item."}
                         </p>
                       </div>
                     </div>
@@ -768,14 +854,43 @@ export default function BuyerReturnRequestPage() {
           </CardContent>
         </Card>
 
+        {/* Image Modal - Show on evidence and review steps */}
+        {selectedImageIndex !== null && (currentStep === "evidence" || currentStep === "review") && (
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setSelectedImageIndex(null)}
+          >
+            <div 
+              className="relative bg-white rounded-lg max-w-2xl max-h-[80vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={evidencePreviews[selectedImageIndex]}
+                alt={`Evidence ${selectedImageIndex + 1}`}
+                className="w-full h-auto max-h-[75vh] object-contain"
+              />
+              <button
+                onClick={() => setSelectedImageIndex(null)}
+                className="absolute top-4 right-4 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-700" />
+              </button>
+              <div className="absolute bottom-4 left-4 bg-black/60 text-white px-3 py-1 rounded-full text-xs font-medium">
+                {selectedImageIndex + 1} of {evidencePreviews.length}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Navigation buttons */}
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex items-center justify-between mt-3 gap-2">
           <Button
             variant="outline"
             onClick={currentStepIndex === 0 ? () => navigate(`/order/${orderId}`) : goBack}
-            className="px-6"
+            className="px-3 text-[11px]"
+            size="sm"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            <ChevronLeft size={20} className="group-hover:-translate-x-0.5 transition-transform"/>
             {currentStepIndex === 0 ? "Cancel" : "Back"}
           </Button>
 
@@ -783,17 +898,18 @@ export default function BuyerReturnRequestPage() {
             <Button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="px-8 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md"
+              className="px-5 text-[11px] bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md"
+              size="sm"
             >
               {isSubmitting ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-white mr-1.5" />
                   Submitting...
                 </>
               ) : (
                 <>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Submit Request
+                  <CheckCircle className="w-2.5 h-2.5 mr-1" />
+                  Submit Report
                 </>
               )}
             </Button>
@@ -801,11 +917,14 @@ export default function BuyerReturnRequestPage() {
             <Button
               onClick={goNext}
               disabled={!canGoNext()}
-              className="px-8 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md disabled:opacity-50"
+              className="px-5 text-[11px] bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-md disabled:opacity-50"
+              size="sm"
             >
               Continue
             </Button>
           )}
+        </div>
+          </div>
         </div>
       </div>
       <BazaarFooter />

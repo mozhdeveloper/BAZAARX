@@ -767,7 +767,7 @@ export default function ShopScreen({ navigation, route }: Props) {
             <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
                 {[...Array(6)].map((_, i) => (
-                  <View key={`skel-${i}`} style={{ width: (width - 48) / 2, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6' }}>
+                  <View key={`skel-${i}`} style={{ width: (width - 40 - 12) / 2, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6' }}>
                     <View style={{ aspectRatio: 1, backgroundColor: '#E5E7EB' }} />
                     <View style={{ padding: 12, gap: 8 }}>
                       <View style={{ height: 14, backgroundColor: '#E5E7EB', borderRadius: 6, width: '85%' }} />
@@ -783,13 +783,13 @@ export default function ShopScreen({ navigation, route }: Props) {
         numColumns={2}
         masonry={true}
         onEndReachedThreshold={0.5}
-        contentContainerStyle={{ paddingTop: 15, paddingHorizontal: 6, paddingBottom: 100 }}
+        contentContainerStyle={{ paddingTop: 15, paddingHorizontal: 14, paddingBottom: 100 }}
         renderItem={({ item }: { item: Product }) => (
           <View style={{ paddingHorizontal: 6, paddingVertical: 6 }}>
             <MasonryProductCard 
               product={item} 
               onPress={() => handleProductPress(item)} 
-              width={(width - 12 - 12) / 2} 
+              width={(width - 40 - 12) / 2} 
             />
           </View>
         )}

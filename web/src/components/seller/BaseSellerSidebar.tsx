@@ -70,7 +70,7 @@ export const BaseSellerSidebar = ({
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-  const unsubChatRef = useRef<(() => void) | null>(null);
+  const unsubMsgRef = useRef<(() => void) | null>(null);
   const unsubNotifRef = useRef<(() => void) | null>(null);
 
   // Map each seller route to the notification types that are actioned there.
@@ -127,14 +127,16 @@ export const BaseSellerSidebar = ({
 
     autoReadAndFetch();
 
-    if (!unsubChatRef.current) {
-      unsubChatRef.current = chatService.subscribeToConversations(
-        seller.id,
-        "seller",
-        () => {
-          void autoReadAndFetch();
-        },
-      );
+    // Lightweight message badge: fetch conv IDs once, then listen for new buyer messages
+    if (!unsubMsgRef.current && seller?.id) {
+      chatService.getSellerConversations(seller.id).then((convs) => {
+        const convIds = convs.map(c => c.id);
+        unsubMsgRef.current = chatService.subscribeToMessagesGlobal(convIds, (msg) => {
+          if (msg.sender_type === 'buyer' && !location.pathname.startsWith('/seller/messages')) {
+            setUnreadMessageCount(prev => prev + 1);
+          }
+        });
+      });
     }
 
     if (!unsubNotifRef.current) {
@@ -156,9 +158,9 @@ export const BaseSellerSidebar = ({
 
   useEffect(() => {
     return () => {
-      if (unsubChatRef.current) {
-        unsubChatRef.current();
-        unsubChatRef.current = null;
+      if (unsubMsgRef.current) {
+        unsubMsgRef.current();
+        unsubMsgRef.current = null;
       }
       if (unsubNotifRef.current) {
         unsubNotifRef.current();

@@ -21,7 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
-  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle, Star, FlaskConical, Flame, TrendingUp, Plus,
+  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle, Star, FlaskConical, Flame, TrendingUp, Plus, ChevronRight,
   Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen, Armchair, SprayCan,
 } from 'lucide-react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -249,17 +249,17 @@ export default function HomeScreen({ navigation }: Props) {
   const saveRecentSearch = useCallback(async (term: string) => {
     if (!term.trim()) return;
     const cleanTerm = term.trim();
-    
+
     setRecentSearches(prev => {
       // Remove term if it already exists, then add to front
       const filtered = prev.filter(t => t.toLowerCase() !== cleanTerm.toLowerCase());
       const updated = [cleanTerm, ...filtered].slice(0, 10);
-      
+
       // Persist to AsyncStorage
       AsyncStorage.setItem('recentSearches', JSON.stringify(updated)).catch(e => {
         console.error('[HomeScreen] Failed to save recent searches:', e);
       });
-      
+
       return updated;
     });
   }, []);
@@ -653,12 +653,7 @@ export default function HomeScreen({ navigation }: Props) {
   }, []);
 
   return (
-    <LinearGradient
-      colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment / Light Amber sweep
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* 1. BRANDED HEADER */}
@@ -681,20 +676,20 @@ export default function HomeScreen({ navigation }: Props) {
               } else {
                 // Navigate to dedicated screen
                 navigation.navigate('Notifications');
-                }
-              }}
-              style={styles.headerIconButton}
-            >
-              <Bell size={24} color={COLORS.primary} />
-              {!isGuest && unreadCount > 0 && (
-                <View style={styles.notifBadge}>
-                  <Text style={styles.notifBadgeText}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
+              }
+            }}
+            style={styles.headerIconButton}
+          >
+            <Bell size={24} color={COLORS.primary} />
+            {!isGuest && unreadCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
 
         {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
@@ -717,7 +712,7 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
           {isSearchFocused && (
             <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
-              <Text style={{ color: '#FFF', fontWeight: '600' }}>Cancel</Text>
+              <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Cancel</Text>
             </Pressable>
           )}
         </View>
@@ -745,9 +740,9 @@ export default function HomeScreen({ navigation }: Props) {
               <View style={styles.recentSection}>
                 <Text style={styles.discoveryTitle}>Recent Searches</Text>
                 {recentSearches.map((term, i) => (
-                  <Pressable 
-                    key={i} 
-                    style={styles.searchRecentItem} 
+                  <Pressable
+                    key={i}
+                    style={styles.searchRecentItem}
                     onPress={() => {
                       setSearchQuery(term);
                       saveRecentSearch(term); // Move to top
@@ -865,10 +860,10 @@ export default function HomeScreen({ navigation }: Props) {
                       }
                     }}
                   >
-                    <ExpoImage 
-                      source={{ uri: safeImageUri(slide.image, PLACEHOLDER_BANNER) }} 
-                      style={StyleSheet.absoluteFill} 
-                      contentFit="cover" 
+                    <ExpoImage
+                      source={{ uri: safeImageUri(slide.image, PLACEHOLDER_BANNER) }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
                     />
                     <LinearGradient
                       colors={slide.gradient as [string, string]}
@@ -981,11 +976,8 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
 
             {/* FLASH SALE SECTION (No Container) */}
-            <LinearGradient
-              colors={['#FFF9F9', '#FFF3F3', '#FFF9F9']} // Very light red tint for Flash Sale
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.flashSaleContainer}
+            <View
+              style={[styles.flashSaleContainer, { backgroundColor: '#FFFBF0' }]}
             >
               <View style={styles.flashSaleHeader}>
                 <View style={styles.flashSaleTitleRow}>
@@ -1002,7 +994,7 @@ export default function HomeScreen({ navigation }: Props) {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, gap: 12 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 10, gap: 12 }}
               >
                 {flashSaleProducts.length > 0 ? (
                   Array.from(new Map(flashSaleProducts.slice(0, 10).map(p => [p.id, p])).values()).map((product) => (
@@ -1018,24 +1010,24 @@ export default function HomeScreen({ navigation }: Props) {
                   ))
                 )}
               </ScrollView>
-            </LinearGradient>
+            </View>
 
             {/* FEATURED STORES SECTION */}
             {verifiedStores.length > 0 && (
-              <View style={{ marginTop: 20, marginBottom: 5 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 20 }}>
+              <View style={{ marginTop: 0, marginBottom: 5, paddingVertical: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 }}>
                   <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Stores</Text>
                   <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Featured Stores' })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
                   {verifiedStores.map((store) => (
                     <Pressable key={store.id} style={styles.storeVerticalCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
                       <View style={styles.storeBannerContainer}>
-                        <ExpoImage 
-                          source={{ uri: safeImageUri(store.products?.[0], PLACEHOLDER_BANNER) }} 
-                          style={styles.storeBannerImage} 
+                        <ExpoImage
+                          source={{ uri: safeImageUri(store.products?.[0], PLACEHOLDER_BANNER) }}
+                          style={styles.storeBannerImage}
                           contentFit="cover"
                         />
                         <LinearGradient
@@ -1044,24 +1036,23 @@ export default function HomeScreen({ navigation }: Props) {
                         />
                         <View style={styles.storeAvatarOverlap}>
                           <View style={styles.storeAvatarBorder}>
-                            <ExpoImage 
-                              source={{ uri: safeImageUri(store.logo, PLACEHOLDER_AVATAR) }} 
-                              style={styles.storeAvatarImage} 
+                            <ExpoImage
+                              source={{ uri: safeImageUri(store.logo, PLACEHOLDER_AVATAR) }}
+                              style={styles.storeAvatarImage}
                               contentFit="cover"
                             />
                           </View>
                         </View>
                       </View>
-                      
+
                       <View style={styles.storeCardBody}>
-                        <Text style={styles.storeCardName} numberOfLines={1}>{store.name}</Text>
-                        <Text style={styles.storeCardSubtitle} numberOfLines={1}>
-                          {store.rating} ★ Rating
-                        </Text>
-                        
-                        <View style={styles.visitShopButton}>
-                          <Text style={styles.visitShopText}>Visit Shop</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 4 }}>
+                          <Text style={[styles.storeCardName, { marginBottom: 0 }]} numberOfLines={1}>{store.name}</Text>
+                          <ChevronRight size={14} color={COLORS.gray400} />
                         </View>
+                        <Text style={styles.storeCardSubtitle} numberOfLines={1}>
+                          ★ {store.rating}
+                        </Text>
                       </View>
                     </Pressable>
                   ))}
@@ -1071,13 +1062,10 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* FEATURED PRODUCTS SECTION */}
             {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
-              <LinearGradient
-                colors={['#FFF9F9', '#FFF3F3', '#FFF9F9']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={{ marginTop: 10, marginBottom: 12, paddingVertical: 20 }}
+              <View
+                style={{ paddingVertical: 8, backgroundColor: '#FFFBF0' }}
               >
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 2 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Products</Text>
                     <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
@@ -1088,18 +1076,18 @@ export default function HomeScreen({ navigation }: Props) {
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 12 }}>
                   {mergedFeaturedProducts.map(({ key, mapped }) => (
                     <View key={key} style={{ width: 155, marginRight: 12 }}>
-                      <MasonryProductCard 
-                        product={mapped as any} 
-                        onPress={() => handleProductPress(mapped as any)} 
-                        width={155} 
+                      <MasonryProductCard
+                        product={mapped as any}
+                        onPress={() => handleProductPress(mapped as any)}
+                        width={155}
                       />
                     </View>
                   ))}
                 </ScrollView>
-              </LinearGradient>
+              </View>
             )}
 
             <View style={styles.gridContainer}>
@@ -1112,10 +1100,10 @@ export default function HomeScreen({ navigation }: Props) {
                   data={popularProducts.slice(0, 10)}
                   renderItem={({ item }: { item: Product }) => (
                     <View style={{ paddingHorizontal: 6, paddingVertical: 6 }}>
-                      <MasonryProductCard 
-                        product={item} 
-                        onPress={() => handleProductPress(item)} 
-                        width={(screenWidth - 12 - 12) / 2} 
+                      <MasonryProductCard
+                        product={item}
+                        onPress={() => handleProductPress(item)}
+                        width={(screenWidth - 40 - 12) / 2}
                       />
                     </View>
                   )}
@@ -1123,7 +1111,7 @@ export default function HomeScreen({ navigation }: Props) {
                   numColumns={2}
                   masonry={true}
                   scrollEnabled={false}
-                  contentContainerStyle={{ paddingHorizontal: 6, paddingBottom: 20 }}
+                  contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 20 }}
                 />
               </View>
             </View>
@@ -1189,13 +1177,13 @@ export default function HomeScreen({ navigation }: Props) {
       )}
 
       {/* Modal code removed */}
-    </LinearGradient >
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20 },
+  container: { flex: 1, backgroundColor: '#FFFBF0' },
+  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, backgroundColor: '#FFFBF0' },
   locationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   locationLabel: { color: COLORS.textMuted, fontSize: 14, paddingBottom: 5 },
   locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -1215,7 +1203,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFD89A'
   },
   notifBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
-  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingHorizontal: 0 },
+  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 24, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14 },
   searchBackBtn: { padding: 4 },
@@ -1223,12 +1211,12 @@ const styles = StyleSheet.create({
   // FLASH SALE STYLES
   flashSaleContainer: {
     marginHorizontal: 0, // Edge-to-edge scroll
-    marginTop: 15,
+    marginTop: 0,
     marginBottom: 5,
-    paddingVertical: 20, // Add padding for the gradient backdrop
+    paddingVertical: 8, // Further reduced for compact layout
     // Removed container styling (bg, shadow, border)
   },
-  flashSaleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15 },
+  flashSaleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 },
   flashSaleTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   flashSaleTitle: { fontSize: 18, fontWeight: '800', color: '#D97706' },
   timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
@@ -1264,25 +1252,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700'
   },
-  promoTextPart: { 
+  promoTextPart: {
     zIndex: 10,
     width: '100%'
   },
-  promoBadge: { 
-    fontSize: 11, 
-    fontWeight: '800', 
+  promoBadge: {
+    fontSize: 11,
+    fontWeight: '800',
     letterSpacing: 1.5,
-    marginBottom: 8 
+    marginBottom: 8
   },
-  promoHeadline: { 
-    fontSize: 28, 
-    fontWeight: '900', 
+  promoHeadline: {
+    fontSize: 28,
+    fontWeight: '900',
     letterSpacing: -0.5,
     marginBottom: 0
   },
-  promoHighlight: { 
+  promoHighlight: {
     fontSize: 24, // Slightly smaller to fit button
-    fontWeight: '800', 
+    fontWeight: '800',
     letterSpacing: -0.5,
     flexShrink: 1, // Allow text to shrink if needed
     paddingRight: 10
@@ -1296,7 +1284,7 @@ const styles = StyleSheet.create({
   categoryIconBox: { justifyContent: 'center', alignItems: 'center' },
   categoryLabel: { fontSize: 11, color: COLORS.textHeadline, fontWeight: '700', textAlign: 'center', lineHeight: 14, marginTop: 10 },
   itemBoxContainerVertical: { width: (SCREEN_WIDTH - 48) / 2, marginBottom: 12 },
-  section: { paddingHorizontal: 20, marginVertical: 5 },
+  section: { paddingHorizontal: 20, marginTop: 5, marginBottom: 5, paddingVertical: 12 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
   productRequestButtonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
   productRequestContent: { flexDirection: 'row', alignItems: 'center', gap: 15 },
@@ -1304,8 +1292,8 @@ const styles = StyleSheet.create({
   productRequestText: { flex: 1 },
   productRequestTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textHeadline },
   productRequestSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  gridContainer: { paddingHorizontal: 0, marginBottom: 20 },
-  gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 20, paddingHorizontal: 20 },
+  gridContainer: { paddingHorizontal: 0, marginTop: 0, marginBottom: 5, paddingVertical: 8 },
+  gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingTop: 0, paddingHorizontal: 20 },
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#D97706' },
   gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   gridBody: { paddingHorizontal: 0 },
@@ -1321,12 +1309,11 @@ const styles = StyleSheet.create({
   storeVerticalCard: {
     width: 220,
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 10,
     borderWidth: 1,
     borderColor: '#F3F4F6',
-    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -1362,8 +1349,7 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     backgroundColor: '#FFFFFF',
-    padding: 3,
-    elevation: 4,
+    padding: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -1372,7 +1358,7 @@ const styles = StyleSheet.create({
   storeAvatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 27,
+    borderRadius: 30,
   },
   storeCardBody: {
     paddingTop: 28,
@@ -1381,7 +1367,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   storeCardName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#1F2937',
     marginBottom: 4,
@@ -1390,22 +1376,13 @@ const styles = StyleSheet.create({
   storeCardSubtitle: {
     fontSize: 13,
     color: '#9CA3AF',
-    marginBottom: 16,
     textAlign: 'center',
     fontWeight: '500',
   },
-  visitShopButton: {
-    backgroundColor: COLORS.primary, // Matches "Buy Now" button color (#D97706)
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 20,
-    width: '100%',
-    alignItems: 'center',
-  },
   visitShopText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#FFF', // Changed to white to complement the primary background
+    color: COLORS.primary,
   },
   storeCircleCard: {
     width: 90,
@@ -1479,7 +1456,7 @@ const styles = StyleSheet.create({
 
   /* ── Lab Pipeline Banner ── */
   labBanner: {
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginTop: 6,
     marginBottom: 8,
     borderRadius: 18,
@@ -1494,7 +1471,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingVertical: 18,
     overflow: 'hidden',
   },
@@ -1580,7 +1557,7 @@ const styles = StyleSheet.create({
   labActionRow: {
     flexDirection: 'row',
     gap: 10,
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginTop: 0,
     marginBottom: 8,
   },

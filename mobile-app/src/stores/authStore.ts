@@ -9,6 +9,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService, type AuthResult } from '@/services/authService';
 import type { Profile } from '@/types/database.types';
+import { useWishlistStore } from './wishlistStore';
 
 export interface SavedCard {
   id: string;
@@ -109,6 +110,8 @@ export const useAuthStore = create<AuthState>()(
               activeRole: isSeller ? 'seller' : 'buyer',
               loading: false,
             });
+            // Load wishlist from Supabase after sign-in
+            useWishlistStore.getState().loadWishlist(result.user.id);
             return true;
           }
           set({ loading: false });
@@ -159,6 +162,7 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true });
         try {
           await authService.signOut();
+          useWishlistStore.getState().reset();
           set({
             user: null,
             profile: null,
@@ -203,6 +207,8 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               activeRole: roles.includes('seller') ? 'seller' : 'buyer',
             });
+            // Load wishlist from Supabase after session restore
+            useWishlistStore.getState().loadWishlist(sessionResult.user.id);
           } else {
             // No valid session, clear auth state
             set({
@@ -250,6 +256,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        useWishlistStore.getState().reset();
         set({
           user: null,
           profile: null,

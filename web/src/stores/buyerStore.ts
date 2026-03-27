@@ -260,7 +260,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         // Single call to Edge Function — addresses + sellers fetched concurrently inside
         const ctx = await getCheckoutContext(productIds);
 
-       // Merge addresses from Edge Function into existing address book
+        // Merge addresses from Edge Function into existing address book
         if (ctx.addresses && ctx.addresses.length > 0) {
           const mapped = ctx.addresses.map((a: any) => ({
             id: a.id,
@@ -1738,8 +1738,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         .from('registries')
         .select('*, registry_items(*)')
         .eq('id', registryId)
-        .eq('privacy', 'public')
+        .eq('privacy', 'link')
         .single();
+
+      console.log('[loadPublicRegistry] Raw DB response:', registry);
+      console.log('[loadPublicRegistry] registry_items:', registry?.registry_items);
+      console.log('[loadPublicRegistry] Error:', error);
 
       if (error) {
         console.error('Failed to load public registry:', error);
@@ -1758,14 +1762,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
 
       const tempId = registry.id;
-      
+
       console.log('[createRegistry] Input registry:', registry);
       console.log('[createRegistry] registry.privacy:', registry.privacy);
       console.log('[createRegistry] registry.delivery:', registry.delivery);
       console.log('[createRegistry] registry.delivery.showAddress:', registry.delivery?.showAddress);
       console.log('[createRegistry] registry.delivery.instructions:', registry.delivery?.instructions);
       console.log('[createRegistry] registry.delivery.addressId:', registry.delivery?.addressId);
-      
+
       // Optimistic update
       set((state) => ({ registries: [...state.registries, ensureRegistryDefaults(registry)] }));
 
@@ -1773,12 +1777,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const deliveryPayload: Record<string, any> = {
         showAddress: registry.delivery?.showAddress ?? false,
       };
-      
+
       // Only include addressId if it has a value
       if (registry.delivery?.addressId) {
         deliveryPayload.addressId = registry.delivery.addressId;
       }
-      
+
       // Only include instructions if it has a value
       if (registry.delivery?.instructions && registry.delivery.instructions.trim()) {
         deliveryPayload.instructions = registry.delivery.instructions.trim();
