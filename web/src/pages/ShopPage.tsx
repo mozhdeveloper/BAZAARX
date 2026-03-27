@@ -363,6 +363,13 @@ export default function ShopPage() {
     if (sortParam && attributeSortOptions.some(option => option.value === sortParam)) {
       if (queryParam && sortParam === "featured") {
         setSelectedSort("newest");
+
+        const updatedSearchParams = new URLSearchParams(searchParams.toString());
+        updatedSearchParams.set("sort", "newest");
+        const newSearch = updatedSearchParams.toString();
+        if (newSearch !== searchParams.toString()) {
+          navigate({ search: `?${newSearch}` }, { replace: true });
+        }
       } else {
         setSelectedSort(sortParam);
       }
@@ -550,7 +557,6 @@ export default function ShopPage() {
               className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
               onClick={() => {
                 resetFilters();
-                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
             >
               Shop
