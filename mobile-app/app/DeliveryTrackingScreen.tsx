@@ -43,6 +43,10 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Determine cancellation status at component level for use in render
+  const uiStatus = order.buyerUiStatus || order.status;
+  const isCancelled = uiStatus === 'cancelled';
 
   useEffect(() => {
     // Pulsing animation for current step
