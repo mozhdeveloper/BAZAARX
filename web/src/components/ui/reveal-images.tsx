@@ -66,7 +66,6 @@ export function RevealImageListItem({ text, images, isActive = false, isDimmed =
             alt={images[1]?.alt ?? ""}
             src={images[1]?.src ?? "/placeholder.svg"}
             className="h-full w-full object-cover"
-            loading="lazy"
           />
         </div>
       </div>
@@ -80,7 +79,6 @@ export function RevealImageListItem({ text, images, isActive = false, isDimmed =
             alt={images[0]?.alt ?? ""}
             src={images[0]?.src ?? "/placeholder.svg"}
             className="h-full w-full object-cover"
-            loading="lazy"
           />
         </div>
       </div>

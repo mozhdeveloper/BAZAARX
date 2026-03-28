@@ -840,19 +840,4 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-  storeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    backgroundColor: '#F9FAFB',
-    padding: 8,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  storeName: {
-    fontSize: 13,
-    color: '#4B5563',
-    marginLeft: 6,
-    fontWeight: '600',
-  },
 });
