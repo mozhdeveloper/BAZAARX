@@ -76,7 +76,7 @@ const SellerProductStatus = () => {
 
   // Calculate counts
   const pendingCount = sellerQAProducts.filter(p => p.status === 'PENDING_ADMIN_REVIEW').length;
-  const waitingCount = sellerQAProducts.filter(p => p.status === 'WAITING_FOR_SAMPLE' || p.status === 'PENDING_DIGITAL_REVIEW').length;
+  const waitingCount = sellerQAProducts.filter(p => p.status === 'WAITING_FOR_SAMPLE').length;
   const qaQueueCount = sellerQAProducts.filter(p => p.status === 'IN_QUALITY_REVIEW').length;
   const revisionCount = sellerQAProducts.filter(p => p.status === 'FOR_REVISION').length;
   const verifiedCount = sellerQAProducts.filter(p => p.status === 'ACTIVE_VERIFIED').length;
@@ -110,7 +110,7 @@ const SellerProductStatus = () => {
           filteredSeller = [];
           break;
         case 'waiting':
-          filteredQA = filteredQA.filter(p => p.status === 'WAITING_FOR_SAMPLE' || p.status === 'PENDING_DIGITAL_REVIEW');
+          filteredQA = filteredQA.filter(p => p.status === 'WAITING_FOR_SAMPLE');
           filteredSeller = [];
           break;
         case 'qa':
@@ -257,7 +257,7 @@ const SellerProductStatus = () => {
   const isSelectableProduct = (product: any, isQA: boolean) => {
     if (isAwaitingSampleTab) {
       if (isQA) {
-        return product.status === 'PENDING_DIGITAL_REVIEW';
+        return product.status === 'WAITING_FOR_SAMPLE';
       }
       return (product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED';
     }

@@ -741,7 +741,7 @@ function App() {
             <Route path="/admin/notifications" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminNotificationSettings /></ProtectedAdminRoute>} />
             <Route path="/admin/product-approvals" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><QADashboard /></ProtectedAdminRoute>} />
             <Route path="/admin/qa-dashboard" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminQADashboard /></ProtectedAdminRoute>} />
-            <Route path="/qa/dashboard" element={<ProtectedAdminRoute allowedRoles={['qa_team']}><AdminQADashboard /></ProtectedAdminRoute>} />
+            <Route path="/qa/dashboard" element={<ProtectedAdminRoute allowedRoles={['qa_team']}><QADashboard /></ProtectedAdminRoute>} />
             <Route path="/admin/returns" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminReturns /></ProtectedAdminRoute>} />
             <Route path="/admin/settings" element={<ProtectedAdminRoute allowedRoles={['super_admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminSettings /></ErrorBoundary></ProtectedAdminRoute>} />
             <Route path="*" element={<NotFoundPage />} />

@@ -47,7 +47,9 @@ export interface QAAssessmentItem {
 
 export interface QADashboardStats {
   pendingAdminReview: number;
+  waitingForSample: number;
   pendingDigitalReview: number;
+  pendingPhysicalReview: number;
   verified: number;
   forRevision: number;
   rejected: number;
@@ -91,7 +93,7 @@ class QATeamService {
    */
   async getDashboardStats(qaUserId?: string): Promise<QADashboardStats> {
     if (!isSupabaseConfigured()) {
-      return { pendingAdminReview: 0, pendingDigitalReview: 0, verified: 0, forRevision: 0, rejected: 0, assignedToMe: 0 };
+      return { pendingAdminReview: 0, waitingForSample: 0, pendingDigitalReview: 0, pendingPhysicalReview: 0, verified: 0, forRevision: 0, rejected: 0, assignedToMe: 0 };
     }
 
     const { data, error } = await supabase
@@ -100,12 +102,15 @@ class QATeamService {
 
     if (error) {
       console.error('Error fetching QA stats:', error);
-      return { pendingAdminReview: 0, pendingDigitalReview: 0, verified: 0, forRevision: 0, rejected: 0, assignedToMe: 0 };
+      return { pendingAdminReview: 0, waitingForSample: 0, pendingDigitalReview: 0, pendingPhysicalReview: 0, verified: 0, forRevision: 0, rejected: 0, assignedToMe: 0 };
     }
 
     const stats: QADashboardStats = {
       pendingAdminReview: data.filter(a => a.status === 'pending_admin_review').length,
+      waitingForSample: data.filter(a => a.status === 'waiting_for_sample').length,
+      // Keep legacy counter for backward compatibility in views not yet migrated.
       pendingDigitalReview: data.filter(a => a.status === 'pending_digital_review').length,
+      pendingPhysicalReview: data.filter(a => a.status === 'pending_physical_review').length,
       verified: data.filter(a => a.status === 'verified').length,
       forRevision: data.filter(a => a.status === 'for_revision').length,
       rejected: data.filter(a => a.status === 'rejected').length,
@@ -132,7 +137,7 @@ class QATeamService {
           variants:product_variants (id, variant_name, sku, price, stock),
           seller:sellers (store_name, owner_name)
         ),
-        logistics_records:product_assessment_logistics (details, created_at)
+        logistics_records:product_assessment_logistics (details, created_at, batch_id)
       `)
       .order('created_at', { ascending: false });
 
@@ -168,7 +173,7 @@ class QATeamService {
           variants:product_variants (id, variant_name, sku, price, stock),
           seller:sellers (store_name, owner_name)
         ),
-        logistics_records:product_assessment_logistics (details, created_at)
+        logistics_records:product_assessment_logistics (details, created_at, batch_id)
       `)
       .eq('assigned_to', qaUserId)
       .order('created_at', { ascending: false });
@@ -503,13 +508,16 @@ class QATeamService {
     const logisticsDetails = latestLogisticsRecord?.details || null;
 
     let batchId: string | null = null;
+    const structuredBatchId = latestLogisticsRecord?.batch_id || null;
     if (typeof logisticsDetails === 'string' && logisticsDetails.trim().startsWith('{')) {
       try {
         const parsed = JSON.parse(logisticsDetails);
-        batchId = parsed?.batchId || null;
+        batchId = structuredBatchId || parsed?.batchId || null;
       } catch {
-        batchId = null;
+        batchId = structuredBatchId;
       }
+    } else {
+      batchId = structuredBatchId;
     }
 
     return {

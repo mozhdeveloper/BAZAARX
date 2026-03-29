@@ -850,8 +850,8 @@ export class QAService {
   }
 
   /**
-   * Admin accepts listing → moves to QA queue (pending_digital_review)
-   * This is the admin-only action in the new separated flow
+   * Admin accepts listing → moves to waiting_for_sample.
+   * Seller must submit sample logistics before QA review queue.
    */
   async acceptListing(productId: string, adminId?: string): Promise<void> {
     if (!isSupabaseConfigured()) return;
@@ -868,9 +868,9 @@ export class QAService {
 
       if (!assessment) throw new Error('Assessment not found for product');
 
-      // Update assessment to pending_digital_review (enters QA queue)
+      // Update assessment to waiting_for_sample (seller still needs to submit sample)
       const updatePayload: Record<string, any> = {
-        status: 'pending_digital_review',
+        status: 'waiting_for_sample',
         admin_accepted_at: new Date().toISOString(),
         admin_accepted_by: adminId || null,
       };
@@ -895,11 +895,11 @@ export class QAService {
       // Create approval record
       await supabase.from('product_approvals').insert({
         assessment_id: assessment.id,
-        description: 'Listing accepted by admin, sent to QA team for review',
+        description: 'Listing accepted by admin, awaiting seller sample submission',
         created_by: adminId || null,
       });
 
-      console.log(`✅ Listing accepted: ${productId} → pending_digital_review`);
+      console.log(`✅ Listing accepted: ${productId} → waiting_for_sample`);
     } catch (error) {
       console.error('Error accepting listing:', error);
       throw new Error('Failed to accept listing');
