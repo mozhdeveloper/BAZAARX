@@ -40,6 +40,7 @@ export interface QAAssessmentItem {
     seller?: { store_name?: string; owner_name?: string };
   };
   logistics?: string;
+  batchId?: string | null;
   rejection_reason?: string;
   rejection_stage?: 'digital' | 'physical';
 }
@@ -130,7 +131,8 @@ class QATeamService {
           images:product_images (image_url, is_primary),
           variants:product_variants (id, variant_name, sku, price, stock),
           seller:sellers (store_name, owner_name)
-        )
+        ),
+        logistics_records:product_assessment_logistics (details, created_at)
       `)
       .order('created_at', { ascending: false });
 
@@ -165,7 +167,8 @@ class QATeamService {
           images:product_images (image_url, is_primary),
           variants:product_variants (id, variant_name, sku, price, stock),
           seller:sellers (store_name, owner_name)
-        )
+        ),
+        logistics_records:product_assessment_logistics (details, created_at)
       `)
       .eq('assigned_to', qaUserId)
       .order('created_at', { ascending: false });
@@ -490,6 +493,25 @@ class QATeamService {
   }
 
   private transformAssessment(item: any): QAAssessmentItem {
+    const latestLogisticsRecord = Array.isArray(item.logistics_records)
+      ? [...item.logistics_records].sort(
+          (a: { created_at?: string }, b: { created_at?: string }) =>
+            new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
+        )[0]
+      : undefined;
+
+    const logisticsDetails = latestLogisticsRecord?.details || null;
+
+    let batchId: string | null = null;
+    if (typeof logisticsDetails === 'string' && logisticsDetails.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(logisticsDetails);
+        batchId = parsed?.batchId || null;
+      } catch {
+        batchId = null;
+      }
+    }
+
     return {
       id: item.id,
       product_id: item.product_id,
@@ -501,7 +523,8 @@ class QATeamService {
       revision_requested_at: item.revision_requested_at,
       created_at: item.created_at,
       product: item.product,
-      logistics: item.logistics || null,
+      logistics: logisticsDetails,
+      batchId,
       rejection_reason: item.rejection_reason || null,
       rejection_stage: item.rejection_stage || null,
     };

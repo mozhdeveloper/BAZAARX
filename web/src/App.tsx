@@ -728,19 +728,20 @@ function App() {
             <Route path="/admin/orders" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminOrders /></ErrorBoundary></ProtectedAdminRoute>} />
             <Route path="/admin/vouchers" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminVouchers /></ProtectedAdminRoute>} />
             <Route path="/admin/reviews" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'moderator']}><AdminReviewModeration /></ProtectedAdminRoute>} />
-            <Route path="/admin/products" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><AdminProducts /></ProtectedAdminRoute>} />
+            <Route path="/admin/products" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminProducts /></ProtectedAdminRoute>} />
             <Route path="/admin/product-requests" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminProductRequests /></ProtectedAdminRoute>} />
             <Route path="/admin/flash-sales" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminFlashSales /></ProtectedAdminRoute>} />
             <Route path="/admin/payouts" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminPayouts /></ProtectedAdminRoute>} />
-            <Route path="/admin/profile" element={<ProtectedAdminRoute><AdminProfile /></ProtectedAdminRoute>} />
+            <Route path="/admin/profile" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminProfile /></ProtectedAdminRoute>} />
             <Route path="/admin/analytics" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminAnalytics /></ErrorBoundary></ProtectedAdminRoute>} />
             <Route path="/admin/tickets" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'moderator']}><AdminTickets /></ProtectedAdminRoute>} />
             <Route path="/admin/trusted-brands" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminTrustedBrands /></ProtectedAdminRoute>} />
             <Route path="/admin/announcements" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminAnnouncementsPage /></ProtectedAdminRoute>} />
             <Route path="/admin/crm" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminCRM /></ProtectedAdminRoute>} />
             <Route path="/admin/notifications" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminNotificationSettings /></ProtectedAdminRoute>} />
-            <Route path="/admin/product-approvals" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><QADashboard /></ProtectedAdminRoute>} />
-            <Route path="/admin/qa-dashboard" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><AdminQADashboard /></ProtectedAdminRoute>} />
+            <Route path="/admin/product-approvals" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><QADashboard /></ProtectedAdminRoute>} />
+            <Route path="/admin/qa-dashboard" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminQADashboard /></ProtectedAdminRoute>} />
+            <Route path="/qa/dashboard" element={<ProtectedAdminRoute allowedRoles={['qa_team']}><QADashboard /></ProtectedAdminRoute>} />
             <Route path="/admin/returns" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminReturns /></ProtectedAdminRoute>} />
             <Route path="/admin/settings" element={<ProtectedAdminRoute allowedRoles={['super_admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminSettings /></ErrorBoundary></ProtectedAdminRoute>} />
             <Route path="*" element={<NotFoundPage />} />

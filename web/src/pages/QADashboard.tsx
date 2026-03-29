@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { handleImageError } from '@/utils/imageUtils';
 import { Navigate } from 'react-router-dom';
 import {
@@ -6,6 +6,7 @@ import {
   Clock,
   FileCheck,
   BadgeCheck,
+  Package,
   XCircle,
   RefreshCw,
   Search,
@@ -41,12 +42,13 @@ import { useToast } from '../hooks/use-toast';
 import { qaTeamService, type QAAssessmentItem, type QADashboardStats } from '../services/qaTeamService';
 import { useProductQAStore } from '../stores/productQAStore';
 
-type QATab = 'all' | 'listings' | 'digital' | 'verified' | 'revision';
+type QATab = 'all' | 'listings' | 'digital' | 'samples' | 'verified' | 'revision';
 
 const QADashboard = () => {
   const { isAuthenticated, user } = useAdminAuth();
   const { toast } = useToast();
   const isQARole = user?.role === 'qa_team';
+  const reviewerId = user?.id || 'qa-user';
 
   const [assessments, setAssessments] = useState<QAAssessmentItem[]>([]);
   const [stats, setStats] = useState<QADashboardStats>({
@@ -114,6 +116,8 @@ const QADashboard = () => {
       filtered = assessments.filter(a => a.status === 'pending_admin_review');
     } else if (activeTab === 'digital') {
       filtered = assessmentsForTab.filter(a => a.status === 'pending_digital_review');
+    } else if (activeTab === 'samples') {
+      filtered = assessmentsForTab.filter(a => a.status === 'pending_physical_review');
     } else if (activeTab === 'verified') {
       filtered = assessmentsForTab.filter(a => a.status === 'verified');
     } else if (activeTab === 'revision') {
@@ -160,11 +164,21 @@ const QADashboard = () => {
 
   const handlePassDigitalReview = async (assessment: QAAssessmentItem) => {
     try {
-      await qaTeamService.passDigitalReview(assessment.product_id, 'qa-user');
+      await qaTeamService.passDigitalReview(assessment.product_id, reviewerId);
       toast({ title: 'Success', description: 'Product approved and verified! Now visible to buyers.' });
       await loadData();
     } catch {
       toast({ title: 'Error', description: 'Failed to approve product', variant: 'destructive' });
+    }
+  };
+
+  const handlePassPhysicalReview = async (assessment: QAAssessmentItem) => {
+    try {
+      await qaTeamService.passPhysicalReview(assessment.product_id, reviewerId);
+      toast({ title: 'Success', description: 'Sample passed QA and product is now verified.' });
+      await loadData();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to complete sample QA review', variant: 'destructive' });
     }
   };
 
@@ -175,7 +189,8 @@ const QADashboard = () => {
       return handleRejectListing();
     }
     try {
-      await qaTeamService.rejectProduct(selectedProduct.product_id, 'qa-user', rejectionReason, 'digital');
+      const stage = selectedProduct.status === 'pending_physical_review' ? 'physical' : 'digital';
+      await qaTeamService.rejectProduct(selectedProduct.product_id, reviewerId, rejectionReason, stage);
       toast({ title: 'Product Rejected', description: 'Seller has been notified.' });
       setShowRejectModal(false);
       setRejectionReason('');
@@ -189,7 +204,8 @@ const QADashboard = () => {
   const handleRequestRevision = async () => {
     if (!selectedProduct || !revisionReason.trim()) return;
     try {
-      await qaTeamService.requestRevision(selectedProduct.product_id, 'qa-user', revisionReason, 'digital');
+      const stage = selectedProduct.status === 'pending_physical_review' ? 'physical' : 'digital';
+      await qaTeamService.requestRevision(selectedProduct.product_id, reviewerId, revisionReason, stage);
       toast({ title: 'Revision Requested', description: 'Seller has been notified.' });
       setShowRevisionModal(false);
       setRevisionReason('');
@@ -201,12 +217,35 @@ const QADashboard = () => {
   };
 
   const filteredAssessments = getFilteredAssessments();
+  const sampleQueueCount = assessments.filter(a => a.status === 'pending_physical_review').length;
+
+  const groupedSampleAssessments = useMemo(() => {
+    const batches = new Map<string, QAAssessmentItem[]>();
+    const individual: QAAssessmentItem[] = [];
+
+    filteredAssessments.forEach((assessment) => {
+      if (assessment.batchId) {
+        if (!batches.has(assessment.batchId)) {
+          batches.set(assessment.batchId, []);
+        }
+        batches.get(assessment.batchId)!.push(assessment);
+      } else {
+        individual.push(assessment);
+      }
+    });
+
+    return {
+      batches: Array.from(batches.entries()),
+      individual,
+    };
+  }, [filteredAssessments]);
 
   // Status badge helper
   const getStatusBadge = (status: string) => {
     const map: Record<string, { label: string; variant: string; icon: any }> = {
       pending_admin_review: { label: 'Pending Listing', variant: 'bg-white/90 text-gray-800 border-gray-200', icon: Clock },
       pending_digital_review: { label: 'QA Review', variant: 'bg-blue-50/95 text-blue-800 border-blue-200', icon: FileCheck },
+      pending_physical_review: { label: 'Sample QA', variant: 'bg-amber-50/95 text-amber-800 border-amber-200', icon: Package },
       verified: { label: 'Verified', variant: 'bg-green-50/95 text-green-800 border-green-200', icon: BadgeCheck },
       for_revision: { label: 'Revision', variant: 'bg-orange-50/95 text-orange-800 border-orange-200', icon: RefreshCw },
       rejected: { label: 'Rejected', variant: 'bg-red-50/95 text-red-800 border-red-200', icon: XCircle },
@@ -249,6 +288,7 @@ const QADashboard = () => {
             {[
               ...(!isQARole ? [{ label: 'Pending Listings', count: stats.pendingAdminReview, icon: Clock, color: 'text-gray-600 bg-gray-100/50' }] : []),
               { label: 'QA Review', count: stats.pendingDigitalReview, icon: FileCheck, color: 'text-blue-600 bg-blue-50' },
+              { label: 'Sample Queue', count: sampleQueueCount, icon: Package, color: 'text-amber-600 bg-amber-50' },
               { label: 'Verified', count: stats.verified, icon: BadgeCheck, color: 'text-green-600 bg-green-50' },
               { label: 'Revision required', count: stats.forRevision, icon: RefreshCw, color: 'text-orange-600 bg-orange-50' },
               { label: 'Rejected', count: stats.rejected, icon: XCircle, color: 'text-red-600 bg-red-50' },
@@ -276,7 +316,8 @@ const QADashboard = () => {
                 {[
                   { id: 'all', label: 'All Products', count: (isQARole ? assessments.filter(a => a.status !== 'pending_admin_review') : assessments).length },
                   ...(!isQARole ? [{ id: 'listings', label: 'Pending', count: stats.pendingAdminReview }] : []),
-                  { id: 'digital', label: 'QA Queue', count: stats.pendingDigitalReview },
+                  { id: 'digital', label: 'Digital QA', count: stats.pendingDigitalReview },
+                  { id: 'samples', label: 'Sample QA', count: sampleQueueCount },
                   { id: 'verified', label: 'Verified', count: stats.verified },
                   { id: 'revision', label: 'Revision', count: stats.forRevision + stats.rejected },
                 ].map((tab) => (
@@ -324,14 +365,141 @@ const QADashboard = () => {
 
           {/* Product Grid */}
           {!isLoading && filteredAssessments.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-              {filteredAssessments.map((assessment) => {
+            <>
+              {activeTab === 'samples' ? (
+                <div className="space-y-8">
+                  {groupedSampleAssessments.batches.map(([batchId, items]) => (
+                    <div key={batchId} className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-gray-800">Batch Submission</h3>
+                        <Badge variant="outline" className="font-mono text-xs bg-amber-50 text-amber-700 border-amber-200">
+                          {batchId}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+                        {items.map((assessment) => {
+                          const product = assessment.product;
+                          const primaryImage = product?.images?.find((i: { is_primary: boolean; image_url: string }) => i.is_primary)?.image_url
+                            || product?.images?.[0]?.image_url
+                            || 'https://placehold.co/400x300?text=Product+Image';
+
+                          return (
+                            <Card key={assessment.id} className="overflow-hidden flex flex-col hover:shadow-lg transition-all duration-300 border-gray-200/60 bg-white group relative">
+                              <div className="h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
+                                <img loading="lazy" 
+                                  src={primaryImage}
+                                  alt={product?.name || 'Product'}
+                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  onError={handleImageError}
+                                />
+                              </div>
+                              <div className="absolute top-3 right-3 z-10">
+                                {getStatusBadge(assessment.status)}
+                              </div>
+                              <div className="p-5 flex-1 flex flex-col">
+                                <h3 className="font-bold text-gray-900 line-clamp-1 mb-1 text-lg">{product?.name || 'Unknown Product'}</h3>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xl font-bold text-[var(--brand-primary)]">
+                                    ₱{product?.price?.toLocaleString() || '0'}
+                                  </span>
+                                  <span className="flex items-center gap-1 text-[11px] text-gray-400 font-medium">
+                                    <Calendar className="w-3 h-3" />
+                                    {new Date(assessment.submitted_at || assessment.created_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                {product?.seller?.store_name && (
+                                  <div className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] mb-4">
+                                    <Store className="w-4 h-4 opacity-60" />
+                                    <span className="truncate">{product.seller.store_name}</span>
+                                  </div>
+                                )}
+
+                                <div className="mt-auto pt-2 space-y-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full border-[var(--btn-border)] hover:border-gray-300 text-[var(--text-muted)] hover:text-gray-600 hover:bg-gray-50"
+                                    onClick={() => { setSelectedProduct(assessment); setShowDetailModal(true); setCurrentImageIndex(0); }}
+                                  >
+                                    <Eye className="w-4 h-4 mr-1.5" /> View Details
+                                  </Button>
+                                </div>
+                              </div>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  {groupedSampleAssessments.individual.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-bold text-gray-800">Individual Submissions</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+                        {groupedSampleAssessments.individual.map((assessment) => {
+                          const product = assessment.product;
+                          const primaryImage = product?.images?.find((i: { is_primary: boolean; image_url: string }) => i.is_primary)?.image_url
+                            || product?.images?.[0]?.image_url
+                            || 'https://placehold.co/400x300?text=Product+Image';
+
+                          return (
+                            <Card key={assessment.id} className="overflow-hidden flex flex-col hover:shadow-lg transition-all duration-300 border-gray-200/60 bg-white group relative">
+                              <div className="h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
+                                <img loading="lazy" 
+                                  src={primaryImage}
+                                  alt={product?.name || 'Product'}
+                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  onError={handleImageError}
+                                />
+                              </div>
+                              <div className="absolute top-3 right-3 z-10">
+                                {getStatusBadge(assessment.status)}
+                              </div>
+                              <div className="p-5 flex-1 flex flex-col">
+                                <h3 className="font-bold text-gray-900 line-clamp-1 mb-1 text-lg">{product?.name || 'Unknown Product'}</h3>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xl font-bold text-[var(--brand-primary)]">
+                                    ₱{product?.price?.toLocaleString() || '0'}
+                                  </span>
+                                  <span className="flex items-center gap-1 text-[11px] text-gray-400 font-medium">
+                                    <Calendar className="w-3 h-3" />
+                                    {new Date(assessment.submitted_at || assessment.created_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                {product?.seller?.store_name && (
+                                  <div className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] mb-4">
+                                    <Store className="w-4 h-4 opacity-60" />
+                                    <span className="truncate">{product.seller.store_name}</span>
+                                  </div>
+                                )}
+
+                                <div className="mt-auto pt-2 space-y-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full border-[var(--btn-border)] hover:border-gray-300 text-[var(--text-muted)] hover:text-gray-600 hover:bg-gray-50"
+                                    onClick={() => { setSelectedProduct(assessment); setShowDetailModal(true); setCurrentImageIndex(0); }}
+                                  >
+                                    <Eye className="w-4 h-4 mr-1.5" /> View Details
+                                  </Button>
+                                </div>
+                              </div>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+                  {filteredAssessments.map((assessment) => {
                 const product = assessment.product;
                 const primaryImage = product?.images?.find((i: { is_primary: boolean; image_url: string }) => i.is_primary)?.image_url
                   || product?.images?.[0]?.image_url
                   || 'https://placehold.co/400x300?text=Product+Image';
 
-                return (
+                    return (
                   <Card key={assessment.id} className="overflow-hidden flex flex-col hover:shadow-lg transition-all duration-300 border-gray-200/60 bg-white group relative">
                     {/* Image */}
                     <div className="h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
@@ -378,9 +546,11 @@ const QADashboard = () => {
                       </div>
                     </div>
                   </Card>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
 
           {/* Detail Modal */}
@@ -542,7 +712,7 @@ const QADashboard = () => {
                     Product is currently under QA review
                   </div>
                 )}
-                {selectedProduct?.status !== 'pending_admin_review' && selectedProduct?.status !== 'pending_digital_review' && (
+                {selectedProduct?.status !== 'pending_admin_review' && selectedProduct?.status !== 'pending_digital_review' && selectedProduct?.status !== 'pending_physical_review' && (
                   <div className="mr-auto text-xs text-gray-400 hidden sm:block">
                     No actions available for this status
                   </div>
@@ -596,6 +766,38 @@ const QADashboard = () => {
                         }}
                       >
                         <CheckCircle className="w-4 h-4 mr-1.5" /> Approve
+                      </Button>
+                    )}
+                  </>
+                )}
+
+                {selectedProduct?.status === 'pending_physical_review' && (
+                  <>
+                    {isQARole && (
+                      <Button
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => setShowRejectModal(true)}
+                      >
+                        <XCircle className="w-4 h-4 mr-1.5" /> Reject Product
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      className="text-white bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)]"
+                      onClick={() => setShowRevisionModal(true)}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-1.5" /> Revise
+                    </Button>
+                    {isQARole && (
+                      <Button
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => {
+                          handlePassPhysicalReview(selectedProduct);
+                          setShowDetailModal(false);
+                        }}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-1.5" /> Approve Sample QA
                       </Button>
                     )}
                   </>
