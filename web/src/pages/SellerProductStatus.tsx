@@ -46,10 +46,15 @@ const SellerProductStatus = () => {
   const [selectedProductIdForShipment, setSelectedProductIdForShipment] = useState<string | null>(null);
   const [dropOffModalOpen, setDropOffModalOpen] = useState(false);
   const [selectedDropOffDate, setSelectedDropOffDate] = useState<Date | undefined>(undefined);
+  const [selectedDropOffTime, setSelectedDropOffTime] = useState('09:00');
   const [selectedProductIdForDropOff, setSelectedProductIdForDropOff] = useState<string | null>(null);
   const [collapsedBatches, setCollapsedBatches] = useState<Set<string>>(new Set());
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchActionType, setBatchActionType] = useState<'create' | 'existing'>('create');
+  const [customBatchName, setCustomBatchName] = useState('');
+  const [selectedExistingBatchId, setSelectedExistingBatchId] = useState('');
 
-  const { products: qaProducts, submitSample, submitForDigitalReview, submitForPhysicalReview, loadProducts, isLoading } = useProductQAStore();
+  const { products: qaProducts, submitSample, submitForDigitalReview, submitForPhysicalReview, assignProductToBatch, loadProducts, isLoading } = useProductQAStore();
   const { toast } = useToast();
   const { seller } = useAuthStore();
   const { products: sellerProducts } = useProductStore();
@@ -189,6 +194,81 @@ const SellerProductStatus = () => {
     setCollapsedBatches(newCollapsed);
   };
 
+  const getBatchDisplayName = (batchId: string) => {
+    const productWithBatch = sellerQAProducts.find((p) => p.batchId === batchId);
+    if (productWithBatch?.batchName) {
+      return productWithBatch.batchName;
+    }
+    if (productWithBatch?.batchCode) {
+      return productWithBatch.batchCode;
+    }
+
+    if (!productWithBatch?.logistics) {
+      const parts = batchId.split('-');
+      if (parts.length >= 3 && parts[0] === 'BATCH') {
+        const withoutPrefix = parts.slice(1);
+        const maybeStamp = withoutPrefix[withoutPrefix.length - 1];
+        const nameParts = /^\d{14}$/.test(maybeStamp)
+          ? withoutPrefix.slice(0, -1)
+          : withoutPrefix;
+        if (nameParts.length > 0) {
+          return nameParts
+            .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+            .join(' ');
+        }
+      }
+      return batchId;
+    }
+
+    try {
+      const parsed = JSON.parse(productWithBatch.logistics);
+      return parsed.batchName || parsed.batchCode || batchId;
+    } catch {
+      return batchId;
+    }
+  };
+
+  const existingBatchOptions = Array.from(
+    new Set(
+      sellerQAProducts
+        .filter((p) => p.batchId)
+        .map((p) => p.batchId as string)
+    )
+  ).map((batchId) => ({
+    id: batchId,
+    label: getBatchDisplayName(batchId),
+  }));
+
+  const buildBatchId = (name: string) => {
+    const safeName = name
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 24);
+
+    const base = safeName || 'BATCH';
+    const stamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+    return `BATCH-${base}-${stamp}`;
+  };
+
+  const isAwaitingSampleTab = filterStatus === 'waiting';
+
+  const isSelectableProduct = (product: any, isQA: boolean) => {
+    if (isAwaitingSampleTab) {
+      if (isQA) {
+        return product.status === 'PENDING_DIGITAL_REVIEW';
+      }
+      return (product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED';
+    }
+
+    if (isQA) {
+      return product.status === 'PENDING_DIGITAL_REVIEW';
+    }
+
+    return (product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED';
+  };
+
   const formatLogisticsInfo = (logisticsStr?: string | null) => {
     if (!logisticsStr) return null;
     try {
@@ -214,9 +294,8 @@ const SellerProductStatus = () => {
 
   const renderProductRow = (product: any, idPrefix: string, hideCheckbox: boolean = false, hideActionButtons: boolean = false, hideLogistics: boolean = false) => {
     const isQA = idPrefix === 'qa';
-    const isSubmittable = isQA 
-      ? product.status === 'PENDING_DIGITAL_REVIEW'
-      : (product.approvalStatus as string) === 'accepted' || (product.approvalStatus as string) === 'ACCEPTED';
+    const isSubmittable = isSelectableProduct(product, isQA);
+    const hideIndividualSubmitAction = isAwaitingSampleTab && selectedProducts.size > 0;
 
     return (
       <div key={`${idPrefix}-${product.id}`} className={cn(
@@ -336,7 +415,7 @@ const SellerProductStatus = () => {
               </Button>
             </div>
           )}
-          {!hideActionButtons && isQA && product.status === 'PENDING_DIGITAL_REVIEW' && (
+          {!hideActionButtons && !hideIndividualSubmitAction && isQA && product.status === 'PENDING_DIGITAL_REVIEW' && (
             <div className="flex-shrink-0 ml-4">
               <Button
                 size="sm"
@@ -351,7 +430,7 @@ const SellerProductStatus = () => {
               </Button>
             </div>
           )}
-          {!hideActionButtons && !isQA && isSubmittable && (
+          {!hideActionButtons && !hideIndividualSubmitAction && !isQA && isSubmittable && (
             <div className="flex-shrink-0 ml-2">
               <Button
                 size="sm"
@@ -497,10 +576,87 @@ const SellerProductStatus = () => {
   };
 
   const getSubmittableProducts = (products: any[]) => {
-    return products.filter(p => {
-      const status = (p as any).status || (p as any).approvalStatus;
-      return status === 'accepted' || status === 'ACCEPTED' || status === 'PENDING_DIGITAL_REVIEW';
+    return products.filter((p) => {
+      const isQA = !!(p as any).status;
+      return isSelectableProduct(p, isQA);
     });
+  };
+
+  const handleBatchSelectionAction = async () => {
+    if (selectedProducts.size === 0) {
+      return;
+    }
+
+    const selectedProductData = Array.from(selectedProducts)
+      .map((id) => allFilteredProducts.find((p) => p.id === id))
+      .filter(Boolean) as any[];
+
+    const targetBatchId = batchActionType === 'existing'
+      ? selectedExistingBatchId
+      : buildBatchId(customBatchName);
+
+    const targetBatchName = batchActionType === 'existing'
+      ? (existingBatchOptions.find((b) => b.id === selectedExistingBatchId)?.label || selectedExistingBatchId)
+      : customBatchName.trim();
+
+    if (!targetBatchId) {
+      toast({
+        title: 'Batch Required',
+        description: 'Choose an existing batch or create a new one.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (batchActionType === 'create' && !customBatchName.trim()) {
+      toast({
+        title: 'Batch Name Required',
+        description: 'Enter a custom name for your new batch.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await Promise.all(selectedProductData.map(async (product) => {
+        const status = (product as any).status || (product as any).approvalStatus;
+
+        if (status === 'PENDING_DIGITAL_REVIEW' || status === 'accepted' || status === 'ACCEPTED') {
+          await assignProductToBatch(product.id, targetBatchId, targetBatchName);
+        }
+      }));
+
+      setBatchModalOpen(false);
+      setBatchActionType('create');
+      setCustomBatchName('');
+      setSelectedExistingBatchId('');
+      toast({
+        title: batchActionType === 'create' ? 'Batch Created' : 'Batch Updated',
+        description: `${selectedProductData.length} ${selectedProductData.length === 1 ? 'product' : 'products'} ${batchActionType === 'create' ? 'added to' : 'moved into'} ${targetBatchName || 'the selected batch'}. Use the folder Submit for QA button to choose logistics.`,
+        duration: 4000,
+      });
+
+      setSelectedProducts(new Set());
+    } catch (error) {
+      console.error('Error applying batch action:', error);
+      toast({
+        title: 'Batch Action Failed',
+        description: error instanceof Error ? error.message : 'Failed to update batch assignment.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openBatchLogisticsPicker = (batchId: string, batchLabel: string, productIds: string[]) => {
+    if (productIds.length === 0) {
+      toast({
+        title: 'No Eligible Products',
+        description: 'No products in this folder are waiting for logistics setup.',
+      });
+      return;
+    }
+
+    openSubmitModal(productIds, 'PENDING_DIGITAL_REVIEW', JSON.stringify({ batchId, batchName: batchLabel }));
   };
 
   const handleDigitalReview = async () => {
@@ -533,6 +689,21 @@ const SellerProductStatus = () => {
       toast({ title: 'Error', description: 'Please select a logistics method', variant: 'destructive' });
       return;
     }
+
+    if (logisticsMethod === 'Drop-off by Courier') {
+      setSelectedProductIdForShipment(selectedProduct);
+      setSubmitModalOpen(false);
+      setShipmentModalOpen(true);
+      return;
+    }
+
+    if (logisticsMethod === 'Onsite Visit') {
+      setSelectedProductIdForDropOff(selectedProduct);
+      setSubmitModalOpen(false);
+      setDropOffModalOpen(true);
+      return;
+    }
+
     const productIds = selectedProduct.split(',');
     try {
       const batchId = productIds.length > 1 ? `BATCH-${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}` : undefined;
@@ -592,22 +763,36 @@ const SellerProductStatus = () => {
 
     try {
       const productIds = selectedProductIdForShipment.split(',');
-      const fullTracking = `${courierService}: ${trackingNumber}`;
-      
-      const batchId = productIds.length > 1 ? `BATCH-${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}` : undefined;
+      const selectedRows = productIds
+        .map((id) => allFilteredProducts.find((p) => p.id === id))
+        .filter(Boolean) as any[];
+
+      const batchIdFromSelection = selectedRows.find((p) => p.batchId)?.batchId;
       
       if (productIds.length > 1) {
-        await Promise.all(productIds.map(id => 
-          submitSample(id, 'Drop-off by Courier', {
+        await Promise.all(productIds.map(async (id) => {
+          const row = selectedRows.find((p) => p.id === id);
+          const status = (row as any)?.status || (row as any)?.approvalStatus;
+          if (status === 'PENDING_DIGITAL_REVIEW' || status === 'accepted' || status === 'ACCEPTED') {
+            await submitForPhysicalReview(id, 'Drop-off by Courier', row?.batchId || batchIdFromSelection);
+          }
+
+          await submitSample(id, 'Drop-off by Courier', {
             courier: courierService,
             trackingNumber: trackingNumber,
-            batchId
-          })
-        ));
+            batchId: row?.batchId || batchIdFromSelection || undefined,
+          });
+        }));
       } else {
+        const row = selectedRows[0];
+        const status = (row as any)?.status || (row as any)?.approvalStatus;
+        if (status === 'PENDING_DIGITAL_REVIEW' || status === 'accepted' || status === 'ACCEPTED') {
+          await submitForPhysicalReview(selectedProductIdForShipment, 'Drop-off by Courier', row?.batchId || batchIdFromSelection);
+        }
         await submitSample(selectedProductIdForShipment, 'Drop-off by Courier', {
           courier: courierService,
-          trackingNumber: trackingNumber
+          trackingNumber: trackingNumber,
+          batchId: row?.batchId || batchIdFromSelection || undefined,
         });
       }
 
@@ -619,6 +804,8 @@ const SellerProductStatus = () => {
 
       setShipmentModalOpen(false);
       setSelectedProductIdForShipment(null);
+      setSelectedProduct(null);
+      setSelectedProductStatus('');
       setCourierService('');
       setTrackingNumber('');
       setSelectedProducts(new Set());
@@ -633,46 +820,65 @@ const SellerProductStatus = () => {
   };
 
   const handleScheduleDropOff = async () => {
-    if (!selectedProductIdForDropOff || !selectedDropOffDate) {
-      toast({ title: 'Error', description: 'Please select a drop-off date', variant: 'destructive' });
+    if (!selectedProductIdForDropOff || !selectedDropOffDate || !selectedDropOffTime) {
+      toast({ title: 'Error', description: 'Please select a drop-off date and time', variant: 'destructive' });
       return;
     }
 
     try {
       const productIds = selectedProductIdForDropOff.split(',');
+      const selectedRows = productIds
+        .map((id) => allFilteredProducts.find((p) => p.id === id))
+        .filter(Boolean) as any[];
+
+      const batchIdFromSelection = selectedRows.find((p) => p.batchId)?.batchId;
       const formattedDate = selectedDropOffDate.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       });
-
-      const batchId = productIds.length > 1 ? `BATCH-${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}` : undefined;
+      const formattedDateTime = `${formattedDate} at ${selectedDropOffTime}`;
       
       if (productIds.length > 1) {
-        await Promise.all(productIds.map(id => 
-          submitSample(id, 'Onsite Visit', {
+        await Promise.all(productIds.map(async (id) => {
+          const row = selectedRows.find((p) => p.id === id);
+          const status = (row as any)?.status || (row as any)?.approvalStatus;
+          if (status === 'PENDING_DIGITAL_REVIEW' || status === 'accepted' || status === 'ACCEPTED') {
+            await submitForPhysicalReview(id, 'Onsite Visit', row?.batchId || batchIdFromSelection);
+          }
+
+          await submitSample(id, 'Onsite Visit', {
             courier: 'Onsite Drop-off',
-            trackingNumber: `Scheduled for ${formattedDate}`,
-            batchId
-          })
-        ));
+            trackingNumber: `Scheduled for ${formattedDateTime}`,
+            batchId: row?.batchId || batchIdFromSelection || undefined,
+          });
+        }));
       } else {
+        const row = selectedRows[0];
+        const status = (row as any)?.status || (row as any)?.approvalStatus;
+        if (status === 'PENDING_DIGITAL_REVIEW' || status === 'accepted' || status === 'ACCEPTED') {
+          await submitForPhysicalReview(selectedProductIdForDropOff, 'Onsite Visit', row?.batchId || batchIdFromSelection);
+        }
         await submitSample(selectedProductIdForDropOff, 'Onsite Visit', {
           courier: 'Onsite Drop-off',
-          trackingNumber: `Scheduled for ${formattedDate}`
+          trackingNumber: `Scheduled for ${formattedDateTime}`,
+          batchId: row?.batchId || batchIdFromSelection || undefined,
         });
       }
 
       toast({
         title: 'Drop-off Scheduled',
-        description: `Your onsite visit is scheduled for ${formattedDate}.`,
+        description: `Your onsite visit is scheduled for ${formattedDateTime}.`,
         duration: 4000,
       });
 
       setDropOffModalOpen(false);
       setSelectedProductIdForDropOff(null);
+      setSelectedProduct(null);
+      setSelectedProductStatus('');
       setSelectedDropOffDate(undefined);
+      setSelectedDropOffTime('09:00');
       setSelectedProducts(new Set());
     } catch (error) {
       console.error('Error scheduling drop-off:', error);
@@ -819,7 +1025,7 @@ const SellerProductStatus = () => {
                                   </div>
                                   <div>
                                     <span className="text-sm font-bold text-gray-800 tracking-tight">Bulk Shipment Folder</span>
-                                    <p className="text-[11px] text-gray-500 font-mono mt-0.5 opacity-70">{product.batchId}</p>
+                                    <p className="text-[11px] text-gray-500 font-mono mt-0.5 opacity-70">{batchProducts[0]?.batchCode || product.batchId}</p>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-6">
@@ -840,12 +1046,15 @@ const SellerProductStatus = () => {
                                             : 'Confirm Samples Sent'}
                                       </Button>
                                     )}
-                                    {batchProducts[0]?.status === 'PENDING_DIGITAL_REVIEW' && (
+                                    {batchProducts.some((p) => p.status === 'PENDING_DIGITAL_REVIEW') && (
                                       <Button
                                         size="sm"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          openSubmitModal(batchProducts.map(p => p.id), batchProducts[0].status);
+                                          const pendingIds = batchProducts
+                                            .filter((p) => p.status === 'PENDING_DIGITAL_REVIEW')
+                                            .map((p) => p.id);
+                                          openBatchLogisticsPicker(product.batchId, getBatchDisplayName(product.batchId), pendingIds);
                                         }}
                                         className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl px-4 h-8 text-xs font-bold shadow-sm gap-1"
                                       >
@@ -942,7 +1151,7 @@ const SellerProductStatus = () => {
                                 <div className="divide-y divide-gray-100/50 animate-in slide-in-from-top-2 duration-300">
                                   {batchProducts.map((bProduct, bIndex) => (
                                     <div key={`batch-item-${bProduct.id}-${bIndex}`} className="pl-6 bg-white/30">
-                                      {renderProductRow(bProduct, 'qa', true, true, true)}
+                                      {renderProductRow(bProduct, 'qa', false, true, true)}
                                     </div>
                                   ))}
                                 </div>
@@ -987,30 +1196,10 @@ const SellerProductStatus = () => {
                   Deselect All
                 </Button>
                 <Button 
-                  onClick={() => {
-                    // Check if selection is mixed or uniform
-                    const selectedProductData = Array.from(selectedProducts).map(id => 
-                      allFilteredProducts.find(p => p.id === id)
-                    ).filter(Boolean);
-                    
-                    const statuses = new Set(selectedProductData.map(p => (p as any).status || (p as any).approvalStatus));
-                    const isAllWaiting = statuses.size === 1 && (statuses.has('WAITING_FOR_SAMPLE'));
-                    
-                    // If all are waiting for sample, skip to physical step
-                    if (isAllWaiting) {
-                      // Use the logistics of the first product if they are uniform
-                      const logistics = (selectedProductData[0] as any).logistics;
-                      openSubmitModal(Array.from(selectedProducts), 'WAITING_FOR_SAMPLE', logistics);
-                    } else {
-                      openSubmitModal(Array.from(selectedProducts), 'PENDING_DIGITAL_REVIEW');
-                    }
-                  }}
+                  onClick={() => setBatchModalOpen(true)}
                   className="bg-gradient-to-r from-[#D97706] to-[#B45309] hover:shadow-lg hover:shadow-amber-500/30 text-white rounded-xl font-bold px-6 shadow-md transition-all active:scale-95"
                 >
-                  {Array.from(selectedProducts).every(id => {
-                    const p = allFilteredProducts.find(p => p.id === id);
-                    return (p as any)?.status === 'WAITING_FOR_SAMPLE';
-                  }) ? 'Confirm Selections' : 'Submit for QA'}
+                  {isAwaitingSampleTab ? 'Create/Add to Batch' : 'Submit for QA'}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
@@ -1176,6 +1365,92 @@ const SellerProductStatus = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Batch Action Modal */}
+      <Dialog open={batchModalOpen} onOpenChange={setBatchModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Batch Selected Products</DialogTitle>
+            <DialogDescription>
+              Create a new batch with a custom name or add selected products to an existing batch.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Batch Action</Label>
+              <RadioGroup value={batchActionType} onValueChange={(value) => setBatchActionType(value as 'create' | 'existing')}>
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <RadioGroupItem value="create" id="batch-create" />
+                  <Label htmlFor="batch-create" className="cursor-pointer flex-1">
+                    <div className="font-medium">Create New Batch</div>
+                    <div className="text-sm text-gray-500">Make a new batch and add selected products.</div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <RadioGroupItem value="existing" id="batch-existing" />
+                  <Label htmlFor="batch-existing" className="cursor-pointer flex-1">
+                    <div className="font-medium">Add to Existing Batch</div>
+                    <div className="text-sm text-gray-500">Move selected products into an existing batch.</div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {batchActionType === 'create' ? (
+              <div className="space-y-2">
+                <Label htmlFor="batch-name" className="text-sm font-semibold">Custom Batch Name</Label>
+                <input
+                  id="batch-name"
+                  type="text"
+                  value={customBatchName}
+                  onChange={(e) => setCustomBatchName(e.target.value)}
+                  placeholder="e.g. March Beauty Samples"
+                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
+                />
+                <p className="text-xs text-gray-500">This name helps identify your folder in the Awaiting Sample list.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="existing-batch" className="text-sm font-semibold">Select Existing Batch</Label>
+                <select
+                  id="existing-batch"
+                  value={selectedExistingBatchId}
+                  onChange={(e) => setSelectedExistingBatchId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
+                >
+                  <option value="">Choose a batch</option>
+                  {existingBatchOptions.map((batch) => (
+                    <option key={batch.id} value={batch.id}>{batch.label}</option>
+                  ))}
+                </select>
+                {existingBatchOptions.length === 0 && (
+                  <p className="text-xs text-gray-500">No existing batches yet. Create a new batch first.</p>
+                )}
+              </div>
+            )}
+
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBatchSelectionAction}
+              disabled={
+                selectedProducts.size === 0 ||
+                (batchActionType === 'create' && !customBatchName.trim()) ||
+                (batchActionType === 'existing' && !selectedExistingBatchId)
+              }
+              className="bg-[#D97706] hover:bg-[#B45309] text-white"
+            >
+              {batchActionType === 'create' ? 'Create Batch' : 'Move to Batch'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirm Shipment Modal */}
       <Dialog open={shipmentModalOpen} onOpenChange={setShipmentModalOpen}>
         <DialogContent className="max-w-md">
@@ -1264,8 +1539,33 @@ const SellerProductStatus = () => {
                 mode="single"
                 selected={selectedDropOffDate}
                 onSelect={setSelectedDropOffDate}
-                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                disabled={(date) => {
+                  const today = new Date(new Date().setHours(0, 0, 0, 0));
+                  const day = date.getDay();
+                  return date < today || day === 0 || day === 6;
+                }}
               />
+            </div>
+
+            <div className="w-full mt-4 space-y-2">
+              <Label htmlFor="dropoff-time" className="text-sm font-semibold text-gray-700">Drop-off Time (9:00 AM - 5:00 PM)</Label>
+              <select
+                id="dropoff-time"
+                value={selectedDropOffTime}
+                onChange={(e) => setSelectedDropOffTime(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="09:00">09:00 AM</option>
+                <option value="10:00">10:00 AM</option>
+                <option value="11:00">11:00 AM</option>
+                <option value="12:00">12:00 PM</option>
+                <option value="13:00">01:00 PM</option>
+                <option value="14:00">02:00 PM</option>
+                <option value="15:00">03:00 PM</option>
+                <option value="16:00">04:00 PM</option>
+                <option value="17:00">05:00 PM</option>
+              </select>
+              <p className="text-xs text-gray-500">Weekend drop-offs are unavailable.</p>
             </div>
 
             <Alert className="bg-amber-50/50 border-amber-100 rounded-xl mt-6 w-full">
