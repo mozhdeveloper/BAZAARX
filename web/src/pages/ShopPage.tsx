@@ -361,7 +361,18 @@ export default function ShopPage() {
     }
 
     if (sortParam && attributeSortOptions.some(option => option.value === sortParam)) {
-      setSelectedSort(sortParam);
+      if (queryParam && sortParam === "featured") {
+        setSelectedSort("newest");
+
+        const updatedSearchParams = new URLSearchParams(searchParams.toString());
+        updatedSearchParams.set("sort", "newest");
+        const newSearch = updatedSearchParams.toString();
+        if (newSearch !== searchParams.toString()) {
+          navigate({ search: `?${newSearch}` }, { replace: true });
+        }
+      } else {
+        setSelectedSort(sortParam);
+      }
     } else if (!sortParam) {
       setSelectedSort("newest");
     }
@@ -493,28 +504,25 @@ export default function ShopPage() {
 
 
 
-  // Trigger skeleton loading on filter/category changes
-  useEffect(() => {
-    setIsProductsLoading(true);
-    const timer = setTimeout(() => setIsProductsLoading(false), 300);
-    return () => clearTimeout(timer);
-  }, [selectedCategory, selectedSort, selectedPriceSort, priceRange, minRating, searchQuery]);
-
   const resetFilters = () => {
-    setSearchQuery("");
     setSelectedSort("newest");
     setSelectedPriceSort("price-default");
     setPriceRange([0, 100000]);
     setMinRating(0);
     setSearchParams(prev => {
-      const params = new URLSearchParams(prev);
-      params.delete("sort");
-      params.delete("priceSort");
-      params.delete("category");
-      return params;
+      const p = new URLSearchParams(prev);
+      p.delete("sort");
+      p.delete("priceSort");
+      p.delete("category");
+      return p;
     });
-    setSelectedCategory("All Categories");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    const element = document.getElementById("shop-results-header");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   return (
@@ -540,7 +548,7 @@ export default function ShopPage() {
               className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
               onClick={() => {
                 resetFilters();
-                window.scrollTo({ top: 0, behavior: "smooth" });
+                setSearchQuery("");
               }}
             >
               Shop
@@ -593,7 +601,7 @@ export default function ShopPage() {
 
           <div className="pt-2 pb-0">
             {/* Flash Sale Section — one block per active campaign */}
-            {flashSaleProducts.length > 0 && (() => {
+            {searchQuery === "" && flashSaleProducts.length > 0 && (() => {
               // Group products by campaign
               const campaignMap = new Map<string, { id: string; name: string; endsAt: string; color: string; products: any[] }>();
               for (const p of flashSaleProducts) {
@@ -670,7 +678,7 @@ export default function ShopPage() {
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
-          {selectedSort !== 'featured' && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
+          {searchQuery === "" && selectedSort !== 'featured' && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
             <div className="mb-10">
               {/* Section Header */}
               <div className="flex items-center justify-between mb-5 px-1">
@@ -781,9 +789,10 @@ export default function ShopPage() {
 
                           {/* Product Image */}
                           <div className="relative aspect-square overflow-hidden bg-gray-50">
-                            <img loading="lazy" 
+                            <img
                               src={imageUrl}
                               alt={product.name}
+                              loading="lazy"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=No+Image';
@@ -1162,7 +1171,7 @@ export default function ShopPage() {
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-none shadow-xl bg-white/95 backdrop-blur-md">
-                        {attributeSortOptions.map((option) => (
+                        {attributeSortOptions.filter(option => searchQuery === "" || option.value !== "featured").map((option) => (
                           <SelectItem
                             key={option.value}
                             value={option.value}

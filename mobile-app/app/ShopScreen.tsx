@@ -22,7 +22,6 @@ import LocationModal from '../src/components/LocationModal';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { FlashList } from "@shopify/flash-list";
 import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
-// Use the service you provided
 import { productService } from '../src/services/productService';
 import { categoryService } from '../src/services/categoryService';
 import { addressService } from '../src/services/addressService';
@@ -320,7 +319,27 @@ export default function ShopScreen({ navigation, route }: Props) {
     }
   }, []);
 
-  // --- LOCATION & NOTIFICATION LOGIC ---
+  useEffect(() => {
+    const resetAllFilters = async () => {
+      setSelectedSort('relevance');
+      setSelectedPriceSort('price-default');
+      setSelectedCategory('all');
+      setSearchQuery('');
+      setMinPrice('0');
+      setMaxPrice('100000');
+      setMinInput('0');
+      setMaxInput('100000');
+      setMultiSliderValue([0, 100000]);
+      try {
+        await AsyncStorage.removeItem('shopSortState');
+      } catch (e) { /* ignore */ }
+      navigation.setParams({ searchQuery: undefined, category: undefined, view: undefined });
+    };
+
+    const unsubBlur = navigation.addListener('blur', resetAllFilters);
+    return () => unsubBlur();
+  }, [navigation]);
+
   useEffect(() => {
     mountedRef.current = true;
 
@@ -336,23 +355,7 @@ export default function ShopScreen({ navigation, route }: Props) {
       }
     };
 
-    const resetAllFilters = async () => {
-      setSelectedSort('relevance');
-      setSelectedPriceSort('price-default');
-      setSelectedCategory('all');
-      setSearchQuery('');
-      setMinPrice('0');
-      setMaxPrice('100000');
-      setMinInput('0');
-      setMaxInput('100000');
-      setMultiSliderValue([0, 100000]);
-      try {
-        await AsyncStorage.removeItem('shopSortState');
-      } catch (e) { /* ignore */ }
-    };
-
     const unsubFocus = navigation.addListener('focus', loadNotifications);
-    const unsubBlur = navigation.addListener('blur', resetAllFilters);
     loadNotifications();
 
     if (user?.id && !isGuest && !unsubRealtimeRef.current) {
@@ -375,22 +378,19 @@ export default function ShopScreen({ navigation, route }: Props) {
       pollIntervalRef.current = null;
     }
 
-    // Aggressive polling every 2 seconds as fallback safety net
     if (user?.id && !isGuest) {
       pollIntervalRef.current = setInterval(() => {
         if (mountedRef.current && user?.id) {
           loadNotifications();
         }
-      }, 2000);
+      }, 30000);
     }
 
     return () => {
       unsubFocus();
-      unsubBlur();
     };
   }, [navigation, user?.id, isGuest]);
 
-  // Cleanup subscriptions on unmount
   useEffect(() => {
     return () => {
       mountedRef.current = false;
@@ -458,11 +458,6 @@ export default function ShopScreen({ navigation, route }: Props) {
         if (route.params?.view === 'featured') {
           setSelectedSort('featured');
           await AsyncStorage.setItem('shopSortState', 'featured');
-        } else {
-          const savedSort = await AsyncStorage.getItem('shopSortState');
-          if (savedSort && attributeSortOptions.some(option => option.value === savedSort)) {
-            setSelectedSort(savedSort);
-          }
         }
       } catch (error) {
         console.error('[ShopScreen] Error loading sort state:', error);
@@ -528,7 +523,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       return searchMatch && categoryMatch && priceMatch;
     });
 
-    // Apply attribute filter
     if (selectedSort === 'featured') {
       const featuredProductIds = new Set([
         ...featuredProducts.map(fp => fp.product_id),
@@ -541,7 +535,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     }
 
-    // Apply price sort independently (composable with attribute filter)
     if (selectedPriceSort === 'price-low') {
       filtered = [...filtered].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     } else if (selectedPriceSort === 'price-high') {
@@ -551,7 +544,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     return filtered;
   }, [dbProducts, searchQuery, selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice, categoryChips, featuredProducts, boostedProducts]);
 
-  // Trigger skeleton loading on filter/category changes
   useEffect(() => {
     setIsProductsLoading(true);
     const timer = setTimeout(() => setIsProductsLoading(false), 300);
@@ -559,7 +551,6 @@ export default function ShopScreen({ navigation, route }: Props) {
   }, [selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice, searchQuery]);
 
 
-  // Memoized FlatList callbacks to prevent re-creating functions on each render
   const handleProductPress = useCallback((product: Product) => {
     navigation.navigate('ProductDetail', { product });
   }, [navigation]);
@@ -568,7 +559,6 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   // renderProductItem removed in favor of inline renderItem in MasonryFlashList constants
 
-  // Unified empty/loading component for FlatList
   const listEmptyComponent = useMemo(() => {
     if (isLoading) return <ActivityIndicator color={BRAND_COLOR} style={{ marginTop: 50 }} />;
     return (
@@ -581,7 +571,6 @@ export default function ShopScreen({ navigation, route }: Props) {
     );
   }, [isLoading]);
 
-  // Scrollable header: category chips
   const listHeaderComponent = useMemo(() => (
     <View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
@@ -681,7 +670,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       <View
         style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.background }]}
       >
-        {/* Location Row */}
         <View style={styles.locationRow}>
           <Pressable onPress={() => setShowLocationModal(true)}>
             <Text style={styles.locationLabel}>Location</Text>
@@ -713,7 +701,6 @@ export default function ShopScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
 
-        {/* Search Row */}
         <View style={styles.headerTop}>
           <View style={[styles.searchBarWrapper, (isSearchFocused || !showFiltersModal) && { marginRight: 0 }]}>
             <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: COLORS.primary, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
