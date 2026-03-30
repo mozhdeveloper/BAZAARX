@@ -288,85 +288,106 @@ export default function HomeScreen({ navigation }: Props) {
     setIsLoadingProducts(true);
     setFetchError(null);
 
-    const [productsResult, flashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = await Promise.allSettled([
-      productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
-      discountService.getFlashSaleProducts(),
-      featuredProductService.getFeaturedProducts(10),
-      adBoostService.getActiveBoostedProducts('featured', 10),
-      sellerService.getAllSellers(),
-      categoryService.getActiveCategories(),
-    ]);
-
-    if (categoriesResult.status === 'fulfilled') {
-      const rawCategories = categoriesResult.value || [];
-      const unique = rawCategories.reduce((acc: Category[], curr) => {
-        if (!acc.find(c => (c.slug && c.slug === curr.slug) || c.name.toLowerCase() === curr.name.toLowerCase())) {
-          acc.push(curr);
+    try {
+      const promises = [
+        productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
+        discountService.getFlashSaleProducts(),
+        featuredProductService.getFeaturedProducts(10),
+        adBoostService.getActiveBoostedProducts('featured', 10),
+        sellerService.getAllSellers(),
+        categoryService.getActiveCategories(),
+      ].map(p => {
+        // Ensure each item is a valid Promise
+        if (!p || typeof p.then !== 'function') {
+          console.warn('[HomeScreen] Non-promise detected in Promise.allSettled');
+          return Promise.resolve([]);
         }
-        return acc;
-      }, []);
-      setDbCategories(unique);
-    }
-
-    // Products
-    if (productsResult.status === 'fulfilled') {
-      const mapped: Product[] = (productsResult.value || []).map((row: any) => {
-        const images = row.images?.map((img: any) =>
-          typeof img === 'string' ? img : img.image_url
-        ).filter(Boolean) || [];
-        const primaryImage = safeImageUri(
-          row.images?.find((img: any) => img.is_primary)?.image_url
-          || images[0]
-          || row.primary_image
-          || ''
-        );
-
-        const rawVariants = Array.isArray(row.variants) ? row.variants : [];
-        const variants = rawVariants.map((v: any) => ({
-          id: v.id,
-          product_id: row.id,
-          sku: v.sku,
-          variant_name: v.variant_name || `${v.option_1_value || v.color || ''} ${v.option_2_value || v.size || ''}`.trim() || 'Variant',
-          size: v.size,
-          color: v.color,
-          option_1_value: v.option_1_value,
-          option_2_value: v.option_2_value,
-          price: v.price ?? row.price,
-          stock: v.stock ?? 0,
-          thumbnail_url: v.thumbnail_url ? safeImageUri(v.thumbnail_url) : undefined,
-        }));
-
-        return {
-          ...row,
-          price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
-          image: primaryImage,
-          images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
-          seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
-        } as Product;
+        return p;
       });
-      const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
-      setDbProducts(uniqueMapped);
-    } else {
-      setFetchError((productsResult.reason as any)?.message || 'Failed to load products');
-      setDbProducts([]);
+
+      const results = await Promise.allSettled(promises);
+      const [productsResult, flashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = results;
+
+      if (!categoriesResult || !categoriesResult.status) {
+        console.error('[HomeScreen] categoriesResult is undefined');
+      } else if (categoriesResult.status === 'fulfilled') {
+        const rawCategories = categoriesResult.value || [];
+        const unique = rawCategories.reduce((acc: Category[], curr) => {
+          if (!acc.find(c => (c.slug && c.slug === curr.slug) || c.name.toLowerCase() === curr.name.toLowerCase())) {
+            acc.push(curr);
+          }
+          return acc;
+        }, []);
+        setDbCategories(unique);
+      }
+
+      // Products
+      if (!productsResult || !productsResult.status) {
+        console.error('[HomeScreen] productsResult is undefined');
+        setFetchError('Failed to load products');
+        setDbProducts([]);
+      } else if (productsResult.status === 'fulfilled') {
+        const mapped: Product[] = (productsResult.value || []).map((row: any) => {
+          const images = row.images?.map((img: any) =>
+            typeof img === 'string' ? img : img.image_url
+          ).filter(Boolean) || [];
+          const primaryImage = safeImageUri(
+            row.images?.find((img: any) => img.is_primary)?.image_url
+            || images[0]
+            || row.primary_image
+            || ''
+          );
+
+          const rawVariants = Array.isArray(row.variants) ? row.variants : [];
+          const variants = rawVariants.map((v: any) => ({
+            id: v.id,
+            product_id: row.id,
+            sku: v.sku,
+            variant_name: v.variant_name || `${v.option_1_value || v.color || ''} ${v.option_2_value || v.size || ''}`.trim() || 'Variant',
+            size: v.size,
+            color: v.color,
+            option_1_value: v.option_1_value,
+            option_2_value: v.option_2_value,
+            price: v.price ?? row.price,
+            stock: v.stock ?? 0,
+            thumbnail_url: v.thumbnail_url ? safeImageUri(v.thumbnail_url) : undefined,
+          }));
+
+          return {
+            ...row,
+            price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
+            image: primaryImage,
+            images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
+            seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
+          } as Product;
+        });
+        const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
+        setDbProducts(uniqueMapped);
+      } else {
+        setFetchError((productsResult.reason as any)?.message || 'Failed to load products');
+        setDbProducts([]);
+      }
+
+      // Flash sales
+      if (flashResult?.status === 'fulfilled') {
+        const seen = new Set<string>();
+        const unique = (flashResult.value || []).filter((p: any) => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
+        setFlashSaleProducts(unique);
+      }
+
+      // Featured + Boosted
+      if (featuredResult?.status === 'fulfilled') setFeaturedProducts(featuredResult.value);
+      if (boostedResult?.status === 'fulfilled') setBoostedProducts(boostedResult.value);
+
+      if (sellersResult?.status === 'fulfilled' && sellersResult.value) setSellers(sellersResult.value);
+    } catch (error) {
+      console.error('[HomeScreen] Critical error in loadAllData:', error);
+      setFetchError('Failed to load data');
     }
-
-    // Flash sales
-    if (flashResult.status === 'fulfilled') {
-      const seen = new Set<string>();
-      const unique = (flashResult.value || []).filter((p: any) => {
-        if (seen.has(p.id)) return false;
-        seen.add(p.id);
-        return true;
-      });
-      setFlashSaleProducts(unique);
-    }
-
-    // Featured + Boosted
-    if (featuredResult.status === 'fulfilled') setFeaturedProducts(featuredResult.value);
-    if (boostedResult.status === 'fulfilled') setBoostedProducts(boostedResult.value);
-
-    if (sellersResult.status === 'fulfilled' && sellersResult.value) setSellers(sellersResult.value);
 
     setIsLoadingProducts(false);
   }, []);

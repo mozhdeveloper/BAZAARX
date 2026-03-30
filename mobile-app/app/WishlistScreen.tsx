@@ -1,8 +1,9 @@
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, ChevronRight, Edit2, FolderHeart, Heart, Trash2, X } from 'lucide-react-native';
+import { Image } from 'expo-image';
+import { ChevronLeft, ChevronRight, Edit2, FolderHeart, Heart, Share, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share as ShareApi, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { ProductCard } from '../src/components/ProductCard';
@@ -23,6 +24,74 @@ const OCCASIONS = [
 ];
 
 const BRAND_COLOR = COLORS.primary;
+
+// Product Thumbnails Component - replaces static AvatarStack with actual product images
+const ProductThumbnails = ({ items, totalCount }: { items: WishlistItem[]; totalCount: number }) => {
+    // Get unique product images from items (max 3)
+    const productImages = useMemo(() => {
+        const images: string[] = [];
+        for (const item of items) {
+            const img = item.image || item.images?.[0];
+            if (img && !images.includes(img)) {
+                images.push(img);
+                if (images.length >= 3) break;
+            }
+        }
+        return images;
+    }, [items]);
+
+    const remaining = Math.max(0, totalCount - 3);
+
+    if (totalCount === 0) {
+        return null;
+    }
+
+    const renderImageCircle = (imageUrl: string | undefined, zIndex: number, marginLeft?: number) => {
+        return (
+            <View style={[styles.avatarCircleImage, marginLeft !== undefined && { marginLeft }, { zIndex }]}>
+                {imageUrl ? (
+                    <Image
+                        source={{ uri: imageUrl }}
+                        style={{ width: '100%', height: '100%' }}
+                        contentFit="cover"
+                        cachePolicy="disk"
+                    />
+                ) : (
+                    <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F3F4F6' }}>
+                        <Heart size={12} color="#9CA3AF" />
+                    </View>
+                )}
+            </View>
+        );
+    };
+
+    if (totalCount === 1) {
+        return renderImageCircle(productImages[0], 1);
+    }
+
+    if (totalCount === 2) {
+        return (
+            <View style={styles.avatarStack}>
+                {renderImageCircle(productImages[0], 2)}
+                {renderImageCircle(productImages[1], 1, -8)}
+            </View>
+        );
+    }
+
+    // 3 or more items
+    return (
+        <View style={styles.avatarStack}>
+            {renderImageCircle(productImages[0], 3)}
+            {renderImageCircle(productImages[1], 2, -8)}
+            {renderImageCircle(productImages[2], 1, -8)}
+            {remaining > 0 && (
+                <View style={[styles.avatarBadge, { marginLeft: -4 }]}>
+                    <Text style={styles.avatarBadgeText}>+{remaining}</Text>
+                </View>
+            )}
+        </View>
+    );
+};
 
 // Create List Modal (Bottom Sheet Style)
 const CreateListModal = ({ visible, onClose, onCreate }: any) => {
@@ -392,7 +461,7 @@ export default function WishlistScreen() {
             // Share current category or default
             const catId = selectedCategoryId || 'default';
             const url = await shareWishlist(catId);
-            await Share.share({
+            await ShareApi.share({
                 message: `Check out my registry on BazaarX! ${url}`,
                 url: url
             });
@@ -449,28 +518,68 @@ export default function WishlistScreen() {
 
                 {/* Header */}
                 <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
-                    <View style={styles.headerTop}>
-                        <Pressable
-                            onPress={() => {
-                                if (selectedCategoryId) {
-                                    setSelectedCategoryId(null); // Go back to categories
-                                } else {
+                    {/* My Wishlists View - Single row with centered title */}
+                    {!selectedCategoryId && (
+                        <View style={styles.headerTop}>
+                            <Pressable
+                                onPress={() => {
                                     navigation.goBack();
-                                }
-                            }}
-                            style={styles.headerIconButton}
-                        >
-                            <ChevronLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
-                        </Pressable>
+                                }}
+                                style={styles.headerIconButton}
+                            >
+                                <ChevronLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+                            </Pressable>
 
-                        <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>
-                            {selectedCategoryId ? currentCategoryName : 'My Wishlists'}
-                        </Text>
+                            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>
+                                My Wishlists
+                            </Text>
 
-                        <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
                             <View style={{ width: 44 }} />
                         </View>
-                    </View>
+                    )}
+
+                    {/* Category View - Two rows: nav + title below */}
+                    {selectedCategoryId && (
+                        <>
+                            <View style={styles.headerTop}>
+                                <Pressable
+                                    onPress={() => {
+                                        setSelectedCategoryId(null); // Go back to categories
+                                    }}
+                                    style={styles.headerIconButton}
+                                >
+                                    <ChevronLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+                                </Pressable>
+
+                                <View style={styles.headerActionsRight}>
+                                    <Pressable
+                                        style={styles.headerIconBtn}
+                                        onPress={() => {
+                                            // Edit the current category
+                                            const currentCat = categories.find(c => c.id === selectedCategoryId);
+                                            if (currentCat) {
+                                                setEditingCategory(currentCat);
+                                            }
+                                        }}
+                                    >
+                                        <Edit2 size={20} color={COLORS.primary} strokeWidth={2} />
+                                    </Pressable>
+                                    <Pressable
+                                        style={styles.headerIconBtn}
+                                        onPress={handleShare}
+                                    >
+                                        <Share size={20} color={COLORS.primary} strokeWidth={2} />
+                                    </Pressable>
+                                </View>
+                            </View>
+
+                            <View style={styles.headerTitleContainer}>
+                                <Text style={[styles.headerSubtitle, { color: COLORS.textHeadline }]}>
+                                    {currentCategoryName}
+                                </Text>
+                            </View>
+                        </>
+                    )}
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -519,41 +628,41 @@ export default function WishlistScreen() {
                                             <Text style={styles.shopNowText}>Continue Shopping</Text>
                                         </TouchableOpacity>
                                     </View>
-                                ) : displayedCategories.map((cat) => {
-                                    const categoryItems = items.filter(i => i.categoryId === cat.id || (cat.id === 'default' && !i.categoryId));
-                                    const itemCount = categoryItems.length;
-                                    // Use first item image as cover, or fallback
-                                    const coverImage = cat.image || categoryItems[0]?.image;
+                                ) : (
+                                    <View style={styles.groupedCardContainer}>
+                                        {displayedCategories.map((cat, index) => {
+                                            console.log('Category data:', cat);
+                                            const categoryItems = items.filter(i => i.categoryId === cat.id || (cat.id === 'default' && !i.categoryId));
+                                            const itemCount = categoryItems.length;
+                                            const isLastItem = index === displayedCategories.length - 1;
 
-                                    return (
-                                        <Pressable key={cat.id} style={styles.cardContainer} onPress={() => setSelectedCategoryId(cat.id)}>
-                                            <View style={styles.cardContent}>
-                                                {/* Icon */}
-                                                <FolderHeart size={28} color={BRAND_COLOR} strokeWidth={2} />
+                                            return (
+                                                <Pressable
+                                                    key={cat.id}
+                                                    style={[styles.groupedCardItem, isLastItem && styles.groupedCardItemLast]}
+                                                    onPress={() => setSelectedCategoryId(cat.id)}
+                                                >
+                                                    {/* Icon */}
+                                                    <FolderHeart size={28} color={BRAND_COLOR} strokeWidth={2} />
 
-                                                {/* Info */}
-                                                <View style={{ flex: 1 }}>
-                                                    <Text style={styles.cardTitle}>{cat.name}</Text>
-                                                    <View style={styles.cardRatingRow}>
-                                                        <View style={styles.privacyTag}>
-                                                            <Text style={styles.privacyTagText}>Private</Text>
+                                                    {/* Info */}
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={styles.groupedCardTitle}>{cat.name}</Text>
+                                                        <View style={styles.groupedCardRatingRow}>
+                                                            {cat.occasion && (
+                                                                <Text style={styles.groupedCardDetail}>{cat.occasion.replace('_', ' ')}</Text>
+                                                            )}
+                                                            <ProductThumbnails items={categoryItems} totalCount={itemCount} />
                                                         </View>
-                                                        {cat.occasion && (
-                                                            <Text style={styles.itemCountDetail}>{cat.occasion.replace('_', ' ')}</Text>
-                                                        )}
-                                                        <Text style={styles.itemCountDetail}> · {itemCount} items</Text>
                                                     </View>
-                                                </View>
 
-                                                {/* CTA */}
-                                                <View style={styles.viewListBtn}>
-                                                    <Text style={styles.viewListText}>View List</Text>
-                                                    <ChevronRight size={16} color={BRAND_COLOR} strokeWidth={2.5} />
-                                                </View>
-                                            </View>
-                                        </Pressable>
-                                    );
-                                })}
+                                                    {/* Arrow Only */}
+                                                    <ChevronRight size={20} color={COLORS.textMuted} strokeWidth={2.5} />
+                                                </Pressable>
+                                            );
+                                        })}
+                                    </View>
+                                )}
                             </View>
                         </View>
                     )}
@@ -663,7 +772,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 4,
+        marginBottom: 0,
     },
     headerIconButton: {
         width: 44,
@@ -672,14 +781,137 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: '800',
         color: COLORS.textHeadline,
+    },
+    headerTitleContainer: {
+        paddingHorizontal: 4,
+        paddingTop: 8,
+        paddingBottom: 8,
+    },
+    headerSubtitle: {
+        fontSize: 26,
+        fontWeight: '800',
+        color: COLORS.textHeadline,
+        letterSpacing: -0.5,
+    },
+    headerActionsRight: {
+        flexDirection: 'row',
+        gap: 8,
+        alignItems: 'center',
+    },
+    headerIconBtn: {
+        width: 44,
+        height: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 22,
+        backgroundColor: '#FFF',
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 2,
     },
     scrollContent: { padding: 16, paddingTop: 24, paddingBottom: 40, minHeight: '100%' },
 
     // Categories List (Card Style)
     categoriesList: { gap: 12, paddingBottom: 20 },
+
+    // Grouped Card Layout
+    groupedCardContainer: {
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: '#FEE2E2',
+    },
+    groupedCardItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        paddingHorizontal: 18,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    groupedCardItemLast: {
+        borderBottomWidth: 0,
+    },
+    groupedCardTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: COLORS.textHeadline,
+        marginBottom: 4,
+    },
+    groupedCardRatingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    groupedCardDetail: {
+        fontSize: 12,
+        color: COLORS.textMuted,
+        fontWeight: '500',
+    },
+    avatarStack: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: 28,
+    },
+    avatarCircle: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FFF',
+    },
+    avatarInitial: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#FFF',
+    },
+    avatarBadge: {
+        paddingHorizontal: 4,
+        paddingVertical: 2,
+        borderRadius: 8,
+        backgroundColor: '#FEB92E',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarBadgeText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#FFF',
+    },
+    avatarCircleImage: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        borderWidth: 2,
+        borderColor: '#FFF',
+        overflow: 'hidden',
+        backgroundColor: '#FFF',
+        zIndex: 1,
+    },
+    itemCountText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: COLORS.textMuted,
+        marginLeft: 4,
+    },
+
     cardContainer: {
         backgroundColor: '#FFF',
         borderRadius: 20,
@@ -897,9 +1129,9 @@ const styles = StyleSheet.create({
     occasionScroll: { marginTop: 4 },
     occasionContainer: { gap: 8, paddingRight: 24, paddingVertical: 4 },
     occasionChip: {
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
         backgroundColor: '#F3F4F6',
         borderWidth: 1,
         borderColor: '#E5E7EB',
@@ -919,11 +1151,11 @@ const styles = StyleSheet.create({
 
     // Occasion Tabs in main view
     tabScroll: { marginTop: 0, marginBottom: 16 },
-    tabContainer: { gap: 12, paddingBottom: 4 },
+    tabContainer: { gap: 8, paddingBottom: 4 },
     tab: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 25,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: '#E5E7EB',
@@ -933,8 +1165,8 @@ const styles = StyleSheet.create({
         borderColor: '#E58C1A',
     },
     tabText: {
-        fontSize: 14,
-        fontWeight: '700',
+        fontSize: 12,
+        fontWeight: '600',
         color: '#6B7280',
     },
     tabTextActive: {
