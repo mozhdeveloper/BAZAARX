@@ -141,6 +141,9 @@ const formatReviewDate = (dateString: string): string => {
   return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) > 1 ? 's' : ''} ago`;
 };
 
+// Create animated components
+const AnimatedText = Animated.createAnimatedComponent(Text);
+
 export default function ProductDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { product: initialProduct } = route.params;
