@@ -509,7 +509,13 @@ export default function ShopPage() {
     setSelectedPriceSort("price-default");
     setPriceRange([0, 100000]);
     setMinRating(0);
-    setSearchParams("");
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev);
+      p.delete("sort");
+      p.delete("priceSort");
+      p.delete("category");
+      return p;
+    });
 
     const element = document.getElementById("shop-results-header");
     if (element) {
@@ -542,6 +548,7 @@ export default function ShopPage() {
               className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
               onClick={() => {
                 resetFilters();
+                setSearchQuery("");
               }}
             >
               Shop
