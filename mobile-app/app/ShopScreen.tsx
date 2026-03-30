@@ -336,13 +336,8 @@ export default function ShopScreen({ navigation, route }: Props) {
       navigation.setParams({ searchQuery: undefined, category: undefined, view: undefined });
     };
 
-    const parentNavigation = navigation.getParent();
-    const unsubBlur = parentNavigation?.addListener('blur', resetAllFilters);
-    return () => {
-      if (unsubBlur) {
-        unsubBlur();
-      }
-    };
+    const unsubBlur = navigation.addListener('blur', resetAllFilters);
+    return () => unsubBlur();
   }, [navigation]);
 
   useEffect(() => {
