@@ -529,6 +529,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Out of stock pulse animation
   const outOfStockPulse = useRef(new Animated.Value(1)).current;
   const triggerOutOfStockPulse = () => {
+    outOfStockPulse.setValue(1);
     Animated.sequence([
       Animated.timing(outOfStockPulse, { toValue: 1.25, duration: 120, useNativeDriver: true }),
       Animated.timing(outOfStockPulse, { toValue: 0.85, duration: 100, useNativeDriver: true }),
@@ -1159,17 +1160,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
                 )}
               </View>
-              <Animated.Text style={[
-                {
-                  fontSize: 13,
-                  marginTop: 4,
-                  fontWeight: '600',
-                  color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#9CA3AF',
-                },
-                Number(selectedVariantInfo.stock ?? 0) <= 0 && { transform: [{ scale: outOfStockPulse }] },
-              ]}>
+              <AnimatedText style={{
+                fontSize: 13,
+                marginTop: 4,
+                fontWeight: '600',
+                color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#9CA3AF',
+                ...(Number(selectedVariantInfo.stock ?? 0) <= 0 ? { transform: [{ scale: outOfStockPulse }] } : {}),
+              }}>
                 {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
-              </Animated.Text>
+              </AnimatedText>
             </View>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
@@ -1567,9 +1566,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             onPress={((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) ? triggerOutOfStockPulse : handleBuyNow}
             disabled={false}
           >
-            <Animated.Text style={[styles.buyNowText, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && { color: COLORS.gray400 }, { transform: [{ scale: outOfStockPulse }] }]}>
+            <AnimatedText style={{
+              ...styles.buyNowText,
+              ...((Number(selectedVariantInfo.stock ?? 0) <= 0 || (product as any).is_vacation_mode) ? { color: COLORS.gray400 } : {}),
+              ...(Number(selectedVariantInfo.stock ?? 0) <= 0 ? { transform: [{ scale: outOfStockPulse }] } : {}),
+            }}>
               {((product as any).is_vacation_mode ? 'Store Unavailable' : (Number(selectedVariantInfo.stock ?? 0) > 0 ? 'Buy Now' : 'Out of Stock'))}
-            </Animated.Text>
+            </AnimatedText>
           </Pressable>
         </View>
       </View>
