@@ -15,25 +15,25 @@ import { chatService, Conversation as DBConversation, Message as DBMessage } fro
 
 // Updated Interfaces to fix TypeScript errors
 interface Message {
-  id: string; 
-  senderId: string; 
-  text?: string; 
-  images?: string[]; 
-  timestamp: Date; 
-  isRead: boolean; 
-  message_type?: 'user' | 'system'; 
+  id: string;
+  senderId: string;
+  text?: string;
+  images?: string[];
+  timestamp: Date;
+  isRead: boolean;
+  message_type?: 'user' | 'system';
   message_content?: string;
 }
 
 interface Conversation {
-  id: string; 
-  buyerName: string; 
-  buyerImage?: string; 
-  lastMessage: string; 
-  lastMessageTime: Date; 
-  unreadCount: number; 
-  messages: Message[]; 
-  isOnline?: boolean; 
+  id: string;
+  buyerName: string;
+  buyerImage?: string;
+  lastMessage: string;
+  lastMessageTime: Date;
+  unreadCount: number;
+  messages: Message[];
+  isOnline?: boolean;
   is_online?: boolean;
 }
 
@@ -65,10 +65,10 @@ export default function SellerMessages() {
     try {
       const convs = await chatService.getSellerConversations(seller.id);
       setDbConversations(convs);
-    } catch (error) { 
-      console.error(error); 
-    } finally { 
-      setLoading(false); 
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
   }, [seller?.id]);
 
@@ -111,14 +111,14 @@ export default function SellerMessages() {
           const exists = prev.some(c => c.id === updatedConv.id);
           const next = exists
             ? prev.map(c => {
-                if (c.id !== updatedConv.id) return c;
-                const merged = { ...c, ...updatedConv };
-                // Increment unread badge for incoming buyer messages (unless conversation is open)
-                if ((updatedConv as any)._senderType === 'buyer' && c.id !== selectedConversation) {
-                  merged.seller_unread_count = (c.seller_unread_count || 0) + 1;
-                }
-                return merged;
-              })
+              if (c.id !== updatedConv.id) return c;
+              const merged = { ...c, ...updatedConv };
+              // Increment unread badge for incoming buyer messages (unless conversation is open)
+              if ((updatedConv as any)._senderType === 'buyer' && c.id !== selectedConversation) {
+                merged.seller_unread_count = (c.seller_unread_count || 0) + 1;
+              }
+              return merged;
+            })
             : [updatedConv, ...prev];
           return sortByLastMessage(next);
         });
@@ -151,14 +151,14 @@ export default function SellerMessages() {
             prev.map(c =>
               c.id === newMsg.conversation_id
                 ? {
-                    ...c,
-                    last_message: newMsg.content,
-                    last_message_at: newMsg.created_at,
-                    // Only increment unread badge if this conversation isn't currently open
-                    seller_unread_count: newMsg.conversation_id !== selectedConversation
-                      ? (c.seller_unread_count || 0) + 1
-                      : c.seller_unread_count,
-                  }
+                  ...c,
+                  last_message: newMsg.content,
+                  last_message_at: newMsg.created_at,
+                  // Only increment unread badge if this conversation isn't currently open
+                  seller_unread_count: newMsg.conversation_id !== selectedConversation
+                    ? (c.seller_unread_count || 0) + 1
+                    : c.seller_unread_count,
+                }
                 : c
             )
           )
@@ -185,12 +185,12 @@ export default function SellerMessages() {
           isOnline: conv.is_online,
           isLastMessageFromMe,
           messages: convMessages.map(msg => ({
-            id: msg.id, 
-            senderId: msg.sender_type || '', 
-            text: msg.content, 
+            id: msg.id,
+            senderId: msg.sender_type || '',
+            text: msg.content,
             message_type: msg.message_type,
-            images: msg.image_url ? [msg.image_url] : undefined, 
-            timestamp: new Date(msg.created_at), 
+            images: msg.image_url ? [msg.image_url] : undefined,
+            timestamp: new Date(msg.created_at),
             isRead: msg.is_read
           }))
         };
@@ -226,10 +226,10 @@ export default function SellerMessages() {
             )
           );
         }
-      } catch (error) { 
-        console.error(error); 
-      } finally { 
-        setSending(false); 
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setSending(false);
       }
     }
   };
@@ -303,9 +303,9 @@ export default function SellerMessages() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0 py-0.5">
-                        <div className="flex justify-between items-baseline mb-1">
-                          <h4 className={`font-bold truncate text-sm ${selectedConversation === conv.id ? 'text-[var(--brand-primary-dark)]' : 'text-gray-900'}`}>{conv.buyerName}</h4>
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                        <div className="flex justify-between items-baseline gap-2 mb-1">
+                          <h4 className={`font-bold truncate text-sm min-w-0 ${selectedConversation === conv.id ? 'text-[var(--brand-primary-dark)]' : 'text-gray-900'}`}>{conv.buyerName}</h4>
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide shrink-0">
                             {conv.lastMessageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
