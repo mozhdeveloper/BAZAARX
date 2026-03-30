@@ -34,13 +34,6 @@ export const sellerLinks: SellerNavLink[] = [
     ),
   },
   {
-    label: "Store Profile",
-    href: "/seller/store-profile",
-    icon: (
-      <Store className="h-5 w-5 flex-shrink-0" />
-    ),
-  },
-  {
     label: "Products",
     href: "/seller/products",
     icon: (
@@ -153,13 +146,6 @@ export const unverifiedSellerLinks: SellerNavLink[] = [
     href: "/seller/unverified",
     icon: (
       <FileCheck className="h-5 w-5 flex-shrink-0" />
-    ),
-  },
-  {
-    label: "Store Profile",
-    href: "/seller/store-profile",
-    icon: (
-      <Store className="h-5 w-5 flex-shrink-0" />
     ),
   },
   {

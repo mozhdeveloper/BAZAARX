@@ -14,6 +14,10 @@ import { OrderErrorFallback } from "./components/OrderErrorFallback";
 import { AppErrorFallback } from "./components/AppErrorFallback";
 import { supabase } from "./lib/supabase";
 
+// for google auth
+import { authService } from "./services/authService";
+import { useBuyerStore, deriveBuyerName } from "./stores/buyerStore";
+
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — each becomes its own Vite chunk, loaded on first visit
 // ---------------------------------------------------------------------------
@@ -56,6 +60,8 @@ const ProductRequestDetailPage = lazy(() => import("./pages/ProductRequestDetail
 const CommunityRequestsPage = lazy(() => import("./pages/CommunityRequestsPage"));
 const BuyerLoginPage = lazy(() => import("./pages/BuyerLoginPage"));
 const BuyerSignupPage = lazy(() => import("./pages/BuyerSignupPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const BuyerSupport = lazyNamed(() => import("./pages/BuyerSupport"), "BuyerSupport");
 const MyTickets = lazy(() => import("./pages/MyTickets"));
 const BuyerOnboardingPage = lazy(() => import("./pages/BuyerOnboardingPage"));
@@ -132,14 +138,171 @@ function App() {
 
   // Global auth state listener — handles token refresh, sign-out, and session sync
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const handleAuthChange = async (event: string, session: any) => {
+      const debug = (...args: any[]) => {
+        console.log('[AuthDebug]', ...args);
+      };
+
+      // Track if this is an OAuth redirect callback (Supabase appends access_token in hash)
+      const oauthIntent = sessionStorage.getItem('oauth_intent');
+      const oauthRedirectDone = sessionStorage.getItem('oauth_redirect_done');
+      const isOAuthRedirect = oauthIntent === 'buyer' || window.location.hash.includes('access_token');
+      debug('onAuthStateChange', {
+        event,
+        pathname: window.location.pathname,
+        hash: window.location.hash,
+        oauthIntent,
+        oauthRedirectDone,
+        isOAuthRedirect,
+        hasSessionUser: !!session?.user,
+      });
+
+      // 1. Catch BOTH events: SIGNED_IN (direct login) and INITIAL_SESSION (page load after Google redirect)
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+        const { user } = session;
+
+        try {
+          // Extract details provided by Google
+          const email = user.email || "";
+          const googleFirstName = user.user_metadata?.first_name || user.user_metadata?.full_name?.split(' ')[0] || "";
+          const googleLastName = user.user_metadata?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || "";
+
+          // Set minimal local profile immediately to prevent "Sign In" flicker after redirect
+          // Use Google's avatar_url if available, otherwise use fallback
+          const instantName = deriveBuyerName({
+            first_name: googleFirstName,
+            last_name: googleLastName,
+            full_name: user.user_metadata?.full_name || null,
+            email,
+          });
+
+          const avatarUrl = user.user_metadata?.avatar_url ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(instantName.displayFullName)}&background=FF6B35&color=fff`;
+
+          useBuyerStore.getState().setProfile({
+            id: user.id,
+            email,
+            firstName: instantName.firstName,
+            lastName: instantName.lastName,
+            phone: "",
+            avatar: avatarUrl,
+            bazcoins: 0,
+            memberSince: new Date(),
+            totalOrders: 0,
+            totalSpent: 0,
+            preferences: {},
+          } as any);
+
+          // Determine first OAuth login using buyer-account existence BEFORE we create it.
+          // Profiles may already exist for new OAuth users (trigger/bootstrap), so they are not reliable.
+          const { data: existingBuyerBefore } = await supabase
+            .from('buyers')
+            .select('id')
+            .eq('id', user.id)
+            .maybeSingle();
+          const isFirstOAuthLogin = !existingBuyerBefore;
+          debug('buyer existence before createBuyerAccount', {
+            userId: user.id,
+            existingBuyerBefore: !!existingBuyerBefore,
+            isFirstOAuthLogin,
+          });
+
+          // Redirect immediately once we know first-time vs returning OAuth user.
+          // Use BrowserRouter-compatible history navigation (no full reload).
+          if (isOAuthRedirect && oauthRedirectDone !== '1') {
+            const targetPath = isFirstOAuthLogin ? '/buyer-onboarding' : '/shop';
+            sessionStorage.setItem('oauth_redirect_done', '1');
+            sessionStorage.removeItem('oauth_intent');
+            debug('immediate oauth navigation', { userId: user.id, targetPath, currentPath: window.location.pathname });
+            if (window.location.pathname !== targetPath) {
+              window.history.replaceState({}, '', targetPath);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          }
+
+          // 2. CREATE/UPDATE PROFILE: Force insert into the 'profiles' table
+          const { error: profileUpsertError } = await supabase.from('profiles').upsert({
+            id: user.id,
+            email: email,
+            first_name: googleFirstName,
+            last_name: googleLastName,
+            last_login_at: new Date().toISOString(),
+          } as any, { onConflict: 'id' });
+
+          if (profileUpsertError) {
+             console.error("Failed to save profile to DB:", profileUpsertError);
+          }
+
+          // 3. CREATE BUYER & ROLE: This handles the 'buyers' and 'user_roles' tables
+          await authService.createBuyerAccount(user.id);
+          await authService.ensureUserRolesFromRecords(user.id);
+
+          // 4. Fetch the latest profile to sync with the store
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          const { data: buyerData } = await supabase
+            .from("buyers")
+            .select("bazcoins, avatar_url")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          const profile = (profileData as any) || {};
+          const buyer = (buyerData as any) || {};
+
+          // 5. Derive names safely
+          const { firstName, lastName, displayFullName } = deriveBuyerName({
+            first_name: profile.first_name || googleFirstName,
+            last_name: profile.last_name || googleLastName,
+            full_name: user.user_metadata?.full_name || null, 
+            email: email,
+          });
+
+          // 6. Update the global store so the UI changes from "Sign In" to the Profile Avatar
+          useBuyerStore.getState().setProfile({
+            id: user.id,
+            email: email,
+            firstName,
+            lastName,
+            phone: profile.phone || "",
+            avatar: buyer.avatar_url || 
+                    user.user_metadata?.avatar_url || 
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayFullName)}&background=FF6B35&color=fff`,
+            bazcoins: buyer.bazcoins || 0,
+            memberSince: profile.created_at ? new Date(profile.created_at) : new Date(),
+            totalOrders: 0,
+            totalSpent: 0,
+            preferences: {}, 
+          } as any);
+
+          // 7. Initialize the cart (non-blocking)
+          void useBuyerStore.getState().initializeCart();
+
+          // Redirect already handled above for OAuth flows.
+          
+        } catch (err) {
+          console.error("Error during Google Auth sync:", err);
+        }
+      }
+
       if (event === 'SIGNED_OUT') {
-        // Clear all persisted auth stores on sign-out
+        debug('signed out event cleanup', { userId: session?.user?.id || null });
         localStorage.removeItem('seller-auth-storage');
         localStorage.removeItem('admin-auth');
         localStorage.removeItem('buyer-store');
+        sessionStorage.removeItem('oauth_intent');
+        sessionStorage.removeItem('oauth_redirect_done');
+        useBuyerStore.getState().logout();
       }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      void handleAuthChange(event, session);
     });
+    
     return () => subscription.unsubscribe();
   }, []);
 
@@ -155,6 +318,9 @@ function App() {
             <Route path="/sell" element={<SellerLandingPage />} />
             <Route path="/login" element={<BuyerLoginPage />} />
             <Route path="/signup" element={<BuyerSignupPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/forgot" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
               path="/buyer-onboarding"
               element={
@@ -562,19 +728,20 @@ function App() {
             <Route path="/admin/orders" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminOrders /></ErrorBoundary></ProtectedAdminRoute>} />
             <Route path="/admin/vouchers" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminVouchers /></ProtectedAdminRoute>} />
             <Route path="/admin/reviews" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'moderator']}><AdminReviewModeration /></ProtectedAdminRoute>} />
-            <Route path="/admin/products" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><AdminProducts /></ProtectedAdminRoute>} />
+            <Route path="/admin/products" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminProducts /></ProtectedAdminRoute>} />
             <Route path="/admin/product-requests" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminProductRequests /></ProtectedAdminRoute>} />
             <Route path="/admin/flash-sales" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminFlashSales /></ProtectedAdminRoute>} />
             <Route path="/admin/payouts" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminPayouts /></ProtectedAdminRoute>} />
-            <Route path="/admin/profile" element={<ProtectedAdminRoute><AdminProfile /></ProtectedAdminRoute>} />
+            <Route path="/admin/profile" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminProfile /></ProtectedAdminRoute>} />
             <Route path="/admin/analytics" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminAnalytics /></ErrorBoundary></ProtectedAdminRoute>} />
             <Route path="/admin/tickets" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'moderator']}><AdminTickets /></ProtectedAdminRoute>} />
             <Route path="/admin/trusted-brands" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminTrustedBrands /></ProtectedAdminRoute>} />
             <Route path="/admin/announcements" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminAnnouncementsPage /></ProtectedAdminRoute>} />
             <Route path="/admin/crm" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminCRM /></ProtectedAdminRoute>} />
             <Route path="/admin/notifications" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminNotificationSettings /></ProtectedAdminRoute>} />
-            <Route path="/admin/product-approvals" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><QADashboard /></ProtectedAdminRoute>} />
-            <Route path="/admin/qa-dashboard" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin', 'qa_team']}><AdminQADashboard /></ProtectedAdminRoute>} />
+            <Route path="/admin/product-approvals" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><QADashboard /></ProtectedAdminRoute>} />
+            <Route path="/admin/qa-dashboard" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminQADashboard /></ProtectedAdminRoute>} />
+            <Route path="/qa/dashboard" element={<ProtectedAdminRoute allowedRoles={['qa_team']}><QADashboard /></ProtectedAdminRoute>} />
             <Route path="/admin/returns" element={<ProtectedAdminRoute allowedRoles={['super_admin', 'admin']}><AdminReturns /></ProtectedAdminRoute>} />
             <Route path="/admin/settings" element={<ProtectedAdminRoute allowedRoles={['super_admin']}><ErrorBoundary FallbackComponent={AppErrorFallback}><AdminSettings /></ErrorBoundary></ProtectedAdminRoute>} />
             <Route path="*" element={<NotFoundPage />} />

@@ -13,18 +13,41 @@ export function ProtectedBuyerRoute({
   const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     const checkAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
         setHasSession(!!session);
       } catch (error) {
         console.error('Auth check error:', error);
+        if (!isMounted) return;
         setHasSession(false);
       } finally {
+        if (!isMounted) return;
         setIsChecking(false);
       }
     };
+
+    const fallbackTimeout = window.setTimeout(() => {
+      if (!isMounted) return;
+      setIsChecking(false);
+    }, 3000);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return;
+      setHasSession(!!session);
+      setIsChecking(false);
+    });
+
     checkAuth();
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(fallbackTimeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Show loading while checking auth

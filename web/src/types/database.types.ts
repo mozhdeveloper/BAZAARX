@@ -549,12 +549,25 @@ export interface CartItem {
 // GIFT REGISTRY SYSTEM
 // ============================================================================
 
+export type RegistryPrivacy = 'public' | 'link' | 'private';
+
+export interface RegistryDeliveryPreference {
+  addressId?: string;
+  showAddress: boolean;
+  instructions?: string;
+}
+
 export interface Registry {
   id: string;
   buyer_id: string;
   title: string;
   description: string | null;
   event_type: string;
+  category: string | null;
+  image_url: string | null;
+  shared_date: string | null;
+  privacy: RegistryPrivacy | null;
+  delivery: RegistryDeliveryPreference | null;
   created_at: string;
   updated_at: string;
 }
@@ -562,10 +575,16 @@ export interface Registry {
 export interface RegistryItem {
   id: string;
   registry_id: string;
-  product_id: string;
+  product_id: string | null;
+  product_name: string;
+  product_snapshot: any | null;
   quantity_desired: number;
-  priority: 'low' | 'medium' | 'high';
+  requested_qty: number;
+  received_qty: number;
+  is_most_wanted: boolean;
   notes: string | null;
+  selected_variant: any | null;
+  priority: 'low' | 'medium' | 'high';
   created_at: string;
   updated_at: string;
 }

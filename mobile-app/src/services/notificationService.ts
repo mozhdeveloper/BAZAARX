@@ -155,6 +155,13 @@ class NotificationService {
           console.debug('[NotificationService] Request aborted (expected on unmount/focus change)');
           return [];
         }
+        
+        // Suppress "Network request failed" during session restoration or connection loss
+        if (error.message?.includes('Network request failed')) {
+          console.warn('[NotificationService] Connection unstable: Network request failed');
+          return [];
+        }
+
         // Log other Supabase errors
         console.error(`[NotificationService] Supabase Error: ${error.message}`);
         throw error;
@@ -765,6 +772,46 @@ class NotificationService {
     } catch {
       // silent — push is best-effort
     }
+  }
+
+  async notifyBuyerOrderAutoCancelled(params: {
+    buyerId: string;
+    orderId: string;
+    orderNumber: string;
+    reason: string;
+  }): Promise<Notification | null> {
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: 'buyer_order_auto_cancelled',
+      title: 'Order Auto-Cancelled',
+      message: `Your order #${params.orderNumber} was automatically cancelled. ${params.reason}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: `/orders/${params.orderId}`,
+      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
+      priority: 'high'
+    });
+  }
+
+  async notifySellerOrderAutoCancelled(params: {
+    sellerId: string;
+    orderId: string;
+    orderNumber: string;
+    reason: string;
+  }): Promise<Notification | null> {
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_order_auto_cancelled',
+      title: 'Order Auto-Cancelled',
+      message: `Your order #${params.orderNumber} was automatically cancelled because you did not confirm in time. ${params.reason}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: `/seller/orders/${params.orderId}`,
+      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
+      priority: 'high'
+    });
   }
 }
 

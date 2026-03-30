@@ -62,8 +62,10 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
         onPress={() => navigation.navigate('ReturnDetail', { returnId: item.id })}
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.orderId}>Return ID: #{item.id}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={styles.orderId} numberOfLines={2}>Return ID: #{item.id}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
             <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
               {getStatusLabel(item.status)}
             </Text>
@@ -82,8 +84,10 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
         </View>
         
         <View style={styles.cardFooter}>
-            <Text style={styles.viewDetailsText}>View Details</Text>
-            <ChevronRight size={16} color={COLORS.primary} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.viewDetailsText}>View Details</Text>
+                <ChevronRight size={14} color={COLORS.primary} strokeWidth={3} />
+            </View>
         </View>
       </Pressable>
     );
@@ -92,7 +96,7 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
   const keyExtractor = useCallback((item: any) => item.id, []);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <LinearGradient
         colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
         start={{ x: 0, y: 0 }}
@@ -104,7 +108,7 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
             <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>My Returns</Text>
-          <View style={{ width: 40 }} />
+          <View style={{ width: 44 }} />
         </View>
       </LinearGradient>
 
@@ -127,7 +131,7 @@ export default function ReturnOrdersScreen({ navigation }: Props) {
           removeClippedSubviews={true}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -141,102 +145,105 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 4,
   },
   headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
+    color: COLORS.textHeadline,
   },
   listContent: {
     padding: 16,
+    paddingTop: 24,
   },
   card: {
     backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   orderId: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    lineHeight: 20,
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   cardContent: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   dateLabel: {
-      fontSize: 12,
-      color: '#6B7280',
-      marginBottom: 8,
+      fontSize: 13,
+      color: '#9CA3AF',
+      marginBottom: 10,
   },
   row: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 4,
+      marginBottom: 6,
   },
   amountLabel: {
       fontSize: 14,
       color: '#4B5563',
-      marginRight: 4,
+      marginRight: 6,
+      fontWeight: '500',
   },
   amountValue: {
-      fontSize: 14,
-      fontWeight: '700',
+      fontSize: 16,
+      fontWeight: '800',
       color: COLORS.primary,
   },
   reasonText: {
-      fontSize: 13,
+      fontSize: 14,
       color: '#4B5563',
+      marginTop: 4,
   },
   cardFooter: {
       flexDirection: 'row',
       justifyContent: 'flex-end',
       alignItems: 'center',
+      paddingTop: 14,
       borderTopWidth: 1,
-      borderTopColor: '#F3F4F6',
-      paddingTop: 12,
+      borderTopColor: '#F9FAFB',
   },
   viewDetailsText: {
-      fontSize: 13,
-      fontWeight: '600',
+      fontSize: 14,
+      fontWeight: '700',
       color: COLORS.primary,
-      marginRight: 4,
+      marginRight: 2,
   },
   emptyState: {
     flex: 1,

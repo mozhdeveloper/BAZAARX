@@ -28,7 +28,7 @@ const AdminAuth: React.FC = () => {
 
   // Redirect if already authenticated
   if (isAuthenticated) {
-    const redirectPath = user?.role === 'qa_team' ? '/admin/qa-dashboard' : '/admin';
+    const redirectPath = user?.role === 'qa_team' ? '/qa/dashboard' : '/admin';
     return <Navigate to={redirectPath} replace />;
   }
 
@@ -43,9 +43,10 @@ const AdminAuth: React.FC = () => {
 
     const success = await login(formData.email, formData.password);
     if (success) {
+      console.log("the role is ", useAdminAuth.getState().user?.role);
       // Role-aware redirect — QA users go directly to QA dashboard
       const currentUser = useAdminAuth.getState().user;
-      const destination = currentUser?.role === 'qa_team' ? '/admin/qa-dashboard' : '/admin';
+      const destination = currentUser?.role === 'qa_team' ? '/qa/dashboard' : '/admin';
       navigate(destination, { replace: true });
     }
   };
@@ -215,8 +216,8 @@ const AdminAuth: React.FC = () => {
                 </p>
                 <div className="space-y-1.5">
                   {[
-                    { label: 'Super Admin', email: 'admin@bazaarph.com', password: 'Test@123456' },
-                    { label: 'QA Reviewer', email: 'qa.admin@bazaarph.com', password: 'Test@123456' },
+                    { label: 'Super Admin', email: 'admin@bazaarph.com', password: 'Test@123456', role: 'admin' },
+                    { label: 'QA Reviewer', email: 'qa.admin@bazaarph.com', password: 'Test@123456', role: 'qa_team' },
                   ].map((cred) => (
                     <button
                       key={cred.label}
@@ -227,7 +228,10 @@ const AdminAuth: React.FC = () => {
                       }}
                       className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-amber-200 hover:border-orange-400 hover:bg-orange-50 transition-all duration-150 text-left group"
                     >
-                      <span className="text-xs font-bold text-gray-700 group-hover:text-orange-600">{cred.label}</span>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-gray-700 group-hover:text-orange-600">{cred.label}</span>
+                        <span className="text-[10px] text-gray-400 font-mono group-hover:text-orange-500">Role: {cred.role}</span>
+                      </div>
                       <span className="text-[11px] text-gray-400 font-mono group-hover:text-orange-500">{cred.email}</span>
                     </button>
                   ))}

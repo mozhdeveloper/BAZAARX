@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Copy, Check, Gift, Plus } from "lucide-react";
+import { X, Copy, Check, Gift, Plus, Globe } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -14,7 +14,6 @@ import {
 import { useNavigate } from "react-router-dom";
 import {
   useBuyerStore,
-  RegistryPrivacy,
   RegistryDeliveryPreference,
 } from "../stores/buyerStore";
 
@@ -24,7 +23,6 @@ interface CreateRegistryModalProps {
   onCreate: (payload: {
     name: string;
     category: string;
-    privacy: RegistryPrivacy;
     delivery: RegistryDeliveryPreference;
   }) => void;
   hideBrowseLink?: boolean;
@@ -46,7 +44,6 @@ export const CreateRegistryModal = ({
   const [shareLink, setShareLink] = useState("");
   const [isCopied, setIsCopied] = useState(false);
   const [products, setProducts] = useState<string[]>([]); // Placeholder for selected products
-  const [privacy, setPrivacy] = useState<RegistryPrivacy>("link");
   const [showAddress, setShowAddress] = useState(false);
   const [addressId, setAddressId] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
@@ -85,18 +82,19 @@ export const CreateRegistryModal = ({
       showAddress,
       instructions: deliveryInstructions.trim() || undefined,
     };
-    onCreate({
+    const payload = {
       name: registryName,
       category: finalCategory,
-      privacy,
       delivery,
-    });
+    };
+
+    console.log("[CreateRegistryModal] Creating registry with payload:", payload);
+    onCreate(payload);
     // Reset form
     setRegistryName("");
     setCategory("");
     setOtherCategory("");
     setProducts([]);
-    setPrivacy("link");
     setShowAddress(false);
     setAddressId("");
     setDeliveryInstructions("");
@@ -121,9 +119,9 @@ export const CreateRegistryModal = ({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="w-full max-w-3xl bg-white rounded-2xl shadow-xl relative z-10 overflow-hidden max-h-[90vh] flex flex-col"
+            className="w-full max-w-3xl bg-white rounded-2xl shadow-xl relative z-10 overflow-visible max-h-[90vh] flex flex-col"
           >
-            <div className="p-6 relative overflow-y-auto max-h-[calc(90vh)] scrollbar-hide">
+            <div className="p-6 relative overflow-y-auto max-h-[calc(90vh-80px)] scrollbar-hide">
               <button
                 onClick={onClose}
                 className="absolute right-4 top-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -138,6 +136,19 @@ export const CreateRegistryModal = ({
                 <p className="text-[var(--text-secondary)] text-sm mt-1">
                   Start your wishlist for your special occasion.
                 </p>
+              </div>
+
+              {/* Link-Only Banner */}
+              <div className="mb-6 bg-[var(--brand-wash)] border border-[var(--brand-primary)]/20 rounded-xl p-4 flex items-start gap-3">
+                <Globe className="w-5 h-5 text-[var(--brand-primary)] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-[var(--text-headline)]">
+                    Link-Only Access
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                    All registries are link-only. Anyone with the link can view your registry, but it won't appear in public searches.
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -160,7 +171,12 @@ export const CreateRegistryModal = ({
                     <SelectTrigger className="focus:ring-[var(--brand-primary)]">
                       <SelectValue placeholder="Select an occasion" />
                     </SelectTrigger>
-                    <SelectContent className="z-[200]">
+                    <SelectContent
+                      className="z-[200]"
+                      position="popper"
+                      side="top"
+                      sideOffset={4}
+                    >
                       <SelectItem value="wedding">Wedding</SelectItem>
                       <SelectItem value="baby">Baby Shower</SelectItem>
                       <SelectItem value="birthday">Birthday</SelectItem>
@@ -247,31 +263,8 @@ export const CreateRegistryModal = ({
                   </div>
                 )}
 
-                {/* Privacy & Delivery */}
+                {/* Delivery Preference */}
                 <div className="space-y-4 pt-4 border-t border-gray-100">
-                  <div className="space-y-2">
-                    <Label>Privacy</Label>
-                    <Select
-                      value={privacy}
-                      onValueChange={(val) =>
-                        setPrivacy(val as RegistryPrivacy)
-                      }
-                    >
-                      <SelectTrigger className="focus:ring-[var(--brand-primary)]">
-                        <SelectValue placeholder="Select privacy" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[200]">
-                        <SelectItem value="public">Public</SelectItem>
-                        <SelectItem value="link">Link only</SelectItem>
-                        <SelectItem value="private">Private</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Link-only is recommended: only people with the link can
-                      view.
-                    </p>
-                  </div>
-
                   <div className="space-y-2">
                     <Label>Delivery Preference</Label>
                     <div className="flex items-center gap-2 text-sm">
@@ -300,7 +293,12 @@ export const CreateRegistryModal = ({
                           }
                         />
                       </SelectTrigger>
-                      <SelectContent className="z-[200] max-h-64">
+                      <SelectContent
+                        className="z-[200] max-h-64"
+                        position="popper"
+                        side="top"
+                        sideOffset={4}
+                      >
                         {addresses.map((addr) => (
                           <SelectItem key={addr.id} value={addr.id}>
                             {addr.label || `${addr.firstName} ${addr.lastName}`}{" "}

@@ -59,7 +59,7 @@ export default function AdminProfileScreen() {
         {/* Account Information */}
         <View style={styles.infoCard}>
           <Text style={styles.cardTitle}>Account Information</Text>
-          
+
           <View style={styles.infoItem}>
             <View style={styles.infoIconContainer}>
               <User size={20} color="#6B7280" />
@@ -105,7 +105,7 @@ export default function AdminProfileScreen() {
         <View style={styles.infoCard}>
           <Text style={styles.cardTitle}>Permissions & Access</Text>
           <Text style={styles.cardDescription}>Resources you have access to manage</Text>
-          
+
           {user?.permissions && user.permissions.length > 0 ? (
             user.permissions.map((permission) => (
               <View key={permission.id} style={styles.permissionItem}>

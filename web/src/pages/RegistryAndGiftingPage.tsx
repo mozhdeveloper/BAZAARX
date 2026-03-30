@@ -8,7 +8,6 @@ import { RegistryDetailModal } from "../components/RegistryDetailModal";
 import { CreateRegistryModal } from "../components/CreateRegistryModal";
 import {
   useBuyerStore,
-  RegistryPrivacy,
   RegistryDeliveryPreference,
 } from "../stores/buyerStore";
 
@@ -40,15 +39,13 @@ const RegistryAndGiftingPage = () => {
     console.log("RegistryAndGiftingPage: loadRegistries called");
   }, [loadRegistries]);
 
-  const handleCreateRegistry = ({
+  const handleCreateRegistry = async ({
     name,
     category,
-    privacy,
     delivery,
   }: {
     name: string;
     category: string;
-    privacy: RegistryPrivacy;
     delivery: RegistryDeliveryPreference;
   }) => {
     const newRegistry: RegistryItem = {
@@ -62,10 +59,24 @@ const RegistryAndGiftingPage = () => {
       }),
       imageUrl: "/gradGift.jpeg",
       products: [],
-      privacy,
+      privacy: "link",
       delivery,
     };
-    createRegistry(newRegistry);
+    await createRegistry(newRegistry);
+
+    // After creating, refresh registries to get the DB version with all fields
+    await loadRegistries();
+
+    // Close create modal
+    setIsCreateModalOpen(false);
+  };
+
+  // Open detail modal for a registry
+  const openRegistryDetail = (registry: RegistryItem) => {
+    // Find the latest version from store
+    const latest = registries.find(r => r.id === registry.id) || registry;
+    setSelectedRegistry(latest);
+    setIsDetailModalOpen(true);
   };
 
   const handleAddProductToRegistry = (
@@ -111,7 +122,9 @@ const RegistryAndGiftingPage = () => {
   };
 
   const handleRegistryClick = (item: RegistryItem) => {
-    setSelectedRegistry(item);
+    // Find the latest version from store to ensure we have privacy and delivery
+    const latest = registries.find(r => r.id === item.id) || item;
+    setSelectedRegistry(latest);
     setIsDetailModalOpen(true);
   };
   const location = useLocation();

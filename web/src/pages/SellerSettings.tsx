@@ -40,6 +40,7 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { VacationReason } from "@/types/database.types";
+import { authService } from "@/services/authService";
 
 export function SellerSettings() {
   const { seller, logout, setVacationMode, disableVacationMode } = useAuthStore();
@@ -102,6 +103,37 @@ export function SellerSettings() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+
+  const handleSendPasswordReset = async () => {
+    setIsSendingReset(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const email = user?.email;
+      if (!email) {
+        toast({
+          title: 'Unable to send reset link',
+          description: 'No email found for the current session.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await authService.resetPassword(email);
+      toast({
+        title: 'Reset link sent',
+        description: 'Check your email to reset your password.',
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to send reset link';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== 'DELETE') return;
@@ -422,6 +454,25 @@ export function SellerSettings() {
 
                         {/* Right Side: Password Inputs */}
                         <div className="lg:col-span-8">
+                          <div className="mb-5 flex items-center justify-between rounded-xl border border-orange-100 bg-orange-50/60 px-4 py-3">
+                            <div>
+                              <p className="text-sm font-bold text-[var(--text-headline)]">Need to reset your password?</p>
+                              <p className="text-xs text-[var(--text-muted)]">We’ll email a secure reset link to your seller account.</p>
+                            </div>
+                            <Button
+                              type="button"
+                              onClick={handleSendPasswordReset}
+                              disabled={isSendingReset}
+                              className="rounded-full h-9 px-4"
+                            >
+                              {isSendingReset ? (
+                                <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Sending</span>
+                              ) : (
+                                'Send Reset Link'
+                              )}
+                            </Button>
+                          </div>
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                             {/* Current Password - Left Column */}
                             <div className="space-y-2">

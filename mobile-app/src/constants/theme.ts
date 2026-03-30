@@ -4,6 +4,8 @@ export const COLORS = {
   primaryHover: '#B45309',
   primaryActive: '#92400E',
   primarySoft: '#FFF4EC',
+  accent: '#E58C1A',
+  accentHover: '#C2631A',
 
   // Neutral (Warm Parchment/Cream)
   background: '#FFFBF0',

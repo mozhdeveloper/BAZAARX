@@ -953,6 +953,7 @@ export const useAuthStore = create<AuthStore>()(
           if (incoming.join_date !== undefined || incoming.joinDate !== undefined) {
             sellerUpdates.join_date = incoming.join_date ?? incoming.joinDate ?? null;
           }
+          if (incoming.phone !== undefined || incoming.store_contact_number !== undefined) { sellerUpdates.store_contact_number = incoming.phone ?? incoming.store_contact_number ?? null; }
 
           if (Object.keys(sellerUpdates).length > 0) {
             const { error: sellerUpdateError } = await supabase

@@ -31,7 +31,7 @@ export function ProtectedAdminRoute({
   // Role check — if allowedRoles specified, verify user has one of them
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     // QA users go to QA dashboard; others go to main admin dashboard
-    const fallback = user.role === "qa_team" ? "/admin/qa-dashboard" : "/admin";
+    const fallback = user.role === "qa_team" ? "/qa/dashboard" : "/admin";
     return <Navigate to={fallback} replace />;
   }
 

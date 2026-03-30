@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { notificationService } from '@/services/notificationService';
+import { useAdminAuth } from './adminAuthStore';
 import type { Seller, SellerDocument, SellerDocumentField, PartialSellerRejectionInput, SellerRejectionRecord } from './adminTypes';
 import { SELLER_DOCUMENT_CONFIG, DOCUMENT_FIELD_LABELS, toUiSellerStatus } from './adminTypes';
 
@@ -28,7 +29,7 @@ export const useAdminSellers = create<SellersState>()(
               .from('sellers')
               .select(`
                 *,
-                profiles(*),
+                profiles:profiles!sellers_id_fkey(*),
                 business_profile:seller_business_profiles(*),
                 payout_account:seller_payout_accounts(*),
                 verification_documents:seller_verification_documents(*),
@@ -44,7 +45,7 @@ export const useAdminSellers = create<SellersState>()(
                 .from('sellers')
                 .select(`
                   *,
-                  profiles(*)
+                  profiles:profiles!sellers_id_fkey(*)
                 `)
                 .order('created_at', { ascending: false });
 
@@ -1097,18 +1098,21 @@ export const useAdminSellers = create<SellersState>()(
       suspendSeller: async (id, reason) => {
         set({ isLoading: true });
 
-        if (isSupabaseConfigured()) {
-          try {
-            // DB CHECK constraint: 'pending','verified','rejected','needs_resubmission','blacklisted'
-            // Suspension maps to 'blacklisted' with a temporary flag
-            const { error } = await supabase
-              .from('sellers')
-              .update({
-                approval_status: 'blacklisted',
-                blacklisted_at: new Date().toISOString(),
-                is_permanently_blacklisted: false,
-              } as any)
-              .eq('id', id);
+          if (isSupabaseConfigured()) {
+            try {
+              // DB CHECK constraint: 'pending','verified','rejected','needs_resubmission','blacklisted','suspended'
+              // Suspension is separate from blacklist - for approved sellers who are temporarily suspended
+              const { error } = await supabase
+                .from('sellers')
+                .update({
+                  approval_status: 'suspended',
+                  suspended_at: new Date().toISOString(),
+                  suspension_reason: reason,
+                  blacklisted_at: null,
+                  is_permanently_blacklisted: false,
+                  temp_blacklist_until: null,
+                } as any)
+                .eq('id', id);
 
             if (error) {
               console.error('Error suspending seller:', error);
@@ -1118,18 +1122,21 @@ export const useAdminSellers = create<SellersState>()(
 
             // Update local state
             set(state => ({
-              sellers: state.sellers.map(seller =>
-                seller.id === id
-                  ? {
-                    ...seller,
-                    status: 'suspended' as const,
-                    suspendedAt: new Date(),
-                    suspendedBy: 'admin',
-                    suspensionReason: reason
-                  }
-                  : seller
-              ),
-              isLoading: false
+                sellers: state.sellers.map(seller =>
+                  seller.id === id
+                    ? {
+                      ...seller,
+                      status: 'suspended' as const,
+                      suspendedAt: new Date(),
+                      suspendedBy: 'admin',
+                      suspensionReason: reason,
+                      blacklistedAt: undefined,
+                      isPermanentlyBlacklisted: false,
+                      tempBlacklistUntil: undefined,
+                    }
+                    : seller
+                ),
+                isLoading: false
             }));
           } catch (error) {
             console.error('Error suspending seller:', error);
@@ -1142,18 +1149,21 @@ export const useAdminSellers = create<SellersState>()(
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         set(state => ({
-          sellers: state.sellers.map(seller =>
-            seller.id === id
-              ? {
-                ...seller,
-                status: 'suspended' as const,
-                suspendedAt: new Date(),
-                suspendedBy: 'admin_1',
-                suspensionReason: reason
-              }
-              : seller
-          ),
-          isLoading: false
+            sellers: state.sellers.map(seller =>
+              seller.id === id
+                ? {
+                  ...seller,
+                  status: 'suspended' as const,
+                  suspendedAt: new Date(),
+                  suspendedBy: 'admin_1',
+                  suspensionReason: reason,
+                  blacklistedAt: undefined,
+                  isPermanentlyBlacklisted: false,
+                  tempBlacklistUntil: undefined,
+                }
+                : seller
+            ),
+            isLoading: false
         }));
       },
 

@@ -5,10 +5,10 @@ import type { Database } from '../types/supabase-generated.types';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Custom fetch with 10-second timeout to prevent Expo Go from hanging indefinitely
+// Custom fetch with 30-second timeout (increased from 10s to reduce Network request failed errors in slow connections)
 const fetchWithTimeout = (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
     return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
 };
 

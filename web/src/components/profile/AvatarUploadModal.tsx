@@ -59,7 +59,7 @@ export const AvatarUploadModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[400px]">
+      <DialogContent className="sm:max-w-[400px] border-none">
         <DialogHeader>
           <DialogTitle>Change Profile Photo</DialogTitle>
           <DialogDescription>
@@ -68,12 +68,12 @@ export const AvatarUploadModal = ({
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-6 py-6">
-          <div 
+          <div
             className="relative group cursor-pointer"
             onClick={() => document.getElementById('avatar-upload-input')?.click()}
           >
-            <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-gray-200">
-              <img loading="lazy" 
+            <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-gray-300 -mb-2">
+              <img loading="lazy"
                 src={profile.avatar}
                 alt="Current Avatar"
                 className="w-full h-full object-cover"
@@ -93,9 +93,9 @@ export const AvatarUploadModal = ({
           </div>
 
           <div className="text-center">
-            <Label 
+            <Label
               htmlFor="avatar-upload-input"
-              className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-[#ff6a00] hover:bg-[#e65e00] text-white rounded-lg font-medium transition-colors"
+              className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-100 text-gray-500 hover:text-gray-600 rounded-lg transition-colors"
             >
               {isUploading ? (
                 <>
@@ -109,14 +109,14 @@ export const AvatarUploadModal = ({
                 </>
               )}
             </Label>
-            <p className="text-sm text-gray-500 mt-2">
-              JPG, PNG, or GIF. Max 5MB.
+            <p className="text-xs text-gray-400 mt-2">
+              JPG, PNG, or GIF (Max 5MB)
             </p>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isUploading}>
+          <Button variant="outline" className="border border-gray-300 text-gray-500 hover:text-gray-600 hover:bg-gray-100 focus-visible:ring-0 focus-visible:outline-none" onClick={onClose} disabled={isUploading}>
             Cancel
           </Button>
         </DialogFooter>

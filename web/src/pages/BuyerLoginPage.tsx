@@ -128,7 +128,7 @@ export default function BuyerLoginPage() {
       navigate("/shop");
     } catch (err) {
       console.error("Login exception:", err);
-      setError("Something went wrong. Please try again.");
+      setError("Incorrect credentials or account details. Please review your input and try again.");
       setIsLoading(false);
     }
   };
@@ -136,9 +136,17 @@ export default function BuyerLoginPage() {
   const handleGoogleSignIn = async () => {
     setError("");
     setIsLoading(true);
-    await authService.signInWithProvider("google");
-    // Since this redirects, we don't need to unset loading unless it fails immediately, but for UX safety:
-    setTimeout(() => setIsLoading(false), 3000);
+    try {
+      const result = await authService.signInWithProvider("google");
+      if (result?.url) {
+        sessionStorage.setItem('oauth_intent', 'buyer');
+        sessionStorage.removeItem('oauth_redirect_done');
+        window.location.assign(result.url); // Manually trigger the redirect
+      }
+    } catch (err) {
+      setError("Failed to initialize Google Sign-In.");
+      setIsLoading(false);
+    }
   };
 
   const handleDemoLogin = () => {
@@ -150,8 +158,17 @@ export default function BuyerLoginPage() {
   const handleFacebookSignIn = async () => {
     setError("");
     setIsLoading(true);
-    await authService.signInWithProvider("facebook");
-    setTimeout(() => setIsLoading(false), 3000);
+    try {
+      const result = await authService.signInWithProvider("facebook");
+      if (result?.url) {
+        sessionStorage.setItem('oauth_intent', 'buyer');
+        sessionStorage.removeItem('oauth_redirect_done');
+        window.location.assign(result.url); // Manually trigger the redirect
+      }
+    } catch (err) {
+      setError("Failed to initialize Facebook Sign-In.");
+      setIsLoading(false);
+    }
   };
 
   return (
