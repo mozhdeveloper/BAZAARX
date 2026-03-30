@@ -39,6 +39,10 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
             return;
         }
 
+        if (product.isVacationMode || product.is_vacation_mode) {
+            return;
+        }
+
         if (hasVariants) {
             onVariantSelect(product, false);
             return;
@@ -51,6 +55,10 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
         e.stopPropagation();
         if (!profile) {
             onLoginRequired();
+            return;
+        }
+
+        if (product.isVacationMode || product.is_vacation_mode) {
             return;
         }
 
@@ -70,10 +78,9 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
             onClick={() => navigate(`/product/${product.id}`)}
         >
             <div className="relative aspect-square overflow-hidden">
-                <img
+                <img loading="lazy" 
                     src={product.image}
                     alt={product.name}
-                    loading="lazy"
                     decoding="async"
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
@@ -146,16 +153,22 @@ const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
                     <Button
                         variant="outline"
                         size="icon"
-                        className="h-9 w-9 rounded-xl border-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/[0.05] hover:text-[var(--brand-primary)] transition-all shrink-0"
+                        className="h-9 w-9 rounded-xl border-[var(--brand-primary)] hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/[0.05] hover:text-[var(--brand-primary)] transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={handleCartClick}
+                        disabled={product.isVacationMode || product.is_vacation_mode}
                     >
                         <ShoppingCart className="h-4 w-4 text-[var(--brand-primary)]" />
                     </Button>
                     <Button
-                        className="flex-1 h-9 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold rounded-xl shadow-lg shadow-[var(--brand-primary)]/20 active:scale-95 transition-all text-[11px]"
+                        className={`flex-1 h-9 font-bold rounded-xl shadow-lg active:scale-95 transition-all text-[11px] ${
+                            product.isVacationMode || product.is_vacation_mode
+                                ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
+                                : "bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-[var(--brand-primary)]/20"
+                        }`}
                         onClick={handleBuyNowClick}
+                        disabled={product.isVacationMode || product.is_vacation_mode}
                     >
-                        Buy Now
+                        {product.isVacationMode || product.is_vacation_mode ? "Unavailable" : "Buy Now"}
                     </Button>
                 </div>
             </div>

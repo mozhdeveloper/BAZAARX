@@ -903,7 +903,8 @@ export class DiscountService {
             images:product_images (image_url, is_primary, sort_order),
             variants:product_variants (stock, price),
             seller:sellers!products_seller_id_fkey (id, store_name),
-            category:categories!products_category_id_fkey (name)
+            category:categories!products_category_id_fkey (name),
+            reviews(rating)
           )
         `)
         .in('slot_id', slotIds)
@@ -923,6 +924,11 @@ export class DiscountService {
         const images = p?.images || [];
         const primaryImg = images.find((i: any) => i.is_primary)?.image_url || images[0]?.image_url || 'https://placehold.co/400x400?text=No+Image';
         const totalStock = (p?.variants || []).reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+        
+        // Calculate average rating from reviews
+        const avgRating = p?.reviews && p?.reviews.length > 0 
+          ? p.reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / p.reviews.length 
+          : 0;
 
         return {
           id: p?.id,
@@ -941,6 +947,8 @@ export class DiscountService {
           campaignBadgeColor: '#FF6A00',
           campaignEndsAt: slot?.end_time,
           discountBadgePercent: discountPct > 0 ? discountPct : undefined,
+          rating: avgRating,
+          reviewsCount: p?.reviews?.length || 0,
         };
       });
     } catch (error) {

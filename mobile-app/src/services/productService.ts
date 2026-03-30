@@ -210,13 +210,16 @@ export class ProductService {
 
       // Calculate sold counts per product
       const soldCountsMap = new Map<string, number>();
-      soldCountsData?.forEach(item => {
-        const currentCount = soldCountsMap.get(item.product_id ?? '') || 0;
-        soldCountsMap.set(item.product_id ?? '', currentCount + (item.quantity || 0));
+      (soldCountsData || []).forEach(item => {
+        const id = item.product_id;
+        if (id) {
+          const currentCount = soldCountsMap.get(id) || 0;
+          soldCountsMap.set(id, currentCount + (item.quantity || 0));
+        }
       });
 
       // Transform to add legacy compatibility fields
-      const result = data?.map(p => this.transformProduct(p, 0)) || [];
+      const result = data?.map(p => this.transformProduct(p, soldCountsMap.get(p.id) || 0)) || [];
 
       // Store in cache
       this.setCache(cacheKey, result);
@@ -354,6 +357,8 @@ export class ProductService {
       campaignEndsAt,
       campaignDiscountValue,
       campaignDiscountType,
+      // Seller vacation mode status
+      is_vacation_mode: product.seller?.is_vacation_mode === true,
     };
   }
 
@@ -425,6 +430,7 @@ export class ProductService {
             owner_name,
             approval_status,
             verified_at,
+            is_vacation_mode,
             business_profile:seller_business_profiles (
               business_type,
               city,

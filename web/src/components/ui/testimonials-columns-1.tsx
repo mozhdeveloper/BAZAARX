@@ -42,7 +42,7 @@ export const TestimonialsColumn = (props: {
                   </div>
                   <div className="text-gray-700">{text}</div>
                   <div className="flex items-center gap-2 mt-5">
-                    <img
+                    <img loading="lazy" 
                       width={40}
                       height={40}
                       src={image}

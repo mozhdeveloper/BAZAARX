@@ -10,6 +10,7 @@ interface QuantityStepperProps {
   min?: number;
   max?: number;
   iconColor?: string;
+  variant?: 'default' | 'compact';
 }
 
 export const QuantityStepper: React.FC<QuantityStepperProps> = ({
@@ -20,10 +21,13 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
   min = 1,
   max = 99,
   iconColor = '#FF5722',
+  variant = 'default',
 }) => {
   const [inputValue, setInputValue] = useState(value.toString());
   const canDecrement = value > min;
   const canIncrement = value < max;
+
+  const isCompact = variant === 'compact';
 
   // Sync internal input state with external value prop
   useEffect(() => {
@@ -59,7 +63,7 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isCompact && styles.compactContainer]}>
       <Pressable
         onPress={onDecrement}
         disabled={!canDecrement}
@@ -69,12 +73,12 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
           pressed && styles.buttonPressed,
         ]}
       >
-        <Minus size={16} color={canDecrement ? iconColor : '#9CA3AF'} strokeWidth={2.5} />
+        <Minus size={isCompact ? 12 : 14} color={canDecrement ? (isCompact ? '#4B5563' : iconColor) : '#9CA3AF'} strokeWidth={2.5} />
       </Pressable>
 
-      <View style={styles.valueContainer}>
+      <View style={[styles.valueContainer, isCompact && styles.compactValueContainer]}>
         <TextInput
-          style={[styles.input, value > max && styles.inputError]} // highlight if over max (edge case)
+          style={[styles.input, isCompact && styles.compactInput, value > max && styles.inputError]} // highlight if over max (edge case)
           value={inputValue}
           onChangeText={handleTextChange}
           onBlur={handleBlur}
@@ -93,7 +97,7 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
           pressed && styles.buttonPressed,
         ]}
       >
-        <Plus size={16} color={canIncrement ? iconColor : '#9CA3AF'} strokeWidth={2.5} />
+        <Plus size={isCompact ? 12 : 14} color={canIncrement ? (isCompact ? '#4B5563' : iconColor) : '#9CA3AF'} strokeWidth={2.5} />
       </Pressable>
     </View>
   );
@@ -103,38 +107,57 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
+    backgroundColor: 'transparent',
+    borderRadius: 6,
     gap: 8,
+  },
+  compactContainer: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#efefefff',
+    borderRadius: 4,
+    gap: 0,
   },
   button: {
     width: 28,
-    height: 28,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonDisabled: {
-    opacity: 0.3,
+    opacity: 0.5,
   },
   buttonPressed: {
     opacity: 0.6,
   },
   valueContainer: {
-    minWidth: 36,
+    minWidth: 30,
     paddingHorizontal: 8,
     paddingVertical: 2,
     backgroundColor: '#F3F4F6',
-    borderRadius: 6,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  compactValueContainer: {
+    backgroundColor: 'transparent',
+    minWidth: 26,
+    paddingHorizontal: 4,
+    borderRadius: 0,
+    marginHorizontal: 0,
+  },
   input: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '500',
     color: '#1F2937',
     textAlign: 'center',
     padding: 0,
     minWidth: 40,
+  },
+  compactInput: {
+    fontSize: 14,
+    fontWeight: '400',
+    minWidth: 20,
   },
   inputError: {
     color: '#EF4444',

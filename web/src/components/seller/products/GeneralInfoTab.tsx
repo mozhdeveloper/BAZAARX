@@ -69,7 +69,7 @@ function FileSlot({
                 title={file ? "Replace image" : "Select image"}
             >
                 {preview ? (
-                    <img
+                    <img loading="lazy" 
                         src={preview}
                         alt={`Upload ${index + 1}`}
                         className="h-full w-full object-cover"
@@ -378,7 +378,7 @@ export function GeneralInfoTab({
                             <div key={index} className="flex gap-3 items-center">
                                 <div className="h-12 w-12 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center text-xs text-gray-400">
                                     {image ? (
-                                        <img
+                                        <img loading="lazy" 
                                             src={image}
                                             alt={`Preview ${index + 1}`}
                                             className="h-full w-full object-cover"

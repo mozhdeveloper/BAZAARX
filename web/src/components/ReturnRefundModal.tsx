@@ -279,7 +279,7 @@ export default function ReturnRefundModal({ isOpen, onClose, onSubmit, order }: 
                                     <div className="flex flex-wrap gap-2">
                                         {files.map((file, index) => (
                                             <div key={index} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 shadow-sm group">
-                                                <img
+                                                <img loading="lazy" 
                                                     src={URL.createObjectURL(file)}
                                                     alt={`evidence-${index}`}
                                                     className="w-full h-full object-cover"

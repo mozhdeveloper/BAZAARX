@@ -1,12 +1,16 @@
-import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info, Loader2, MoreVertical, Zap } from 'lucide-react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimensions, Alert, LayoutAnimation, Platform, UIManager, Modal, TextInput, ActivityIndicator, Clipboard } from 'react-native';
+import {
+    ChevronLeft, Share2, MoreVertical, Heart, MessageCircle, Star, Search,
+    Filter, ShoppingBag, Info, X, MapPin, ExternalLink, ShieldCheck, Zap,
+    Camera, Phone, User, CheckCircle2, Menu, ChevronDown, Check, Flag, Calendar,
+    ArrowLeft, MoreHorizontal, Grid, UserPlus, Loader2, Palmtree
+} from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
 import { trendingProducts } from '../src/data/products'; // Placeholder products
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimensions, Alert, LayoutAnimation, Platform, UIManager, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Filter, ChevronDown } from 'lucide-react-native';
 import StoreChatModal from '../src/components/StoreChatModal';
 import { COLORS } from '../src/constants/theme';
 
@@ -89,11 +93,17 @@ export default function StoreDetailScreen() {
 
     const [activeTab, setActiveTab] = useState('Shop');
     const [selectedCategory, setSelectedCategory] = useState('All');
-    const [sortBy, setSortBy] = useState('Latest');
-    const [showSortModal, setShowSortModal] = useState(false);
+    const [sortBy, setSortBy] = useState('Popular');
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
 
-    const [searchVisible, setSearchVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchVisible, setSearchVisible] = useState(false);
+
+    const formattedJoinedDate = useMemo(() => {
+        if (!storeData.created_at) return 'March 2026';
+        const date = new Date(storeData.created_at);
+        return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }, [storeData.created_at]);
     const [menuVisible, setMenuVisible] = useState(false);
     const [chatVisible, setChatVisible] = useState(false);
     const [showGuestModal, setShowGuestModal] = useState(false);
@@ -123,9 +133,9 @@ export default function StoreDetailScreen() {
                 const campaigns = await DiscountService.getInstance().getCampaignsBySeller(store.id);
                 // In this schema, a campaign with status 'active' and startsAt < now < endsAt is a flash sale/discount
                 const now = new Date();
-                const active = (campaigns || []).filter(c => 
-                    c.status === 'active' && 
-                    new Date(c.startsAt) <= now && 
+                const active = (campaigns || []).filter(c =>
+                    c.status === 'active' &&
+                    new Date(c.startsAt) <= now &&
                     new Date(c.endsAt) > now
                 );
                 setActiveCampaigns(active);
@@ -135,6 +145,27 @@ export default function StoreDetailScreen() {
         };
         fetchCampaigns();
     }, [store?.id]);
+
+    const scrollRef = React.useRef<ScrollView | null>(null);
+
+    // Auto-scroll to sticky position when filters/tabs change, but not on initial mount
+    const isFirstMount = React.useRef(true);
+    useEffect(() => {
+        if (isFirstMount.current) {
+            isFirstMount.current = false;
+            return;
+        }
+        // Only scroll if we are below the sticky threshold or deep in the content
+        // This brings the new content into view at the top of the content area
+        scrollRef.current?.scrollTo({ y: 150, animated: true });
+    }, [activeTab, selectedCategory, sortBy]);
+
+    // Sticky header detection
+    const [isHeaderSticky, setIsHeaderSticky] = useState(false);
+    const scrollHandler = (event: any) => {
+        const y = event.nativeEvent.contentOffset.y;
+        setIsHeaderSticky(y >= 145); // Threshold for profileSection height
+    };
 
     // Fetch real store data
     useEffect(() => {
@@ -146,17 +177,17 @@ export default function StoreDetailScreen() {
                 if (seller) {
                     const logoUrl = seller.avatar_url || (seller as any).avatar || (seller as any).logo || store.logo;
                     const bp = seller.business_profile;
-                    
+
                     // Construct consistent address from business profile - identical to web logic
                     const addressParts = [
                         bp?.address_line_1,
                         bp?.city || seller.city,
                         bp?.province || seller.province
                     ].filter(part => part && part.trim() !== "");
-                    
-                    const fullAddress = addressParts.length > 0 
-                        ? addressParts.join(', ') 
-                        : store.location || "Address not available";
+
+                    const fullAddress = addressParts.length > 0
+                        ? addressParts.join(', ')
+                        : (store.location && store.location !== "Address not available") ? store.location : "";
 
                     setStoreData({
                         ...store,
@@ -164,6 +195,7 @@ export default function StoreDetailScreen() {
                         name: seller.store_name || (bp as any)?.business_name || store.name,
                         location: fullAddress,
                         address: fullAddress, // Add explicit address field
+                        city: bp?.city || (seller as any).city || "", // Add explicit city field
                         description: seller.store_description || bp?.business_type || "",
                         rating: seller.rating || store.rating || 0,
                         logo: logoUrl,
@@ -213,7 +245,7 @@ export default function StoreDetailScreen() {
                     // Map database products to display format
                     const mappedProducts = products.map(p => {
                         // Get all images
-                        const images = (p as any).images?.map((img: any) => 
+                        const images = (p as any).images?.map((img: any) =>
                             typeof img === 'string' ? img : img.image_url
                         ).filter(Boolean) || [];
 
@@ -221,7 +253,7 @@ export default function StoreDetailScreen() {
                         const primaryImageStr = (p as any).images?.find((img: any) => img.is_primary)?.image_url
                             || images[0]
                             || 'https://placehold.co/400?text=Product';
-                        
+
                         const primaryImage = safeImageUri(primaryImageStr);
 
                         // Get category name from join
@@ -280,7 +312,11 @@ export default function StoreDetailScreen() {
                         author: rev.buyerName || 'User',
                         content: rev.comment || '',
                         rating: rev.rating || 5,
-                        date: rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : 'Just now'
+                        date: rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : 'Just now',
+                        productImage: rev.productImage,
+                        variantLabel: rev.variantLabel,
+                        productName: rev.productName,
+                        authorAvatar: rev.buyerAvatar
                     }));
                     setReviews(mappedReviews);
                 }
@@ -291,6 +327,20 @@ export default function StoreDetailScreen() {
         fetchReviews();
     }, [store?.id]);
 
+    // Calculate actual average rating from reviews
+    const averageRating = useMemo(() => {
+        if (!reviews || reviews.length === 0) return "0";
+        const total = reviews.reduce((sum, rev) => sum + (rev.rating || 0), 0);
+        return (total / reviews.length).toFixed(1);
+    }, [reviews]);
+
+    // Format follower count to K/M
+    const formattedFollowers = useMemo(() => {
+        if (followerCount >= 1000000) return (followerCount / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (followerCount >= 1000) return (followerCount / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+        return followerCount.toString();
+    }, [followerCount]);
+
     // Use real products if available, otherwise fallback to trending products (only if disabled)
     // Actually for store detail we should probably only show real products or empty
     const availableProducts = realProducts;
@@ -300,11 +350,7 @@ export default function StoreDetailScreen() {
         p.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    if (Platform.OS === 'android') {
-        if (UIManager.setLayoutAnimationEnabledExperimental) {
-            UIManager.setLayoutAnimationEnabledExperimental(true);
-        }
-    }
+
 
     const handleFollow = async () => {
         if (isGuest || !user?.id) {
@@ -352,10 +398,10 @@ export default function StoreDetailScreen() {
 
     // List of sorting options
     const sortOptions = [
-        { label: 'Popularity', value: 'Popular' },
-        { label: 'Price: Low to High', value: 'Price: Low-High' },
-        { label: 'Price: High to Low', value: 'Price: High-Low' },
-        { label: 'Latest', value: 'Latest' }
+        { label: 'Popular', value: 'Popular' },
+        { label: 'Latest', value: 'Latest' },
+        { label: 'Price: Low to High', value: 'Price Low to High' },
+        { label: 'Price: High to Low', value: 'Price High to Low' },
     ];
 
     const sortProducts = (products: any[]) => {
@@ -367,36 +413,33 @@ export default function StoreDetailScreen() {
         }
 
         // Apply sort
-        switch (sortBy) {
-            case 'Popular':
-                return sorted.sort((a, b) => (b.sold || 0) - (a.sold || 0));
-            case 'Price: Low-High':
-                return sorted.sort((a, b) => a.price - b.price);
-            case 'Price: High-Low':
-                return sorted.sort((a, b) => b.price - a.price);
-            case 'Latest':
-                return sorted.sort((a, b) => (b.id > a.id ? 1 : -1));
-            default:
-                return sorted;
+        if (sortBy === 'Popular') {
+            sorted.sort((a, b) => (b.sold || 0) - (a.sold || 0));
+        } else if (sortBy === 'Price Low to High') {
+            sorted.sort((a, b) => a.price - b.price);
+        } else if (sortBy === 'Price High to Low') {
+            sorted.sort((a, b) => b.price - a.price);
+        } else if (sortBy === 'Latest') {
+            sorted.sort((a, b) => b.id.localeCompare(a.id));
         }
+        return sorted;
     };
 
     const renderTabContent = () => {
         switch (activeTab) {
             case 'Shop':
                 const sortedShopProducts = sortProducts(storeProducts);
-                
+
                 // Get products that are part of active campaigns (Flash Sales)
-                const flashSaleProducts = storeProducts.filter(p => 
+                const flashSaleProducts = storeProducts.filter(p =>
                     p.campaignDiscountType || p.campaignDiscountValue
                 );
 
                 return (
-                    <ScrollView showsVerticalScrollIndicator={false}>
-                        {/* Featured / Coupon Section - FIRST */}
-                        <View style={styles.couponSection}>
-                            <Text style={[styles.sectionTitle, { paddingLeft: 16 }]}>Vouchers from {storeData.name || store.name}</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 16, paddingRight: 16 }}>
+                    <View>
+                        {/* Vouchers Section */}
+                        <View style={styles.vouchersContainer}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vouchersScrollContent}>
                                 {vouchers.map((voucher) => (
                                     <View key={voucher.id} style={[styles.couponCard, voucher.claimed && styles.couponCardClaimed]}>
                                         <View style={styles.couponLeft}>
@@ -430,9 +473,9 @@ export default function StoreDetailScreen() {
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flashSaleProductsScroll}>
                                     {flashSaleProducts.map((p) => (
                                         <View key={`flash-${p.id}`} style={styles.flashSaleProductItem}>
-                                            <ProductCard 
-                                                product={{...p, isFlashSale: true}} 
-                                                onPress={() => navigation.navigate('ProductDetail', { product: p })} 
+                                            <ProductCard
+                                                product={{ ...p, isFlashSale: true }}
+                                                onPress={() => navigation.navigate('ProductDetail', { product: p })}
                                             />
                                             {/* Flash Sale Progress Bar (Optional context) */}
                                             <View style={styles.flashProgressBg}>
@@ -447,68 +490,22 @@ export default function StoreDetailScreen() {
                             </View>
                         )}
 
-                        {/* Filter Bar */}
-                        <View style={styles.filterBar}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-                                <Pressable
-                                    onPress={() => setSelectedCategory('All')}
-                                    style={[styles.filterTag, selectedCategory === 'All' && styles.filterTagActive]}
-                                >
-                                    <Text style={[styles.filterTagText, selectedCategory === 'All' && styles.filterTagTextActive]}>All</Text>
-                                </Pressable>
-                                {storeCategories.map(cat => (
-                                    <Pressable
-                                        key={cat}
-                                        onPress={() => setSelectedCategory(cat)}
-                                        style={[styles.filterTag, selectedCategory === cat && styles.filterTagActive]}
-                                    >
-                                        <Text style={[styles.filterTagText, selectedCategory === cat && styles.filterTagTextActive]}>{cat}</Text>
-                                    </Pressable>
-                                ))}
-                            </ScrollView>
-                            <Pressable style={styles.sortButton} onPress={() => setShowSortModal(true)}>
-                                <Filter size={16} color={COLORS.gray600} />
-                                <Text style={styles.sortButtonText}>{sortBy}</Text>
-                            </Pressable>
-                        </View>
-
                         {/* Products Grid */}
                         <View style={styles.productsContainer}>
                             <View style={styles.grid}>
-                                {sortedShopProducts.slice(0, 10).map((p) => (
+                                {sortedShopProducts.map((p) => (
                                     <View key={p.id} style={styles.productWrapper}>
                                         <ProductCard product={p} onPress={() => navigation.navigate('ProductDetail', { product: p })} />
                                     </View>
                                 ))}
                             </View>
                         </View>
-                    </ScrollView>
+                    </View>
                 );
             case 'Products':
                 const sortedAllProducts = sortProducts(availableProducts);
                 return (
                     <View style={styles.productsContainer}>
-                        {/* Filter Bar */}
-                        <View style={[styles.filterBar, { marginBottom: 16, paddingLeft: 0 }]}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                <Pressable
-                                    onPress={() => setSelectedCategory('All')}
-                                    style={[styles.filterTag, selectedCategory === 'All' && styles.filterTagActive]}
-                                >
-                                    <Text style={[styles.filterTagText, selectedCategory === 'All' && styles.filterTagTextActive]}>All</Text>
-                                </Pressable>
-                                {storeCategories.map(cat => (
-                                    <Pressable
-                                        key={cat}
-                                        onPress={() => setSelectedCategory(cat)}
-                                        style={[styles.filterTag, selectedCategory === cat && styles.filterTagActive]}
-                                    >
-                                        <Text style={[styles.filterTagText, selectedCategory === cat && styles.filterTagTextActive]}>{cat}</Text>
-                                    </Pressable>
-                                ))}
-                            </ScrollView>
-                        </View>
-
                         <Text style={styles.sectionTitle}>All Products ({sortedAllProducts.length})</Text>
                         {productsLoading ? (
                             <View style={styles.loadingContainer}>
@@ -533,10 +530,7 @@ export default function StoreDetailScreen() {
             case 'Reviews':
                 // Calculate rating distribution
                 const totalReviews = reviews.length;
-                const averageRating = totalReviews > 0 
-                    ? (reviews.reduce((acc, rev) => acc + rev.rating, 0) / totalReviews).toFixed(1)
-                    : "0";
-                
+
                 const stats = [5, 4, 3, 2, 1].map(star => {
                     const count = reviews.filter(rev => Math.floor(rev.rating) === star).length;
                     const percentage = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
@@ -545,7 +539,6 @@ export default function StoreDetailScreen() {
 
                 const filteredReviews = reviews.filter(rev => {
                     if (reviewFilter === 'All') return true;
-                    if (reviewFilter === 'With Media') return rev.hasMedia; // Assuming we add this flag
                     return Math.floor(rev.rating) === parseInt(reviewFilter);
                 });
 
@@ -557,11 +550,11 @@ export default function StoreDetailScreen() {
                                 <Text style={styles.ratingBigNumber}>{averageRating}</Text>
                                 <View style={styles.ratingStarsRow}>
                                     {[...Array(5)].map((_, i) => (
-                                        <Star 
-                                            key={i} 
-                                            size={16} 
-                                            color={i < Math.floor(Number(averageRating)) ? "#FABB18" : COLORS.gray300} 
-                                            fill={i < Math.floor(Number(averageRating)) ? "#FABB18" : COLORS.gray300} 
+                                        <Star
+                                            key={i}
+                                            size={16}
+                                            color={i < Math.floor(Number(averageRating)) ? "#FABB18" : COLORS.gray300}
+                                            fill={i < Math.floor(Number(averageRating)) ? "#FABB18" : COLORS.gray300}
                                         />
                                     ))}
                                 </View>
@@ -583,27 +576,33 @@ export default function StoreDetailScreen() {
                         </View>
 
                         {/* Review Filters (Web Parity) */}
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewFilterScroll} contentContainerStyle={styles.reviewFilterContent}>
-                            {['All', '5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star', 'With Media'].map((filter) => {
-                                const isActive = (filter === 'All' && reviewFilter === 'All') || 
-                                               (filter.startsWith(reviewFilter) && filter !== 'All' && reviewFilter !== 'All') ||
-                                               (filter === 'With Media' && reviewFilter === 'With Media');
-                                
+                        <View style={styles.reviewFilterGrid}>
+                            {['All', '5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'].map((filter) => {
+                                const isActive = (filter === 'All' && reviewFilter === 'All') ||
+                                    (filter.startsWith(reviewFilter) && filter !== 'All' && reviewFilter !== 'All');
+
+                                let count = totalReviews;
+                                if (filter !== 'All') {
+                                    const star = parseInt(filter);
+                                    count = stats.find(s => s.star === star)?.count || 0;
+                                }
+
                                 return (
                                     <Pressable
                                         key={filter}
-                                        style={[styles.reviewFilterTag, isActive && styles.reviewFilterTagActive]}
+                                        style={[styles.reviewFilterGridItem, isActive && styles.reviewFilterTagActive]}
                                         onPress={() => {
                                             if (filter === 'All') setReviewFilter('All');
-                                            else if (filter === 'With Media') setReviewFilter('With Media');
                                             else setReviewFilter(filter[0]);
                                         }}
                                     >
-                                        <Text style={[styles.reviewFilterText, isActive && styles.reviewFilterTextActive]}>{filter}</Text>
+                                        <Text style={[styles.reviewFilterText, isActive && styles.reviewFilterTextActive]}>
+                                            {filter} ({count})
+                                        </Text>
                                     </Pressable>
                                 );
                             })}
-                        </ScrollView>
+                        </View>
 
                         <View style={styles.reviewsList}>
                             {filteredReviews.length > 0 ? (
@@ -612,7 +611,14 @@ export default function StoreDetailScreen() {
                                         <View style={styles.reviewHeader}>
                                             <View style={styles.reviewAuthorRow}>
                                                 <View style={styles.reviewAvatar}>
-                                                    <Text style={styles.avatarText}>{rev.author.charAt(0).toUpperCase()}</Text>
+                                                    {rev.authorAvatar ? (
+                                                        <Image
+                                                            source={{ uri: rev.authorAvatar }}
+                                                            style={styles.reviewAvatarImage}
+                                                        />
+                                                    ) : (
+                                                        <Text style={styles.avatarText}>{rev.author.charAt(0).toUpperCase()}</Text>
+                                                    )}
                                                 </View>
                                                 <View>
                                                     <Text style={styles.reviewAuthor}>{rev.author}</Text>
@@ -626,6 +632,31 @@ export default function StoreDetailScreen() {
                                             <Text style={styles.reviewDate}>{rev.date}</Text>
                                         </View>
                                         <Text style={styles.reviewContent}>{rev.content}</Text>
+
+                                        {(rev.productImage || rev.productName || rev.variantLabel) && (
+                                            <View style={styles.reviewProductContext}>
+                                                {rev.productImage && (
+                                                    <Image
+                                                        source={{ uri: rev.productImage }}
+                                                        style={styles.reviewProductThumb}
+                                                        resizeMode="cover"
+                                                    />
+                                                )}
+                                                <View style={{ flex: 1 }}>
+                                                    {rev.productName && (
+                                                        <Text style={styles.reviewProductName} numberOfLines={1}>
+                                                            {rev.productName}
+                                                        </Text>
+                                                    )}
+                                                    {rev.variantLabel && (
+                                                        <Text style={styles.reviewVariantLabel} numberOfLines={1}>
+                                                            Variation: {rev.variantLabel}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            </View>
+                                        )}
+
                                         {rev.images && rev.images.length > 0 && (
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewImagesScroll}>
                                                 {rev.images.map((img: string, i: number) => (
@@ -637,7 +668,6 @@ export default function StoreDetailScreen() {
                                 ))
                             ) : (
                                 <View style={styles.emptyContainer}>
-                                    <Star size={48} color={COLORS.gray200} />
                                     <Text style={styles.emptyTitle}>No Reviews Yet</Text>
                                     <Text style={styles.emptyText}>Be the first to review products from this store!</Text>
                                 </View>
@@ -648,30 +678,78 @@ export default function StoreDetailScreen() {
             case 'About':
                 return (
                     <View style={styles.sectionContainer}>
-                        <Text style={styles.sectionTitle}>About {storeData.name || store.name}</Text>
                         <View style={styles.aboutCard}>
-                            {storeData.description ? <Text style={styles.aboutDescription}>{storeData.description}</Text> : null}
-
-                            <View style={styles.divider} />
+                            {storeData.description ? (
+                                <>
+                                    <Text style={styles.aboutDescription}>{storeData.description}</Text>
+                                    <View style={styles.divider} />
+                                </>
+                            ) : null}
 
                             <View style={styles.infoRow}>
-                                <MapPin size={18} color={COLORS.textMuted} />
+                                <Phone size={16} color={COLORS.gray400} />
+                                <Text style={styles.infoLabel}>Contact</Text>
                                 <Text style={styles.infoText}>
-                                    {storeData.location || "Address not available"}
+                                    {storeData.store_contact_number || storeData.phone || "Not provided"}
                                 </Text>
                             </View>
+
                             <View style={styles.infoRow}>
-                                <Star size={18} color="#F59E0B" fill="#F59E0B" />
-                                <Text style={styles.infoText}>{storeData.rating} ({followerCount} Followers)</Text>
+                                <MapPin size={16} color={COLORS.gray400} />
+                                <Text style={styles.infoLabel}>Location</Text>
+                                <Text style={styles.infoText}>{storeData.location || "Not provided"}</Text>
                             </View>
+
                             <View style={styles.infoRow}>
-                                <CheckCircle2 size={18} color="#FB8C00" />
+                                <Star size={16} color={COLORS.gray400} />
+                                <Text style={styles.infoLabel}>Ratings</Text>
+                                <Text style={styles.infoText}>
+                                    {reviews.length > 0 ? `${averageRating} out of 5 (${reviews.length} reviews)` : "No ratings yet"}
+                                </Text>
+                            </View>
+
+                            <View style={styles.infoRow}>
+                                <CheckCircle2 size={16} color={COLORS.gray400} />
+                                <Text style={styles.infoLabel}>Verified</Text>
                                 <Text style={styles.infoText}>Verified Official Store</Text>
                             </View>
+
                             <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Joined:</Text>
+                                <Calendar size={16} color={COLORS.gray400} />
+                                <Text style={styles.infoLabel}>Joined</Text>
                                 <Text style={styles.infoText}>
-                                    {storeData.created_at ? new Date(storeData.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'January 2023'}
+                                    {new Date(storeData.created_at || store.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                                </Text>
+                            </View>
+
+                            <View style={styles.infoRow}>
+                                <ShoppingBag size={16} color={COLORS.gray400} />
+                                <Text style={styles.infoLabel}>Products</Text>
+                                <Text style={styles.infoText}>{storeProducts.length} Products</Text>
+                            </View>
+
+                            <Pressable
+                                style={styles.infoRow}
+                                onPress={() => {
+                                    const link = `bazaarx.com/store/${storeData.slug || store.slug || storeData.id}`;
+                                    Clipboard.setString(link);
+                                    Alert.alert('Link Copied', 'Store link has been copied to your clipboard.');
+                                }}
+                            >
+                                <ExternalLink size={16} color={COLORS.gray400} />
+                                <Text style={styles.infoLabel}>Shop Link</Text>
+                                <Text style={[styles.infoText, { color: COLORS.primary, textDecorationLine: 'underline' }]} numberOfLines={1}>
+                                    bazaarx.com/store/{storeData.slug || store.slug || storeData.name?.toLowerCase().replace(/\s+/g, '-')}
+                                </Text>
+                            </Pressable>
+
+                            <View style={styles.divider} />
+                            <View>
+                                <View style={[styles.infoRow, { alignItems: 'flex-start', marginBottom: 8 }]}>
+                                    <Text style={styles.infoLabel}>Categories</Text>
+                                </View>
+                                <Text style={[styles.infoText, { color: COLORS.gray600, lineHeight: 20 }]}>
+                                    {storeCategories.length > 0 ? storeCategories.join(', ') : (storeData.categories || ["General"]).join(', ')}
                                 </Text>
                             </View>
                         </View>
@@ -712,7 +790,7 @@ export default function StoreDetailScreen() {
                 ) : (
                     <View style={styles.headerTop}>
                         <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                            <ArrowLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+                            <ChevronLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
                         </Pressable>
                         <View style={styles.headerRight}>
                             <Pressable style={styles.headerIconButton} onPress={() => { }}>
@@ -726,7 +804,14 @@ export default function StoreDetailScreen() {
                 )}
             </LinearGradient>
 
-            <ScrollView showsVerticalScrollIndicator={false} stickyHeaderIndices={[2]}>
+            <ScrollView
+                ref={scrollRef}
+                showsVerticalScrollIndicator={false}
+                stickyHeaderIndices={[1]}
+                scrollEventThrottle={16}
+                onScroll={scrollHandler}
+                removeClippedSubviews={false}
+            >
                 {/* Profile Banner Section */}
                 <View style={styles.profileSection}>
                     <Image source={{ uri: safeImageUri(store.banner, PLACEHOLDER_BANNER) }} style={styles.bannerImage} resizeMode="cover" />
@@ -739,16 +824,16 @@ export default function StoreDetailScreen() {
                         <View style={styles.mainInfo}>
                             <View style={styles.logoContainer}>
                                 {storeData.logo ? (
-                                    <Image 
-                                        source={{ uri: safeImageUri(storeData.logo) }} 
-                                        style={{ width: '100%', height: '100%', borderRadius: 50 }} 
-                                        resizeMode="cover" 
+                                    <Image
+                                        source={{ uri: safeImageUri(storeData.logo) }}
+                                        style={{ width: '100%', height: '100%', borderRadius: 50 }}
+                                        resizeMode="cover"
                                     />
                                 ) : (
                                     <Text style={styles.logoText}>{storeData.name?.substring(0, 1).toUpperCase() || 'S'}</Text>
                                 )}
                                 {storeData.is_verified && (
-                                    <View style={[styles.verifiedBadgeRow, { position: 'absolute', bottom: 0, right: 0, borderRadius: 10, paddingHorizontal: 0, paddingVertical: 0, width: 20, height: 20 }]}>
+                                    <View style={[styles.verifiedBadgeRow, { position: 'absolute', bottom: 2, right: 2, borderRadius: 10, paddingHorizontal: 0, paddingVertical: 0, width: 20, height: 20 }]}>
                                         <CheckCircle2 size={16} color={COLORS.white} fill={COLORS.success} />
                                     </View>
                                 )}
@@ -756,60 +841,145 @@ export default function StoreDetailScreen() {
                             <View style={styles.textInfo}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                                     <Text style={styles.storeName}>{storeData.name}</Text>
-                                    {storeData.is_verified && (
-                                        <View style={styles.verifiedBadgeRow}>
-                                            <Text style={styles.verifiedText}>VERIFIED</Text>
-                                        </View>
-                                    )}
+
                                 </View>
-                                
                                 <View style={styles.statsRow}>
-                                    <Text style={styles.statsText}>{storeData.location ? storeData.location.split(',')[0] : 'Philippines'}</Text>
-                                    <Text style={styles.statsText}>   Est. 2026</Text>
+                                    {storeData.city && storeData.city !== "" && (
+                                        <>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                <MapPin size={12} color={COLORS.white} />
+                                                <Text style={styles.statsText}>{storeData.city}</Text>
+                                            </View>
+                                            <View style={{ width: 12 }} />
+                                        </>
+                                    )}
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                        <Calendar size={12} color={COLORS.white} />
+                                        <Text style={styles.statsText}>{formattedJoinedDate}</Text>
+                                    </View>
                                 </View>
 
-                                <View style={[styles.statsRow, { marginTop: 12 }]}>
-                                    <Text style={styles.ratingNumber}>{storeData.rating}</Text>
-                                    <Text style={styles.ratingLabel}> RATING</Text>
-                                    <Text style={[styles.ratingNumber, { marginLeft: 20 }]}>{followerCount}</Text>
-                                    <Text style={styles.ratingLabel}> FOLLOWERS</Text>
+                                <View style={[styles.headerStatsButtonsRow, { marginTop: 12 }]}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                        <Star size={14} color="#FABB18" fill="#FABB18" />
+                                        <Text style={styles.ratingNumber}>{averageRating}</Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 16 }}>
+                                        <Text style={styles.ratingNumber}>{formattedFollowers}</Text>
+                                        <Text style={styles.ratingLabel}> Followers</Text>
+                                    </View>
+
+                                    <View style={styles.rowActionButtons}>
+                                        <Pressable
+                                            style={[styles.followButtonRow, isFollowing && styles.followingButton]}
+                                            onPress={handleFollow}
+                                        >
+                                            <Text style={styles.followButtonTextRow}>
+                                                {isFollowing ? 'Following' : 'Follow'}
+                                            </Text>
+                                        </Pressable>
+                                        <Pressable style={styles.chatButtonRow} onPress={handleChat}>
+                                            <Text style={styles.chatButtonTextRow}>Chat</Text>
+                                        </Pressable>
+                                    </View>
                                 </View>
                             </View>
                         </View>
-
-                        <View style={styles.actionButtons}>
-                            <Pressable
-                                style={[styles.followButton, isFollowing && styles.followingButton]}
-                                onPress={handleFollow}
-                            >
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Heart size={16} color={isFollowing ? COLORS.primary : COLORS.white} fill={isFollowing ? COLORS.primary : COLORS.white} />
-                                    <Text style={[styles.followButtonText, isFollowing && { color: COLORS.primary }]}>
-                                        {isFollowing ? 'Following' : 'Follow'}
-                                    </Text>
-                                </View>
-                            </Pressable>
-                            <Pressable style={styles.chatButtonTextOnly} onPress={handleChat}>
-                                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 13 }}>Chat</Text>
-                            </Pressable>
-                        </View>
                     </View>
+
+                    {storeData.is_vacation_mode && (
+                        <View style={styles.vacationBadgePosition}>
+                            <View style={styles.vacationBadge}>
+                                <Palmtree size={12} color="#FFFFFF" />
+                                <Text style={styles.vacationBadgeText}>ON VACATION</Text>
+                            </View>
+                        </View>
+                    )}
                 </View>
+
+
 
                 {/* Categories / Tabs simulation */}
-                <View style={styles.tabsWrapper}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
-                        {['Shop', 'Products', 'Reviews', 'About'].map((tab) => (
-                            <Pressable
-                                key={tab}
-                                style={[styles.tabItem, activeTab === tab && styles.activeTabItem]}
-                                onPress={() => setActiveTab(tab)}
-                            >
-                                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+                <View style={[
+                    styles.stickyHeaderContainer,
+                    isHeaderSticky && { elevation: 6 }
+                ]}>
+                    <View style={[
+                        styles.tabsWrapper,
+                        isHeaderSticky && { borderBottomWidth: 1, borderBottomColor: COLORS.gray100 }
+                    ]}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
+                            {['Shop', 'Products', 'Reviews', 'About'].map((tab) => (
+                                <Pressable
+                                    key={tab}
+                                    style={[styles.tabItem, activeTab === tab && styles.activeTabItem]}
+                                    onPress={() => {
+                                        setActiveTab(tab);
+                                        if (tab === 'Shop' || tab === 'Products') {
+                                            setSelectedCategory('All');
+                                            setSortBy('Popular');
+                                        }
+                                    }}
+                                >
+                                    <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+                                </Pressable>
+                            ))}
+                        </ScrollView>
+                    </View>
+
+                    {/* Unified Sticky Filter Bar */}
+                    {(activeTab === 'Shop' || activeTab === 'Products') && (
+                        <View style={[
+                            styles.filterBar,
+                            {
+                                backgroundColor: COLORS.white,
+                                borderBottomWidth: isHeaderSticky ? 1 : 0,
+                                borderBottomColor: COLORS.gray100,
+                                paddingVertical: 10,
+                                marginBottom: 0
+                            }
+                        ]}>
+                            <Pressable style={styles.sortButton} onPress={() => setShowCategoryModal(true)}>
+                                <Menu size={16} color={COLORS.gray600} />
+                                <Text style={styles.sortButtonText}>{selectedCategory}</Text>
                             </Pressable>
-                        ))}
-                    </ScrollView>
+                            <View style={{ flex: 1 }}>
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    style={{ flex: 1 }}
+                                    contentContainerStyle={styles.filterScroll}
+                                    nestedScrollEnabled={true}
+                                >
+                                    {sortOptions.map((option, index) => (
+                                        <Pressable
+                                            key={option.value}
+                                            onPress={() => setSortBy(option.value)}
+                                            style={[
+                                                styles.filterTag,
+                                                sortBy === option.value && styles.filterTagActive,
+                                                index === sortOptions.length - 1 && { borderRightWidth: 0 }
+                                            ]}
+                                        >
+                                            <Text style={[styles.filterTagText, sortBy === option.value && styles.filterTagTextActive]}>{option.label}</Text>
+                                        </Pressable>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        </View>
+                    )}
                 </View>
+
+                {/* Vacation Mode Banner - Below Sticky Header */}
+                {storeData.is_vacation_mode && (activeTab === 'Shop' || activeTab === 'Products') && (
+                    <View style={styles.vacationBanner}>
+                        <Palmtree size={20} color="#EA580C" />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={styles.vacationBannerTitle}>This store is currently on vacation</Text>
+                            <Text style={styles.vacationBannerSubtitle}>Products are available to view but cannot be purchased at this time.</Text>
+                        </View>
+                    </View>
+                )}
 
                 {/* Dynamic Content */}
                 <View style={styles.contentContainer}>
@@ -854,27 +1024,34 @@ export default function StoreDetailScreen() {
                     message={guestModalMessage || "Please log in to continue."}
                 />
             )}
-
-            {/* Sort Picker Modal */}
-            <Modal visible={showSortModal} transparent animationType="slide" onRequestClose={() => setShowSortModal(false)}>
-                <Pressable style={styles.modalOverlay} onPress={() => setShowSortModal(false)}>
+            {/* Categories Modal */}
+            <Modal visible={showCategoryModal} transparent animationType="slide" statusBarTranslucent={true} onRequestClose={() => setShowCategoryModal(false)}>
+                <Pressable style={[styles.modalOverlay, { backgroundColor: 'transparent' }]} onPress={() => setShowCategoryModal(false)}>
                     <View style={styles.sortModalContent}>
-                        <View style={styles.sortModalHeader}>
-                            <Text style={styles.sortModalTitle}>Sort Products</Text>
-                            <Pressable onPress={() => setShowSortModal(false)}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Categories</Text>
+                            <Pressable onPress={() => setShowCategoryModal(false)}>
                                 <X size={24} color={COLORS.textHeadline} />
                             </Pressable>
                         </View>
-                        {sortOptions.map((option) => (
-                            <Pressable 
-                                key={option.value} 
-                                style={[styles.sortOption, sortBy === option.value && styles.sortOptionActive]}
-                                onPress={() => { setSortBy(option.value); setShowSortModal(false); }}
-                            >
-                                <Text style={[styles.sortOptionText, sortBy === option.value && styles.sortOptionTextActive]}>{option.label}</Text>
-                                {sortBy === option.value && <Check size={18} color={COLORS.primary} />}
-                            </Pressable>
-                        ))}
+
+                        <View style={styles.optionsList}>
+                            {['All', ...storeCategories].map((cat) => (
+                                <Pressable
+                                    key={cat}
+                                    style={styles.optionItem}
+                                    onPress={() => {
+                                        setSelectedCategory(cat);
+                                        setSortBy('Popular');
+                                        setShowCategoryModal(false);
+                                    }}
+                                >
+                                    <Text style={[styles.optionText, selectedCategory === cat && styles.optionTextActive]}>
+                                        {cat}
+                                    </Text>
+                                </Pressable>
+                            ))}
+                        </View>
                     </View>
                 </Pressable>
             </Modal>
@@ -884,7 +1061,7 @@ export default function StoreDetailScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
-    header: { paddingHorizontal: 16, zIndex: 10, paddingBottom: 8 },
+    header: { paddingHorizontal: 16, zIndex: 200, paddingBottom: 8 },
     headerTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -920,7 +1097,7 @@ const styles = StyleSheet.create({
     cancelSearch: { paddingVertical: 8 },
     cancelText: { color: COLORS.primary, fontWeight: '600' },
 
-    profileSection: { height: 280, width: '100%', position: 'relative' },
+    profileSection: { height: 150, width: '100%', position: 'relative' },
     bannerImage: { width: '100%', height: '100%' },
     overlay: {
         position: 'absolute',
@@ -937,20 +1114,19 @@ const styles = StyleSheet.create({
     },
     mainInfo: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
     logoContainer: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
+        width: 75,
+        height: 75,
+        borderRadius: 37.5,
         backgroundColor: COLORS.white,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 3,
-        borderColor: COLORS.white,
+        borderWidth: 1,
+        borderColor: COLORS.gray300,
         marginRight: 16,
         position: 'relative'
     },
-    logoText: { fontSize: 32, fontWeight: 'bold', color: COLORS.primary },
+    logoText: { fontSize: 24, fontWeight: 'bold', color: COLORS.primary },
     verifiedBadgeRow: {
-        backgroundColor: COLORS.white,
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
@@ -962,41 +1138,107 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: '900',
     },
+    vacationBadgePosition: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 20
+    },
+    vacationBadge: {
+        backgroundColor: '#EA580C',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        gap: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3
+    },
+    vacationBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '900',
+    },
+    vacationBanner: {
+        backgroundColor: '#FFF7ED',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#FFEDD5',
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: 16,
+        marginTop: 12,
+        marginBottom: 0,
+    },
+    vacationBannerTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#C2410C',
+    },
+    vacationBannerSubtitle: {
+        fontSize: 12,
+        color: '#EA580C',
+        marginTop: 2,
+    },
     textInfo: { flex: 1, justifyContent: 'center' },
-    storeName: { 
-        fontSize: 26, 
-        fontWeight: '800', 
-        color: COLORS.white, 
-        textShadowColor: 'rgba(0,0,0,0.5)', 
-        textShadowOffset: { width: 0, height: 1 }, 
+    storeName: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: COLORS.white,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 2,
     },
     statsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
     statsText: { fontSize: 13, color: COLORS.white, opacity: 0.9, fontWeight: '500' },
-    ratingNumber: { fontSize: 18, color: COLORS.white, fontWeight: '800' },
-    ratingLabel: { fontSize: 11, color: COLORS.white, opacity: 0.7, fontWeight: '700', letterSpacing: 0.5 },
-
-    actionButtons: { flexDirection: 'row', gap: 12, marginTop: 12 },
-    followButton: {
-        backgroundColor: '#E58C1A',
-        paddingHorizontal: 20,
-        height: 44,
-        borderRadius: 12,
+    ratingNumber: { fontSize: 13, color: COLORS.white, opacity: 0.9, fontWeight: '500' },
+    ratingLabel: { fontSize: 13, color: COLORS.white, opacity: 0.9, fontWeight: '500' },
+    headerStatsButtonsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+    },
+    rowActionButtons: {
+        flexDirection: 'row',
+        gap: 8,
+        marginLeft: 'auto',
+    },
+    followButtonRow: {
+        backgroundColor: COLORS.accent,
+        paddingHorizontal: 12,
+        height: 28,
+        borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
-        minWidth: 140,
+        minWidth: 70,
     },
-    followingButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
-    followButtonText: { color: COLORS.white, fontSize: 15, fontWeight: 'bold' },
-    chatButtonTextOnly: {
-        flex: 1,
-        height: 44,
-        borderRadius: 12,
+    followingButton: { backgroundColor: COLORS.accent },
+    followButtonTextRow: {
+        color: COLORS.white,
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    chatButtonRow: {
+        height: 28,
+        paddingHorizontal: 12,
+        borderRadius: 10,
         backgroundColor: 'rgba(255,255,255,0.1)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.3)'
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    chatButtonTextRow: {
+        color: '#FFF',
+        fontWeight: 'bold',
+        fontSize: 12,
     },
     shareIconButton: {
         width: 44,
@@ -1009,21 +1251,25 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.3)'
     },
 
+    stickyHeaderContainer: {
+        zIndex: 100,
+        backgroundColor: COLORS.white,
+    },
     tabsWrapper: {
         backgroundColor: COLORS.white,
-        paddingTop: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.gray100
     },
     tabsScroll: {},
-    tabsContent: { paddingHorizontal: 16 },
+    tabsContent: {
+        paddingHorizontal: 16,
+        flexGrow: 1,
+        justifyContent: 'center'
+    },
     tabItem: {
         paddingVertical: 12,
         paddingHorizontal: 16,
-        marginRight: 8,
         position: 'relative'
     },
-    tabText: { fontSize: 14, fontWeight: '600', color: COLORS.gray500 },
+    tabText: { fontSize: 14, fontWeight: '600', color: COLORS.gray900 },
     activeTabText: { color: COLORS.primary },
     activeTabItem: {
         borderBottomWidth: 2,
@@ -1032,9 +1278,22 @@ const styles = StyleSheet.create({
 
     contentContainer: { flex: 1 },
     sectionContainer: { padding: 16 },
-    sectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 16 },
-    
-    couponSection: { paddingVertical: 16 },
+    sectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 8 },
+
+    vouchersContainer: {
+        backgroundColor: COLORS.white,
+        marginHorizontal: 16,
+        marginTop: 12,
+        paddingTop: 10,
+        paddingBottom: 10,
+        borderRadius: 12,
+        borderWidth: 0,
+        overflow: 'hidden'
+    },
+    vouchersScrollContent: {
+        paddingHorizontal: 16,
+    },
+    couponSection: { paddingTop: 0, paddingBottom: 0 },
     couponCard: {
         width: width * 0.7,
         flexDirection: 'row',
@@ -1064,61 +1323,62 @@ const styles = StyleSheet.create({
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
     seeAllText: { color: COLORS.primary, fontWeight: '600' },
 
-    flashSaleSection: { 
-        backgroundColor: COLORS.white, 
-        paddingVertical: 20, 
+    flashSaleSection: {
+        backgroundColor: COLORS.white,
+        marginTop: 12,
+        paddingVertical: 16,
         paddingBottom: 24,
-        marginBottom: 8,
+        marginBottom: 0,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.gray100
     },
-    flashSaleHeader: { 
-        flexDirection: 'row', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
+    flashSaleHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         paddingHorizontal: 16,
-        marginBottom: 16 
+        marginBottom: 16
     },
     flashSaleTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    flashSaleTitle: { 
-        fontSize: 18, 
-        fontWeight: '900', 
-        color: COLORS.primary, 
+    flashSaleTitle: {
+        fontSize: 18,
+        fontWeight: '900',
+        color: COLORS.primary,
         fontStyle: 'italic',
         letterSpacing: 0.5
     },
-    timerContainer: { 
-        backgroundColor: COLORS.primarySoft, 
-        paddingHorizontal: 10, 
-        paddingVertical: 5, 
+    timerContainer: {
+        backgroundColor: COLORS.primarySoft,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
         borderRadius: 12,
         marginLeft: 8,
         borderWidth: 1,
         borderColor: COLORS.primary
     },
-    timerText: { 
-        color: COLORS.primary, 
-        fontSize: 12, 
-        fontWeight: '800', 
+    timerText: {
+        color: COLORS.primary,
+        fontSize: 12,
+        fontWeight: '800',
         fontVariant: ['tabular-nums']
     },
-    flashSaleProductsScroll: { 
-        paddingHorizontal: 16, 
-        gap: 12 
+    flashSaleProductsScroll: {
+        paddingHorizontal: 16,
+        gap: 12
     },
-    flashSaleProductItem: { 
+    flashSaleProductItem: {
         width: 160,
     },
-    flashProgressBg: { 
-        height: 18, 
-        backgroundColor: COLORS.primarySoft, 
-        borderRadius: 10, 
+    flashProgressBg: {
+        height: 18,
+        backgroundColor: COLORS.primarySoft,
+        borderRadius: 10,
         marginTop: 10,
         overflow: 'hidden',
         position: 'relative',
         justifyContent: 'center'
     },
-    flashProgressFill: { 
+    flashProgressFill: {
         position: 'absolute',
         top: 0,
         left: 0,
@@ -1130,9 +1390,9 @@ const styles = StyleSheet.create({
         width: '100%',
         alignItems: 'center'
     },
-    flashProgressText: { 
-        fontSize: 9, 
-        fontWeight: '900', 
+    flashProgressText: {
+        fontSize: 9,
+        fontWeight: '900',
         color: COLORS.white,
         textShadowColor: 'rgba(0,0,0,0.5)',
         textShadowOffset: { width: 0, height: 1 },
@@ -1142,36 +1402,98 @@ const styles = StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
     productWrapper: { width: (width - 44) / 2 },
 
-    filterBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12, gap: 8 },
-    filterScroll: { paddingRight: 8 },
-    filterTag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: COLORS.gray100, marginRight: 8 },
-    filterTagActive: { backgroundColor: COLORS.primarySoft, borderWidth: 1, borderColor: COLORS.primary },
-    filterTagText: { fontSize: 13, color: COLORS.gray600, fontWeight: '500' },
-    filterTagTextActive: { color: COLORS.primary, fontWeight: '600' },
-    sortButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.gray200, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, gap: 4 },
-    sortButtonText: { fontSize: 12, color: COLORS.gray600, fontWeight: '600' },
-
-    reviewsList: { gap: 16, marginTop: 16 },
-    reviewItem: { padding: 16, borderRadius: 12, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.gray100 },
+    filterBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
+    filterScroll: {},
+    filterTag: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRightWidth: 1,
+        borderRightColor: COLORS.gray100,
+        backgroundColor: 'transparent',
+    },
+    filterTagActive: {},
+    filterTagText: { fontSize: 13, color: COLORS.gray500, fontWeight: '500' },
+    filterTagTextActive: { color: COLORS.primary },
+    sortModalContent: {
+        backgroundColor: COLORS.white,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingBottom: 40,
+        maxHeight: '80%'
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 20
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: COLORS.textHeadline
+    },
+    optionsList: {
+        paddingVertical: 10
+    },
+    optionItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 12
+    },
+    optionText: {
+        fontSize: 15,
+        color: COLORS.textHeadline,
+        fontWeight: '500'
+    },
+    optionTextActive: {
+        color: COLORS.primary,
+        fontWeight: '700'
+    },
+    sortButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingLeft: 0,
+        paddingRight: 12,
+        paddingVertical: 6,
+        borderRightWidth: 1,
+        borderRightColor: COLORS.gray100,
+        gap: 4
+    },
+    sortButtonText: { fontSize: 13, color: COLORS.gray900, fontWeight: '500' },
+    reviewsList: { gap: 8, marginTop: 8 },
+    reviewItem: { padding: 10, borderRadius: 12, backgroundColor: COLORS.white },
     reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
     reviewAuthorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    reviewAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.gray100, alignItems: 'center', justifyContent: 'center' },
-    avatarText: { fontSize: 16, fontWeight: '700', color: COLORS.gray400 },
-    reviewAuthor: { fontSize: 14, fontWeight: '600', color: COLORS.textHeadline },
+    reviewAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.gray100, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    reviewAvatarImage: { width: '100%', height: '100%' },
+    avatarText: { fontSize: 12, fontWeight: '700', color: COLORS.gray400 },
+    reviewAuthor: { fontSize: 13, fontWeight: '600', color: COLORS.textHeadline },
     reviewRating: { flexDirection: 'row', gap: 2, marginTop: 2 },
     reviewContent: { fontSize: 13, color: COLORS.gray600, lineHeight: 18, marginBottom: 4 },
     reviewDate: { fontSize: 11, color: COLORS.textMuted },
+    reviewProductContext: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f8f8f8',
+        padding: 6,
+        borderRadius: 8,
+        marginTop: 8,
+        gap: 10
+    },
+    reviewProductThumb: { width: 32, height: 32, borderRadius: 4 },
+    reviewProductName: { fontSize: 13, color: COLORS.textHeadline, fontWeight: '500' },
+    reviewVariantLabel: { fontSize: 11, color: COLORS.gray500, flex: 1 },
     reviewImagesScroll: { marginTop: 8, flexDirection: 'row' },
     reviewImageThumb: { width: 80, height: 80, borderRadius: 8, marginRight: 8 },
 
-    ratingSummaryCard: { 
-        flexDirection: 'row', 
-        backgroundColor: COLORS.white, 
-        padding: 20, 
-        borderRadius: 16, 
-        borderWidth: 1, 
-        borderColor: COLORS.gray100,
-        marginBottom: 16,
+    ratingSummaryCard: {
+        flexDirection: 'row',
+        backgroundColor: COLORS.white,
+        padding: 20,
+        borderRadius: 12,
+        marginBottom: 8,
         alignItems: 'center',
         gap: 20
     },
@@ -1186,12 +1508,11 @@ const styles = StyleSheet.create({
     ratingBarFill: { height: '100%', backgroundColor: '#FABB18' },
     ratingBarPercent: { fontSize: 11, color: COLORS.textMuted, width: 30, textAlign: 'right' },
 
-    reviewFilterScroll: { marginBottom: 8, backgroundColor: COLORS.white, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: COLORS.gray100 },
-    reviewFilterContent: { paddingHorizontal: 12, gap: 8 },
-    reviewFilterTag: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.gray200 },
-    reviewFilterTagActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-    reviewFilterText: { fontSize: 13, color: COLORS.gray600, fontWeight: '500' },
-    reviewFilterTextActive: { color: COLORS.white, fontWeight: '700' },
+    reviewFilterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingVertical: 2, paddingHorizontal: 4, justifyContent: 'center' },
+    reviewFilterGridItem: { width: '31%', paddingVertical: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: 'white' },
+    reviewFilterTagActive: { borderColor: COLORS.primary, borderWidth: 1, backgroundColor: 'white' },
+    reviewFilterText: { fontSize: 13, color: COLORS.gray400, fontWeight: '500', textAlign: 'center' },
+    reviewFilterTextActive: { color: COLORS.primary, fontWeight: '500' },
 
     emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textHeadline, marginTop: 12, marginBottom: 4 },
 
@@ -1208,21 +1529,14 @@ const styles = StyleSheet.create({
 
     aboutCard: {
         backgroundColor: COLORS.white,
-        borderRadius: 16,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: COLORS.gray100,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2
+        borderRadius: 12,
+        padding: 14,
     },
-    aboutDescription: { fontSize: 14, color: COLORS.gray600, lineHeight: 20, marginBottom: 16 },
-    divider: { height: 1, backgroundColor: COLORS.gray100, marginVertical: 16 },
-    infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    infoLabel: { fontSize: 14, color: COLORS.gray500, width: 100 },
-    infoText: { fontSize: 14, color: COLORS.textHeadline, fontWeight: '600', marginLeft: 8, flex: 1 },
+    aboutDescription: { fontSize: 14, color: COLORS.gray600, lineHeight: 20, marginBottom: 10 },
+    divider: { height: 1, backgroundColor: COLORS.gray100, marginVertical: 10 },
+    infoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, marginBottom: 4, gap: 12 },
+    infoLabel: { fontSize: 13, color: COLORS.gray500, width: 80 },
+    infoText: { fontSize: 13, color: COLORS.textHeadline, fontWeight: '400', flex: 1 },
 
     emptyContainer: { padding: 40, alignItems: 'center' },
     emptyText: { color: COLORS.gray400, fontSize: 15 },
@@ -1230,13 +1544,6 @@ const styles = StyleSheet.create({
     loadingText: { marginTop: 12, color: COLORS.gray400 },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    sortModalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 },
-    sortModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-    sortModalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline },
-    sortOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
-    sortOptionActive: {},
-    sortOptionText: { fontSize: 15, color: COLORS.gray600, fontWeight: '500' },
-    sortOptionTextActive: { color: COLORS.primary, fontWeight: '700' },
 
     menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
     menuContainer: {

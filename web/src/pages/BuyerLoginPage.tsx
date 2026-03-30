@@ -128,7 +128,7 @@ export default function BuyerLoginPage() {
       navigate("/shop");
     } catch (err) {
       console.error("Login exception:", err);
-      setError("Something went wrong. Please try again.");
+      setError("Incorrect credentials or account details. Please review your input and try again.");
       setIsLoading(false);
     }
   };
@@ -136,9 +136,17 @@ export default function BuyerLoginPage() {
   const handleGoogleSignIn = async () => {
     setError("");
     setIsLoading(true);
-    await authService.signInWithProvider("google");
-    // Since this redirects, we don't need to unset loading unless it fails immediately, but for UX safety:
-    setTimeout(() => setIsLoading(false), 3000);
+    try {
+      const result = await authService.signInWithProvider("google");
+      if (result?.url) {
+        sessionStorage.setItem('oauth_intent', 'buyer');
+        sessionStorage.removeItem('oauth_redirect_done');
+        window.location.assign(result.url); // Manually trigger the redirect
+      }
+    } catch (err) {
+      setError("Failed to initialize Google Sign-In.");
+      setIsLoading(false);
+    }
   };
 
   const handleDemoLogin = () => {
@@ -150,8 +158,17 @@ export default function BuyerLoginPage() {
   const handleFacebookSignIn = async () => {
     setError("");
     setIsLoading(true);
-    await authService.signInWithProvider("facebook");
-    setTimeout(() => setIsLoading(false), 3000);
+    try {
+      const result = await authService.signInWithProvider("facebook");
+      if (result?.url) {
+        sessionStorage.setItem('oauth_intent', 'buyer');
+        sessionStorage.removeItem('oauth_redirect_done');
+        window.location.assign(result.url); // Manually trigger the redirect
+      }
+    } catch (err) {
+      setError("Failed to initialize Facebook Sign-In.");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -222,7 +239,7 @@ export default function BuyerLoginPage() {
               <p className="text-[var(--text-muted)] text-sm mt-1">Sign in to continue shopping.</p>
             </div>
             <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
-              <img src="/BazaarX.png" alt="BazaarX" className="w-12 h-12 object-contain" />
+              <img loading="lazy" src="/BazaarX.png" alt="BazaarX" className="w-12 h-12 object-contain" />
             </div>
           </div>
 
@@ -337,7 +354,7 @@ export default function BuyerLoginPage() {
                 className="w-full h-12 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
                 disabled={isLoading}
               >
-                <img
+                <img loading="lazy" 
                   src="https://www.svgrepo.com/show/475656/google-color.svg"
                   className="w-4 h-4"
                   alt="Google"
@@ -351,7 +368,7 @@ export default function BuyerLoginPage() {
                 className="w-full h-12 text-sm flex items-center border border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
                 disabled={isLoading}
               >
-                <img
+                <img loading="lazy" 
                   src="https://www.svgrepo.com/show/475647/facebook-color.svg"
                   className="w-4 h-4"
                   alt="Facebook"

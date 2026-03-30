@@ -339,7 +339,7 @@ const SellerLogo = ({ open }: { open: boolean }) => (
         open ? "justify-start px-2 gap-3" : "justify-center px-0 gap-0"
     )}>
         <div className="w-10 h-10 bg-gradient-to-tr from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
-            <img src="/BazaarX.png" alt="BazaarX Logo" className="h-6 w-6 brightness-0 invert" />
+            <img loading="lazy" src="/BazaarX.png" alt="BazaarX Logo" className="h-6 w-6 brightness-0 invert" />
         </div>
 
         <motion.div

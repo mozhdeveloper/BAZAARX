@@ -392,7 +392,7 @@ const AdminCategories: React.FC = () => {
       {/* Image preview */}
       {formData.image && (
         <div className="rounded-lg border overflow-hidden bg-gray-50">
-          <img
+          <img loading="lazy" 
             src={formData.image}
             alt="Preview"
             className="w-full h-32 object-cover"
@@ -531,7 +531,7 @@ const AdminCategories: React.FC = () => {
                       {/* Image */}
                       <div className="relative h-44 bg-gray-50 flex-shrink-0">
                         {category.image ? (
-                          <img
+                          <img loading="lazy" 
                             src={category.image}
                             alt={category.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

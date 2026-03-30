@@ -20,6 +20,7 @@ import {
     Check,
     Users,
     Zap,
+    ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SellerSidebar } from "@/components/seller/SellerSidebar";
@@ -60,6 +61,7 @@ import { featuredProductService } from "@/services/featuredProductService";
 import { ProductFormTabs } from "@/components/seller/products/ProductFormTabs";
 import { GeneralInfoTab } from "@/components/seller/products/GeneralInfoTab";
 import { AttributesTab } from "@/components/seller/products/AttributesTab";
+import { WarrantyTab } from "@/components/seller/products/WarrantyTab";
 import { uploadProductImages, validateImageFile, compressImage } from "@/utils/storage";
 import { categoryService } from "@/services/categoryService";
 
@@ -77,6 +79,16 @@ export function SellerProducts() {
         name: "",
         price: 0,
         stock: 0,
+    });
+    const [editWarrantyData, setEditWarrantyData] = useState({
+        hasWarranty: false,
+        warrantyType: "local_manufacturer",
+        warrantyDurationMonths: "",
+        warrantyProviderName: "",
+        warrantyProviderContact: "",
+        warrantyProviderEmail: "",
+        warrantyTermsUrl: "",
+        warrantyPolicy: "",
     });
     const [editVariants, setEditVariants] = useState<
         Array<{
@@ -212,6 +224,17 @@ export function SellerProducts() {
             price: product.price,
             stock: product.stock,
         });
+        // Copy warranty data for editing
+        setEditWarrantyData({
+            hasWarranty: product.hasWarranty || false,
+            warrantyType: product.warrantyType || "local_manufacturer",
+            warrantyDurationMonths: product.warrantyDurationMonths?.toString() || "",
+            warrantyProviderName: product.warrantyProviderName || "",
+            warrantyProviderContact: product.warrantyProviderContact || "",
+            warrantyProviderEmail: product.warrantyProviderEmail || "",
+            warrantyTermsUrl: product.warrantyTermsUrl || "",
+            warrantyPolicy: product.warrantyPolicy || "",
+        });
         // Copy variants for editing
         setEditVariants(
             (product.variants || []).map((v) => ({
@@ -249,6 +272,15 @@ export function SellerProducts() {
                         editVariants.length > 0
                             ? editVariants.reduce((sum, v) => sum + v.stock, 0)
                             : editFormData.stock,
+                    // Update warranty information
+                    hasWarranty: editWarrantyData.hasWarranty,
+                    warrantyType: editWarrantyData.hasWarranty ? editWarrantyData.warrantyType : undefined,
+                    warrantyDurationMonths: editWarrantyData.hasWarranty && editWarrantyData.warrantyDurationMonths ? parseInt(editWarrantyData.warrantyDurationMonths) : undefined,
+                    warrantyProviderName: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderName || null : null,
+                    warrantyProviderContact: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderContact || null : null,
+                    warrantyProviderEmail: editWarrantyData.hasWarranty ? editWarrantyData.warrantyProviderEmail || null : null,
+                    warrantyTermsUrl: editWarrantyData.hasWarranty ? editWarrantyData.warrantyTermsUrl || null : null,
+                    warrantyPolicy: editWarrantyData.hasWarranty ? editWarrantyData.warrantyPolicy || null : null,
                 });
 
                 // Refetch products to get updated data
@@ -264,6 +296,16 @@ export function SellerProducts() {
                 setIsEditDialogOpen(false);
                 setEditingProduct(null);
                 setEditVariants([]);
+                setEditWarrantyData({
+                    hasWarranty: false,
+                    warrantyType: "local_manufacturer",
+                    warrantyDurationMonths: "",
+                    warrantyProviderName: "",
+                    warrantyProviderContact: "",
+                    warrantyProviderEmail: "",
+                    warrantyTermsUrl: "",
+                    warrantyPolicy: "",
+                });
             } catch (error) {
                 console.error("Error updating product.", error);
                 toast({
@@ -274,7 +316,7 @@ export function SellerProducts() {
                 });
             }
         }
-    }, [editingProduct, editVariants, editFormData, updateProduct, fetchProducts, seller?.id, toast]);
+    }, [editingProduct, editVariants, editFormData, editWarrantyData, updateProduct, fetchProducts, seller?.id, toast]);
 
     const handleBulkUpload = useCallback(async (products: BulkProductData[]) => {
         try {
@@ -379,7 +421,7 @@ export function SellerProducts() {
                                     >
                                         <div className="relative overflow-hidden">
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
-                                            <img
+                                            <img loading="lazy" 
                                                 src={product.images[0]}
                                                 alt={product.name}
                                                 className="w-full h-40 object-cover transition-transform duration-700 group-hover:scale-110"
@@ -398,6 +440,17 @@ export function SellerProducts() {
                                                     <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-red-500/90 backdrop-blur-sm text-white">
                                                         <AlertTriangle className="w-3 h-3 mr-1" />
                                                         <span className="text-[10px] font-bold tracking-wide">Rejected</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/* Warranty badge - top right */}
+                                            {product.hasWarranty && (
+                                                <div className="absolute top-2 right-2 z-20">
+                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-orange-500/90 backdrop-blur-sm text-white">
+                                                        <ShieldCheck className="w-3 h-3 mr-1" />
+                                                        <span className="text-[10px] font-bold tracking-wide">
+                                                            {product.warrantyDurationMonths ? `${product.warrantyDurationMonths}mo` : 'Warranty'}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             )}
@@ -733,6 +786,88 @@ export function SellerProducts() {
                                 />
                             </div>
                         )}
+
+                        {/* Warranty Section */}
+                        <div className="border-t pt-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck className="w-4 h-4 text-orange-600" />
+                                    <Label className="text-sm font-semibold">Warranty Information</Label>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditWarrantyData(prev => ({ ...prev, hasWarranty: !prev.hasWarranty }))}
+                                    className={cn(
+                                        "relative inline-flex h-6 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2",
+                                        editWarrantyData.hasWarranty ? "bg-orange-500" : "bg-gray-300"
+                                    )}
+                                >
+                                    <span
+                                        className={cn(
+                                            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                            editWarrantyData.hasWarranty ? "translate-x-5" : "translate-x-1"
+                                        )}
+                                    />
+                                </button>
+                            </div>
+
+                            {editWarrantyData.hasWarranty && (
+                                <div className="space-y-3">
+                                    <div>
+                                        <Label htmlFor="edit-warrantyType" className="text-xs text-gray-600">Warranty Type</Label>
+                                        <Select value={editWarrantyData.warrantyType} onValueChange={(val) => setEditWarrantyData(prev => ({ ...prev, warrantyType: val }))}>
+                                            <SelectTrigger className="h-9 text-sm">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="local_manufacturer">Local Manufacturer</SelectItem>
+                                                <SelectItem value="international_manufacturer">International Manufacturer</SelectItem>
+                                                <SelectItem value="shop_warranty">Shop Warranty</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="edit-warrantyDurationMonths" className="text-xs text-gray-600">Duration (months)</Label>
+                                        <Input
+                                            id="edit-warrantyDurationMonths"
+                                            type="number"
+                                            min="1"
+                                            value={editWarrantyData.warrantyDurationMonths}
+                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyDurationMonths: e.target.value }))}
+                                            className="h-9 text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="edit-warrantyProviderName" className="text-xs text-gray-600">Provider Name</Label>
+                                        <Input
+                                            id="edit-warrantyProviderName"
+                                            value={editWarrantyData.warrantyProviderName}
+                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderName: e.target.value }))}
+                                            className="h-9 text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="edit-warrantyProviderContact" className="text-xs text-gray-600">Contact Number</Label>
+                                        <Input
+                                            id="edit-warrantyProviderContact"
+                                            value={editWarrantyData.warrantyProviderContact}
+                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderContact: e.target.value }))}
+                                            className="h-9 text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="edit-warrantyProviderEmail" className="text-xs text-gray-600">Email</Label>
+                                        <Input
+                                            id="edit-warrantyProviderEmail"
+                                            type="email"
+                                            value={editWarrantyData.warrantyProviderEmail}
+                                            onChange={(e) => setEditWarrantyData(prev => ({ ...prev, warrantyProviderEmail: e.target.value }))}
+                                            className="h-9 text-sm"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <DialogFooter className="gap-2 sm:gap-0 mt-2">
@@ -742,6 +877,16 @@ export function SellerProducts() {
                                 setIsEditDialogOpen(false);
                                 setEditingProduct(null);
                                 setEditVariants([]);
+                                setEditWarrantyData({
+                                    hasWarranty: false,
+                                    warrantyType: "local_manufacturer",
+                                    warrantyDurationMonths: "",
+                                    warrantyProviderName: "",
+                                    warrantyProviderContact: "",
+                                    warrantyProviderEmail: "",
+                                    warrantyTermsUrl: "",
+                                    warrantyPolicy: "",
+                                });
                             }}
                             className="rounded-xl border-[var(--btn-border)] font-bold hover:bg-gray-100 hover:text-[var(--text-headline)] active:scale-95 transition-all h-11"
                         >
@@ -848,8 +993,20 @@ export function AddProduct() {
     const [sizeGuideImage, setSizeGuideImage] = useState<File | null>(null);
     const [sizeGuideImageUrl, setSizeGuideImageUrl] = useState("");
 
+    // Warranty state
+    const [warrantyData, setWarrantyData] = useState({
+        hasWarranty: false,
+        warrantyType: "local_manufacturer",
+        warrantyDurationMonths: "",
+        warrantyProviderName: "",
+        warrantyProviderContact: "",
+        warrantyProviderEmail: "",
+        warrantyTermsUrl: "",
+        warrantyPolicy: "",
+    });
+
     // Custom attribute names state
-    const [firstAttributeName, setFirstAttributeName] = useState("Variations");
+    const [firstAttributeName, setFirstAttributeName] = useState("Sizes");
     const [secondAttributeName, setSecondAttributeName] = useState("Colors");
     const [editingFirstAttributeName, setEditingFirstAttributeName] =
         useState(false);
@@ -858,7 +1015,7 @@ export function AddProduct() {
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const [activeTab, setActiveTab] = useState<"general" | "attributes">(
+    const [activeTab, setActiveTab] = useState<"general" | "attributes" | "warranty">(
         "general",
     );
 
@@ -1253,6 +1410,23 @@ export function AddProduct() {
         }));
     };
 
+    // Warranty change handler
+    const handleWarrantyChange = (
+        e: React.ChangeEvent<
+            HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+        >,
+    ) => {
+        const { name, value } = e.target;
+        setWarrantyData((prev) => ({
+            ...prev,
+            [name]: value,
+        }));
+        // Clear error when user starts typing
+        if (errors[name]) {
+            setErrors((prev) => ({ ...prev, [name]: "" }));
+        }
+    };
+
     const validateForm = (): boolean => {
         const newErrors: Record<string, string> = {};
 
@@ -1289,6 +1463,25 @@ export function AddProduct() {
         const validFiles = imageFiles.filter((f): f is File => f !== null);
         if (validImages.length === 0 && validFiles.length === 0) {
             newErrors.images = "At least one product image is required";
+        }
+
+        // Warranty validation
+        if (warrantyData.hasWarranty) {
+            if (!warrantyData.warrantyType) {
+                newErrors.warrantyType = "Please select a warranty type";
+            }
+            if (!warrantyData.warrantyDurationMonths || parseInt(warrantyData.warrantyDurationMonths) <= 0) {
+                newErrors.warrantyDurationMonths = "Warranty duration must be greater than 0";
+            }
+            if (!warrantyData.warrantyProviderName?.trim()) {
+                newErrors.warrantyProviderName = "Warranty provider name is required";
+            }
+            if (warrantyData.warrantyProviderEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(warrantyData.warrantyProviderEmail)) {
+                newErrors.warrantyProviderEmail = "Please enter a valid email address";
+            }
+            if (warrantyData.warrantyTermsUrl && !/^https?:\/\/.+$/.test(warrantyData.warrantyTermsUrl)) {
+                newErrors.warrantyTermsUrl = "Please enter a valid URL";
+            }
         }
 
         setErrors(newErrors);
@@ -1353,6 +1546,26 @@ export function AddProduct() {
                     ? [...(baseVariant ? [baseVariant] : []), ...updatedVariants]
                     : undefined;
 
+            const hasVariantAxis1 =
+                formData.variantLabel1Values.length > 0 ||
+                updatedVariants.some((variant) =>
+                    !!String(variant.variantLabel1Value || '').trim()
+                );
+
+            const hasVariantAxis2 =
+                formData.variantLabel2Values.length > 0 ||
+                updatedVariants.some((variant) =>
+                    !!String(variant.variantLabel2Value || '').trim()
+                );
+
+            const resolvedVariantLabel1 = hasVariantAxis1
+                ? (firstAttributeName?.trim() || 'Variations')
+                : undefined;
+
+            const resolvedVariantLabel2 = hasVariantAxis2
+                ? (secondAttributeName?.trim() || 'Colors')
+                : undefined;
+
             // 3. Upload Main Product Images (URLs + Files)
             const filesToUpload = imageFiles.filter((f): f is File => f !== null);
             let uploadedMainUrls: string[] = [];
@@ -1405,9 +1618,20 @@ export function AddProduct() {
                 sizeGuideImage: uploadedSizeGuideUrl,
                 isActive: true,
                 sellerId: seller?.id || "",
-                variantLabel1: firstAttributeName !== "Variations" ? firstAttributeName : undefined,
-                variantLabel2: secondAttributeName !== "Colors" ? secondAttributeName : undefined,
+                variantLabel1: resolvedVariantLabel1,
+                variantLabel2: resolvedVariantLabel2,
                 variants: variantsForSubmit,
+                // Warranty information (only included if enabled)
+                ...(warrantyData.hasWarranty && {
+                    hasWarranty: true,
+                    warrantyType: warrantyData.warrantyType,
+                    warrantyDurationMonths: warrantyData.warrantyDurationMonths ? parseInt(warrantyData.warrantyDurationMonths) : undefined,
+                    warrantyProviderName: warrantyData.warrantyProviderName || null,
+                    warrantyProviderContact: warrantyData.warrantyProviderContact || null,
+                    warrantyProviderEmail: warrantyData.warrantyProviderEmail || null,
+                    warrantyTermsUrl: warrantyData.warrantyTermsUrl || null,
+                    warrantyPolicy: warrantyData.warrantyPolicy || null,
+                }),
             };
 
             await addProduct(productData);
@@ -1473,7 +1697,7 @@ export function AddProduct() {
                                         const filePreview = imageFiles[0] ? URL.createObjectURL(imageFiles[0]) : null;
                                         const previewSrc = urlPreview || filePreview;
                                         return previewSrc ? (
-                                            <img
+                                            <img loading="lazy" 
                                                 src={previewSrc}
                                                 alt="Preview"
                                                 className="w-full h-full object-cover"
@@ -1573,23 +1797,7 @@ export function AddProduct() {
                             className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-8 space-y-8 border border-gray-100"
                         >
                             {/* Tab Navigation */}
-                            <div className="bg-gray-50 p-1.5 rounded-2xl flex gap-1">
-                                {["general", "attributes"].map((tab) => (
-                                    <button
-                                        key={tab}
-                                        type="button"
-                                        onClick={() => setActiveTab(tab as any)}
-                                        className={cn(
-                                            "flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all duration-300",
-                                            activeTab === tab
-                                                ? "bg-white text-[var(--brand-primary)] shadow-md shadow-orange-900/5"
-                                                : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                                        )}
-                                    >
-                                        {tab === "general" ? "General Information" : "Variants & Attributes"}
-                                    </button>
-                                ))}
-                            </div>
+                            <ProductFormTabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
                             {/* General Information Tab */}
                             {activeTab === "general" && (
@@ -1667,6 +1875,16 @@ export function AddProduct() {
                                     setNewVariant={setNewVariant}
                                     setErrors={setErrors}
                                     addVariant={addVariant}
+                                />
+                            )}
+
+                            {/* Warranty Tab */}
+                            {activeTab === "warranty" && (
+                                <WarrantyTab
+                                    formData={warrantyData}
+                                    errors={errors}
+                                    handleChange={handleWarrantyChange}
+                                    setFormData={setWarrantyData}
                                 />
                             )}
 

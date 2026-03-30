@@ -42,6 +42,7 @@ export interface Product {
   rejection_reason?: string | null;
   vendor_submitted_category?: string | null;
   admin_reclassified_category?: string | null;
+  is_vacation_mode?: boolean;
   // Metrics
   rating?: number;
   review_count?: number;
@@ -73,6 +74,23 @@ export interface Product {
   sellerVerified?: boolean;
   sold?: number;
   location?: string;
+  // Warranty fields
+  has_warranty?: boolean;
+  hasWarranty?: boolean;
+  warranty_type?: string;
+  warrantyType?: string;
+  warranty_duration_months?: number;
+  warrantyDurationMonths?: number;
+  warranty_provider_name?: string;
+  warrantyProviderName?: string;
+  warranty_provider_contact?: string;
+  warrantyProviderContact?: string;
+  warranty_provider_email?: string;
+  warrantyProviderEmail?: string;
+  warranty_terms_url?: string;
+  warrantyTermsUrl?: string;
+  warranty_policy?: string;
+  warrantyPolicy?: string;
   // Selected variant for cart/checkout
   selectedVariant?: {
     color?: string;

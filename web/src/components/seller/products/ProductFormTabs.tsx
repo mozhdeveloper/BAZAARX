@@ -1,8 +1,9 @@
 import { cn } from "@/lib/utils";
+import { Package, Settings, ShieldCheck } from "lucide-react";
 
 interface ProductFormTabsProps {
-  activeTab: 'general' | 'attributes';
-  setActiveTab: (tab: 'general' | 'attributes') => void;
+  activeTab: 'general' | 'attributes' | 'warranty';
+  setActiveTab: (tab: 'general' | 'attributes' | 'warranty') => void;
 }
 
 export function ProductFormTabs({ activeTab, setActiveTab }: ProductFormTabsProps) {
@@ -12,25 +13,40 @@ export function ProductFormTabs({ activeTab, setActiveTab }: ProductFormTabsProp
         type="button"
         onClick={() => setActiveTab('general')}
         className={cn(
-          "flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200",
+          "flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2",
           activeTab === 'general'
             ? "bg-white text-orange-600 shadow-sm"
             : "text-gray-600 hover:text-gray-900"
         )}
       >
-        General Information
+        <Package className="w-4 h-4" />
+        General
       </button>
       <button
         type="button"
         onClick={() => setActiveTab('attributes')}
         className={cn(
-          "flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200",
+          "flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2",
           activeTab === 'attributes'
             ? "bg-white text-orange-600 shadow-sm"
             : "text-gray-600 hover:text-gray-900"
         )}
       >
-        Attributes and Variants
+        <Settings className="w-4 h-4" />
+        Variants
+      </button>
+      <button
+        type="button"
+        onClick={() => setActiveTab('warranty')}
+        className={cn(
+          "flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2",
+          activeTab === 'warranty'
+            ? "bg-white text-orange-600 shadow-sm"
+            : "text-gray-600 hover:text-gray-900"
+        )}
+      >
+        <ShieldCheck className="w-4 h-4" />
+        Warranty
       </button>
     </div>
   );

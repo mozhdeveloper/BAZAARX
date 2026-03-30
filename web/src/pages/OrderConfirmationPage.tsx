@@ -184,7 +184,7 @@ export default function OrderConfirmationPage() {
                 {order.items.map(item => (
                   <div key={item.id} className="flex gap-3">
                     <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
-                      <img
+                      <img loading="lazy" 
                         src={item.image}
                         alt={item.name}
                         className="w-full h-full object-cover"

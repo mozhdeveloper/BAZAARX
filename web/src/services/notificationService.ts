@@ -191,7 +191,7 @@ export class NotificationService {
       }
       
       // Map the data to include is_read field (based on read_at being null or not)
-      return (data || []).map(n => ({
+      return (data || []).map((n: any) => ({
         ...n,
         is_read: !!n.read_at
       }));
@@ -246,8 +246,8 @@ export class NotificationService {
     try {
       const tableName = this.getTableName(userType);
       
-      const { error } = await supabase
-        .from(tableName)
+      const { error } = await (supabase
+        .from(tableName) as any)
         .update({
           read_at: new Date().toISOString()
         })
@@ -278,8 +278,8 @@ export class NotificationService {
       const tableName = this.getTableName(userType);
       const userIdColumn = this.getUserIdColumn(userType);
       
-      const { error } = await supabase
-        .from(tableName)
+      const { error } = await (supabase
+        .from(tableName) as any)
         .update({
           read_at: new Date().toISOString()
         })
@@ -796,7 +796,7 @@ export class NotificationService {
           token: params.token,
           platform: params.platform,
           updated_at: new Date().toISOString(),
-        },
+        } as any,
         { onConflict: 'token' }
       );
       if (error) console.warn('[NotificationService] registerPushToken error:', error);
@@ -887,6 +887,56 @@ export class NotificationService {
       icon: 'XCircle',
       iconBg: 'bg-red-500',
       actionUrl: `/seller/order/${params.orderId}`,
+      actionData: { orderId: params.orderId },
+      priority: 'high'
+    });
+  }
+
+  /**
+   * Notify buyer when order is auto-cancelled due to seller not confirming
+   */
+  async notifyBuyerOrderAutoCancelled(params: {
+    buyerId: string;
+    orderId: string;
+    orderNumber: string;
+    reason: string;
+  }): Promise<Notification> {
+    if (!params.buyerId) throw new Error('buyerId is missing');
+
+    return this.createNotification({
+      userId: params.buyerId,
+      userType: 'buyer',
+      type: 'buyer_order_auto_cancelled',
+      title: 'Order Auto-Cancelled',
+      message: `Your order #${params.orderNumber} was automatically cancelled. ${params.reason}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: `/orders/${params.orderId}`,
+      actionData: { orderId: params.orderId },
+      priority: 'high'
+    });
+  }
+
+  /**
+   * Notify seller when their order is auto-cancelled due to not confirming
+   */
+  async notifySellerOrderAutoCancelled(params: {
+    sellerId: string;
+    orderId: string;
+    orderNumber: string;
+    reason: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_order_auto_cancelled',
+      title: 'Order Auto-Cancelled',
+      message: `Your order #${params.orderNumber} was automatically cancelled because you did not confirm in time. ${params.reason}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: `/seller/orders?id=${params.orderId}`,
       actionData: { orderId: params.orderId },
       priority: 'high'
     });

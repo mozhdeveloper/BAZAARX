@@ -22,6 +22,7 @@ import ProductRequestModal from "../ProductRequestModal";
 import ProductCard from "../ProductCard";
 import { trendingProducts } from "../../data/products";
 import { useProductStore } from "../../stores/sellerStore";
+import { useBuyerStore } from "../../stores/buyerStore";
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -42,6 +43,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const { scrollY } = useScroll();
+  const { profile } = useBuyerStore();
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const startHidingPoint = headerOnly ? 100 : window.innerHeight - 100;
@@ -156,7 +158,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                         className="flex items-center gap-2 hover:scale-110 transition-transform duration-300 transform origin-center"
                         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                       >
-                        <img
+                        <img loading="eager" 
                           src="/BazaarX.png"
                           alt="BazaarX Logo"
                           className="h-8 md:h-10 lg:h-12 w-auto object-contain"
@@ -170,15 +172,17 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                   <div className="flex items-center gap-2">
                     {mode === "buyer" ? (
                       <div className="flex items-center gap-3 pr-2">
-                        <Link to="/login">
-                          <Button
-                            variant="ghost"
-                            className="bg-transparent hover:bg-transparent flex items-center gap-2 px-2 group"
-                          >
-                            <span className="text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors">Login</span>
-                            <User className="w-5 h-5 text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors" />
-                          </Button>
-                        </Link>
+                        {!profile && (
+                          <Link to="/login">
+                            <Button
+                              variant="ghost"
+                              className="bg-transparent hover:bg-transparent flex items-center gap-2 px-2 group"
+                            >
+                              <span className="text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors">Login</span>
+                              <User className="w-5 h-5 text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors" />
+                            </Button>
+                          </Link>
+                        )}
                         <Link to="/sell">
                           <Button
                             variant="secondary"

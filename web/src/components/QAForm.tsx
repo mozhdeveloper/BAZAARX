@@ -32,7 +32,7 @@ const QAForm: React.FC<QAFormProps> = ({
     const { toast } = useToast();
 
     // Form States
-    const [batchId, setBatchId] = useState('');
+    const [batchId, setBatchId] = useState(selectedProduct.batchId || '');
     const [serialNumber, setSerialNumber] = useState('');
     const [productTier, setProductTier] = useState('');
     const [assessmentStatus, setAssessmentStatus] = useState<'approved' | 'revision' | 'rejected' | null>(null);
@@ -80,17 +80,23 @@ const QAForm: React.FC<QAFormProps> = ({
     const handleSubmit = async () => {
         if (!selectedProduct) return;
 
+        const stage = selectedProduct.status === 'pending_physical_review' ? 'physical' : 'digital';
+
         try {
             if (assessmentStatus === 'approved') {
-                await qaTeamService.passDigitalReview(selectedProduct.product_id, 'qa-user');
+                if (stage === 'physical') {
+                    await qaTeamService.passPhysicalReview(selectedProduct.product_id, 'qa-user');
+                } else {
+                    await qaTeamService.passDigitalReview(selectedProduct.product_id, 'qa-user');
+                }
                 toast({ title: 'Success', description: 'Product approved and verified!' });
             } else if (assessmentStatus === 'revision') {
                 if (!revisionReason.trim()) return;
-                await qaTeamService.requestRevision(selectedProduct.product_id, 'qa-user', revisionReason, 'digital');
+                await qaTeamService.requestRevision(selectedProduct.product_id, 'qa-user', revisionReason, stage);
                 toast({ title: 'Revision Requested', description: 'Seller has been notified.' });
             } else if (assessmentStatus === 'rejected') {
                 if (!rejectionReason.trim()) return;
-                await qaTeamService.rejectProduct(selectedProduct.product_id, 'qa-user', rejectionReason, 'digital');
+                await qaTeamService.rejectProduct(selectedProduct.product_id, 'qa-user', rejectionReason, stage);
                 toast({ title: 'Product Rejected', description: 'Seller has been notified.' });
             }
 
@@ -341,7 +347,7 @@ const QAForm: React.FC<QAFormProps> = ({
                                 <div className="flex flex-wrap gap-2">
                                     {photoEvidence.map((file, index) => (
                                         <div key={index} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-gray-100">
-                                            <img
+                                            <img loading="lazy" 
                                                 src={URL.createObjectURL(file)}
                                                 alt="Preview"
                                                 className="w-full h-full object-cover"

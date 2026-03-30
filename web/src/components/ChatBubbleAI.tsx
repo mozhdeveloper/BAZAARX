@@ -96,7 +96,7 @@ export function ChatBubble() {
           .from('products')
           .select('id, name, price, brand, is_free_shipping, description, category:categories!products_category_id_fkey(name), variants:product_variants(size, color, stock, price)')
           .eq('id', chatTarget.productId)
-          .single();
+          .single() as any;
 
         if (data) {
           const totalStock = data.variants?.reduce((s: number, v: any) => s + (v.stock || 0), 0) || 0;
@@ -120,7 +120,7 @@ export function ChatBubble() {
           .from('sellers')
           .select('id, store_name, store_description, owner_name, approval_status')
           .eq('id', chatTarget.sellerId)
-          .single();
+          .single() as any;
 
         if (data) {
           setStoreContext({
@@ -531,7 +531,7 @@ export function ChatBubble() {
                   <Bot className="w-5 h-5 text-white" />
                 </div>
               ) : chatTarget?.sellerAvatar ? (
-                <img
+                <img loading="lazy" 
                   src={chatTarget.sellerAvatar}
                   alt={chatTarget.sellerName}
                   className="w-10 h-10 rounded-full border-2 border-white/30 object-cover"
@@ -574,22 +574,11 @@ export function ChatBubble() {
                   <RefreshCw className="w-4 h-4" />
                 </Button>
               )}
+
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setMiniMode(true)}
-                className="text-white hover:bg-white/20 h-8 w-8"
-              >
-                <Minimize2 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  closeChat();
-                  clearChatTarget();
-                  handleResetChat();
-                }}
                 className="text-white hover:bg-white/20 h-8 w-8"
               >
                 <X className="w-4 h-4" />
@@ -639,7 +628,7 @@ export function ChatBubble() {
           {/* Product context bar */}
           {chatTarget?.productId && chatTarget?.productImage && (
             <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-3">
-              <img
+              <img loading="lazy" 
                 src={chatTarget.productImage}
                 alt={chatTarget.productName}
                 className="w-10 h-10 rounded-lg object-cover border border-gray-200"

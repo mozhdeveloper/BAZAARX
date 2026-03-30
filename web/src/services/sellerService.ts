@@ -295,7 +295,7 @@ export class SellerService {
         }
 
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('sellers')
                 .upsert({
                     id: seller.id,
@@ -330,7 +330,7 @@ export class SellerService {
         }
 
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('sellers')
                 .update({ ...updates, updated_at: new Date().toISOString() })
                 .eq('id', sellerId)
@@ -383,7 +383,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('sellers')
                 .update({
                     approval_status: 'verified',
@@ -408,7 +408,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('sellers')
                 .update({
                     approval_status: 'rejected',
@@ -433,7 +433,7 @@ export class SellerService {
 
         try {
             // Try RPC first
-            const { data, error } = await supabase.rpc('get_seller_sales_summary', {
+            const { data, error } = await (supabase as any).rpc('get_seller_sales_summary', {
                 p_seller_id: sellerId,
             });
 
@@ -442,8 +442,63 @@ export class SellerService {
             // Fallback: return defaults
             return { total_orders: 0, total_sales: 0, average_rating: 0 };
         } catch (error) {
-            console.error('Error fetching seller stats:', error);
+            console.error('Error getting seller stats:', error);
             return { total_orders: 0, total_sales: 0, average_rating: 0 };
+        }
+    }
+
+    /**
+     * Enable vacation mode for a seller
+     */
+    async enableVacationMode(
+        sellerId: string,
+        reason?: string
+    ): Promise<{ success: boolean; error?: string }> {
+        if (!isSupabaseConfigured()) {
+            return { success: false, error: 'Supabase not configured' };
+        }
+
+        try {
+            const { error } = await (supabase as any)
+                .from('sellers')
+                .update({
+                    is_vacation_mode: true,
+                    vacation_reason: reason || null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', sellerId);
+
+            if (error) throw error;
+            return { success: true };
+        } catch (error) {
+            console.error('Error enabling vacation mode:', error);
+            return { success: false, error: 'Failed to enable vacation mode' };
+        }
+    }
+
+    /**
+     * Disable vacation mode for a seller
+     */
+    async disableVacationMode(sellerId: string): Promise<{ success: boolean; error?: string }> {
+        if (!isSupabaseConfigured()) {
+            return { success: false, error: 'Supabase not configured' };
+        }
+
+        try {
+            const { error } = await (supabase as any)
+                .from('sellers')
+                .update({
+                    is_vacation_mode: false,
+                    vacation_reason: null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', sellerId);
+
+            if (error) throw error;
+            return { success: true };
+        } catch (error) {
+            console.error('Error disabling vacation mode:', error);
+            return { success: false, error: 'Failed to disable vacation mode' };
         }
     }
 
@@ -597,7 +652,7 @@ export class SellerService {
             };
 
             return this.transformSeller({
-                ...seller,
+                ...(seller as any),
                 rating: metrics.rating,
                 total_reviews: metrics.total_reviews,
                 review_count: metrics.total_reviews,
@@ -627,7 +682,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('seller_business_profiles')
                 .upsert({
                     seller_id: sellerId,
@@ -657,7 +712,7 @@ export class SellerService {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('seller_payout_accounts')
                 .upsert({
                     seller_id: sellerId,
@@ -671,6 +726,145 @@ export class SellerService {
         } catch (error) {
             console.error('Error updating payout account:', error);
             throw new Error('Failed to update payout account.');
+        }
+    }
+
+    /**
+     * Social features - Follow a seller (uses store_followers table)
+     * Note: This requires buyer_id from buyers table
+     */
+    async followSeller(buyerId: string, sellerId: string): Promise<void> {
+        if (!isSupabaseConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        try {
+            const { error } = await (supabase as any)
+                .from('store_followers')
+                .upsert({
+                    buyer_id: buyerId,
+                    seller_id: sellerId,
+                }, { 
+                    onConflict: 'buyer_id,seller_id',
+                    ignoreDuplicates: true 
+                });
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error following seller:', error);
+            throw new Error('Failed to follow seller.');
+        }
+    }
+
+    /**
+     * Unfollow a seller
+     */
+    async unfollowSeller(buyerId: string, sellerId: string): Promise<void> {
+        if (!isSupabaseConfigured()) {
+            throw new Error('Supabase not configured');
+        }
+
+        try {
+            const { error } = await (supabase as any)
+                .from('store_followers')
+                .delete()
+                .eq('buyer_id', buyerId)
+                .eq('seller_id', sellerId);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error unfollowing seller:', error);
+            throw new Error('Failed to unfollow seller.');
+        }
+    }
+
+    /**
+     * Get follower count for a seller
+     */
+    async getFollowerCount(sellerId: string): Promise<number> {
+        if (!isSupabaseConfigured()) {
+            return 0;
+        }
+
+        try {
+            const { count, error } = await (supabase as any)
+                .from('store_followers')
+                .select('*', { count: 'exact', head: true })
+                .eq('seller_id', sellerId);
+
+            if (error) throw error;
+            return count || 0;
+        } catch (error) {
+            console.error('Error getting follower count:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Check if a buyer is following a seller
+     */
+    async checkIsFollowing(buyerId: string, sellerId: string): Promise<boolean> {
+        if (!isSupabaseConfigured()) {
+            return false;
+        }
+
+        try {
+            const { data, error } = await (supabase as any)
+                .from('store_followers')
+                .select('id')
+                .eq('buyer_id', buyerId)
+                .eq('seller_id', sellerId)
+                .maybeSingle();
+
+            if (error) throw error;
+            return !!data;
+        } catch (error) {
+            console.error('Error checking follow status:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get shops followed by a buyer
+     */
+    async getFollowedShops(buyerId: string): Promise<SellerData[]> {
+        if (!isSupabaseConfigured()) {
+            return [];
+        }
+
+        try {
+            const { data, error } = await (supabase as any)
+                .from('store_followers')
+                .select(`
+                    seller:sellers (
+                        *,
+                        business_profile:seller_business_profiles(*),
+                        products(count),
+                        followers:store_followers(count)
+                    )
+                `)
+                .eq('buyer_id', buyerId);
+
+            if (error) throw error;
+            if (!data) return [];
+
+            return data
+                .map(row => (row as any).seller)
+                .filter(Boolean)
+                .map(seller => {
+                    const transformed = this.transformSeller(seller);
+                    // Extract nested counts returned by Supabase
+                    const productsArr = seller.products as { count: number }[] | null;
+                    const followersArr = seller.followers as { count: number }[] | null;
+                    return {
+                        ...transformed,
+                        products_count: productsArr?.[0]?.count ?? 0,
+                        followers_count: followersArr?.[0]?.count ?? 0,
+                    };
+                });
+        } catch (error) {
+            console.error('Error getting followed shops:', error);
+            return [];
         }
     }
 }

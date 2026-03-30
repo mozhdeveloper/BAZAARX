@@ -126,26 +126,36 @@ export default function StorefrontReviewsTab({
             </div>
 
             {/* Reviews List (Right Content) */}
-            <div className="md:col-span-7 lg:col-span-8 space-y-4">
+            <div className="md:col-span-7 lg:col-span-8">
                 {/* Anchor for scrolling */}
                 <div ref={reviewsStartRef} className="h-0" />
 
                 {/* Review Filters */}
-                <div className="sticky top-36 z-20 flex flex-wrap items-center gap-2 mb-4 bg-white p-3 rounded-xl border-0 shadow-md">
-                    {['all', '5', '4', '3', '2', '1', 'media'].map((filter) => (
-                        <button
-                            key={filter}
-                            onClick={() => setReviewFilter(filter)}
-                            className={cn(
-                                "px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border",
-                                reviewFilter === filter
-                                    ? "bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] shadow-sm"
-                                    : "bg-white text-gray-600 border-gray-200 hover:border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]/[0.02]"
-                            )}
-                        >
-                            {filter === 'all' ? 'All' : filter === 'media' ? 'With Media' : `${filter} Star${filter === '1' ? '' : 's'}`}
-                        </button>
-                    ))}
+                <div className="sticky top-36 z-20 flex flex-wrap items-center gap-2 mb-4 bg-white p-3 rounded-xl border-0 shadow-sm">
+                    {(() => {
+                        const mediaCount = reviews.filter(r => r.images && r.images.length > 0).length;
+                        return ['all', '5', '4', '3', '2', '1', 'media'].map((filter) => {
+                            let count = 0;
+                            if (filter === 'all') count = reviewStats.total;
+                            else if (filter === 'media') count = mediaCount;
+                            else count = reviewStats.distribution[parseInt(filter) - 1] || 0;
+
+                            return (
+                                <button
+                                    key={filter}
+                                    onClick={() => setReviewFilter(filter)}
+                                    className={cn(
+                                        "px-4 py-1.5 rounded-full text-xs transition-all duration-200 border",
+                                        reviewFilter === filter
+                                            ? "bg-white text-[var(--brand-primary)] border-[var(--brand-primary)] shadow-sm"
+                                            : "bg-white text-gray-500 border-gray-300 hover:border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]/[0.02]"
+                                    )}
+                                >
+                                    {filter === 'all' ? 'All' : filter === 'media' ? 'With Media' : `${filter} Star${filter === '1' ? '' : 's'}`} ({count})
+                                </button>
+                            );
+                        });
+                    })()}
                 </div>
 
                 {/* Filter reviews based on selected filter */}
@@ -159,10 +169,7 @@ export default function StorefrontReviewsTab({
                     if (filteredReviews.length === 0) {
                         return (
                             <div className="text-center py-12">
-                                <div className="text-gray-400 mb-2">
-                                    <Star className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                </div>
-                                <h3 className="text-lg font-semibold text-gray-600 mb-2">No Reviews Yet</h3>
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Reviews Yet</h3>
                                 <p className="text-gray-500 text-sm">
                                     {reviewFilter === 'all'
                                         ? 'Be the first to review products from this store!'
@@ -173,7 +180,7 @@ export default function StorefrontReviewsTab({
                     }
 
                     return (
-                        <Card className="border-0 shadow-md overflow-hidden bg-white rounded-2xl">
+                        <Card className="border-0 shadow-sm overflow-hidden bg-white rounded-xl">
                             {filteredReviews.map((review, idx) => (
                                 <div
                                     key={review.id}
@@ -183,7 +190,7 @@ export default function StorefrontReviewsTab({
                                     )}
                                 >
                                     <div className="flex items-start gap-4">
-                                        <img
+                                        <img loading="lazy"
                                             src={review.avatar}
                                             alt={review.author}
                                             className="w-10 h-10 rounded-full object-cover border border-gray-100"
@@ -211,7 +218,7 @@ export default function StorefrontReviewsTab({
                                             {review.productName && (
                                                 <div className="flex items-center gap-3 mb-3 bg-gray-50 rounded-xl p-3">
                                                     {review.productImage && (
-                                                        <img
+                                                        <img loading="lazy"
                                                             src={review.productImage}
                                                             alt={review.productName}
                                                             className="w-10 h-10 rounded-lg object-cover border border-gray-200 shadow-sm"
@@ -238,7 +245,7 @@ export default function StorefrontReviewsTab({
                                             {review.images && review.images.length > 0 && (
                                                 <div className="flex gap-2 mb-3 flex-wrap">
                                                     {review.images.map((img, idx) => (
-                                                        <img
+                                                        <img loading="lazy"
                                                             key={idx}
                                                             src={img}
                                                             alt={`Review image ${idx + 1}`}

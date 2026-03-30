@@ -1,16 +1,17 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product } from '../types';
+import { wishlistService } from '../services/wishlistService';
+import { supabase } from '../lib/supabase';
 
-// Enhanced Wishlist Item with Registry Features
 export interface WishlistItem extends Product {
     priority: 'low' | 'medium' | 'high';
     desiredQty: number;
-    purchasedQty: number; // For registry logic
+    purchasedQty: number;
     addedAt: string;
-    categoryId?: string; // Link to a specific list
-    isPrivate?: boolean; // Item-level privacy
+    categoryId?: string;
+    isPrivate?: boolean;
+    // DB registry_items.id — used for update/delete
+    registryItemId?: string;
 }
 
 export interface WishlistCategory {
@@ -18,134 +19,311 @@ export interface WishlistCategory {
     name: string;
     description?: string;
     image?: string;
-    privacy: 'private' | 'shared'; // PER CATEGORY SETTING
+    privacy: 'private' | 'shared';
     occasion?: string;
 }
-
-// Removed global WishlistSettings interface as requested
 
 interface WishlistState {
     items: WishlistItem[];
     categories: WishlistCategory[];
+    _buyerId: string | null;
+    _loaded: boolean;
 
-    addItem: (product: Product, priority?: 'low' | 'medium' | 'high', desiredQty?: number, categoryId?: string) => void;
-    removeItem: (productId: string) => void;
-    updateItem: (productId: string, updates: Partial<WishlistItem>) => void;
+    // Load from Supabase (call after auth)
+    loadWishlist: (buyerId: string) => Promise<void>;
+    reset: () => void;
 
-    // Category Management
-    createCategory: (name: string, privacy: 'private' | 'shared', occasion?: string, description?: string) => string;
-    deleteCategory: (categoryId: string) => void;
-    updateCategory: (categoryId: string, updates: Partial<WishlistCategory>) => void;
+    addItem: (product: Product, priority?: 'low' | 'medium' | 'high', desiredQty?: number, categoryId?: string) => Promise<void>;
+    removeItem: (registryItemId: string) => Promise<void>;
+    updateItem: (registryItemId: string, updates: Partial<WishlistItem>) => Promise<void>;
+
+    createCategory: (name: string, privacy: 'private' | 'shared', occasion?: string, description?: string) => Promise<string>;
+    deleteCategory: (categoryId: string) => Promise<void>;
+    updateCategory: (categoryId: string, updates: Partial<WishlistCategory>) => Promise<void>;
 
     isInWishlist: (productId: string) => boolean;
     clearWishlist: () => void;
-    shareWishlist: (categoryId: string) => Promise<string>; // Share specific list
-
-    // Registry Logic
-    markAsPurchased: (productId: string, qty: number) => void;
+    shareWishlist: (categoryId: string) => Promise<string>;
+    markAsPurchased: (registryItemId: string, qty: number) => Promise<void>;
 }
 
-export const useWishlistStore = create<WishlistState>()(
-    persist(
-        (set, get) => ({
-            items: [],
-            categories: [
-                { id: 'default', name: 'General Favorites', description: 'My favorite items.', privacy: 'private' },
-            ],
+const DEFAULT_CATEGORY: WishlistCategory = {
+    id: 'default',
+    name: 'General Favorites',
+    privacy: 'private',
+    occasion: 'general',
+};
 
-            addItem: (product, priority = 'medium', desiredQty = 1, categoryId = 'default') => {
-                const { items } = get();
-                const existing = items.find(item => item.id === product.id);
+function mapDbRowToCategory(row: any): WishlistCategory {
+    return {
+        id: row.id,
+        name: row.title,
+        privacy: 'private',
+        occasion: row.category || row.event_type || 'general',
+    };
+}
 
-                if (!existing) {
-                    const newItem: WishlistItem = {
-                        ...product,
-                        priority,
-                        desiredQty,
-                        purchasedQty: 0,
-                        addedAt: new Date().toISOString(),
-                        categoryId
-                    };
-                    set({ items: [...items, newItem] });
-                }
-            },
+function mapDbItemToWishlistItem(item: any, registryId: string): WishlistItem {
+    const snapshot = item.product_snapshot || {};
+    return {
+        ...snapshot,
+        id: snapshot.id || item.product_id || item.id,
+        name: item.product_name || snapshot.name || '',
+        price: snapshot.price || 0,
+        priority: (item.priority as 'low' | 'medium' | 'high') || 'medium',
+        desiredQty: item.requested_qty ?? item.quantity_desired ?? 1,
+        purchasedQty: item.received_qty ?? 0,
+        addedAt: item.created_at || new Date().toISOString(),
+        categoryId: registryId,
+        registryItemId: item.id,
+    };
+}
 
-            removeItem: (productId) => {
-                const { items } = get();
-                set({ items: items.filter(item => item.id !== productId) });
-            },
+export const useWishlistStore = create<WishlistState>((set, get) => ({
+    items: [],
+    categories: [],
+    _buyerId: null,
+    _loaded: false,
 
-            updateItem: (productId, updates) => {
-                const { items } = get();
-                set({
-                    items: items.map(item =>
-                        item.id === productId ? { ...item, ...updates } : item
-                    )
-                });
-            },
+    loadWishlist: async (buyerId: string) => {
+        try {
+            const rows = await wishlistService.getRegistries(buyerId);
 
-            createCategory: (name, privacy, occasion, description) => {
-                const { categories } = get();
-                const newId = 'list_' + Date.now();
-                // Force private
-                const newCategory: WishlistCategory = { id: newId, name, privacy: 'private' as const, occasion, description };
-                set({ categories: [...categories, newCategory] });
-                return newId;
-            },
+            // Find the default registry (event_type = 'general') if it exists
+            const defaultRow = rows.find(
+                (r) => r.event_type === 'general' || r.category === 'general'
+            );
 
-            deleteCategory: (categoryId) => {
-                const { categories, items } = get();
-                // Move items from deleted category to default
-                if (categoryId === 'default') return; // Cannot delete default
+            const categories: WishlistCategory[] = rows.map((row) => ({
+                ...mapDbRowToCategory(row),
+                id: defaultRow && row.id === defaultRow.id ? 'default' : row.id,
+            }));
 
-                const updatedItems = items.map(item =>
-                    item.categoryId === categoryId ? { ...item, categoryId: 'default' } : item
-                );
-
-                set({
-                    categories: categories.filter(c => c.id !== categoryId),
-                    items: updatedItems
-                });
-            },
-
-            updateCategory: (categoryId, updates) => {
-                const { categories } = get();
-                set({
-                    categories: categories.map(c =>
-                        c.id === categoryId ? { ...c, ...updates, privacy: 'private' as const } : c
-                    )
-                });
-            },
-
-            isInWishlist: (productId) => {
-                const { items } = get();
-                return !!items.find(item => item.id === productId);
-            },
-
-            clearWishlist: () => {
-                set({ items: [] });
-            },
-
-            shareWishlist: async (categoryId) => {
-                return `https://bazaarx.app/wishlist/${categoryId}`;
-            },
-
-
-
-            markAsPurchased: (productId, qty) => {
-                const { items } = get();
-                set({
-                    items: items.map(item =>
-                        item.id === productId
-                            ? { ...item, purchasedQty: (item.purchasedQty || 0) + qty }
-                            : item
-                    )
-                });
+            // Ensure default category is always first if present
+            const defaultIdx = categories.findIndex((c) => c.id === 'default');
+            if (defaultIdx > 0) {
+                const [def] = categories.splice(defaultIdx, 1);
+                categories.unshift(def);
             }
-        }),
-        {
-            name: 'wishlist-storage',
-            storage: createJSONStorage(() => AsyncStorage),
+
+            const items: WishlistItem[] = rows.flatMap((row) =>
+                (row.registry_items || []).map((item: any) => {
+                    const catId = defaultRow && row.id === defaultRow.id ? 'default' : row.id;
+                    return mapDbItemToWishlistItem(item, catId);
+                })
+            );
+
+            set({
+                categories,
+                items,
+                _buyerId: buyerId,
+                _loaded: true,
+                ...(defaultRow ? ({ _defaultDbId: defaultRow.id } as any) : {}),
+            });
+        } catch (err) {
+            console.error('[wishlistStore] loadWishlist error:', err);
         }
-    )
-);
+    },
+
+    reset: () => set({ items: [], categories: [], _buyerId: null, _loaded: false }),
+
+    addItem: async (product, priority = 'medium', desiredQty = 1, categoryId = 'default') => {
+        const { _buyerId, categories, items } = get();
+
+        // Prevent duplicates
+        if (items.find((i) => i.id === product.id && i.categoryId === categoryId)) return;
+
+        // Resolve the real DB registry id
+        const realRegistryId = await resolveRegistryId(categoryId, _buyerId, categories);
+        if (!realRegistryId) return;
+
+        // Optimistic update
+        const tempItem: WishlistItem = {
+            ...product,
+            priority,
+            desiredQty,
+            purchasedQty: 0,
+            addedAt: new Date().toISOString(),
+            categoryId,
+            registryItemId: `temp-${Date.now()}`,
+        };
+        set({ items: [...items, tempItem] });
+
+        try {
+            const dbItem = await wishlistService.addItem(realRegistryId, product, desiredQty, priority);
+            // Replace temp with real
+            set((state) => ({
+                items: state.items.map((i) =>
+                    i.registryItemId === tempItem.registryItemId
+                        ? { ...i, registryItemId: dbItem.id }
+                        : i
+                ),
+            }));
+        } catch (err) {
+            console.error('[wishlistStore] addItem error:', err);
+            // Rollback
+            set((state) => ({
+                items: state.items.filter((i) => i.registryItemId !== tempItem.registryItemId),
+            }));
+        }
+    },
+
+    removeItem: async (registryItemId: string) => {
+        const prev = get().items;
+        set({ items: prev.filter((i) => i.registryItemId !== registryItemId) });
+        try {
+            await wishlistService.deleteItem(registryItemId);
+        } catch (err) {
+            console.error('[wishlistStore] removeItem error:', err);
+            set({ items: prev });
+        }
+    },
+
+    updateItem: async (registryItemId: string, updates: Partial<WishlistItem>) => {
+        set((state) => ({
+            items: state.items.map((i) =>
+                i.registryItemId === registryItemId ? { ...i, ...updates } : i
+            ),
+        }));
+        try {
+            const dbUpdates: any = {};
+            if (updates.desiredQty !== undefined) {
+                dbUpdates.quantity_desired = updates.desiredQty;
+                dbUpdates.requested_qty = updates.desiredQty;
+            }
+            if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
+            await wishlistService.updateItem(registryItemId, dbUpdates);
+        } catch (err) {
+            console.error('[wishlistStore] updateItem error:', err);
+        }
+    },
+
+    createCategory: async (name, privacy, occasion = 'other', description) => {
+        const { _buyerId, categories } = get();
+        if (!_buyerId) return 'default';
+
+        try {
+            const row = await wishlistService.createRegistry(_buyerId, name, occasion);
+            const newCat: WishlistCategory = {
+                id: row.id,
+                name,
+                privacy: 'private',
+                occasion,
+                description,
+            };
+            set({ categories: [...categories, newCat] });
+            return row.id;
+        } catch (err) {
+            console.error('[wishlistStore] createCategory error:', err);
+            return 'default';
+        }
+    },
+
+    deleteCategory: async (categoryId: string) => {
+        if (categoryId === 'default') return;
+        const { categories, items, _buyerId } = get();
+
+        // Move items to default before deleting
+        const defaultCat = categories.find((c) => c.id === 'default');
+        const defaultDbId = defaultCat ? await resolveRegistryId('default', _buyerId, categories) : null;
+
+        if (defaultDbId) {
+            try {
+                await wishlistService.moveItemsToRegistry(categoryId, defaultDbId);
+            } catch (err) {
+                console.error('[wishlistStore] moveItems error:', err);
+            }
+        }
+
+        set({
+            categories: categories.filter((c) => c.id !== categoryId),
+            items: items.map((i) =>
+                i.categoryId === categoryId ? { ...i, categoryId: 'default' } : i
+            ),
+        });
+
+        try {
+            await wishlistService.deleteRegistry(categoryId);
+        } catch (err) {
+            console.error('[wishlistStore] deleteCategory error:', err);
+        }
+    },
+
+    updateCategory: async (categoryId: string, updates: Partial<WishlistCategory>) => {
+        set((state) => ({
+            categories: state.categories.map((c) =>
+                c.id === categoryId ? { ...c, ...updates, privacy: 'private' as const } : c
+            ),
+        }));
+        try {
+            const dbUpdates: any = {};
+            if (updates.name !== undefined) dbUpdates.title = updates.name;
+            if (updates.occasion !== undefined) {
+                dbUpdates.event_type = updates.occasion;
+                dbUpdates.category = updates.occasion;
+            }
+            await wishlistService.updateRegistry(categoryId, dbUpdates);
+        } catch (err) {
+            console.error('[wishlistStore] updateCategory error:', err);
+        }
+    },
+
+    isInWishlist: (productId: string) => {
+        return !!get().items.find((i) => i.id === productId);
+    },
+
+    clearWishlist: () => set({ items: [] }),
+
+    shareWishlist: async (categoryId: string) => {
+        const realId = categoryId === 'default'
+            ? await resolveRegistryId('default', get()._buyerId, get().categories)
+            : categoryId;
+        return `https://bazaarx.app/registry/${realId || categoryId}`;
+    },
+
+    markAsPurchased: async (registryItemId: string, qty: number) => {
+        set((state) => ({
+            items: state.items.map((i) =>
+                i.registryItemId === registryItemId
+                    ? { ...i, purchasedQty: (i.purchasedQty || 0) + qty }
+                    : i
+            ),
+        }));
+        try {
+            const item = get().items.find((i) => i.registryItemId === registryItemId);
+            if (item) {
+                await wishlistService.updateItem(registryItemId, {
+                    quantity_desired: item.desiredQty,
+                } as any);
+            }
+        } catch (err) {
+            console.error('[wishlistStore] markAsPurchased error:', err);
+        }
+    },
+}));
+
+// Helper: resolve the real Supabase registry UUID from a categoryId
+// 'default' maps to the first registry with event_type='general'
+async function resolveRegistryId(
+    categoryId: string,
+    buyerId: string | null,
+    categories: WishlistCategory[]
+): Promise<string | null> {
+    if (!buyerId) return null;
+
+    if (categoryId === 'default') {
+        // The default category's real DB id is stored as the category with id='default'
+        // We need to look it up from the DB
+        const { data } = await supabase
+            .from('registries')
+            .select('id')
+            .eq('buyer_id', buyerId)
+            .in('event_type', ['general'])
+            .limit(1)
+            .single();
+        return data?.id || null;
+    }
+
+    // For non-default categories, the id IS the real DB UUID
+    return categoryId;
+}

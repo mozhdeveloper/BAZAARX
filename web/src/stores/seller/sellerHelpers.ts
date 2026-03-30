@@ -63,6 +63,9 @@ export const mapDbSellerToSeller = (s: any): Seller => {
             new Date().toISOString().split("T")[0],
         avatar: getSafeImageUrl(s.avatar_url),
         banner: s.store_banner_url || undefined,
+        // Vacation mode
+        isVacationMode: s.is_vacation_mode === true,
+        vacationReason: s.vacation_reason || null,
     };
 };
 
@@ -77,26 +80,66 @@ export const buildProductInsert = (
     product: Omit<
         SellerProduct,
         "id" | "createdAt" | "updatedAt" | "sales" | "rating" | "reviews"
-    >,
+    > & {
+        hasWarranty?: boolean;
+        warrantyType?: string;
+        warrantyDurationMonths?: number;
+        warrantyProviderName?: string | null;
+        warrantyProviderContact?: string | null;
+        warrantyProviderEmail?: string | null;
+        warrantyTermsUrl?: string | null;
+        warrantyPolicy?: string | null;
+    },
     sellerId: string,
     categoryId: string,
-): any => ({
-    name: product.name,
-    description: product.description,
-    price: product.price,
-    category_id: categoryId,
-    brand: null,
-    sku: null,
-    seller_id: sellerId,
-    approval_status: "pending",
-    low_stock_threshold: 10,
-    specifications: {},
-    variant_label_1: product.variantLabel1 || null,
-    variant_label_2: product.variantLabel2 || null,
-    weight: null,
-    dimensions: null,
-    is_free_shipping: false,
-});
+): any => {
+    const baseData: any = {
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        category_id: categoryId,
+        brand: null,
+        sku: null,
+        seller_id: sellerId,
+        approval_status: "pending",
+        low_stock_threshold: 10,
+        specifications: {},
+        variant_label_1: product.variantLabel1 || null,
+        variant_label_2: product.variantLabel2 || null,
+        weight: null,
+        dimensions: null,
+        is_free_shipping: false,
+    };
+
+    // Only include warranty fields if warranty is explicitly enabled
+    // This allows the frontend to work even if the database migration hasn't been applied yet
+    if (product.hasWarranty === true) {
+        baseData.has_warranty = true;
+        if (product.warrantyType) {
+            baseData.warranty_type = product.warrantyType;
+        }
+        if (product.warrantyDurationMonths) {
+            baseData.warranty_duration_months = product.warrantyDurationMonths;
+        }
+        if (product.warrantyProviderName) {
+            baseData.warranty_provider_name = product.warrantyProviderName;
+        }
+        if (product.warrantyProviderContact) {
+            baseData.warranty_provider_contact = product.warrantyProviderContact;
+        }
+        if (product.warrantyProviderEmail) {
+            baseData.warranty_provider_email = product.warrantyProviderEmail;
+        }
+        if (product.warrantyTermsUrl) {
+            baseData.warranty_terms_url = product.warrantyTermsUrl;
+        }
+        if (product.warrantyPolicy) {
+            baseData.warranty_policy = product.warrantyPolicy;
+        }
+    }
+
+    return baseData;
+};
 
 /**
  * Map seller product updates to database updates

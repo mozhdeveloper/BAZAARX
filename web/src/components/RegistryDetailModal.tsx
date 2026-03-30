@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Gift, Plus, ShoppingBag, Copy, Check, Trash2 } from "lucide-react";
+import { X, Gift, Plus, ShoppingBag, Copy, Check, Trash2, Globe } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -9,7 +9,6 @@ import {
   useBuyerStore,
   RegistryProduct,
   RegistryItem,
-  RegistryPrivacy,
 } from "../stores/buyerStore";
 import { EditRegistryItemModal } from "./EditRegistryItemModal";
 import {
@@ -19,6 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import {
+  FacebookShareButton,
+  FacebookIcon,
+  TwitterShareButton,
+  TwitterIcon,
+  LinkedinShareButton,
+  LinkedinIcon,
+  EmailShareButton,
+  EmailIcon,
+} from 'next-share'
 
 interface RegistryDetailModalProps {
   isOpen: boolean;
@@ -52,10 +61,10 @@ export const RegistryDetailModal = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [privacy, setPrivacy] = useState<RegistryPrivacy>("link");
   const [showAddress, setShowAddress] = useState(false);
   const [addressId, setAddressId] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const selectedAddress = useMemo(
     () => (addresses || []).find((addr) => addr.id === addressId),
@@ -64,14 +73,21 @@ export const RegistryDetailModal = ({
 
   const liveRegistry = useMemo(() => {
     if (!registry) return null;
-    return registries.find((r) => r.id === registry.id) || registry;
+    const fromStore = registries.find((r) => r.id === registry.id);
+    console.log('[RegistryDetailModal] registry prop:', registry);
+    console.log('[RegistryDetailModal] registry.privacy:', registry.privacy);
+    console.log('[RegistryDetailModal] registry.delivery:', registry.delivery);
+    console.log('[RegistryDetailModal] matching store registry:', fromStore);
+    return fromStore || registry;
   }, [registries, registry]);
 
   useEffect(() => {
     if (liveRegistry) {
       const show = liveRegistry.delivery?.showAddress ?? false;
       const addr = liveRegistry.delivery?.addressId || "";
-      setPrivacy(liveRegistry.privacy || "link");
+      console.log('[RegistryDetailModal] liveRegistry:', liveRegistry);
+      console.log('[RegistryDetailModal] liveRegistry.privacy:', liveRegistry.privacy);
+      console.log('[RegistryDetailModal] liveRegistry.delivery:', liveRegistry.delivery);
       setShowAddress(show || !!addr);
       setAddressId(addr);
       setDeliveryInstructions(liveRegistry.delivery?.instructions || "");
@@ -100,6 +116,11 @@ export const RegistryDetailModal = ({
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  const handleShareClick = () => {
+    setShowShareModal(true);
+    setIsCopied(false);
+  };
+
   const handleDelete = () => {
     if (onDelete && liveRegistry) {
       onDelete(liveRegistry.id);
@@ -110,7 +131,7 @@ export const RegistryDetailModal = ({
 
   const handleSavePreferences = () => {
     updateRegistryMeta(liveRegistry.id, {
-      privacy,
+      privacy: "link",
       delivery: {
         addressId: addressId || undefined,
         showAddress,
@@ -164,20 +185,11 @@ export const RegistryDetailModal = ({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={handleCopyLink}
+                      onClick={handleShareClick}
                       className="gap-2 text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
                     >
-                      {isCopied ? (
-                        <>
-                          <Check className="w-4 h-4 text-green-600" />
-                          <span className="text-green-600">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4" />
-                          <span>Share</span>
-                        </>
-                      )}
+                      <Copy className="w-4 h-4" />
+                      <span>Share</span>
                     </Button>
                     {onDelete && (
                       <Button
@@ -195,29 +207,20 @@ export const RegistryDetailModal = ({
               </div>
 
               <div className="space-y-6">
-                {/* Privacy & Delivery preferences */}
+                {/* Link-Only Banner & Delivery preferences */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 border border-gray-100 rounded-xl p-4">
                   <div className="space-y-2">
-                    <Label>Privacy</Label>
-                    <Select
-                      value={privacy}
-                      onValueChange={(val) =>
-                        setPrivacy(val as RegistryPrivacy)
-                      }
-                    >
-                      <SelectTrigger className="focus:ring-[var(--brand-primary)]">
-                        <SelectValue placeholder="Select privacy" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[200]">
-                        <SelectItem value="public">Public</SelectItem>
-                        <SelectItem value="link">Link only</SelectItem>
-                        <SelectItem value="private">Private</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Link-only is recommended: only people with the link can
-                      view.
-                    </p>
+                    <div className="flex items-start gap-2 h-full">
+                      <Globe className="w-5 h-5 text-[var(--brand-primary)] shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--text-headline)]">
+                          Link-Only Access
+                        </p>
+                        <p className="text-xs text-[var(--text-secondary)] mt-1">
+                          This registry is link-only. Anyone with the link can view it, but it won't appear in public searches.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -343,7 +346,7 @@ export const RegistryDetailModal = ({
 
                 <div className="space-y-3">
                   {!liveRegistry.products ||
-                  liveRegistry.products.length === 0 ? (
+                    liveRegistry.products.length === 0 ? (
                     <div className="border-2 border-dashed border-gray-200 rounded-xl p-12 flex flex-col items-center justify-center text-center">
                       <div className="p-4 bg-gray-50 rounded-full mb-4">
                         <ShoppingBag className="w-8 h-8 text-gray-400" />
@@ -369,7 +372,7 @@ export const RegistryDetailModal = ({
                         >
                           <div className="aspect-[1/1] relative bg-gray-100 overflow-hidden">
                             {product.image ? (
-                              <img
+                              <img loading="lazy"
                                 src={product.image}
                                 alt={product.name}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -494,6 +497,121 @@ export const RegistryDetailModal = ({
             }
             onRemove={(pid) => removeRegistryItem(liveRegistry.id, pid)}
           />
+
+          {/* Share Modal */}
+          <AnimatePresence>
+            {showShareModal && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-black/50">
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Share Registry
+                    </h3>
+                    <button
+                      onClick={() => setShowShareModal(false)}
+                      className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    >
+                      <X className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
+                      <Globe className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                      <p className="text-sm text-blue-800">
+                        This link can only be accessed by those who have it. It
+                        won't appear in public searches.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Social Media Share Options */}
+                  <div className="mb-6">
+                    <Label className="mb-3 block text-sm font-medium text-gray-700">
+                      Share on Social Media
+                    </Label>
+                    <div className="flex gap-3">
+                      <FacebookShareButton
+                        url={`${window.location.origin}/registry/${liveRegistry.id}`}
+                        quote={`Check out ${liveRegistry.title} on BAZAARX! Find amazing gifts and support the community.`}
+                        hashtag="#BAZAARX"
+                        className="rounded-full hover:opacity-80 transition-opacity"
+                      >
+                        <FacebookIcon size={40} round />
+                      </FacebookShareButton>
+                      <TwitterShareButton
+                        url={`${window.location.origin}/registry/${liveRegistry.id}`}
+                        title={`Check out ${liveRegistry.title} on BAZAARX!`}
+                        className="rounded-full hover:opacity-80 transition-opacity"
+                      >
+                        <TwitterIcon size={40} round />
+                      </TwitterShareButton>
+                      <LinkedinShareButton
+                        url={`${window.location.origin}/registry/${liveRegistry.id}`}
+                        title={`Check out ${liveRegistry.title} on BAZAARX!`}
+                        className="rounded-full hover:opacity-80 transition-opacity"
+                      >
+                        <LinkedinIcon size={40} round />
+                      </LinkedinShareButton>
+                      <EmailShareButton
+                        url={`${window.location.origin}/registry/${liveRegistry.id}`}
+                        subject={`Check out ${liveRegistry.title}`}
+                        body={`I wanted to share this registry with you: ${liveRegistry.title}`}
+                        className="rounded-full hover:opacity-80 transition-opacity"
+                      >
+                        <EmailIcon size={40} round />
+                      </EmailShareButton>
+                    </div>
+                  </div>
+
+                  {/* Copy Link Option */}
+                  <div>
+                    <Label className="mb-2 block text-sm font-medium text-gray-700">
+                      Or copy the link
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={`${window.location.origin}/registry/${liveRegistry.id}`}
+                        readOnly
+                        className="bg-gray-50 border-gray-200 text-gray-600 flex-1"
+                      />
+                      <Button
+                        onClick={handleCopyLink}
+                        className="shrink-0 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/90 text-white"
+                      >
+                        {isCopied ? (
+                          <Check className="w-5 h-5 text-green-400" />
+                        ) : (
+                          <Copy className="w-5 h-5" />
+                        )}
+                      </Button>
+                    </div>
+                    {isCopied && (
+                      <p className="text-sm text-green-600 mt-2">
+                        Link copied to clipboard!
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end mt-6">
+                    <Button
+                      onClick={() => setShowShareModal(false)}
+                      variant="outline"
+                      className="border-gray-200 text-gray-700 hover:bg-gray-50"
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </div>
       )}
     </AnimatePresence>

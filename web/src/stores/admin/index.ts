@@ -14,3 +14,5 @@ export { useAdminVouchers } from './adminVouchersStore';
 export { useAdminReviews } from './adminReviewsStore';
 export { useAdminProducts } from './adminProductsStore';
 export { useAdminPayouts } from './adminPayoutsStore';
+export { useAdminNotifications } from './adminNotificationStore';
+export { useAdminCRM } from './adminCRMStore';

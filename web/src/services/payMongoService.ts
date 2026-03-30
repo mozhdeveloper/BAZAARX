@@ -24,6 +24,8 @@ import type {
 } from '@/types/payment.types';
 import type { PaymentTransactionStatus } from '@/types/database.types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { sendPaymentReceivedEmail, sendDigitalReceiptEmail, sendPaymentFailedEmail } from '@/services/transactionalEmails';
+import { fetchOrderEmailData } from '@/services/receiptService';
 
 // ============================================================================
 // Configuration
@@ -314,6 +316,10 @@ export class PayMongoGatewayService {
       if (intent.attributes.status === 'failed') {
         const msg = intent.attributes.last_payment_error?.failed_message || 'Payment failed';
         await this.updateTransactionStatus(transactionId, 'failed', { failureReason: msg });
+        // Payment failed email (fire-and-forget)
+        fetchOrderEmailData(txn.order_id).then(ed => {
+          if (ed) sendPaymentFailedEmail({ buyerEmail: ed.buyerEmail, buyerId: txn.buyer_id, orderNumber: ed.orderNumber, buyerName: ed.buyerName, retryUrl: `https://bazaar.ph/order/${ed.orderNumber}` }).catch(console.error);
+        }).catch(console.error);
         return { success: false, transactionId, status: 'failed', error: msg };
       }
       return { success: true, transactionId, status: 'processing' };
@@ -334,6 +340,10 @@ export class PayMongoGatewayService {
       }
       if (source.attributes.status === 'cancelled' || source.attributes.status === 'expired') {
         await this.updateTransactionStatus(transactionId, 'failed', { failureReason: 'Payment cancelled or expired' });
+        // Payment failed email (fire-and-forget)
+        fetchOrderEmailData(txn.order_id).then(ed => {
+          if (ed) sendPaymentFailedEmail({ buyerEmail: ed.buyerEmail, buyerId: txn.buyer_id, orderNumber: ed.orderNumber, buyerName: ed.buyerName, retryUrl: `https://bazaar.ph/order/${ed.orderNumber}` }).catch(console.error);
+        }).catch(console.error);
         return { success: false, transactionId, status: 'failed', error: 'Payment cancelled' };
       }
     }
@@ -647,6 +657,37 @@ export class PayMongoGatewayService {
       status: 'on_hold',  // held in escrow until delivery confirmed + 3-day window
       release_after: escrowReleaseAt,
     });
+
+    // Send payment confirmation + digital receipt emails (fire-and-forget)
+    fetchOrderEmailData(request.orderId).then(emailData => {
+      if (!emailData) return;
+      sendPaymentReceivedEmail({
+        buyerEmail: emailData.buyerEmail,
+        buyerId: request.buyerId,
+        orderNumber: emailData.orderNumber,
+        buyerName: emailData.buyerName,
+        paymentMethod: emailData.paymentMethod,
+        amountPaid: emailData.total,
+      }).catch(console.error);
+      sendDigitalReceiptEmail({
+        buyerEmail: emailData.buyerEmail,
+        buyerId: request.buyerId,
+        orderNumber: emailData.orderNumber,
+        receiptNumber: emailData.receiptNumber || emailData.orderNumber,
+        buyerName: emailData.buyerName,
+        orderDate: emailData.orderDate,
+        itemsHtml: emailData.itemsHtml,
+        subtotal: emailData.subtotal,
+        shipping: emailData.shipping,
+        discount: emailData.discount,
+        total: emailData.total,
+        paymentMethod: emailData.paymentMethod,
+        transactionId: emailData.transactionId,
+        transactionDate: emailData.transactionDate,
+        shippingAddress: emailData.shippingAddress,
+        trackUrl: `https://bazaar.ph/order/${emailData.orderNumber}`,
+      }).catch(console.error);
+    }).catch(console.error);
   }
 
   // ──────────────────────────────────────────────────────────────────────────

@@ -328,7 +328,7 @@ export function getDefaultPOSSettings(sellerId?: string): POSSettings {
     serialNumberRange: undefined,
     permitNumber: undefined,
     accreditationNumber: undefined,
-    accreditedProvider: 'BazaarPH POS System',
+    accreditedProvider: 'BazaarX POS System',
     validityDate: undefined,
     createdAt: now,
     updatedAt: now,

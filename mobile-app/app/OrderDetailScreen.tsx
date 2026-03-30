@@ -495,21 +495,30 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Interactive Status Banner */}
-        <Pressable
-          style={[styles.statusBanner, { backgroundColor: getStatusColor() }]}
-          onPress={() => navigation.navigate('DeliveryTracking', { order })}
-        >
-          <View style={styles.statusContent}>
-            <View style={styles.statusLeft}>
-              <Text style={styles.statusTitle}>{getStatusText()}</Text>
-              <Text style={styles.tapToTrack}>Tap to Track {'>'}</Text>
-            </View>
-            <View style={styles.statusIconContainer}>
-              <StatusIcon size={48} color="#FFFFFF" strokeWidth={1.5} />
-            </View>
-          </View>
-        </Pressable>
+        {/* Interactive Status Banner - Hide for cancelled orders */}
+        {(() => {
+          const uiStatus = order.buyerUiStatus || order.status;
+          const isCancelled = uiStatus === 'cancelled';
+          
+          if (isCancelled) return null;
+          
+          return (
+            <Pressable
+              style={[styles.statusBanner, { backgroundColor: getStatusColor() }]}
+              onPress={() => navigation.navigate('DeliveryTracking', { order })}
+            >
+              <View style={styles.statusContent}>
+                <View style={styles.statusLeft}>
+                  <Text style={styles.statusTitle}>{getStatusText()}</Text>
+                  <Text style={styles.tapToTrack}>Tap to Track {'>'}</Text>
+                </View>
+                <View style={styles.statusIconContainer}>
+                  <StatusIcon size={48} color="#FFFFFF" strokeWidth={1.5} />
+                </View>
+              </View>
+            </Pressable>
+          );
+        })()}
 
         {/* Status Timeline Card */}
         {(() => {
@@ -539,6 +548,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               ...(isReceived ? [{ label: 'Received', ts: formatTs((order as any).receivedAt), done: true, icon: CheckCircle2 }] : []),
               ...(isReturned ? [{ label: 'Return Requested', ts: null, done: true, icon: RotateCcw, amber: true }] : []),
             ];
+
+          const showCancellationReason = isCancelled && (order as any).cancellationReason;
 
           return (
             <View style={{ backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 12, marginBottom: 16, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
@@ -575,6 +586,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                   </View>
                 );
               })}
+              {showCancellationReason && (
+                <View style={{ marginTop: 8, paddingHorizontal: 34, paddingBottom: 4 }}>
+                  <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '500' }}>
+                    {(order as any).cancellationReason}
+                  </Text>
+                </View>
+              )}
             </View>
           );
         })()}
@@ -705,8 +723,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {/* Delivery Tracking Card */}
-        {deliveryTracking?.booking && (
+        {/* Delivery Tracking Card - Hide for cancelled orders */}
+        {deliveryTracking?.booking && uiStatus !== 'cancelled' && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.iconCircle}>

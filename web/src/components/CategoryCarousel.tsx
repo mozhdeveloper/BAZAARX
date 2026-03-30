@@ -96,7 +96,7 @@ export default function CategoryCarousel({
                                         : 'ring-2 ring-gray-200 hover:ring-[var(--brand-primary)]/50 hover:shadow-md hover:scale-105'
                                         }`}
                                 >
-                                    <img
+                                    <img loading="lazy" 
                                         src={category.image}
                                         alt={category.name}
                                         className="w-full h-full object-cover group-hover/item:scale-110 transition-transform duration-300"

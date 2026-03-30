@@ -6,6 +6,8 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Profile, Buyer, Seller, UserRole, UserRoleRecord, FullProfile } from '@/types/database.types';
+import { sendWelcomeEmail } from '@/services/transactionalEmails';
+import { validatePassword } from '@/utils/validation';
 
 // Service-specific types
 export interface SignUpData {
@@ -32,6 +34,12 @@ export interface ProfileContact {
   phone: string | null;
 }
 
+export interface EmailRoleStatus {
+  exists: boolean;
+  userId: string | null;
+  roles: UserRole[];
+}
+
 const defaultBuyerPreferences = {
   language: 'en',
   currency: 'PHP',
@@ -48,6 +56,78 @@ const defaultBuyerPreferences = {
 };
 
 export class AuthService {
+  /**
+   * Check whether an email is already used by an existing profile.
+   * Used for live signup validation (buyer/seller).
+   */
+  async checkEmailExists(email: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return false;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking email availability:', error);
+        return false;
+      }
+
+      return (data ?? []).length > 0;
+    } catch (error) {
+      console.error('Unexpected email check error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get role status for an email (used by seller signup rules and role-switch checks).
+   */
+  async getEmailRoleStatus(email: string): Promise<EmailRoleStatus> {
+    if (!isSupabaseConfigured()) {
+      return { exists: false, userId: null, roles: [] };
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return { exists: false, userId: null, roles: [] };
+    }
+
+    try {
+      const { data: profileRows, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .limit(1);
+
+      if (profileError || !profileRows || profileRows.length === 0) {
+        return { exists: false, userId: null, roles: [] };
+      }
+
+      const userId = (profileRows[0] as { id: string }).id;
+      const { data: roleRows, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
+
+      if (roleError) {
+        console.error('Error fetching role status by email:', roleError);
+        return { exists: true, userId, roles: [] };
+      }
+
+      const roles = ((roleRows ?? []) as Array<{ role: UserRole }>).map((row) => row.role);
+      return { exists: true, userId, roles };
+    } catch (error) {
+      console.error('Unexpected email role status error:', error);
+      return { exists: false, userId: null, roles: [] };
+    }
+  }
+
   /**
    * Sign up a new user
    * @param email - User email address
@@ -70,6 +150,11 @@ export class AuthService {
                        ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ')[0] : null);
     const last_name = 'last_name' in userData ? userData.last_name :
                       ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ').slice(1).join(' ') : null);
+
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      throw new Error(passwordValidation.errors[0] || 'Password does not meet minimum security requirements.');
+    }
 
     try {
       // Sign up with Supabase Auth
@@ -99,7 +184,7 @@ export class AuthService {
               last_name: last_name || null,
               phone: userData.phone || null,
               last_login_at: null,
-            },
+            } as any,
             {
               onConflict: 'id',
               ignoreDuplicates: false,
@@ -113,6 +198,10 @@ export class AuthService {
 
         // Create user-type specific record
         await this.createUserTypeRecord(authData.user.id, userData.user_type);
+
+        // Welcome email (fire-and-forget)
+        const buyerName = `${first_name || ''} ${last_name || ''}`.trim() || 'Valued Customer';
+        sendWelcomeEmail({ buyerEmail: email, buyerId: authData.user.id, buyerName }).catch(console.error);
       }
 
       return { user: authData.user, session: authData.session };
@@ -207,7 +296,7 @@ export class AuthService {
           store_description: sellerData.store_description || null,
           avatar_url: null,
           approval_status: 'pending', // New sellers start as pending
-        })
+        } as any)
         .select()
         .single();
 
@@ -254,7 +343,7 @@ export class AuthService {
 
     const { error } = await supabase
       .from('user_roles')
-      .insert({ user_id: userId, role });
+      .insert({ user_id: userId, role } as any);
 
     if (error) {
       console.error('Error adding user role:', error);
@@ -280,7 +369,7 @@ export class AuthService {
       return [];
     }
 
-    return data?.map(r => r.role as UserRole) || [];
+    return (data as Array<{ role: UserRole }> | null)?.map(r => r.role) || [];
   }
 
   /**
@@ -360,17 +449,18 @@ export class AuthService {
 
         // Source-of-truth rule: do not overwrite existing profile names from auth metadata.
         // Use metadata only to bootstrap when the profile row does not exist yet.
-        const { data: existingProfile, error: existingProfileError } = await supabase
+        const { data: existingProfileRaw, error: existingProfileError } = await supabase
           .from('profiles')
           .select('id')
           .eq('id', data.user.id)
           .maybeSingle();
+        const existingProfile = existingProfileRaw as { id: string } | null;
 
         if (existingProfileError) {
           console.error('Error checking existing profile during sign in:', existingProfileError);
-        } else if (existingProfile?.id) {
-          const { error: profileUpdateError } = await supabase
-            .from('profiles')
+        } else if (existingProfile && existingProfile.id) {
+          const { error: profileUpdateError } = await (supabase
+            .from('profiles') as any)
             .update({
               email: normalizedEmail,
               last_login_at: lastLoginAt,
@@ -390,7 +480,7 @@ export class AuthService {
               last_name: data.user.user_metadata?.last_name || null,
               phone: data.user.user_metadata?.phone || null,
               last_login_at: lastLoginAt,
-            });
+            } as any);
 
           if (profileInsertError) {
             console.error('Error inserting profile during sign in:', profileInsertError);
@@ -405,13 +495,15 @@ export class AuthService {
               id: data.user.id,
               preferences: {},
               bazcoins: 0,
-            },
+            } as any,
             { onConflict: 'id', ignoreDuplicates: true }
           );
 
         if (buyerError) {
           console.error('Error upserting buyer record:', buyerError);
         }
+
+        await this.ensureUserRolesFromRecords(data.user.id);
       }
 
       return { user: data.user, session: data.session };
@@ -557,16 +649,18 @@ export class AuthService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data: profileContactData, error } = await supabase
         .from('profiles')
         .select('email, phone')
         .eq('id', userId)
         .maybeSingle();
+      const data = profileContactData as ProfileContact | null;
 
       if (error) throw error;
+      if (!data) return null;
       return {
-        email: data?.email || null,
-        phone: data?.phone || null,
+        email: data.email || null,
+        phone: data.phone || null,
       };
     } catch (error) {
       console.error('Error fetching profile contact:', error);
@@ -599,8 +693,8 @@ export class AuthService {
     }
 
     try {
-      const { error } = await supabase
-        .from('profiles')
+      const { error } = await (supabase
+        .from('profiles') as any)
         .update(updates)
         .eq('id', userId);
 
@@ -642,6 +736,11 @@ export class AuthService {
       return;
     }
 
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+      throw new Error(passwordValidation.errors[0] || 'Password does not meet minimum security requirements.');
+    }
+
     try {
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
@@ -680,7 +779,8 @@ export class AuthService {
       }
 
       if (existingBuyer) {
-        // Buyer record already exists
+        // Buyer record already exists - still ensure role integrity
+        await this.addUserRole(userId, 'buyer');
         return true;
       }
 
@@ -691,7 +791,7 @@ export class AuthService {
           avatar_url: null,
           preferences: defaultBuyerPreferences,
           bazcoins: 0,
-        },
+        } as any,
         { onConflict: 'id' }
       );
 
@@ -730,11 +830,12 @@ export class AuthService {
       throw new Error('Auth session missing');
     }
 
-    const { data: existingProfile } = await supabase
+    const { data: existingProfileRaw } = await supabase
       .from('profiles')
       .select('email, first_name, last_name, phone')
       .eq('id', user.id)
       .maybeSingle();
+    const existingProfile = existingProfileRaw as Pick<Profile, 'email' | 'first_name' | 'last_name' | 'phone'> | null;
 
     await this.addUserRole(user.id, 'seller');
 
@@ -747,7 +848,7 @@ export class AuthService {
           store_description: payload.store_description || null,
           store_contact_number: payload.phone?.trim() || null,
           approval_status: 'pending',
-        },
+        } as any,
         { onConflict: 'id' },
       );
 
@@ -757,9 +858,9 @@ export class AuthService {
     }
 
     const phoneToSave = payload.phone?.trim();
-    if (phoneToSave && phoneToSave !== existingProfile?.phone) {
-      const { error: profileUpdateError } = await supabase
-        .from('profiles')
+    if (phoneToSave && phoneToSave !== (existingProfile ? existingProfile.phone : null)) {
+      const { error: profileUpdateError } = await (supabase
+        .from('profiles') as any)
         .update({ phone: phoneToSave })
         .eq('id', user.id);
 
@@ -802,7 +903,7 @@ export class AuthService {
           avatar_url: null,
           preferences: defaultBuyerPreferences,
           bazcoins: 0,
-        },
+        } as any,
         { onConflict: 'id' },
       );
 
@@ -811,24 +912,25 @@ export class AuthService {
       throw new Error('Failed to initialize buyer profile.');
     }
 
-    const { data: existingProfile } = await supabase
+    const { data: existingProfileRaw } = await supabase
       .from('profiles')
       .select('email, phone')
       .eq('id', user.id)
       .maybeSingle();
+    const existingProfile = existingProfileRaw as Pick<Profile, 'email' | 'phone'> | null;
 
     const profileUpsert = {
       id: user.id,
-      email: existingProfile?.email || payload.email || user.email || null,
+      email: (existingProfile ? existingProfile.email : null) || payload.email || user.email || null,
       first_name: payload.first_name.trim(),
       last_name: payload.last_name.trim(),
-      phone: existingProfile?.phone || payload.phone || null,
+      phone: (existingProfile ? existingProfile.phone : null) || payload.phone || null,
       last_login_at: new Date().toISOString(),
     };
 
     const { error: profileError } = await supabase
       .from('profiles')
-      .upsert(profileUpsert, { onConflict: 'id' });
+      .upsert(profileUpsert as any, { onConflict: 'id' });
 
     if (profileError) {
       console.error('Error updating profile during buyer upgrade:', profileError);
@@ -836,6 +938,39 @@ export class AuthService {
     }
 
     return { userId: user.id };
+  }
+
+  /**
+   * Ensure user_roles is aligned with existing normalized role tables.
+   * Used to heal missing role rows for legacy accounts and OAuth callbacks.
+   */
+  async ensureUserRolesFromRecords(userId: string): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+
+    const [{ data: buyerRow, error: buyerError }, { data: sellerRow, error: sellerError }] = await Promise.all([
+      supabase
+        .from('buyers')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle(),
+      supabase
+        .from('sellers')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle(),
+    ]);
+
+    if (buyerError) {
+      console.error('Error checking buyer record for role sync:', buyerError);
+    } else if (buyerRow) {
+      await this.addUserRole(userId, 'buyer');
+    }
+
+    if (sellerError) {
+      console.error('Error checking seller record for role sync:', sellerError);
+    } else if (sellerRow) {
+      await this.addUserRole(userId, 'seller');
+    }
   }
 
   /**
@@ -853,7 +988,7 @@ export class AuthService {
           avatar_url: null,
           preferences: {},
           bazcoins: 0,
-        },
+        } as any,
         { onConflict: 'id' }
       );
 
@@ -866,7 +1001,7 @@ export class AuthService {
         {
           id: userId,
           permissions: {},
-        },
+        } as any,
         { onConflict: 'id' }
       );
 

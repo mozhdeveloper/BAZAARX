@@ -211,6 +211,16 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         discountBadgePercent: p.discountBadgePercent || undefined,
         discountBadgeTooltip: p.discountBadgeTooltip || undefined,
         campaignDiscount: p.campaignDiscount || undefined,
+        isVacationMode: (p.seller as any)?.is_vacation_mode === true || false,
+        // Warranty fields
+        hasWarranty: p.has_warranty || false,
+        warrantyType: p.warranty_type || undefined,
+        warrantyDurationMonths: p.warranty_duration_months || undefined,
+        warrantyProviderName: p.warranty_provider_name || undefined,
+        warrantyProviderContact: p.warranty_provider_contact || undefined,
+        warrantyProviderEmail: p.warranty_provider_email || undefined,
+        warrantyTermsUrl: p.warranty_terms_url || undefined,
+        warrantyPolicy: p.warranty_policy || undefined,
     } as any;
 };
 
@@ -255,6 +265,7 @@ export interface NormalizedProductDetail {
     location: string;
     isFreeShipping: boolean;
     isVerified: boolean;
+    isVacationMode?: boolean;
 
     // Variant system
     variantLabel1?: string; // e.g. "Size"
@@ -344,7 +355,7 @@ export const mapDbProductToNormalized = (
 
     // Rating / review count may already be computed by transformProduct
     const rating = (p as any).rating ?? 0;
-    const reviewCount = (p as any).reviewCount ?? 0;
+    const reviewCount = (p as any).reviewCount ?? (p as any).reviews ?? 0;
 
     const label2Options = buildLabel2Options(rawVariants, primaryImage);
     const label1Options = buildLabel1Options(rawVariants);
@@ -370,7 +381,7 @@ export const mapDbProductToNormalized = (
 
         rating,
         reviewCount,
-        sold: (p as any).sales_count ?? 0,
+        sold: (p as any).sold ?? (p as any).sales ?? (p as any).sold_count ?? (p as any).sales_count ?? 0,
         stock: totalStock || (p as any).stock || 0,
 
         sellerId: p.seller_id || "",
@@ -386,6 +397,7 @@ export const mapDbProductToNormalized = (
             "Metro Manila",
         isFreeShipping: p.is_free_shipping ?? false,
         isVerified: true,
+        isVacationMode: (p.seller as any)?.is_vacation_mode === true || false,
 
         variantLabel1: p.variant_label_1 || undefined,
         variantLabel2: p.variant_label_2 || undefined,
@@ -489,6 +501,7 @@ export const mapSellerProductToNormalized = (
         location: p.sellerLocation || "Metro Manila",
         isFreeShipping: true,
         isVerified: true,
+        isVacationMode: p.isVacationMode || false,
 
         variantLabel1: p.variantLabel1,
         variantLabel2: p.variantLabel2,
@@ -542,6 +555,7 @@ export const mapBuyerProductToNormalized = (
         location: p.location || p.seller?.location || "Metro Manila",
         isFreeShipping: p.isFreeShipping ?? true,
         isVerified: p.seller?.isVerified ?? true,
+        isVacationMode: (p as any).isVacationMode || false,
 
         variantLabel1: undefined,
         variantLabel2: undefined,

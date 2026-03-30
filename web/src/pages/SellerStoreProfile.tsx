@@ -1074,6 +1074,7 @@ export function SellerStoreProfile() {
         .update({
           store_name: formData.storeName,
           store_description: formData.storeDescription,
+          store_contact_number: normalizedPhone || null,
         })
         .eq("id", sellerId);
 
@@ -1373,7 +1374,7 @@ export function SellerStoreProfile() {
                       {/* Avatar */}
                       <div className="relative mb-6">
                         {seller?.avatar ? (
-                          <img
+                          <img loading="lazy" 
                             src={seller.avatar}
                             alt={seller.storeName}
                             className="h-28 w-28 rounded-full object-cover shadow-2xl shadow-orange-900/10 ring-4 ring-white"
@@ -2229,7 +2230,7 @@ export function SellerStoreProfile() {
                                   <span className="text-xs font-bold uppercase tracking-wider">PDF Document</span>
                                 </div>
                               ) : (
-                                <img src={documentUrl} alt={doc.label} className="object-cover w-full h-full absolute inset-0 opacity-90 group-hover:opacity-100 transition-opacity" />
+                                <img loading="lazy" src={documentUrl} alt={doc.label} className="object-cover w-full h-full absolute inset-0 opacity-90 group-hover:opacity-100 transition-opacity" />
                               )
                             ) : (
                               <div className="flex flex-col items-center text-gray-300 py-8">
@@ -2436,7 +2437,7 @@ export function SellerStoreProfile() {
                   {/* Banner Preview */}
                   {seller?.banner ? (
                     <div className="mb-6 relative group">
-                      <img 
+                      <img loading="lazy" 
                         src={seller.banner} 
                         alt="Store Banner" 
                         className="w-full h-48 object-cover rounded-xl"

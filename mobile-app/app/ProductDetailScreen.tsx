@@ -15,6 +15,8 @@ import {
   TouchableWithoutFeedback,
   FlatList,
   ActivityIndicator,
+  Linking,
+  Animated,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -48,8 +50,13 @@ import {
   ImageIcon, // For Image filter icon
   CheckCircle,
   ThumbsUp,
+  Shield,
+  Calendar,
+  Phone,
+  Mail,
+  FileText,
 } from 'lucide-react-native';
-import { ProductCard } from '../src/components/ProductCard';
+import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
 import { VariantSelectionModal } from '../src/components/VariantSelectionModal';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import StoreChatModal from '../src/components/StoreChatModal';
@@ -134,6 +141,9 @@ const formatReviewDate = (dateString: string): string => {
   return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) > 1 ? 's' : ''} ago`;
 };
 
+// Create animated components
+const AnimatedText = Animated.createAnimatedComponent(Text);
+
 export default function ProductDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { product: initialProduct } = route.params;
@@ -179,6 +189,45 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   }, [product.id]);
 
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+
+  // Warranty Info State
+  const [warrantyInfo, setWarrantyInfo] = useState<{
+    hasWarranty: boolean;
+    warrantyType: string | null;
+    warrantyDurationMonths: number | null;
+    warrantyProviderName: string | null;
+    warrantyProviderContact: string | null;
+    warrantyProviderEmail: string | null;
+    warrantyTermsUrl: string | null;
+    warrantyPolicy: string | null;
+  } | null>(null);
+  const [showWarrantyModal, setShowWarrantyModal] = useState(false);
+
+  useEffect(() => {
+    const loadWarrantyInfo = async () => {
+      if (product.id) {
+        try {
+          // Extract warranty info from product data
+          const hasWarranty = product.has_warranty || product.hasWarranty || false;
+          if (hasWarranty) {
+            setWarrantyInfo({
+              hasWarranty,
+              warrantyType: product.warranty_type || product.warrantyType || null,
+              warrantyDurationMonths: product.warranty_duration_months || product.warrantyDurationMonths || null,
+              warrantyProviderName: product.warranty_provider_name || product.warrantyProviderName || null,
+              warrantyProviderContact: product.warranty_provider_contact || product.warrantyProviderContact || null,
+              warrantyProviderEmail: product.warranty_provider_email || product.warrantyProviderEmail || null,
+              warrantyTermsUrl: product.warranty_terms_url || product.warrantyTermsUrl || null,
+              warrantyPolicy: product.warranty_policy || product.warrantyPolicy || null,
+            });
+          }
+        } catch (e) {
+          console.error('[ProductDetail] Error loading warranty info:', e);
+        }
+      }
+    };
+    loadWarrantyInfo();
+  }, [product.id]);
 
   useEffect(() => {
     const fetchRelated = async () => {
@@ -232,56 +281,25 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     }, []);
   };
 
-  // Detect if a set of values looks like colors by checking against the known color map
-  const looksLikeColor = (values: string[]) =>
-    values.length > 0 && values.every(v => colorNameToHex[v.toLowerCase().trim()] !== undefined);
-
-  // Extract raw values from variants — respecting DB labels when present
+  // Extract raw values from variants
   const rawValues1 = hasStructuredVariants
-    ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
+    ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.size).filter(Boolean))]
     : (product.option1Values || product.colors || []);
   const rawValues2 = hasStructuredVariants
-    ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
+    ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.color).filter(Boolean))]
     : (product.option2Values || product.sizes || []);
 
   const deduped1 = dedupe(rawValues1);
   const deduped2 = dedupe(rawValues2);
 
-  // If DB labels are provided, trust them. Otherwise detect by value content.
-  // When no DB labels: if option1 looks like sizes and option2 looks like colors, swap them
-  // so that Color always comes first (option1) and Size/Variant comes second (option2).
-  const dbLabel1 = product.variant_label_1 as string | undefined;
-  const dbLabel2 = product.variant_label_2 as string | undefined;
-
-  const inferLabel = (values: string[], fallback: string) =>
-    looksLikeColor(values) ? 'Color' : fallback;
-
-  let option1Values: string[];
-  let option2Values: string[];
-  let variantLabel1: string | undefined;
-  let variantLabel2: string | undefined;
-
-  if (dbLabel1 || dbLabel2) {
-    // Trust DB labels as-is
-    option1Values = deduped1;
-    option2Values = deduped2;
-    variantLabel1 = dbLabel1 || (deduped1.length > 0 ? inferLabel(deduped1, 'Variant') : undefined);
-    variantLabel2 = dbLabel2 || (deduped2.length > 0 ? inferLabel(deduped2, 'Color') : undefined);
-  } else {
-    // No DB labels — detect and swap if needed so Color is always option1
-    const axis1IsColor = looksLikeColor(deduped1);
-    const axis2IsColor = looksLikeColor(deduped2);
-    const shouldSwap = !axis1IsColor && axis2IsColor && deduped2.length > 0;
-
-    option1Values = shouldSwap ? deduped2 : deduped1;
-    option2Values = shouldSwap ? deduped1 : deduped2;
-    variantLabel1 = deduped1.length > 0 || deduped2.length > 0
-      ? inferLabel(option1Values, 'Variant')
-      : undefined;
-    variantLabel2 = option2Values.length > 0
-      ? inferLabel(option2Values, 'Color')
-      : undefined;
-  }
+  const option1Values = deduped1;
+  const option2Values = deduped2;
+  const dbLabel1 = (product.variant_label_1 as string | undefined)?.trim();
+  const dbLabel2 = (product.variant_label_2 as string | undefined)?.trim();
+  const hasLegacySizeAxis1 = hasStructuredVariants && productVariants.some((v: any) => !v.option_1_value && !!v.size);
+  const hasLegacyColorAxis2 = hasStructuredVariants && productVariants.some((v: any) => !v.option_2_value && !!v.color);
+  const variantLabel1 = option1Values.length > 0 ? (dbLabel1 || (hasLegacySizeAxis1 ? 'Size' : 'Option 1')) : undefined;
+  const variantLabel2 = option2Values.length > 0 ? (dbLabel2 || (hasLegacyColorAxis2 ? 'Color' : 'Option 2')) : undefined;
 
   // Check if axis 1 and 2 are effectively identical (redundant case often seen in vinyls/posters)
   const isRedundant = useMemo(() => {
@@ -320,6 +338,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const setSelectedColor = setSelectedOption1;
   const setSelectedSize = setSelectedOption2;
   const [quantity, setQuantity] = useState(1);
+
+  const handleSelectOption1 = (value: string) => {
+    if (selectedOption1 !== value) {
+      setSelectedOption1(value);
+    }
+  };
+
+  const handleSelectOption2 = (value: string) => {
+    if (selectedOption2 !== value) {
+      setSelectedOption2(value);
+    }
+  };
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -347,21 +377,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [showVariantFilterModal, setShowVariantFilterModal] = useState(false); // Filter dropdown state
   const [showSizeGuideModal, setShowSizeGuideModal] = useState(false); // Size guide modal state
 
-  // Whether axes were swapped (color was in option_2 in DB)
-  const axesSwapped = !dbLabel1 && !dbLabel2 && !looksLikeColor(deduped1) && looksLikeColor(deduped2) && deduped2.length > 0;
-
   // Match a variant row against our (possibly swapped) option1/option2 selections
   const matchVariant = (v: any, op1: string | null, op2: string | null) => {
     const n = (val: any) => String(val || '').trim().toLowerCase();
-    // DB axis values (before any swap)
-    const dbAxis1 = n(v.option_1_value || v.color);
-    const dbAxis2 = n(v.option_2_value || v.size);
-    // Our op1 = color axis, op2 = size axis
-    // If swapped: our op1 maps to DB axis2, our op2 maps to DB axis1
-    const colorAxisVal = axesSwapped ? dbAxis2 : dbAxis1;
-    const sizeAxisVal = axesSwapped ? dbAxis1 : dbAxis2;
-    const op1Match = !op1 || colorAxisVal === n(op1);
-    const op2Match = !op2 || sizeAxisVal === n(op2);
+    const dbAxis1 = n(v.option_1_value || v.size);
+    const dbAxis2 = n(v.option_2_value || v.color);
+    const op1Match = !op1 || dbAxis1 === n(op1);
+    const op2Match = !op2 || dbAxis2 === n(op2);
     return op1Match && op2Match;
   };
 
@@ -392,6 +414,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       image: matchedVariant?.thumbnail_url || matchedVariant?.image || null,
     };
   }, [hasStructuredVariants, productVariants, selectedOption1, selectedOption2, product.price, product.stock]);
+
+  useEffect(() => {
+    const maxStock = Math.max(1, Number(selectedVariantInfo.stock ?? 1));
+    setQuantity((prev) => Math.max(1, Math.min(prev, maxStock)));
+  }, [selectedVariantInfo.stock]);
 
   // Extract seller name robustly (fixes lint errors with mixed object/string types)
   const displayStoreName = useMemo(() => {
@@ -498,6 +525,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Menu State
   const [showMenu, setShowMenu] = useState(false);
+
+  // Out of stock pulse animation
+  const outOfStockPulse = useRef(new Animated.Value(1)).current;
+  const triggerOutOfStockPulse = () => {
+    outOfStockPulse.setValue(1);
+    Animated.sequence([
+      Animated.timing(outOfStockPulse, { toValue: 1.25, duration: 120, useNativeDriver: true }),
+      Animated.timing(outOfStockPulse, { toValue: 0.85, duration: 100, useNativeDriver: true }),
+      Animated.timing(outOfStockPulse, { toValue: 1.15, duration: 100, useNativeDriver: true }),
+      Animated.timing(outOfStockPulse, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
+  };
 
   // Memoize product images to avoid sorting + mapping every render
   const productImages: string[] = useMemo(() => {
@@ -776,6 +815,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    // Check if seller is on vacation mode
+    if ((product as any).is_vacation_mode) {
+      Alert.alert('Store Unavailable', 'This store is temporarily unavailable. You cannot add this item to cart.');
+      return;
+    }
+
     // Build variant info
     const selectedVariant = buildSelectedVariant();
 
@@ -817,6 +862,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     if (isGuest) {
       setGuestModalMessage("Sign up to buy items.");
       setShowGuestModal(true);
+      return;
+    }
+
+    // Check if seller is on vacation mode
+    if ((product as any).is_vacation_mode) {
+      Alert.alert('Store Unavailable', 'This store is temporarily unavailable. You cannot purchase this product.');
       return;
     }
 
@@ -1109,14 +1160,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
                 )}
               </View>
-              <Text style={{
+              <AnimatedText style={{
                 fontSize: 13,
                 marginTop: 4,
                 fontWeight: '600',
                 color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#9CA3AF',
+                ...(Number(selectedVariantInfo.stock ?? 0) <= 0 ? { transform: [{ scale: outOfStockPulse }] } : {}),
               }}>
                 {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
-              </Text>
+              </AnimatedText>
             </View>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
@@ -1134,7 +1186,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   const isColor = finalVariantLabel1.toLowerCase() === 'color';
                   const variantImg = isColor
                     ? productVariants.find((v: any) =>
-                      (axesSwapped ? v.option_2_value : v.option_1_value) === value
+                      v.option_1_value === value
                     )?.thumbnail_url || null
                     : null;
                   const isSelected = selectedOption1 === value;
@@ -1143,7 +1195,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                       <Pressable
                         key={`${value}-${index}`}
                         style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
-                        onPress={() => setSelectedOption1(value)}
+                        onPress={() => handleSelectOption1(value)}
                       >
                         {variantImg ? (
                           <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
@@ -1162,7 +1214,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     <Pressable
                       key={`${value}-${index}`}
                       style={[styles.sizeOption, isSelected && styles.sizeOptionSelected]}
-                      onPress={() => setSelectedOption1(value)}
+                      onPress={() => handleSelectOption1(value)}
                     >
                       <Text style={[styles.sizeOptionText, isSelected && styles.sizeOptionTextSelected]}>{value}</Text>
                     </Pressable>
@@ -1181,13 +1233,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => {
                   const isSelected = selectedOption2 === value;
                   const variantImg = productVariants.find((v: any) =>
-                    (axesSwapped ? v.option_1_value : v.option_2_value) === value
+                    v.option_2_value === value
                   )?.thumbnail_url || productImages[0] || null;
                   return (
                     <Pressable
                       key={`${value}-${index}`}
                       style={[styles.variantImgBtn, isSelected && styles.variantImgBtnSelected]}
-                      onPress={() => setSelectedOption2(value)}
+                      onPress={() => handleSelectOption2(value)}
                     >
                       {variantImg ? (
                         <Image source={{ uri: variantImg }} style={styles.variantImgThumb} contentFit="cover" />
@@ -1227,6 +1279,27 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 20 }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
           </View>
+
+          {/* --- WARRANTY INFORMATION SECTION (MODAL TRIGGER) --- */}
+          {warrantyInfo?.hasWarranty && (
+            <Pressable
+              style={styles.warrantyTriggerButton}
+              onPress={() => setShowWarrantyModal(true)}
+            >
+              <View style={styles.warrantyTriggerContent}>
+                <Shield size={20} color={BRAND_COLOR} />
+                <View style={styles.warrantyTriggerText}>
+                  <Text style={styles.warrantyTriggerTitle}>Warranty Information</Text>
+                  <Text style={styles.warrantyTriggerSubtitle}>
+                    {warrantyInfo.warrantyDurationMonths
+                      ? `${warrantyInfo.warrantyDurationMonths} Month${warrantyInfo.warrantyDurationMonths > 1 ? 's' : ''} Coverage`
+                      : 'Warranty Included'}
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={BRAND_COLOR} />
+            </Pressable>
+          )}
         </View>
 
         {/* --- SELLER SECTION --- */}
@@ -1274,9 +1347,28 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </View>
 
         {/* --- RATINGS SECTION --- */}
-        {/* Increased top margin */}
-        <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
-          <Text style={styles.sectionTitle}>Ratings & Reviews</Text>
+        <View
+          style={{ 
+            marginTop: 15, 
+            marginBottom: 5, 
+            paddingVertical: 20, 
+            paddingHorizontal: 16 
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 22, fontWeight: '900', color: COLORS.primary }}>
+                {effectiveAverageRating.toFixed(1)}
+              </Text>
+              <Star size={20} color="#FBBF24" fill="#FBBF24" />
+              <Text style={[styles.sectionTitle, { color: COLORS.textPrimary }]}>Ratings & Reviews</Text>
+            </View>
+            {reviewsTotal > 2 && (
+              <Pressable onPress={() => setActiveTab('ratings')}>
+                <Text style={{ color: COLORS.primary, fontWeight: '700', fontSize: 13 }}>View All</Text>
+              </Pressable>
+            )}
+          </View>
 
           {/* Review Filters - Wrapped Layout */}
           {/* Added spacing from title */}
@@ -1329,83 +1421,90 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </View>
           </View>
 
+          {/* Added spacing below filters */}
+          <View style={{ height: 24 }} />
+
           {isLoadingReviews ? (
             <ActivityIndicator size="small" color="#FB8C00" style={{ marginVertical: 20 }} />
           ) : reviews.length > 0 ? (
             <>
-              <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 15, textAlign: 'right', marginTop: 12 }}>
-                {effectiveAverageRating.toFixed(1)} out of 5 stars ({reviewsTotal.toLocaleString()} Reviews)
-              </Text>
-              {reviews.map((review) => (
-                <View key={review.id} style={styles.reviewCard}>
-                  <Image
-                    source={{ uri: review.buyerAvatar || 'https://ui-avatars.com/api/?name=Buyer&background=FF6A00&color=fff' }}
-                    style={styles.reviewerAvatar}
-                  />
-                  <View style={styles.reviewContent}>
-                    <Text style={styles.reviewerName}>{review.buyerName || 'Anonymous Buyer'}</Text>
-                    <View style={styles.reviewRatingRow}>
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} size={10} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
-                      ))}
-                    </View>
-                    <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
-                      {formatReviewDate(review.createdAt)}
-                    </Text>
-                    <Text style={styles.reviewText}>{review.comment || 'No written feedback.'}</Text>
-                    {review.variantLabel ? (
-                      <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
-                        Variant: {review.variantLabel}
-                      </Text>
-                    ) : null}
-                    {review.images.length > 0 ? (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.reviewImagesContainer}
-                      >
-                        {review.images.map((imageUrl, index) => (
-                          <Image
-                            key={`${review.id}-${index}`}
-                            source={{ uri: imageUrl }}
-                            style={styles.reviewImage}
-                          />
+              {reviews.map((review, index) => {
+                // If on details tab, only show first 2
+                if (activeTab === 'details' && index >= 2) return null;
+
+                return (
+                  <View key={review.id} style={styles.reviewCard}>
+                    <Image
+                      source={{ uri: review.buyerAvatar || 'https://ui-avatars.com/api/?name=Buyer&background=FF6A00&color=fff' }}
+                      style={styles.reviewerAvatar}
+                    />
+                    <View style={styles.reviewContent}>
+                      <Text style={[styles.reviewerName, { color: COLORS.textHeadline, opacity: 0.8 }]}>{review.buyerName || 'Anonymous Buyer'}</Text>
+                      <View style={styles.reviewRatingRow}>
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star key={i} size={10} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
                         ))}
-                      </ScrollView>
-                    ) : null}
-                    {review.sellerReply ? (
-                      <View style={{ marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: '#FB8C00' }}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#C2410C' }}>Seller response</Text>
-                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{review.sellerReply.message}</Text>
                       </View>
-                    ) : null}
-                    <View style={styles.reviewFooter}>
-                      <Pressable
-                        style={[
-                          styles.helpfulButton,
-                          helpfulReviewIds[review.id] && styles.helpfulButtonActive,
-                        ]}
-                        onPress={() => handleMarkReviewHelpful(review.id)}
-                        disabled={!!helpfulReviewIds[review.id]}
-                      >
-                        <ThumbsUp
-                          size={14}
-                          color={helpfulReviewIds[review.id] ? BRAND_COLOR : '#6B7280'}
-                        />
-                        <Text
-                          style={[
-                            styles.helpfulButtonText,
-                            helpfulReviewIds[review.id] && styles.helpfulButtonTextActive,
-                          ]}
-                        >
-                          Helpful ({review.helpfulCount || 0})
+                      <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                        {formatReviewDate(review.createdAt)}
+                      </Text>
+                      <Text style={[styles.reviewText, { color: COLORS.textHeadline, opacity: 0.7 }]}>{review.comment || 'No written feedback.'}</Text>
+                      {review.variantLabel ? (
+                        <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+                          Variant: {review.variantLabel}
                         </Text>
-                      </Pressable>
+                      ) : null}
+                      {review.images.length > 0 ? (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.reviewImagesContainer}
+                        >
+                          {review.images.map((imageUrl, idx) => (
+                            <Image
+                              key={`${review.id}-${idx}`}
+                              source={{ uri: imageUrl }}
+                              style={styles.reviewImage}
+                            />
+                          ))}
+                        </ScrollView>
+                      ) : null}
+                      {review.sellerReply ? (
+                        <View style={{ marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: '#FB8C00' }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#C2410C', opacity: 0.8 }}>Seller response</Text>
+                          <Text style={{ fontSize: 12, color: COLORS.textHeadline, opacity: 0.6, marginTop: 2 }}>{review.sellerReply.message}</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.reviewFooter}>
+                        <Pressable
+                          style={[
+                            styles.helpfulButton,
+                            helpfulReviewIds[review.id] && styles.helpfulButtonActive,
+                          ]}
+                          onPress={() => handleMarkReviewHelpful(review.id)}
+                          disabled={!!helpfulReviewIds[review.id]}
+                        >
+                          <ThumbsUp
+                            size={14}
+                            color={helpfulReviewIds[review.id] ? BRAND_COLOR : '#6B7280'}
+                          />
+                          <Text
+                            style={[
+                              styles.helpfulButtonText,
+                              helpfulReviewIds[review.id] && styles.helpfulButtonTextActive,
+                            ]}
+                          >
+                            Helpful ({review.helpfulCount || 0})
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
-                </View>
-              ))}
-              {reviews.length < reviewsTotal ? (
+                );
+              })}
+
+              {/* View All / Load More Logic */}
+              {activeTab === 'ratings' && reviews.length < reviewsTotal ? (
                 <Pressable
                   onPress={handleLoadMoreReviews}
                   style={{ marginTop: 8, paddingVertical: 10, alignItems: 'center' }}
@@ -1427,7 +1526,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         {/* --- RECOMMENDATIONS (Matches Home Grid) --- */}
         <View style={styles.recommendations}>
           <View style={styles.recommendationHeader}>
-            <Text style={styles.sectionTitle}>You Might Also Like</Text>
+            <Text style={[styles.sectionTitle, { color: COLORS.textPrimary }]}>You Might Also Like</Text>
             <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Shop', params: {} })}>
               <Text style={styles.gridSeeAll}>View All</Text>
             </Pressable>
@@ -1435,7 +1534,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <View style={styles.gridBody}>
             {relatedProducts.map((p) => (
               <View key={p.id} style={styles.itemBoxContainerVertical}>
-                <ProductCard product={p} onPress={() => navigation.push('ProductDetail', { product: p })} />
+                <MasonryProductCard 
+                  product={p} 
+                  onPress={() => navigation.push('ProductDetail', { product: p })} 
+                  width={(width - 24) / 2}
+                />
               </View>
             ))}
           </View>
@@ -1451,21 +1554,25 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.actionButtonsContainer}>
           <Pressable
-            style={[styles.addToCartBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]}
-            onPress={handleAddToCart}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
+            style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
+            onPress={((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) ? triggerOutOfStockPulse : handleAddToCart}
+            disabled={false}
           >
-            <ShoppingCart size={20} color={(Number(selectedVariantInfo.stock ?? 0) > 0) ? COLORS.primary : COLORS.gray400} />
+            <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !(product as any).is_vacation_mode) ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
           <Pressable
-            style={[styles.buyNowBtn, (Number(selectedVariantInfo.stock ?? 0) <= 0) && styles.disabledBtn]}
-            onPress={handleBuyNow}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0)}
+            style={[styles.buyNowBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
+            onPress={((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) ? triggerOutOfStockPulse : handleBuyNow}
+            disabled={false}
           >
-            <Text style={[styles.buyNowText, (Number(selectedVariantInfo.stock ?? 0) <= 0) && { color: COLORS.gray400 }]}>
-              {(Number(selectedVariantInfo.stock ?? 0) > 0) ? 'Buy Now' : 'Out of Stock'}
-            </Text>
+            <AnimatedText style={{
+              ...styles.buyNowText,
+              ...((Number(selectedVariantInfo.stock ?? 0) <= 0 || (product as any).is_vacation_mode) ? { color: COLORS.gray400 } : {}),
+              ...(Number(selectedVariantInfo.stock ?? 0) <= 0 ? { transform: [{ scale: outOfStockPulse }] } : {}),
+            }}>
+              {((product as any).is_vacation_mode ? 'Store Unavailable' : (Number(selectedVariantInfo.stock ?? 0) > 0 ? 'Buy Now' : 'Out of Stock'))}
+            </AnimatedText>
           </Pressable>
         </View>
       </View>
@@ -1634,6 +1741,158 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Warranty Information Bottom Sheet Modal */}
+      {warrantyInfo?.hasWarranty && (
+        <Modal
+          visible={showWarrantyModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowWarrantyModal(false)}
+          statusBarTranslucent={true}
+        >
+          <Pressable
+            style={styles.warrantyModalOverlay}
+            onPress={() => setShowWarrantyModal(false)}
+          >
+            <Pressable
+              style={styles.warrantyModalContent}
+              onPress={(e) => e.stopPropagation()}
+              onStartShouldSetResponder={() => true}
+            >
+              {/* Handle Bar */}
+              <View style={styles.warrantyModalHandleContainer}>
+                <View style={styles.warrantyModalHandle} />
+              </View>
+
+              {/* Header */}
+              <View style={styles.warrantyModalHeader}>
+                <View style={styles.warrantyModalTitleRow}>
+                  <Shield size={24} color={BRAND_COLOR} />
+                  <Text style={styles.warrantyModalTitle}>Warranty Information</Text>
+                </View>
+                <Pressable
+                  onPress={() => setShowWarrantyModal(false)}
+                  style={styles.warrantyModalCloseBtn}
+                >
+                  <X size={24} color="#6B7280" />
+                </Pressable>
+              </View>
+
+              {/* Warranty Badge */}
+              <View style={styles.warrantyModalBadge}>
+                <ShieldCheck size={18} color="#FFF" />
+                <Text style={styles.warrantyModalBadgeText}>
+                  {warrantyInfo.warrantyDurationMonths
+                    ? `${warrantyInfo.warrantyDurationMonths} Month${warrantyInfo.warrantyDurationMonths > 1 ? 's' : ''} Warranty`
+                    : 'Warranty Included'}
+                </Text>
+              </View>
+
+              {/* Scrollable Content */}
+              <ScrollView
+                style={styles.warrantyModalScrollView}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.warrantyModalScrollContent}
+              >
+                {warrantyInfo.warrantyType && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <BadgeCheck size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Type</Text>
+                      <Text style={styles.warrantyModalDetailValue}>
+                        {warrantyInfo.warrantyType === 'local_manufacturer' && 'Local Manufacturer Warranty'}
+                        {warrantyInfo.warrantyType === 'international_manufacturer' && 'International Manufacturer Warranty'}
+                        {warrantyInfo.warrantyType === 'shop_warranty' && 'Shop Warranty'}
+                        {warrantyInfo.warrantyType === 'no_warranty' && 'No Warranty'}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyProviderName && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <Shield size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Provider</Text>
+                      <Text style={styles.warrantyModalDetailValue}>{warrantyInfo.warrantyProviderName}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyProviderContact && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <Phone size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Contact</Text>
+                      <Pressable onPress={() => Linking.openURL(`tel:${warrantyInfo.warrantyProviderContact}`)}>
+                        <Text style={styles.warrantyModalDetailLink}>{warrantyInfo.warrantyProviderContact}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyProviderEmail && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <Mail size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Email</Text>
+                      <Pressable onPress={() => Linking.openURL(`mailto:${warrantyInfo.warrantyProviderEmail}`)}>
+                        <Text style={styles.warrantyModalDetailLink}>{warrantyInfo.warrantyProviderEmail}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyPolicy && (
+                  <View style={styles.warrantyModalDetailRow}>
+                    <View style={styles.warrantyModalIconContainer}>
+                      <FileText size={20} color={BRAND_COLOR} />
+                    </View>
+                    <View style={styles.warrantyModalDetailContent}>
+                      <Text style={styles.warrantyModalDetailLabel}>Coverage</Text>
+                      <Text style={styles.warrantyModalDetailValue}>{warrantyInfo.warrantyPolicy}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {warrantyInfo.warrantyTermsUrl && (
+                  <Pressable
+                    style={styles.warrantyModalTermsLink}
+                    onPress={() => {
+                      Linking.openURL(warrantyInfo.warrantyTermsUrl!).catch(() => {
+                        Alert.alert('Error', 'Could not open warranty terms URL');
+                      });
+                    }}
+                  >
+                    <FileText size={20} color={BRAND_COLOR} />
+                    <Text style={styles.warrantyModalTermsLinkText}>View Full Terms & Conditions</Text>
+                    <ChevronRight size={20} color={BRAND_COLOR} />
+                  </Pressable>
+                )}
+              </ScrollView>
+
+              {/* Info Box */}
+              <View style={styles.warrantyModalInfoBox}>
+                <View style={styles.warrantyModalInfoBoxRow}>
+                  <Shield size={18} color="#FB8C00" />
+                  <Text style={styles.warrantyModalInfoBoxText}>
+                    This product is covered by warranty. Contact the seller or manufacturer for warranty claims.
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
 
       {showGuestModal && (
         <GuestLoginModal
@@ -1962,12 +2221,12 @@ const styles = StyleSheet.create({
     color: BRAND_COLOR,
   },
 
-  recommendations: { paddingHorizontal: 20, paddingTop: 24, marginBottom: 20 },
-  recommendationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  recommendations: { paddingHorizontal: 6, paddingTop: 24, marginBottom: 20 },
+  recommendationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingHorizontal: 6 },
   sectionTitle: { fontSize: 18, fontWeight: '900', color: '#D97706' }, // Matched Home page orange
   gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
-  gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
+  gridBody: { flexDirection: 'row', flexWrap: 'wrap' },
+  itemBoxContainerVertical: { width: '50%', paddingHorizontal: 6, marginBottom: 12 },
 
   // Bottom Bar
   bottomBar: {
@@ -2466,5 +2725,283 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E7EB',
     marginVertical: 4,
+  },
+
+  // Warranty Section Styles
+  warrantySection: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  warrantyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  warrantyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    flex: 1,
+  },
+  warrantyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: BRAND_COLOR,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  warrantyBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  warrantyDetails: {
+    marginBottom: 12,
+  },
+  warrantyDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 10,
+  },
+  warrantyDetailContent: {
+    flex: 1,
+  },
+  warrantyDetailLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  warrantyDetailValue: {
+    fontSize: 13,
+    color: '#1F2937',
+    lineHeight: 18,
+  },
+  warrantyTermsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    paddingVertical: 4,
+  },
+  warrantyTermsLinkText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: BRAND_COLOR,
+    textDecorationLine: 'underline',
+    flex: 1,
+  },
+  warrantyInfoBox: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+  },
+  warrantyInfoBoxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  warrantyInfoBoxText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#9A3412',
+    lineHeight: 18,
+  },
+
+  // Warranty Trigger Button (in product details)
+  warrantyTriggerButton: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  warrantyTriggerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  warrantyTriggerText: {
+    gap: 2,
+  },
+  warrantyTriggerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  warrantyTriggerSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+
+  // Warranty Bottom Sheet Modal
+  warrantyModalOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end',
+  },
+  warrantyModalContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    maxHeight: '85%',
+  },
+  warrantyModalHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  warrantyModalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+  },
+  warrantyModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  warrantyModalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  warrantyModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  warrantyModalCloseBtn: {
+    padding: 4,
+  },
+  warrantyModalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: BRAND_COLOR,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  warrantyModalBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  warrantyModalScrollView: {
+    maxHeight: 350,
+  },
+  warrantyModalScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  warrantyModalDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 16,
+  },
+  warrantyModalIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFF7ED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  warrantyModalDetailContent: {
+    flex: 1,
+    paddingTop: 4,
+  },
+  warrantyModalDetailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  warrantyModalDetailValue: {
+    fontSize: 14,
+    color: '#1F2937',
+    lineHeight: 20,
+  },
+  warrantyModalDetailLink: {
+    fontSize: 14,
+    color: BRAND_COLOR,
+    textDecorationLine: 'underline',
+  },
+  warrantyModalTermsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF7ED',
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  warrantyModalTermsLinkText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: BRAND_COLOR,
+  },
+  warrantyModalInfoBox: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 14,
+    marginHorizontal: 20,
+    marginTop: 16,
+  },
+  warrantyModalInfoBoxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  warrantyModalInfoBoxText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#9A3412',
+    lineHeight: 20,
   },
 });

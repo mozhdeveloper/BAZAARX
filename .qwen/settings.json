@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(git grep *)",
+      "Bash(grep *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(npm run *)",
+      "Bash(findstr *)",
+      "Bash(npx *)",
+      "Bash(select-object *)"
+    ]
+  },
+  "$version": 3
+}

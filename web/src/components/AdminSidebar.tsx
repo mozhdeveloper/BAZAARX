@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -22,7 +23,9 @@ import {
   ShieldCheck,
   Megaphone,
   Shield,
-  RotateCcw
+  RotateCcw,
+  Mail,
+  Bell
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -56,7 +59,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
     },
     {
       label: isQARole ? 'QA Dashboard' : 'Product Approvals',
-      href: isQARole ? '/admin/qa-dashboard' : '/admin/product-approvals',
+      href: isQARole ? '/qa/dashboard' : '/admin/product-approvals',
       icon: <Shield className="h-5 w-5 flex-shrink-0" />,
       qaVisible: true,
     },
@@ -139,6 +142,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
       qaVisible: false,
     },
     {
+      label: 'CRM & Marketing',
+      href: '/admin/crm',
+      icon: <Mail className="h-5 w-5 flex-shrink-0" />,
+      qaVisible: false,
+    },
+    {
+      label: 'Notifications',
+      href: '/admin/notifications',
+      icon: <Bell className="h-5 w-5 flex-shrink-0" />,
+      qaVisible: false,
+    },
+    {
       label: 'Settings',
       href: '/admin/settings',
       icon: <Settings className="h-5 w-5 flex-shrink-0" />,
@@ -151,11 +166,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
 
   return (
     <Sidebar open={open} setOpen={setOpen}>
-      <SidebarBody className="justify-between gap-1 bg-white z-50 transition-all duration-300">
+      <SidebarBody className="justify-between gap-1 bg-white z-50">
         <Logo open={open || false} subtitle={isQARole ? "QA Team" : "Admin"} />
 
         <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pt-1">
-          <div className="mt-4 flex flex-col gap-1 px-1">
+          <div className="mt-1 flex flex-col gap-1 px-1">
             {links.map((link, idx) => (
               <SidebarLink
                 key={idx}
@@ -174,15 +189,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
 
 const Logo = ({ open, subtitle }: { open: boolean; subtitle: string }) => {
   return (
-    <Link
-      to="/admin"
+    <div
       className={cn(
         "flex items-center py-2 group transition-all duration-300",
         open ? "justify-start px-2 gap-3" : "justify-center px-0 gap-0"
       )}
     >
-      <div className="w-10 h-10 bg-gradient-to-tr from-[#D97706] to-[#B45309] rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
-        <img
+      <div className="w-10 h-10 bg-gradient-to-tr from-[#D97706] to-[#B45309] rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0">
+        <img loading="lazy" 
           src="/BazaarX.png"
           alt="BazaarX Logo"
           className="h-6 w-6 brightness-0 invert"
@@ -205,7 +219,7 @@ const Logo = ({ open, subtitle }: { open: boolean; subtitle: string }) => {
           {subtitle}
         </span>
       </motion.div>
-    </Link>
+    </div>
   );
 };
 
@@ -242,31 +256,47 @@ const UserProfile = ({ open }: { open?: boolean }) => {
           open ? "px-3" : "px-0"
         )}
       />
-      <button
-        onClick={handleLogout}
-        disabled={isLoggingOut}
-        className={cn(
-          "w-full flex items-center gap-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all duration-200 min-h-[44px] text-gray-600 group",
-          open ? "justify-start px-3" : "justify-center px-0"
-        )}
-      >
-        <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
-          <LogOut className="w-5 h-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
-        </div>
-        <motion.span
-          animate={{
-            opacity: open ? 1 : 0,
-            width: open ? "auto" : 0,
-          }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="text-sm font-medium whitespace-nowrap overflow-hidden"
-          style={{
-            display: open ? "block" : "none",
-          }}
+      {!open ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="w-full flex items-center justify-center py-3 rounded-xl hover:bg-gray-50 hover:text-red-600 transition-all duration-200 min-h-[44px] text-gray-600 group px-0"
+            >
+              <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+                <LogOut className="w-5 h-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+              </div>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={10} className="bg-white text-gray-900 border border-gray-100 shadow-md font-medium z-[100]">
+            Sign Out
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className={cn(
+            "w-full flex items-center gap-3 py-3 rounded-xl hover:bg-gray-50 hover:text-red-600 transition-all duration-200 min-h-[44px] text-gray-600 group",
+            "justify-start px-3"
+          )}
         >
-          {isLoggingOut ? 'Signing out...' : 'Sign Out'}
-        </motion.span>
-      </button>
+          <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+            <LogOut className="w-5 h-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+          </div>
+          <motion.span
+            animate={{
+              opacity: 1,
+              width: "auto",
+            }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="text-sm font-medium whitespace-nowrap overflow-hidden block"
+          >
+            {isLoggingOut ? 'Signing out...' : 'Sign Out'}
+          </motion.span>
+        </button>
+      )}
     </div>
   );
 };

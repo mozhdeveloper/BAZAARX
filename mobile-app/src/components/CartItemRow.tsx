@@ -44,11 +44,11 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
           const parts: string[] = [];
           const sv = item.selectedVariant;
           if (sv.option1Value || sv.option2Value) {
-            if (sv.option1Value) parts.push(`${sv.option1Label || 'Option 1'}: ${sv.option1Value}`);
-            if (sv.option2Value) parts.push(`${sv.option2Label || 'Option 2'}: ${sv.option2Value}`);
+            if (sv.option1Value) parts.push(sv.option1Value);
+            if (sv.option2Value) parts.push(sv.option2Value);
           } else {
-            if (sv.color) parts.push(`Color: ${sv.color}`);
-            if (sv.size) parts.push(`Size: ${sv.size}`);
+            if (sv.size) parts.push(sv.size);
+            if (sv.color) parts.push(sv.color);
           }
           if (parts.length === 0) return null;
           return (
@@ -58,7 +58,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
               style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
-                marginBottom: 8,
+                marginBottom: 4,
                 opacity: pressed ? 0.7 : 1,
               })}
             >
@@ -74,7 +74,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
 
         <Pressable onPress={onPress}>
           <View style={styles.priceContainer}>
-            <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#EF4444' } : null]}>
+            <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#DC2626' } : null]}>
               ₱{(item.price ?? 0).toLocaleString()}
             </Text>
             {!!item.originalPrice && item.originalPrice > (item.price || 0) && (
@@ -93,11 +93,10 @@ export const CartItemRow: React.FC<CartItemRowProps> = React.memo(({
             onChange={onChange}
             max={item.stock} // Pass correct stock limit
             min={1}
-            iconColor="#9CA3AF"
+            variant="compact"
           />
-
           <Pressable onPress={onRemove} style={styles.removeButton}>
-            <Trash2 size={18} color="#9d9d9dff" />
+            <Trash2 size={16} color={COLORS.gray400} strokeWidth={1.5} />
           </Pressable>
         </View>
       </View>
@@ -110,9 +109,7 @@ CartItemRow.displayName = 'CartItemRow';
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    // REMOVED: backgroundColor, borderRadius, shadow, and elevation 
-    // This allows the component to be "transparent" and sit inside the parent card
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingRight: 12,
     flex: 1,
   },
@@ -120,50 +117,43 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#000', // Black background for square feel like vinyl
   },
   infoContainer: {
     flex: 1,
-    marginLeft: 12, // Reduced spacing
-    justifyContent: 'space-between',
+    marginLeft: 16,
+    justifyContent: 'flex-start',
   },
   name: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontWeight: '500',
+    color: '#111827',
     marginBottom: 4,
     lineHeight: 20,
-    letterSpacing: -0.2,
   },
-  seller: {
-    fontSize: 13,
-    color: '#888888',
-    marginBottom: 8,
-  },
-  price: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.primary,
-    marginBottom: 0,
-    letterSpacing: -0.5,
-  },
+
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 8,
-    marginBottom: 12,
+    marginVertical: 4,
+  },
+  price: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   originalPrice: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#9CA3AF',
     textDecorationLine: 'line-through',
-    fontWeight: '500',
+    fontWeight: '400',
   },
   actionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 0,
   },
   removeButton: {
     padding: 6,
@@ -175,10 +165,10 @@ const styles = StyleSheet.create({
   variantChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     alignSelf: 'flex-start',

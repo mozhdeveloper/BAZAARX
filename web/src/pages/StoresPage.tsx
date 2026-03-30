@@ -327,7 +327,7 @@ const StoresPage: React.FC = () => {
                 >
                   {/* Store Banner */}
                   <div className="relative h-40 overflow-hidden">
-                    <img
+                    <img loading="lazy" 
                       src={store.banner}
                       alt={`${store.name} banner`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -344,7 +344,7 @@ const StoresPage: React.FC = () => {
                     {/* Header: Avatar + Info */}
                     <div className="flex items-start gap-4 mb-3">
                       <div className="w-12 h-12 rounded-full border border-gray-100 overflow-hidden bg-gray-50 flex-shrink-0">
-                        <img
+                        <img loading="lazy" 
                           src={store.avatar}
                           alt={store.name}
                           className="w-full h-full object-cover"

@@ -51,6 +51,7 @@ interface DbOrderData {
   buyer_id?: string;
   is_reviewed?: boolean;
   shipping_cost?: number;
+  cancellationReason?: string;
 }
 
 export default function OrderDetailPage() {
@@ -128,6 +129,7 @@ export default function OrderDetailPage() {
           buyer_id: detail.buyer_id,
           is_reviewed: detail.is_reviewed || false,
           shipping_cost: detail.shipping_cost || 0,
+          cancellationReason: detail.order.cancellationReason,
         };
 
         setDbOrder(extendedOrder);
@@ -162,22 +164,22 @@ export default function OrderDetailPage() {
   // Load chat messages when seller and profile are ready
   useEffect(() => {
     const loadChat = async () => {
-      if (!sellerId || !profile?.id) {
+      if (!sellerId || !profile?.id || !dbOrder?.id) {
         setIsLoadingChat(false);
         return;
       }
 
       setIsLoadingChat(true);
       try {
-        // Use lightweight lookup — pass orderId for fast indexed query
-        const conv = await chatService.getOrCreateConversationLite(profile.id, sellerId, orderId);
+        // Use the actual order UUID (dbOrder.id), NOT the URL param (order number)
+        const conv = await chatService.getOrCreateConversationLite(profile.id, sellerId, dbOrder.id);
 
         if (conv) {
           // Only need conv.id for messages + subscriptions; cast minimal object
           setConversation({
             id: conv.id,
             buyer_id: profile.id,
-            order_id: orderId || null,
+            order_id: dbOrder.id || null,
             seller_id: sellerId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -219,7 +221,7 @@ export default function OrderDetailPage() {
     };
 
     loadChat();
-  }, [sellerId, profile?.id, orderId]);
+  }, [sellerId, profile?.id, dbOrder?.id]);
 
   // Subscribe to real-time chat updates
   useEffect(() => {
@@ -396,19 +398,21 @@ export default function OrderDetailPage() {
       completed:
         isShippedOrBeyond ||
         order.status === "confirmed" ||
-        (isCancelled && !!order.confirmedAt),
+        // Only mark confirmed as completed if order was actually confirmed BEFORE cancellation
+        // For auto-cancelled orders (never confirmed), do not mark confirmed as done
+        (!isCancelled && !!order.confirmedAt),
       date: order.confirmedAt || null,
     },
     {
       status: "shipped",
       label: "Shipped",
-      completed: isShippedOrBeyond,
+      completed: isShippedOrBeyond && !isCancelled,
       date: isShippedOrBeyond ? (order.shippedAt || null) : null,
     },
     {
       status: "delivered",
       label: "Delivered",
-      completed: isDeliveredOrBeyond,
+      completed: isDeliveredOrBeyond && !isCancelled,
       date: isDeliveredOrBeyond ? (order.deliveredAt || null) : null,
     },
     ...(order.status === "received" || order.status === "reviewed"
@@ -442,6 +446,8 @@ export default function OrderDetailPage() {
       ]
       : []),
   ];
+
+  const showCancellationReason = isCancelled && order.cancellationReason;
 
   const subtotalAmount =
     order.pricing?.subtotal ??
@@ -889,14 +895,14 @@ export default function OrderDetailPage() {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => navigate('/shop')}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <ChevronLeft
               size={20}
               className="group-hover:-translate-x-0.5 transition-transform"
             />
-            <span className="text-sm font-medium">Back to Shop</span>
+            <span className="text-sm font-medium">Go Back</span>
           </button>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1049,6 +1055,11 @@ export default function OrderDetailPage() {
                             {item.completed && item.date && (
                               <p className="text-xs text-[var(--text-muted)] mt-1">
                                 {formatDate(item.date)}
+                              </p>
+                            )}
+                            {item.status === 'cancelled' && showCancellationReason && (
+                              <p className="text-xs text-red-600 mt-1 font-medium">
+                                {order.cancellationReason}
                               </p>
                             )}
                             {item.status === 'shipped' && order.trackingNumber && (
@@ -1229,7 +1240,7 @@ export default function OrderDetailPage() {
                         >
                           <div className="relative group flex-shrink-0">
                             <div className="w-16 h-16 overflow-hidden border border-gray-100 bg-gray-50">
-                              <img
+                              <img loading="lazy"
                                 src={item.image}
                                 alt={item.name}
                                 className="w-16 h-16 object-cover transition-transform group-hover/item:scale-110"
@@ -1358,76 +1369,144 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
 
-                  {/* Action Buttons Row */}
-                  <div className="flex flex-row gap-2 pt-4 mt-2">
-                    {/* Confirm Received  */}
-                    {order.status === 'delivered' && (
-                      <Button
-                        onClick={() => setConfirmReceivedModalOpen(true)}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        Confirm Received
-                      </Button>
-                    )}
+                  {/* Action Buttons */}
+                  {order.status === 'received' ? (() => {
+                    // Return/Refund is only available within 7 days of delivery
+                    const deliveryDate = order.deliveredAt || order.receivedAt || order.updatedAt;
+                    const isWithin7DaysOfDelivery = deliveryDate
+                      ? (Date.now() - new Date(deliveryDate).getTime()) < 7 * 24 * 60 * 60 * 1000
+                      : false;
 
-                    {/* Request Return / Refund */}
-                    {order.status === 'received' && (
-                      <Button
-                        variant="outline"
-                        onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
-                        className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
-                      >
-                        Write Review
-                      </Button>
-                    )}
+                    const buyAgainHandler = async () => {
+                      if (!order.items || order.items.length === 0) return;
+                      const addedIds: string[] = [];
+                      await Promise.all(order.items.map(async (item: any) => {
+                        const productObj = {
+                          id: item.productId || item.id,
+                          name: item.name,
+                          price: item.price,
+                          originalPrice: item.originalPrice,
+                          image: item.image,
+                        } as any;
+                        const variantObj = item.selectedVariant || item.variant;
+                        try {
+                          const addedCartItemId = await addToCart(productObj, item.quantity || 1, variantObj, { forceNewItem: true });
+                          addedIds.push(addedCartItemId || productObj.id);
+                        } catch (e) {
+                          console.error('Buy Again addToCart failed:', e);
+                        }
+                      }));
+                      navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
+                    };
 
-                    {/* Buy Again - shown for delivered/received/reviewed orders */}
-                    {(order.status === 'delivered' || order.status === 'received' || order.status === 'reviewed') && (
-                      <Button
-                        onClick={async () => {
-                          if (!order.items || order.items.length === 0) return;
+                    if (isWithin7DaysOfDelivery) {
+                      // Within 7 days: Buy Again on top, Write Review + Return/Refund side by side below
+                      return (
+                        <div className="flex flex-col gap-2 pt-4 mt-2">
+                          <Button
+                            onClick={buyAgainHandler}
+                            className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
+                          >
+                            Buy Again
+                          </Button>
+                          <div className="flex flex-row gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => setShowReviewModal(true)}
+                              className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
+                            >
+                              Write Review
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
+                              className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                              Return / Refund
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    }
 
-                          // Add each item to cart (preserving variant where possible)
-                          const addedIds: string[] = [];
-                          await Promise.all(order.items.map(async (item: any) => {
-                            const productObj = {
-                              id: item.productId || item.id,
-                              name: item.name,
-                              price: item.price,
-                              originalPrice: item.originalPrice,
-                              image: item.image,
-                            } as any;
+                    // Past 7 days: Write Review (left) + Buy Again (right), side by side
+                    return (
+                      <div className="flex flex-row gap-2 pt-4 mt-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowReviewModal(true)}
+                          className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
+                        >
+                          Write Review
+                        </Button>
+                        <Button
+                          onClick={buyAgainHandler}
+                          className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
+                        >
+                          Buy Again
+                        </Button>
+                      </div>
+                    );
+                  })() : (
+                    <div className="flex flex-row gap-2 pt-4 mt-2">
+                      {/* Confirm Received  */}
+                      {order.status === 'delivered' && (
+                        <Button
+                          onClick={() => setConfirmReceivedModalOpen(true)}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          Confirm Received
+                        </Button>
+                      )}
 
-                            const variantObj = item.selectedVariant || item.variant;
-                            try {
-                              const addedCartItemId = await addToCart(productObj, item.quantity || 1, variantObj, { forceNewItem: true });
-                              addedIds.push(addedCartItemId || productObj.id);
-                            } catch (e) {
-                              console.error('Buy Again addToCart failed:', e);
-                            }
-                          }));
+                      {/* Buy Again - shown for delivered/reviewed orders */}
+                      {(order.status === 'delivered' || order.status === 'reviewed') && (
+                        <Button
+                          onClick={async () => {
+                            if (!order.items || order.items.length === 0) return;
 
-                          // Navigate to enhanced cart so user can adjust variants/sizes/colors
-                          navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
-                        }}
-                        className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
-                      >
-                        Buy Again
-                      </Button>
-                    )}
+                            // Add each item to cart (preserving variant where possible)
+                            const addedIds: string[] = [];
+                            await Promise.all(order.items.map(async (item: any) => {
+                              const productObj = {
+                                id: item.productId || item.id,
+                                name: item.name,
+                                price: item.price,
+                                originalPrice: item.originalPrice,
+                                image: item.image,
+                              } as any;
 
-                    {/* Cancel Order - shown for pending/confirmed orders (COD unpaid or PayMongo paid) */}
-                    {((order.status === 'pending' && !order.isPaid) ||
-                      (order.isPaid && (order.status === 'pending' || order.status === 'confirmed'))) && (
-                      <Button
-                        variant="outline"
-                        onClick={() => setCancelModalOpen(true)}
-                        className="flex-1 border-red-600 text-red-600 hover:bg-red-50 hover:text-red-600"
-                      >
-                        {order.isPaid ? 'Cancel & Request Refund' : 'Cancel Order'}
-                      </Button>
-                    )}
-                  </div>
+                              const variantObj = item.selectedVariant || item.variant;
+                              try {
+                                const addedCartItemId = await addToCart(productObj, item.quantity || 1, variantObj, { forceNewItem: true });
+                                addedIds.push(addedCartItemId || productObj.id);
+                              } catch (e) {
+                                console.error('Buy Again addToCart failed:', e);
+                              }
+                            }));
+
+                            // Navigate to enhanced cart so user can adjust variants/sizes/colors
+                            navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
+                          }}
+                          className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
+                        >
+                          Buy Again
+                        </Button>
+                      )}
+
+                      {/* Cancel Order - shown for pending unpaid orders */}
+                      {order.status === 'pending' && !order.isPaid && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setCancelModalOpen(true)}
+                          className="flex-1 border-red-600 text-red-600 hover:bg-red-50 hover:text-red-600"
+                        >
+                          Cancel Order
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1456,6 +1535,7 @@ export default function OrderDetailPage() {
                     buyer_id: detail.buyer_id,
                     is_reviewed: detail.is_reviewed || false,
                     shipping_cost: detail.shipping_cost || 0,
+                    cancellationReason: detail.order.cancellationReason,
                   };
                   setDbOrder(refreshedOrder);
                 }
@@ -1488,18 +1568,7 @@ export default function OrderDetailPage() {
 
       {/* Cancel Order Modal */}
       <AnimatePresence>
-        {cancelModalOpen && order && (() => {
-          const isPaymongoPay = order.paymentMethod?.type !== 'cod';
-          const payType = order.paymentMethod?.type;
-          const refundDays = payType === 'card' ? '5–7 business days'
-            : payType === 'grab_pay' ? '3–5 business days'
-            : '1–3 business days'; // gcash, maya, paymaya
-          const payLabel = payType === 'card' ? 'Credit/Debit Card'
-            : payType === 'gcash' ? 'GCash'
-            : payType === 'maya' || payType === 'paymaya' ? 'Maya'
-            : payType === 'grab_pay' ? 'GrabPay'
-            : 'your payment method';
-          return (
+        {cancelModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1511,56 +1580,15 @@ export default function OrderDetailPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-6 pt-6 pb-1">
-                <h3 className="text-xl font-bold text-gray-900 mb-3">
-                  {isPaymongoPay ? 'Cancel Order & Request Refund' : 'Cancel Order'}
-                </h3>
-
-                <div className="space-y-3 mb-4">
-                  {/* Refund info — PayMongo only */}
-                  {isPaymongoPay && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5">
-                      <p className="text-blue-800 font-semibold text-xs mb-1.5">Refund Information ({payLabel})</p>
-                      <ul className="text-blue-700 text-xs space-y-1 leading-relaxed">
-                        <li>• Your payment of <span className="font-semibold">₱{order.total?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span> will be refunded.</li>
-                        <li>• Refund processing time: <span className="font-semibold">{refundDays}</span> after cancellation is confirmed.</li>
-                        <li>• The refund will be returned to your {payLabel} account.</li>
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Next Steps — shown for all payment types */}
-                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-3.5">
-                    <p className="text-orange-800 font-semibold text-xs mb-1.5">Next Steps After Cancellation</p>
-                    <ol className="text-orange-700 text-xs space-y-1 leading-relaxed list-none">
-                      <li>1. Your cancellation request is sent to the seller.</li>
-                      <li>2. Bazaar notifies the seller to halt fulfillment.</li>
-                      {isPaymongoPay ? (
-                        <>
-                          <li>3. A refund is initiated via PayMongo to your {payLabel}.</li>
-                          <li>4. You will receive an email confirmation once the refund is processed.</li>
-                          <li>5. Check your {payLabel} balance after {refundDays}.</li>
-                        </>
-                      ) : (
-                        <>
-                          <li>3. Since this is a Cash on Delivery order, no payment was collected — no refund is needed.</li>
-                          <li>4. Your order will be marked as cancelled and no items will be shipped.</li>
-                          <li>5. You may re-order the same items at any time.</li>
-                        </>
-                      )}
-                    </ol>
-                  </div>
-
-                  {/* Regulatory note */}
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-[10px] text-gray-500 leading-relaxed">
-                    {isPaymongoPay
-                      ? <>In accordance with the Philippine Consumer Act (RA 7394) and BSP Circular 1048, you are entitled to cancel your order and receive a full refund for unshipped items paid via electronic means. Do <span className="font-semibold">not</span> contact the seller directly for the refund — it is processed automatically through PayMongo.</>
-                      : <>Under the Philippine Consumer Act (RA 7394), you have the right to cancel an order before it is shipped. Cancellation is final and cannot be undone once confirmed.</>
-                    }
-                  </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">Cancel Order</h3>
+                <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-3 flex gap-3 items-start -mb-4">
+                  <p className="text-[var(--brand-primary)] text-xs leading-relaxed">
+                    Please select a reason. This will cancel all items in the order and cannot be undone.
+                  </p>
                 </div>
               </div>
               <div className="px-6 py-4">
@@ -1638,6 +1666,7 @@ export default function OrderDetailPage() {
                               buyer_id: detail.buyer_id,
                               is_reviewed: detail.is_reviewed || false,
                               shipping_cost: detail.shipping_cost || 0,
+                              cancellationReason: detail.order.cancellationReason,
                             };
                             setDbOrder(refreshedOrder);
                           }
@@ -1661,8 +1690,7 @@ export default function OrderDetailPage() {
               </div>
             </motion.div>
           </motion.div>
-          );
-        })()}
+        )}
       </AnimatePresence>
 
       {/* Confirm Received Modal */}
@@ -1692,7 +1720,7 @@ export default function OrderDetailPage() {
           >
             <X className="w-6 h-6" />
           </button>
-          <img
+          <img loading="lazy"
             src={selectedPhoto}
             alt="Receipt photo"
             className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain"
@@ -1702,6 +1730,6 @@ export default function OrderDetailPage() {
       )}
 
       <BazaarFooter />
-    </div >
+    </div>
   );
 }

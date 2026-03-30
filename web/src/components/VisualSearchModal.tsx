@@ -231,7 +231,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                 <div className="w-full md:w-1/2 flex flex-col items-center">
                   <div className="relative inline-block rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-gray-50 max-w-full w-full">
                     {/* The Base Image (NO BOUNDING BOXES) */}
-                    <img
+                    <img loading="lazy" 
                       src={previewUrl}
                       alt="Search preview"
                       className="w-full h-auto max-h-[400px] object-contain block mx-auto"
@@ -306,7 +306,7 @@ export default function VisualSearchModal({ isOpen, onClose, onRequestProduct }:
                             onClick={() => { onClose(); navigate(`/product/${product.id}`); }}
                             className="bg-white border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[var(--brand-primary)] hover:shadow-md transition-all"
                           >
-                            <img src={product.primary_image_url || 'https://via.placeholder.com/200'} alt={product.name} className="w-full aspect-square object-cover bg-gray-100" />
+                            <img loading="lazy" src={product.primary_image_url || 'https://via.placeholder.com/200'} alt={product.name} className="w-full aspect-square object-cover bg-gray-100" />
                             <div className="p-3">
                               <h4 className="font-medium text-sm text-gray-900 line-clamp-2 mb-2">{product.name}</h4>
                               <p className="text-[var(--brand-primary)] font-bold">₱{(product.price || 0).toLocaleString()}</p>

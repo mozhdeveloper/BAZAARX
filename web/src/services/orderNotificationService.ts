@@ -6,6 +6,17 @@
 
 import { supabase } from '../lib/supabase';
 import { chatService } from './chatService';
+import { fetchOrderEmailData } from './receiptService';
+import {
+  sendOrderConfirmedEmail,
+  sendOrderReadyToShipEmail,
+  sendOrderShippedEmail,
+  sendOrderOutForDeliveryEmail,
+  sendOrderDeliveredEmail,
+  sendOrderFailedDeliveryEmail,
+  sendOrderCancelledEmail,
+  sendOrderReturnedEmail,
+} from './transactionalEmails';
 
 export interface StatusMessage {
   status: string;
@@ -62,10 +73,17 @@ class OrderNotificationService {
     sellerId: string,
     buyerId: string,
     trackingNumber?: string,
-    customMessage?: string
+    customMessage?: string,
+    emailMetadata?: Record<string, string>
   ): Promise<boolean> {
     try {
       // Get or create conversation between buyer and seller
+      // Fire transactional email immediately (non-blocking) — independent of chat success
+      console.log(`[OrderNotification] ▶ Dispatching transactional email for order ${orderId}, status: ${newStatus}`);
+      this._sendTransactionalEmail(orderId, newStatus, { trackingNumber, ...emailMetadata }).catch(
+        (err) => console.error('[OrderNotification] ✖ Email dispatch error:', err)
+      );
+
       const conversation = await chatService.getOrCreateConversation(buyerId, sellerId);
       
       if (!conversation) {
@@ -116,6 +134,101 @@ class OrderNotificationService {
     } catch (error) {
       console.error('[OrderNotification] Error sending notification:', error);
       return false;
+    }
+  }
+
+  /**
+   * Fetch order/buyer data and dispatch the correct transactional email for
+   * the given shipment status. Failures are non-fatal.
+   */
+  private async _sendTransactionalEmail(
+    orderId: string,
+    newStatus: string,
+    extra: Record<string, string | undefined> = {}
+  ): Promise<void> {
+    console.log(`[OrderNotification] ▶ _sendTransactionalEmail: orderId=${orderId}, status=${newStatus}`);
+    const data = await fetchOrderEmailData(orderId);
+    if (!data || !data.buyerEmail) {
+      console.warn(`[OrderNotification] ✖ No email data for order ${orderId} — skipping email`, { hasData: !!data, buyerEmail: data?.buyerEmail });
+      return;
+    }
+    console.log(`[OrderNotification] Email data loaded:`, { buyerEmail: data.buyerEmail, buyerName: data.buyerName, orderNumber: data.orderNumber });
+
+    const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
+    const trackUrl = `${BASE_URL}/orders/${orderId}`;
+    const rescheduleUrl = `${BASE_URL}/orders/${orderId}`;
+
+    const base = {
+      buyerEmail: data.buyerEmail,
+      buyerId: data.buyerId,
+      orderNumber: data.orderNumber,
+      buyerName: data.buyerName,
+    };
+
+    switch (newStatus) {
+      case 'processing':
+        await sendOrderConfirmedEmail({
+          ...base,
+          estimatedDelivery: extra.estimatedDelivery ?? '3–7 business days',
+        });
+        break;
+
+      case 'ready_to_ship':
+        await sendOrderReadyToShipEmail({
+          ...base,
+          estimatedPickup: extra.estimatedPickup ?? 'within 24 hours',
+          trackUrl,
+        });
+        break;
+
+      case 'shipped':
+        await sendOrderShippedEmail({
+          ...base,
+          trackingNumber: extra.trackingNumber ?? data.trackingNumber ?? 'N/A',
+          courierName: extra.courierName ?? 'courier',
+          trackingUrl: extra.trackingUrl ?? trackUrl,
+        });
+        break;
+
+      case 'out_for_delivery':
+        await sendOrderOutForDeliveryEmail({
+          ...base,
+          courierName: extra.courierName ?? 'courier',
+          trackUrl,
+        });
+        break;
+
+      case 'delivered':
+        await sendOrderDeliveredEmail(base);
+        break;
+
+      case 'failed_to_deliver':
+        await sendOrderFailedDeliveryEmail({
+          ...base,
+          failureReason: extra.failureReason ?? 'Recipient not available',
+          rescheduleUrl,
+        });
+        break;
+
+      case 'cancelled':
+        await sendOrderCancelledEmail({
+          ...base,
+          cancelReason: extra.cancelReason ?? 'Order cancelled',
+        });
+        break;
+
+      case 'returned':
+        await sendOrderReturnedEmail({
+          ...base,
+          refundAmount: extra.refundAmount ?? data.total,
+          refundMethod: extra.refundMethod ?? 'Original payment method',
+          trackUrl,
+        });
+        break;
+
+      default:
+        // No email defined for this status
+        break;
     }
   }
 
@@ -199,19 +312,51 @@ class OrderNotificationService {
     payload: { title: string; body: string; data?: Record<string, unknown> }
   ): Promise<void> {
     try {
-      const { error } = await supabase.functions.invoke('send-push-notification', {
-        body: {
+      console.log('[OrderNotification] ▶ Sending push notification to', userId);
+
+      // Use direct fetch to avoid CORS issues with supabase.functions.invoke
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !anonKey) {
+        console.warn('[OrderNotification] Missing env vars — skipping push notification');
+        return;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'apikey': anonKey,
+      };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
           userId,
           title: payload.title,
           body: payload.body,
           data: payload.data ?? {},
-        },
+        }),
       });
-      if (error) {
-        console.warn('[OrderNotification] Push notification error:', error.message);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn('[OrderNotification] Push notification error:', response.status, errText);
+        if (response.status === 401) {
+          console.warn('[OrderNotification] Deploy with: supabase functions deploy send-push-notification --no-verify-jwt');
+        }
+      } else {
+        const result = await response.json();
+        console.log('[OrderNotification] ✔ Push notification response:', result);
       }
     } catch (err) {
-      console.warn('[OrderNotification] Push notification failed:', err);
+      console.warn('[OrderNotification] Push notification failed (non-fatal):', err instanceof Error ? err.message : err);
     }
   }
 }

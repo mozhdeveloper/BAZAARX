@@ -416,7 +416,7 @@ export const HeroScrollVideo: React.FC<HeroScrollVideoProps> = ({
     if (mediaType === "image") {
       const src = typeof media === "string" ? media : media?.mp4 || "";
       return (
-        <img
+        <img loading="lazy" 
           src={src}
           alt=""
           style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" }}

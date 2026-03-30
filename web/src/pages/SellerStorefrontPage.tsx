@@ -26,7 +26,11 @@ import {
   ThumbsUp,
   Loader2,
   CheckCircle2,
-  Zap
+  Zap,
+  Palmtree,
+  Phone,
+  ShoppingBag,
+  ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -58,6 +62,28 @@ import StorefrontReviewsTab, { type Review } from '../components/shop/Storefront
 import { supabase } from '@/lib/supabase';
 import { discountService } from '@/services/discountService';
 import type { DiscountCampaign } from '@/types/discount';
+
+// Type definition for seller object used in storefront
+interface StorefrontSeller {
+  id: string;
+  name: string;
+  avatar: string;
+  rating: number;
+  totalReviews: number;
+  followers: number;
+  isVerified: boolean;
+  tierLevel: string;
+  description: string;
+  location: string;
+  established: string;
+  badges: string[];
+  responseTime: string;
+  contactNumber: string;
+  categories: string[];
+  products: any[];
+  isVacationMode?: boolean;
+  city?: string;
+}
 
 const CountdownTimer = ({ endDate }: { endDate: Date }) => {
   const [timeLeft, setTimeLeft] = useState("");
@@ -100,7 +126,6 @@ export default function SellerStorefrontPage() {
   const {
     followShop,
     unfollowShop,
-    isFollowing,
     addToCart,
     addViewedSeller,
     profile
@@ -153,6 +178,7 @@ export default function SellerStorefrontPage() {
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [followersCount, setFollowersCount] = useState(0);
+  const [isFollowingUser, setIsFollowingUser] = useState(false);
   const [activeCampaigns, setActiveCampaigns] = useState<DiscountCampaign[]>([]);
 
   useEffect(() => {
@@ -231,13 +257,20 @@ export default function SellerStorefrontPage() {
 
         // Fetch followers count for this seller
         try {
-          const { count } = await supabase
-            .from('buyers')
-            .select('id', { count: 'exact', head: true })
-            .contains('followed_shops', [sellerId]);
-          setFollowersCount(count || 0);
+          const count = await sellerService.getFollowerCount(sellerId);
+          setFollowersCount(count);
         } catch {
           // silently ignore, followers count is non-critical
+        }
+
+        // Check if current user is following
+        if (profile?.id) {
+          try {
+            const following = await sellerService.checkIsFollowing(profile.id, sellerId);
+            setIsFollowingUser(following);
+          } catch {
+            console.error("Could not check follow status");
+          }
         }
 
         // Fetch real reviews for this seller
@@ -294,7 +327,7 @@ export default function SellerStorefrontPage() {
     };
 
     fetchSellerData();
-  }, [sellerId]);
+  }, [sellerId, profile?.id]);
 
   // Helper function to format relative dates
   const formatRelativeDate = (dateString: string): string => {
@@ -321,7 +354,7 @@ export default function SellerStorefrontPage() {
   const seller = realSeller ? {
     id: realSeller.id,
     name: realSeller.store_name || realSeller.business_name || 'Verified Seller',
-    avatar: realSeller.avatar_url || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
+    avatar: realSeller.avatar_url || '',
     rating:
       reviewStats.total > 0
         ? Number(reviewStats.avgRating.toFixed(1))
@@ -334,22 +367,29 @@ export default function SellerStorefrontPage() {
     tierLevel: (realSeller as any).tier_level || 'standard',
     description: realSeller.store_description || '',
     location: [
-      realSeller.business_profile?.address_line_1,
-      realSeller.city || realSeller.business_profile?.city,
-      realSeller.province || realSeller.business_profile?.province
-    ].filter(Boolean).join(', ') || 'Philippines',
-    established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
+      (realSeller as any).business_profile?.address_line_1,
+      (realSeller as any).business_profile?.city || realSeller.city,
+      (realSeller as any).business_profile?.province || realSeller.province
+    ].filter(part => part && part.trim() !== "").join(', ') || '',
+    city: (realSeller as any).business_profile?.city || realSeller.city || '',
+    established: realSeller.created_at ? new Date(realSeller.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'March 2026',
     badges: realSeller.is_verified ? ['Verified Seller'] : [],
     responseTime: '< 24 hours',
+    contactNumber: realSeller?.store_contact_number || 'Not provided',
     categories: (realSeller as any).product_categories || (realSeller as any).store_category || ['General'],
-    products: []
-  } : demoSeller || (dbSellerProduct ? {
+    products: [],
+    isVacationMode: (realSeller as any).is_vacation_mode === true
+  } : demoSeller ? {
+    ...demoSeller,
+    contactNumber: demoSeller?.contactNumber || 'Not provided',
+    avatar: demoSeller?.avatar || '',
+  } : dbSellerProduct ? {
     id: dbSellerProduct.sellerId,
     name: dbSellerProduct.sellerName || "Verified Seller",
-    avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
-    rating: dbSellerProduct.sellerRating || 5.0,
-    totalReviews: 10,
-    followers: 5,
+    avatar: '',
+    rating: dbSellerProduct.sellerRating || 0,
+    totalReviews: 0,
+    followers: 0,
     isVerified: true,
     tierLevel: (dbSellerProduct as any).sellerTierLevel || 'standard',
     description: '',
@@ -357,9 +397,27 @@ export default function SellerStorefrontPage() {
     established: '2024',
     badges: ['Verified Seller'],
     responseTime: '< 24 hours',
+    contactNumber: 'Not provided',
     categories: ['General'],
     products: []
-  } : demoSellers[0]);
+  } : {
+    id: demoSellers[0]?.id || 'default-seller',
+    name: demoSellers[0]?.name || "Verified Seller",
+    avatar: (demoSellers[0] as any)?.avatar || '',
+    rating: demoSellers[0]?.rating || 0,
+    totalReviews: 0,
+    followers: 0,
+    isVerified: demoSellers[0]?.isVerified ?? true,
+    tierLevel: (demoSellers[0] as any)?.tierLevel || 'standard',
+    description: demoSellers[0]?.description || '',
+    location: demoSellers[0]?.location || 'Metro Manila',
+    established: (demoSellers[0] as any)?.established || '2024',
+    badges: demoSellers[0]?.badges || ['Verified Seller'],
+    responseTime: (demoSellers[0] as any)?.responseTime || '< 24 hours',
+    contactNumber: (demoSellers[0] as any)?.contactNumber || 'Not provided',
+    categories: (demoSellers[0] as any)?.categories || ['General'],
+    products: (demoSellers[0] as any)?.products || []
+  } as StorefrontSeller;
 
   const isPremiumOutlet = seller.tierLevel === 'premium_outlet';
 
@@ -421,7 +479,7 @@ export default function SellerStorefrontPage() {
       discountBadgeTooltip: (p as any).discountBadgeTooltip,
       image: (p.images && p.images.length > 0 && p.images[0].image_url) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
       rating: p.rating || 5.0,
-      review_count: p.review_count || 0,
+      review_count: (p as any).reviewCount || p.review_count || 0,
       sold: (p as any).sold || (p as any).lifetimeSold || p.sales_count || 0,
       category: (p.category && (typeof p.category === 'string' ? p.category : (p.category as any).name)) || 'General',
       isFreeShipping: p.is_free_shipping || false,
@@ -435,6 +493,7 @@ export default function SellerStorefrontPage() {
       sellerLocation: seller?.location,
       sellerName: seller?.name,
       isVerified: seller?.isVerified,
+      isVacationMode: (seller as any)?.isVacationMode ?? false,
     }))
     : demoProducts.map(p => ({
       ...p,
@@ -446,6 +505,7 @@ export default function SellerStorefrontPage() {
       sellerLocation: seller?.location,
       sellerName: seller?.name,
       isVerified: seller?.isVerified,
+      isVacationMode: (seller as any)?.isVacationMode ?? false,
     }));
 
   // Get all unique categories from the displayed products
@@ -469,6 +529,14 @@ export default function SellerStorefrontPage() {
     });
 
   const handleAddToCart = (product: any) => {
+    if (product.isVacationMode || product.is_vacation_mode) {
+      toast({
+        title: "Store on Vacation",
+        description: "This store is temporarily unavailable.",
+        variant: "destructive",
+      });
+      return;
+    }
     const cartProduct = {
       ...product,
       sellerId: seller.id,
@@ -490,6 +558,14 @@ export default function SellerStorefrontPage() {
   };
 
   const onBuyNow = (product: any) => {
+    if (product.isVacationMode || product.is_vacation_mode) {
+      toast({
+        title: "Store on Vacation",
+        description: "This store is temporarily unavailable.",
+        variant: "destructive",
+      });
+      return;
+    }
     setBuyNowProduct({
       ...product,
       quantity: 1,
@@ -525,11 +601,11 @@ export default function SellerStorefrontPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header hideSearch />
 
       {/* Seller Header - Modern Dark Orange Style */}
-      <div className="relative bg-[#2b1203]/80 pt-12 pb-10 overflow-hidden">
+      <div className="relative bg-[#2b1203]/80 pt-4 pb-8 overflow-hidden">
         {/* Background Image with Dark Orange Overlay */}
         <div className="absolute inset-0">
           <div
@@ -554,14 +630,29 @@ export default function SellerStorefrontPage() {
 
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8">
             {/* Store Avatar */}
-            <div className="relative">
-              <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-white p-1 shadow-2xl overflow-hidden">
-                <img
-                  src={seller.avatar}
-                  alt={seller.name}
-                  className="w-full h-full rounded-full object-cover"
-                />
+            <div className="relative isolate">
+              <div className="w-32 h-32 md:w-36 md:h-36 rounded-full overflow-hidden relative z-10 bg-white/5 flex items-center justify-center">
+                {seller.avatar && seller.avatar !== "" ? (
+                  <img loading="lazy"
+                    src={seller.avatar}
+                    alt={seller.name}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500 text-4xl md:text-5xl font-bold uppercase tracking-widest">
+                    {(() => {
+                      const names = (seller.name || "S").split(' ');
+                      if (names.length >= 2) return `${names[0][0]}${names[1][0]}`;
+                      return names[0][0];
+                    })()}
+                  </div>
+                )}
               </div>
+              {seller.isVerified && (
+                <div className="absolute bottom-1 right-2 md:bottom-2 md:right-3 z-20 shadow-lg flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6 md:w-7 md:h-7 text-white fill-green-600" />
+                </div>
+              )}
             </div>
 
             {/* Store Details */}
@@ -570,402 +661,482 @@ export default function SellerStorefrontPage() {
                 <h1 className="text-3xl font-bold text-white tracking-tight">
                   {seller.name}
                 </h1>
-                {seller.isVerified && (
-                  <Badge className="bg-white text-green-600 hover:bg-white border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                    Verified
-                  </Badge>
-                )}
                 {isPremiumOutlet && (
                   <Badge className="bg-purple-500 text-white hover:bg-purple-600 border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
                     <Star className="w-3 h-3 fill-white" />
                     Premium Outlet
                   </Badge>
                 )}
+                {seller?.isVacationMode && (
+                  <Badge variant="outline" className="bg-[#EA580C] text-white border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    <Palmtree className="w-3 h-3" />
+                    On Vacation
+                  </Badge>
+                )}
               </div>
 
               <div className="flex flex-col gap-1 mb-5">
                 <div className="flex items-center justify-center md:justify-start gap-4 text-white/80 text-sm font-medium">
-                  <span className="flex items-center">
-                    {seller.location}
+                  {seller.city && seller.city !== "" && (
+                    <>
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4 opacity-70" />
+                        {seller.city}
+                      </span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand-primary)]/50 hidden md:block" />
+                    </>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 opacity-70" />
+                    {seller.established}
                   </span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand-primary)]/50 hidden md:block" />
-                  <span className="flex items-center">
-                    Est. {seller.established}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-center md:justify-start gap-6 mt-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-white text-base font-bold">{seller.rating}</span>
-                    <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Rating</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white text-base font-bold">{seller.followers.toLocaleString()}</span>
-                    <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Followers</span>
-                  </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-6">
-                <Button
-                  onClick={() => isFollowing(seller.id) ? unfollowShop(seller.id) : followShop(seller.id)}
-                  className={cn(
-                    "h-10 px-8 rounded-xl font-bold transition-all duration-300 min-w-[130px]",
-                    isFollowing(seller.id)
-                      ? "bg-[var(--brand-primary)] text-white border border-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] backdrop-blur-md"
-                      : "bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-dark)] shadow-lg shadow-[var(--brand-primary)]/20"
-                  )}
-                >
-                  {isFollowing(seller.id) ? (
-                    <><Heart className="w-4 h-4 mr-2 fill-current" /> Following</>
-                  ) : (
-                    <><Heart className="w-4 h-4 mr-2" /> Follow</>
-                  )}
-                </Button>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-12 md:gap-x-20 gap-y-4 mt-4">
+                {/* Stats */}
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-1.5">
+                    <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                    <span className="text-white/80 text-sm font-medium leading-none pt-[2px]">{seller.rating}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-white/80 text-sm font-medium leading-none pt-[2px]">{seller.followers.toLocaleString()}</span>
+                    <span className="text-white/80 text-sm font-medium leading-none pt-[2px]">Followers</span>
+                  </div>
+                </div>
 
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(`/messages?sellerId=${seller.id}`)}
-                  className="h-10 px-8 rounded-xl font-bold bg-transparent border border-white/20 text-white hover:bg-white/10 hover:text-white transition-all min-w-[130px]"
-                >
-                  Chat
-                </Button>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={async () => {
+                      if (!profile?.id || !seller?.id) {
+                        toast({ title: "Please sign in to follow stores", variant: "default" });
+                        return;
+                      }
 
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl bg-white/5 text-white border border-white/10 hover:bg-white/10 backdrop-blur-md transition-all"
-                >
-                  <Share2 className="w-4 h-4" />
-                </Button>
+                      const prevFollowing = isFollowingUser;
+                      const prevCount = followersCount;
+
+                      // Optimistic Update
+                      setIsFollowingUser(!prevFollowing);
+                      setFollowersCount(prev => prevFollowing ? prev - 1 : prev + 1);
+
+                      try {
+                        if (prevFollowing) {
+                          await sellerService.unfollowSeller(profile.id, seller.id);
+                        } else {
+                          await sellerService.followSeller(profile.id, seller.id);
+                        }
+                      } catch {
+                        // Revert on failure
+                        setIsFollowingUser(prevFollowing);
+                        setFollowersCount(prevCount);
+                        toast({
+                          title: "Error",
+                          description: "Failed to update follow status",
+                          variant: "destructive"
+                        });
+                      }
+                    }}
+                    className={cn(
+                      "h-9 px-6 rounded-lg text-sm font-bold transition-all duration-300",
+                      isFollowingUser
+                        ? "bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-dark)] backdrop-blur-md"
+                        : "bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-dark)] shadow-lg shadow-[var(--brand-primary)]/20"
+                    )}
+                  >
+                    {isFollowingUser ? "Following" : "Follow"}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate(`/messages?sellerId=${seller.id}`)}
+                    className="h-9 px-6 rounded-lg text-sm font-bold bg-transparent border border-white/20 text-white hover:bg-white/10 hover:text-white transition-all"
+                  >
+                    Chat
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-lg bg-transparent text-white border border-white/20 hover:bg-white/10 backdrop-blur-md transition-all"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {
-    activeCampaigns
-      .filter(campaign => campaign.endsAt > new Date())
-      .length > 0 && (
-      <div className="max-w-7xl mx-auto px-4 pt-6 space-y-6">
-        {activeCampaigns
-          .filter(campaign => campaign.endsAt > new Date())
-          .map(campaign => {
-            const allCampaignProducts = displayProducts.filter(
-              p => (p as any).campaignDiscount
-            );
-
-            return (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                key={campaign.id}
-                className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-sm border border-orange-100 hover:border-orange-200 transition-colors relative overflow-hidden"
+      {/* Store Content */}
+      <div className="max-w-7xl mx-auto px-4 pt-4 pb-2">
+        <Tabs defaultValue="products" onValueChange={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <div className="sticky top-20 z-30 flex justify-center w-full mb-4 backdrop-blur-[2px]">
+            <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-white p-1 border-0 shadow-sm">
+              <TabsTrigger
+                value="products"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
               >
-                {/* Header row: Campaign Name + Timer (Left) & View All (Right) */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                  <div className="flex flex-wrap items-center gap-3 md:gap-4">
-                    <h3 className="font-heading font-black text-2xl md:text-3xl text-orange-600 uppercase tracking-tight">
-                      {campaign.name}
-                    </h3>
+                Products
+              </TabsTrigger>
+              <TabsTrigger
+                value="reviews"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+              >
+                Reviews
+              </TabsTrigger>
+              <TabsTrigger
+                value="about"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+              >
+                About Store
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-                    {/* Timer styled similar to the reference image */}
-                    <div className="flex items-center">
-                      <Zap className="h-5 w-5 text-orange-600 mr-2" />
-                      <div className="text-white font-mono font-bold text-sm tracking-widest flex items-center gap-1">
-                        <CountdownTimer endDate={campaign.endsAt} />
+          {/* Products Tab */}
+          <TabsContent value="products">
+            {/* Vacation Mode Banner */}
+            {seller?.isVacationMode && (
+              <div className="w-full mb-4">
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3 shadow-none">
+                  <Palmtree className="w-5 h-5 text-orange-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-orange-700">This store is currently on vacation</p>
+                    <p className="text-xs text-orange-600">Products are available to view but cannot be purchased at this time.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {
+              activeCampaigns
+                .filter(campaign => campaign.endsAt > new Date())
+                .length > 0 && (
+                <div className="space-y-6 pb-6 mt-0">
+                  {activeCampaigns
+                    .filter(campaign => campaign.endsAt > new Date())
+                    .map(campaign => {
+                      const allCampaignProducts = displayProducts.filter(
+                        p => (p as any).campaignDiscount
+                      );
+
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          key={campaign.id}
+                          className="bg-white p-6 sm:px-6 sm:py-4 rounded-xl shadow-sm border border-orange-100 transition-colors relative overflow-hidden"
+                        >
+                          {/* Header row: Campaign Name + Timer (Left) & View All (Right) */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+                            <div className="flex flex-wrap items-center gap-3 md:gap-4">
+                              <h3 className="font-heading font-black text-2xl md:text-3xl text-orange-600 uppercase tracking-tight">
+                                {campaign.name}
+                              </h3>
+
+                              {/* Timer styled similar to the reference image */}
+                              <div className="flex items-center">
+                                <Zap className="h-5 w-5 text-orange-600 mr-2" />
+                                <div className="text-white font-mono font-bold text-sm tracking-widest flex items-center gap-1">
+                                  <CountdownTimer endDate={campaign.endsAt} />
+                                </div>
+                              </div>
+                            </div>
+
+                            <button className="text-[var(--brand-primary)] font-bold text-xs hover:text-[var(--brand-accent)] transition-colors flex items-center gap-1 group self-start sm:self-auto">
+                              View All <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                            </button>
+                          </div>
+
+                          {/* Horizontal scrolling product rail */}
+                          {allCampaignProducts.length > 0 ? (
+                            <div className="flex overflow-x-auto gap-4 pb-2 scrollbar-hide snap-x">
+                              {allCampaignProducts.map((product, index) => (
+                                <div key={product.id} className="min-w-[200px] w-[200px] snap-start shrink-0">
+                                  <StorefrontProductCard
+                                    product={{
+                                      ...product,
+                                      isFlash: true, // Applies campaign styling inside StorefrontProductCard
+                                      campaignStock: 100, // mock stock
+                                      campaignSold: Math.floor(product.sold / 2) || 0 // mock sold progress
+                                    } as any}
+                                    index={index}
+                                    seller={seller}
+                                    profile={profile}
+                                    onAddToCart={(p) => {
+                                      handleAddToCart(p);
+                                      setAddedProduct({ name: p.name, image: p.image });
+                                      setShowCartModal(true);
+                                    }}
+                                    onBuyNow={onBuyNow}
+                                    onVariantSelect={onVariantSelect}
+                                    onLoginRequired={onLoginRequired}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-gray-400 text-sm font-medium py-8 text-center italic">
+                              Campaign products are currently being updated.
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                </div>
+              )
+            }
+            <div className="space-y-6">
+              {/* Filters and Controls */}
+              <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <Filter className="h-4 w-4 text-gray-400" />
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium transition-all px-4 focus:ring-0">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
+                        <SelectItem
+                          value="all"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
+                        >
+                          All Categories
+                        </SelectItem>
+                        {sellerCategories.map((cat) => (
+                          <SelectItem
+                            key={cat}
+                            value={cat}
+                            className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors last:mb-0"
+                          >
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                      <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium transition-all px-4 focus:ring-0">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
+                        <SelectItem
+                          value="popular"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
+                        >
+                          Popular
+                        </SelectItem>
+                        <SelectItem
+                          value="newest"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
+                        >
+                          Newest
+                        </SelectItem>
+                        <SelectItem
+                          value="price-low"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
+                        >
+                          Price: Low to High
+                        </SelectItem>
+                        <SelectItem
+                          value="price-high"
+                          className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 last:mb-0 text-sm transition-colors"
+                        >
+                          Price: High to Low
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div></div>
+              </div>
+
+              {/* Products Grid */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className={cn(
+                  "grid gap-4",
+                  viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1'
+                )}
+              >
+                {filteredProducts.map((product, index) => (
+                  <StorefrontProductCard
+                    key={product.id}
+                    product={product}
+                    index={index}
+                    seller={seller}
+                    profile={profile}
+                    onAddToCart={(p) => {
+                      handleAddToCart(p);
+                      setAddedProduct({ name: p.name, image: p.image });
+                      setShowCartModal(true);
+                    }}
+                    onBuyNow={onBuyNow}
+                    onVariantSelect={onVariantSelect}
+                    onLoginRequired={onLoginRequired}
+                  />
+                ))}
+              </motion.div>
+            </div>
+          </TabsContent>
+
+          {/* Reviews Tab */}
+          <TabsContent value="reviews">
+            <StorefrontReviewsTab
+              reviewStats={reviewStats}
+              seller={seller}
+              reviews={reviews}
+              reviewFilter={reviewFilter}
+              setReviewFilter={setReviewFilter}
+              reviewsStartRef={reviewsStartRef}
+              handleToggleLike={handleToggleLike}
+              replyingTo={replyingTo}
+              setReplyingTo={setReplyingTo}
+              replyText={replyText}
+              setReplyText={setReplyText}
+              handlePostReply={handlePostReply}
+            />
+          </TabsContent>
+
+          {/* About Tab */}
+          <TabsContent value="about">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <Card className="border-0 shadow-sm overflow-hidden bg-white rounded-xl">
+                <CardContent className="p-0 divide-y divide-gray-100">
+
+                  {/* Description */}
+                  {seller.description && (
+                    <div className="p-6">
+                      <p className="text-gray-900 text-sm">{seller.description}</p>
+                    </div>
+                  )}
+
+                  {/* Store Information */}
+                  <div className="p-6">
+                    <h3 className="font-semibold text-base text-gray-900 mb-4">Store Information</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Contact</span>
+                        <span className="text-sm text-gray-900">{seller.contactNumber && seller.contactNumber !== 'Not provided' ? seller.contactNumber : "Not provided"}</span>
                       </div>
+
+                      <div className="flex items-center gap-4">
+                        <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Location</span>
+                        <span className="text-sm text-gray-900">{seller.location || "Not provided"}</span>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <Star className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Ratings</span>
+                        <span className="text-sm text-gray-900">
+                          {reviewStats.total > 0 ? `${seller.rating} out of 5 (${reviewStats.total} reviews)` : "No ratings yet"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <CheckCircle2 className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Verified</span>
+                        <span className="text-sm text-gray-900">Verified Official Store</span>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Joined</span>
+                        <span className="text-sm text-gray-900">{seller.established}</span>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <ShoppingBag className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Products</span>
+                        <span className="text-sm text-gray-900">{allProducts.filter(p => p.sellerId === seller.id).length} Products</span>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          const link = `bazaarx.com/store/${seller.id}`;
+                          navigator.clipboard.writeText(link);
+                          toast({
+                            title: "Link Copied",
+                            description: "Store link has been copied to your clipboard.",
+                          });
+                        }}
+                        className="flex flex-row items-center gap-4 text-left w-full transition-opacity focus:outline-none"
+                      >
+                        <ExternalLink className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Shop Link</span>
+                        <span className="text-sm text-[var(--brand-primary)] hover:underline truncate">
+                          bazaarx.com/store/{seller.name.toLowerCase().replace(/\s+/g, '-')}
+                        </span>
+                      </button>
                     </div>
                   </div>
 
-                  <button className="text-orange-500 font-bold text-sm hover:text-orange-600 transition-colors flex items-center gap-1 group self-start sm:self-auto">
-                    View All <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                  </button>
-                </div>
-
-                {/* Horizontal scrolling product rail */}
-                {allCampaignProducts.length > 0 ? (
-                  <div className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide snap-x">
-                    {allCampaignProducts.map((product, index) => (
-                      <div key={product.id} className="min-w-[200px] w-[200px] snap-start shrink-0">
-                        <StorefrontProductCard
-                          product={{
-                            ...product,
-                            isFlash: true, // Applies campaign styling inside StorefrontProductCard
-                            campaignStock: 100, // mock stock
-                            campaignSold: Math.floor(product.sold / 2) || 0 // mock sold progress
-                          } as any}
-                          index={index}
-                          seller={seller}
-                          profile={profile}
-                          onAddToCart={(p) => {
-                            handleAddToCart(p);
-                            setAddedProduct({ name: p.name, image: p.image });
-                            setShowCartModal(true);
-                          }}
-                          onBuyNow={onBuyNow}
-                          onVariantSelect={onVariantSelect}
-                          onLoginRequired={onLoginRequired}
-                        />
-                      </div>
-                    ))}
+                  {/* Categories */}
+                  <div className="p-6">
+                    <h3 className="font-semibold text-base text-gray-900 mb-3">Categories</h3>
+                    <div className="text-sm text-gray-900">
+                      {(sellerCategories.length > 0 ? sellerCategories : seller.categories).join(', ')}
+                    </div>
                   </div>
-                ) : (
-                  <div className="text-gray-400 text-sm font-medium py-8 text-center italic">
-                    Campaign products are currently being updated.
-                  </div>
-                )}
-              </motion.div>
-            );
-          })}
-      </div>
-    )
-  }
 
-  {/* Store Content */ }
-  <div className="max-w-7xl mx-auto px-4 py-4">
-    <Tabs defaultValue="products" className="space-y-4" onValueChange={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-      <div className="sticky top-20 z-30 flex justify-center w-full mb-4 py-2 backdrop-blur-[2px]">
-        <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-white p-1 border-0 shadow-sm">
-          <TabsTrigger
-            value="products"
-            className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-          >
-            Products
-          </TabsTrigger>
-          <TabsTrigger
-            value="reviews"
-            className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-          >
-            Reviews
-          </TabsTrigger>
-          <TabsTrigger
-            value="about"
-            className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 hover:text-[var(--brand-primary)] data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-          >
-            About Store
-          </TabsTrigger>
-        </TabsList>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </TabsContent>
+
+        </Tabs>
       </div>
 
-      {/* Products Tab */}
-      <TabsContent value="products">
-        <div className="space-y-6">
-          {/* Filters and Controls */}
-          <div className="flex items-center justify-between">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-3">
-                <Filter className="h-4 w-4 text-gray-400" />
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
-                    <SelectItem
-                      value="all"
-                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
-                    >
-                      All Categories
-                    </SelectItem>
-                    {sellerCategories.map((cat) => (
-                      <SelectItem
-                        key={cat}
-                        value={cat}
-                        className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors last:mb-0"
-                      >
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-3">
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-[150px] h-9 bg-white border-0 rounded-lg text-[var(--text-headline)] text-sm font-medium shadow-md hover:shadow-lg transition-all px-4 focus:ring-0">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-0 p-1 shadow-xl bg-white">
-                    <SelectItem
-                      value="popular"
-                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
-                    >
-                      Popular
-                    </SelectItem>
-                    <SelectItem
-                      value="newest"
-                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
-                    >
-                      Newest
-                    </SelectItem>
-                    <SelectItem
-                      value="price-low"
-                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 mb-1 text-sm transition-colors"
-                    >
-                      Price: Low to High
-                    </SelectItem>
-                    <SelectItem
-                      value="price-high"
-                      className="rounded-lg data-[state=checked]:text-white data-[state=checked]:bg-[var(--brand-primary)] focus:bg-[var(--brand-primary)] focus:text-white [&:not(:focus)]:data-[state=checked]:bg-transparent [&:not(:focus)]:data-[state=checked]:text-[var(--brand-primary)] cursor-pointer font-medium py-1.5 px-3 last:mb-0 text-sm transition-colors"
-                    >
-                      Price: High to Low
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div></div>
-          </div>
+      {
+        addedProduct && showCartModal && (
+          <CartModal
+            isOpen={showCartModal}
+            onClose={() => setShowCartModal(false)}
+            productName={addedProduct.name}
+            productImage={addedProduct.image}
+            cartItemCount={cartItems.length}
+          />
+        )
+      }
 
-          {/* Products Grid */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className={cn(
-              "grid gap-4",
-              viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1'
-            )}
-          >
-            {filteredProducts.map((product, index) => (
-              <StorefrontProductCard
-                key={product.id}
-                product={product}
-                index={index}
-                seller={seller}
-                profile={profile}
-                onAddToCart={(p) => {
-                  handleAddToCart(p);
-                  setAddedProduct({ name: p.name, image: p.image });
-                  setShowCartModal(true);
-                }}
-                onBuyNow={onBuyNow}
-                onVariantSelect={onVariantSelect}
-                onLoginRequired={onLoginRequired}
-              />
-            ))}
-          </motion.div>
-        </div>
-      </TabsContent>
-
-      {/* Reviews Tab */}
-      <TabsContent value="reviews">
-        <StorefrontReviewsTab
-          reviewStats={reviewStats}
-          seller={seller}
-          reviews={reviews}
-          reviewFilter={reviewFilter}
-          setReviewFilter={setReviewFilter}
-          reviewsStartRef={reviewsStartRef}
-          handleToggleLike={handleToggleLike}
-          replyingTo={replyingTo}
-          setReplyingTo={setReplyingTo}
-          replyText={replyText}
-          setReplyText={setReplyText}
-          handlePostReply={handlePostReply}
-        />
-      </TabsContent>
-
-      {/* About Tab */}
-      <TabsContent value="about">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Card className="border-0 shadow-md overflow-hidden bg-white rounded-2xl">
-            <CardContent className="p-0 divide-y divide-gray-100">
-
-              {/* Description */}
-              {seller.description && (
-                <div className="p-6">
-                  <h3 className="font-semibold text-base text-gray-900 mb-2">About {seller.name}</h3>
-                  <p className="text-gray-600 leading-relaxed text-sm whitespace-pre-line">{seller.description}</p>
-                </div>
-              )}
-
-              {/* Store Information */}
-              <div className="p-6">
-                <h3 className="font-semibold text-base text-gray-900 mb-4">Store Information</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-500 w-32 shrink-0">Store Name</span>
-                    <span className="text-sm font-medium text-gray-900">{seller.name}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-500 w-32 shrink-0">Location</span>
-                    <span className="text-sm font-medium text-gray-900">{seller.location}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-500 w-32 shrink-0">Established</span>
-                    <span className="text-sm font-medium text-gray-900">{seller.established}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-500 w-32 shrink-0">Response Time</span>
-                    <span className="text-sm font-medium text-gray-900">{seller.responseTime}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-500 w-32 shrink-0">Followers</span>
-                    <span className="text-sm font-medium text-gray-900">{followersCount.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Categories */}
-              <div className="p-6">
-                <h3 className="font-semibold text-base text-gray-900 mb-3">Categories</h3>
-                <div className="text-sm text-gray-500">
-                  {(sellerCategories.length > 0 ? sellerCategories : seller.categories).join(' | ')}
-                </div>
-              </div>
-
-            </CardContent>
-          </Card>
-        </motion.div>
-      </TabsContent>
-
-    </Tabs>
-  </div>
-
-  {
-    addedProduct && showCartModal && (
-      <CartModal
-        isOpen={showCartModal}
-        onClose={() => setShowCartModal(false)}
-        productName={addedProduct.name}
-        productImage={addedProduct.image}
-        cartItemCount={cartItems.length}
-      />
-    )
-  }
-
-  <ShopBuyNowModal
-    isOpen={showBuyNowModal}
-    onClose={() => {
-      setShowBuyNowModal(false);
-      setBuyNowProduct(null);
-    }}
-    product={buyNowProduct}
-  />
-
-  {
-    variantProduct && showVariantModal && (
-      <ShopVariantModal
-        isOpen={showVariantModal}
+      <ShopBuyNowModal
+        isOpen={showBuyNowModal}
         onClose={() => {
-          setShowVariantModal(false);
-          setVariantProduct(null);
-          setIsBuyNowAction(false);
+          setShowBuyNowModal(false);
+          setBuyNowProduct(null);
         }}
-        product={variantProduct}
-        isBuyNow={isBuyNowAction}
-        onAddToCartSuccess={(name, image) => {
-          setAddedProduct({ name, image });
-          setShowCartModal(true);
-        }}
+        product={buyNowProduct}
       />
-    )
-  }
-  <BazaarFooter />
+
+      {
+        variantProduct && showVariantModal && (
+          <ShopVariantModal
+            isOpen={showVariantModal}
+            onClose={() => {
+              setShowVariantModal(false);
+              setVariantProduct(null);
+              setIsBuyNowAction(false);
+            }}
+            product={variantProduct}
+            isBuyNow={isBuyNowAction}
+            onAddToCartSuccess={(name, image) => {
+              setAddedProduct({ name, image });
+              setShowCartModal(true);
+            }}
+          />
+        )
+      }
+      <BazaarFooter />
     </div>
   );
 }

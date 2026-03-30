@@ -331,7 +331,7 @@ export function AttributesTab({
                         <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 hover:border-orange-400 transition-colors">
                             {sizeGuideImageUrl ? (
                                 <div className="space-y-3">
-                                    <img
+                                    <img loading="lazy" 
                                         src={sizeGuideImageUrl}
                                         alt="Size Guide Preview"
                                         className="w-full h-48 object-cover rounded-lg"

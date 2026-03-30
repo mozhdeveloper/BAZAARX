@@ -201,11 +201,10 @@ export default function BazaarTrustShowcase() {
                       : "sm:flex-row border-[var(--brand-primary)]/20",
                   ].join(" ")}
                 >
-                  <img
+                  <img loading="lazy" 
                     src={study.image}
                     alt={`${study.name} portrait`}
                     className="aspect-[3/4] h-auto w-full sm:max-w-60 rounded-2xl object-cover ring-1 ring-[var(--brand-accent-light)]/30 hover:scale-105 transition-all duration-300 shadow-lg mx-auto sm:mx-0 shadow-orange-900/5"
-                    loading="lazy"
                     decoding="async"
                   />
                   <figure className="flex-1 flex flex-col justify-between gap-6 sm:gap-8 text-left">

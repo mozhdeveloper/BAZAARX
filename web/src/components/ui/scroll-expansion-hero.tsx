@@ -54,7 +54,7 @@ const ScrollExpansionHero = ({
           className="absolute inset-0 z-0"
           style={{ opacity: bgOpacity }}
         >
-          <img
+          <img loading="eager" 
             src={bgImageSrc}
             alt="Background"
             className="w-full h-full object-cover"
@@ -69,7 +69,7 @@ const ScrollExpansionHero = ({
             style={{ width, height, y: mediaY }}
           >
             {mediaType === 'image' ? (
-              <img
+              <img loading="eager" 
                 src={mediaSrc}
                 alt="Hero media"
                 className="w-full h-full object-cover"

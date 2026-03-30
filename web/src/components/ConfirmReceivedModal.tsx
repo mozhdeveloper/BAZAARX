@@ -161,7 +161,7 @@ export function ConfirmReceivedModal({
                   <div className="flex flex-wrap gap-2.5 mb-4">
                     {photoPreviews.map((preview, index) => (
                       <div key={index} className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-100 group shadow-sm transition-all hover:shadow-md">
-                        <img src={preview} alt={`Receipt ${index + 1}`} className="w-full h-full object-cover" />
+                        <img loading="lazy" src={preview} alt={`Receipt ${index + 1}`} className="w-full h-full object-cover" />
                         <button
                           type="button"
                           onClick={() => removePhoto(index)}
