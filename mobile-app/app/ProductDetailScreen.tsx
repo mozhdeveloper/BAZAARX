@@ -16,6 +16,7 @@ import {
   FlatList,
   ActivityIndicator,
   Linking,
+  Animated,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -521,6 +522,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Menu State
   const [showMenu, setShowMenu] = useState(false);
+
+  // Out of stock pulse animation
+  const outOfStockPulse = useRef(new Animated.Value(1)).current;
+  const triggerOutOfStockPulse = () => {
+    Animated.sequence([
+      Animated.timing(outOfStockPulse, { toValue: 1.25, duration: 120, useNativeDriver: true }),
+      Animated.timing(outOfStockPulse, { toValue: 0.85, duration: 100, useNativeDriver: true }),
+      Animated.timing(outOfStockPulse, { toValue: 1.15, duration: 100, useNativeDriver: true }),
+      Animated.timing(outOfStockPulse, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
+  };
 
   // Memoize product images to avoid sorting + mapping every render
   const productImages: string[] = useMemo(() => {
@@ -1144,14 +1156,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.currentPrice}>₱{regularPrice.toLocaleString()}</Text>
                 )}
               </View>
-              <Text style={{
-                fontSize: 13,
-                marginTop: 4,
-                fontWeight: '600',
-                color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#9CA3AF',
-              }}>
+              <Animated.Text style={[
+                {
+                  fontSize: 13,
+                  marginTop: 4,
+                  fontWeight: '600',
+                  color: Number(selectedVariantInfo.stock ?? 0) <= 0 ? '#DC2626' : '#9CA3AF',
+                },
+                Number(selectedVariantInfo.stock ?? 0) <= 0 && { transform: [{ scale: outOfStockPulse }] },
+              ]}>
                 {Number(selectedVariantInfo.stock ?? 0) <= 0 ? 'Out of Stock' : `${selectedVariantInfo.stock} In Stock`}
-              </Text>
+              </Animated.Text>
             </View>
             <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Heart size={24} color={BRAND_ACCENT} strokeWidth={1.5} fill={isFavorite ? BRAND_ACCENT : "transparent"} />
@@ -1538,20 +1553,20 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         <View style={styles.actionButtonsContainer}>
           <Pressable
             style={[styles.addToCartBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
-            onPress={handleAddToCart}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode}
+            onPress={((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) ? triggerOutOfStockPulse : handleAddToCart}
+            disabled={false}
           >
             <ShoppingCart size={20} color={((Number(selectedVariantInfo.stock ?? 0) > 0) && !(product as any).is_vacation_mode) ? COLORS.primary : COLORS.gray400} />
           </Pressable>
 
           <Pressable
             style={[styles.buyNowBtn, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && styles.disabledBtn]}
-            onPress={handleBuyNow}
-            disabled={(Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode}
+            onPress={((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) ? triggerOutOfStockPulse : handleBuyNow}
+            disabled={false}
           >
-            <Text style={[styles.buyNowText, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && { color: COLORS.gray400 }]}>
+            <Animated.Text style={[styles.buyNowText, ((Number(selectedVariantInfo.stock ?? 0) <= 0) || (product as any).is_vacation_mode) && { color: COLORS.gray400 }, { transform: [{ scale: outOfStockPulse }] }]}>
               {((product as any).is_vacation_mode ? 'Store Unavailable' : (Number(selectedVariantInfo.stock ?? 0) > 0 ? 'Buy Now' : 'Out of Stock'))}
-            </Text>
+            </Animated.Text>
           </Pressable>
         </View>
       </View>
