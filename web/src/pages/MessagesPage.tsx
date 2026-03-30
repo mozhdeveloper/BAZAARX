@@ -61,14 +61,14 @@ export default function MessagesPage() {
           // Hide blank conversations (no last message)
           !!conv.last_message &&
           ((conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-          conv.last_message.toLowerCase().includes(searchQuery.toLowerCase()))
+            conv.last_message.toLowerCase().includes(searchQuery.toLowerCase()))
         );
     }
     return conversations
       .filter(conv =>
         conv.lastMessage &&
         (conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase()))
+          conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase()))
       )
       .sort((a, b) => (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0) - (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0));
   }, [useRealData, dbConversations, conversations, searchQuery]);
@@ -130,14 +130,14 @@ export default function MessagesPage() {
               prev.map(c =>
                 c.id === newMsg.conversation_id
                   ? {
-                      ...c,
-                      last_message: newMsg.content,
-                      last_message_at: newMsg.created_at,
-                      // Only increment unread badge if this conversation isn't open
-                      buyer_unread_count: newMsg.conversation_id !== selectedConversation
-                        ? (c.buyer_unread_count || 0) + 1
-                        : c.buyer_unread_count,
-                    }
+                    ...c,
+                    last_message: newMsg.content,
+                    last_message_at: newMsg.created_at,
+                    // Only increment unread badge if this conversation isn't open
+                    buyer_unread_count: newMsg.conversation_id !== selectedConversation
+                      ? (c.buyer_unread_count || 0) + 1
+                      : c.buyer_unread_count,
+                  }
                   : c
               )
             )
@@ -191,7 +191,7 @@ export default function MessagesPage() {
   // ---------------------------------------------------------
   useEffect(() => {
     if (!useRealData) return;
-    
+
     const unsubscribe = chatService.subscribeToPresenceUpdates((incomingUserId, isNowOnline) => {
       setDbConversations(prevConversations => {
         return prevConversations.map(conv => {
@@ -219,14 +219,14 @@ export default function MessagesPage() {
           const exists = prev.some(c => c.id === updatedConv.id);
           const next = exists
             ? prev.map(c => {
-                if (c.id !== updatedConv.id) return c;
-                const merged = { ...c, ...updatedConv };
-                // Increment unread badge for incoming seller messages (unless conversation is open)
-                if ((updatedConv as any)._senderType === 'seller' && c.id !== selectedConversation) {
-                  merged.buyer_unread_count = (c.buyer_unread_count || 0) + 1;
-                }
-                return merged;
-              })
+              if (c.id !== updatedConv.id) return c;
+              const merged = { ...c, ...updatedConv };
+              // Increment unread badge for incoming seller messages (unless conversation is open)
+              if ((updatedConv as any)._senderType === 'seller' && c.id !== selectedConversation) {
+                merged.buyer_unread_count = (c.buyer_unread_count || 0) + 1;
+              }
+              return merged;
+            })
             : [updatedConv, ...prev];
           return sortByLastMessage(next);
         });
@@ -308,7 +308,7 @@ export default function MessagesPage() {
     <div className="flex flex-col h-screen w-screen bg-[var(--brand-wash)] overflow-hidden">
       <Header />
       <div className="flex flex-1 overflow-hidden w-full gap-0">
-        
+
         {/* Sidebar */}
         <div className={`w-full md:w-80 lg:w-96 flex-col bg-[var(--bg-secondary)] border-r border-[var(--brand-wash-gold)]/30 overflow-hidden ${selectedConversation ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-4 border-b border-[var(--brand-wash-gold)]/20">
@@ -361,9 +361,9 @@ export default function MessagesPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-baseline mb-0.5">
-                        <h4 className="font-bold text-[var(--text-headline)] truncate">{conv.seller_store_name || 'Store'}</h4>
-                        <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase">
+                      <div className="flex justify-between items-baseline gap-2 mb-0.5">
+                        <h4 className="font-bold text-[var(--text-headline)] truncate min-w-0">{conv.seller_store_name || 'Store'}</h4>
+                        <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase shrink-0">
                           {new Date(conv.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -447,7 +447,7 @@ export default function MessagesPage() {
                   </h3>
                   {/* 👈 NEW: Header text indicator online/offline */}
                   <div className="flex items-center gap-1 text-[11px] font-medium opacity-90 text-white">
-                    <span className={`w-1.5 h-1.5 rounded-full ${(activeConversation as any).is_online || (activeConversation as Conversation).isOnline ? 'bg-teal-400 animate-pulse' : 'bg-gray-400'}`} /> 
+                    <span className={`w-1.5 h-1.5 rounded-full ${(activeConversation as any).is_online || (activeConversation as Conversation).isOnline ? 'bg-teal-400 animate-pulse' : 'bg-gray-400'}`} />
                     {(activeConversation as any).is_online || (activeConversation as Conversation).isOnline ? 'Online' : 'Offline'}
                   </div>
                 </div>
@@ -597,7 +597,7 @@ export default function MessagesPage() {
           )}
         </div>
       </div>
-      
+
       <AnimatePresence>
         {previewImage && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={() => setPreviewImage(null)}>
