@@ -46,7 +46,9 @@ const AdminQADashboard = () => {
     const [assessments, setAssessments] = useState<QAAssessmentItem[]>([]);
     const [stats, setStats] = useState<QADashboardStats>({
         pendingAdminReview: 0,
+        waitingForSample: 0,
         pendingDigitalReview: 0,
+        pendingPhysicalReview: 0,
         verified: 0,
         forRevision: 0,
         rejected: 0,

@@ -59,7 +59,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
     },
     {
       label: isQARole ? 'QA Dashboard' : 'Product Approvals',
-      href: isQARole ? '/admin/qa-dashboard' : '/admin/product-approvals',
+      href: isQARole ? '/qa/dashboard' : '/admin/product-approvals',
       icon: <Shield className="h-5 w-5 flex-shrink-0" />,
       qaVisible: true,
     },
