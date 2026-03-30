@@ -199,6 +199,82 @@ The following files are local AI standards and are **never committed**:
 
 ---
 
+## Session Log — March 26, 2026
+
+### Bug Fix — Missing `@shopify/flash-list` Module (Mobile)
+
+**Prompt:** "Fix the problem in the terminal — `Cannot find module '@shopify/flash-list' or its corresponding type declarations.` at `mobile-app/app/HomeScreen.tsx:29`"
+
+**Root Cause:** The `@shopify/flash-list` package was imported but not installed in `mobile-app/package.json`.
+
+**Action Taken:**
+- Ran `npm install @shopify/flash-list` in `mobile-app/` directory
+- Module now resolves correctly and TypeScript error cleared
+
+---
+
+### UI Refactor — Return / Refund Form Layout Optimization (Web)
+
+**Prompt:** "Make all the form of request return / refund fit in the screen and buyer don't have to scroll to pick the choices. Also the steps above, make it fit in the screen and does not have to scroll sideways."
+
+**Changes Made to `web/src/pages/BuyerReturnRequestPage.tsx`:**
+
+**1. Step Progress Bar (Compact)**
+- Reduced padding: `px-3 py-1.5` → `px-2 py-1`
+- Reduced font size: `text-xs` → `text-[10px]`
+- Reduced icon sizes: `w-3.5 h-3.5` → `w-3 h-3`, `w-5 h-5` → `w-4 h-4`
+- Hidden step labels on mobile, show only numbers
+- Reduced connectors between steps: `w-6` → `w-2 sm:w-3`
+- Adjusted margins: `mb-8` → `mb-6`
+- Added horizontal scroll with overflow handling for smaller screens
+
+**2. Reason Selection (2-Column Grid)**
+- Changed layout from full-width stack to `grid-cols-1 sm:grid-cols-2`
+- Reduced padding: `p-4` → `p-3`
+- Reduced gap: `gap-3` → `gap-2`
+- Reduced icon wrapper: `p-2 rounded-lg` → `p-1.5 rounded-lg` with `w-4 h-4` icons
+- Reduced text sizes: `text-lg` → `text-base` heading, descriptions use `text-[11px]`
+- Added `line-clamp-2` to descriptions for consistent height
+
+**3. Return Type Options (2-Column Grid)**
+- Applied same 2-column grid layout as reason selection
+- Reduced all spacing and icon sizes proportionally
+- Compact badge: `text-[10px]` → `text-[9px]`
+
+**4. Item Selection (Compact Cards)**
+- Reduced image size: `w-16 h-16` → `w-12 h-12`
+- Reduced padding: `p-4` → `p-2`
+- Reduced gaps: `gap-4` → `gap-3`
+- Adjusted text sizes and removed/condensed spacing
+
+**5. Evidence Upload (Compact)**
+- Reduced upload area padding: `p-8` → `p-5`
+- Reduced icon size: `w-8 h-8` → `w-6 h-6`
+- Reduced text sizes and margins
+- Preview grid gap: `gap-3` → `gap-2`
+- Reduced remove button: `w-5 h-5` → `w-4 h-4`
+- Description textarea rows: `rows={3}` → `rows={2}`
+
+**6. Review Section (Compact Cards)**
+- Reduced all summary cards padding: `p-3` → `p-2`
+- Reduced gap for items list: `gap-3 py-1` → `gap-2 py-0.5`
+- Reduced image sizes: `w-10 h-10` → `w-8 h-8`, evidence preview `w-14 h-14` → `w-10 h-10`
+- Adjusted text sizes throughout: headers `text-base`, content `text-xs`
+- Reduced resolution path hint padding and icon sizes
+
+**7. Overall Layout**
+- Header sizes: `text-2xl` → `text-xl` main title, `text-sm` → `text-xs` subtitle
+- Card content padding: `p-6` → `p-4`
+- Navigation buttons: `px-6` → `px-4` with `size="sm"`
+- Button text size: `text-sm` → `text-xs`
+- All section spacing reduced: `space-y-3` → `space-y-2` or `space-y-3` where appropriate
+
+**Result:** All reason options, return type options, and form fields now display without vertical or horizontal scrolling on most screen sizes. The 2-column grid layout makes efficient use of space while maintaining visual clarity and touchable button sizes.
+
+**Branch:** `style/retur-refund-ui`
+
+---
+
 ## Session Log — March 11, 2026
 
 ### Feature — `BackToShopButton` on Flash Sale Screens (Mobile + Web)
@@ -589,6 +665,48 @@ git push origin feat/notification-badge
    - Subscription status logging added
 
 **Phase 4 — Buyer Cancellation → Seller Notification:**
+
+---
+
+## Session Log — March 27, 2026
+
+### Bug Fix — Global Flash Sale Products Not Fetching: "column products_1.rating does not exist" (Web)
+
+**Prompt:** "In web buyer's module the global flash sale is not showing or fetching. Check the image thoroughly and Check all the related code to it, don't change anything with the code I want you to just fix the errors."
+
+**Error Details:**
+- **Error Message**: `column products_1.rating does not exist`
+- **HTTP Status**: 400 (Bad Request) from Supabase API
+- **Impact**: Global flash sale products unable to fetch/display in buyer module
+- **Location**: `discountService.ts:951` via `getGlobalFlashSaleProducts()`
+
+**Root Cause:**
+- `getGlobalFlashSaleProducts()` attempted to SELECT a non-existent `rating` column directly from the `products` table
+- The `products` table has no `rating` column — ratings are stored in the `reviews` table and linked via relationship
+- Supabase rejected the query with a 400 error before any rows could be fetched
+
+**Solution Applied:**
+
+**File Changed:**
+1. `web/src/services/discountService.ts` (`getGlobalFlashSaleProducts()` function)
+   - **Line 907:** Removed `rating,` from the SELECT statement (column does not exist)
+   - **Lines 930-947:** Added rating calculation logic:
+     ```typescript
+     // Calculate average rating from reviews
+     const avgRating = p?.reviews && p?.reviews.length > 0 
+       ? p.reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / p.reviews.length 
+       : 0;
+     ```
+   - **Line 946:** Changed from `rating: p?.rating || 0` → `rating: avgRating` (calculates average from reviews array)
+   - Kept `reviews(rating)` in SELECT (line 908) — this correctly fetches the reviews relationship with ratings
+
+**Result:**
+✅ Supabase query now executes successfully (no 400 error)
+✅ Global flash sale products fetch and display correctly
+✅ Product ratings calculated as proper average from customer reviews
+✅ Review count still accurate (`reviewsCount: p?.reviews?.length || 0`)
+
+**Branch:** `fix/global-flash-sale`**
 1. `web/src/services/notificationService.ts` + `mobile-app/src/services/notificationService.ts`
    - Added `notifySellerOrderCancelled()` helper with type `'seller_order_cancelled'`, icon `'XCircle'`, priority `'high'`
 2. `mobile-app/src/services/orderService.ts`
@@ -714,4 +832,142 @@ Realtime notification system is now primary with polling as secondary safety net
 **Result:**
 - "Order Received by Buyer" notifications now display with identical green CheckCircle icon on both web and mobile
 - Visual consistency maintained across platforms
+
+---
+
+## Session Log — March 24, 2026
+
+### Feature — Smart History-Based Navigation + TypeScript Fixes + Scroll Improvements
+
+**Prompts (Multi-Part Session):**
+1. "Revert all changes and commits to dev branch"
+2. "Resolve all merge conflicts"
+3. "Fix all TypeScript errors in notificationService.ts"
+4. "Fix terminal error in HomeScreen.tsx"
+5. "Fix scroll-to-top behavior in BuyerReturnRequestPage when switching steps"
+6. "Update back buttons to use browser history instead of hardcoded routes on OrderDetailPage and CheckoutPage"
+
+**Phase 1 — Git State Management:**
+1. Reverted 52 commits on dev branch to sync with `origin/dev`
+   - Rolled back feature branch `feat/return-refund-ui-logic` back to clean state
+   - Resolved ~15 merge conflicts (primarily in `StoreDetailScreen.tsx` and notification/chat services)
+   - Used conflict markers to identify web vs mobile divergences
+   - Rebased cleanly onto `origin/dev`
+
+**Result:** Git state cleaned up, dev branch in sync with origin, 2 commits on feature branch.
+
+**Phase 2 — Fixed TypeScript Compilation Errors (5 Total):**
+
+1. `web/src/services/notificationService.ts` — Line 195-196: Spread operator type inference issue
+   - Problem: `.map(n => ({ ...n }))` inference failed on dynamic table results
+   - Fix: Added explicit type annotation `(n: any)` to map parameter
+   - Context: Supabase query result uses generic type when table name is dynamic string
+
+2. Line 251: Update method type error
+   - Problem: `.update()` call on dynamic Supabase table reference had wrong type signature
+   - Fix: Cast to `(supabase.from(tableName) as any).update()`
+   - Impact: Allowed dynamic table name updates for notification persistence
+
+3. Line 283: Similar update type error (different notification flow)
+   - Problem: Same dynamic table `.update()` call
+   - Fix: Applied same `as any` type assertion pattern
+   - Context: Handles push token and notification badge updates
+
+4. Line 793: Upsert method type mismatch
+   - Problem: `.upsert()` call with dynamic table name failed type checking
+   - Fix: Added `as any` type assertion to bypass schema inference
+   - Use Case: Upserting push tokens for mobile notifications
+
+5. All errors resolved without affecting runtime behavior — type assertions used only where Supabase schema inference fails
+
+**Files Changed:**
+1. `web/src/services/notificationService.ts` — Fixed 5 TypeScript errors with type assertions
+
+**Phase 3 — Fixed Terminal Error in HomeScreen.tsx:**
+
+**Problem:** Mobile app terminal error on Shop navigation
+```
+Error: The following action was not handled by any navigator... customResults
+```
+
+**Root Cause:**
+- `HomeScreen.tsx ~ line 125` called `navigation.navigate('Shop', { customResults: mergedFeaturedProducts... })`
+- `Shop` route definition in mobile-app nav does NOT accept `customResults` parameter
+- Valid parameters: `{ category, searchQuery, view }`
+
+**Fix:**
+- Changed from: `navigation.navigate('Shop', { customResults: mergedFeaturedProducts })`
+- Changed to: `navigation.navigate('Shop', { view: 'featured' })`
+- Aligns with Shop route's valid parameter schema
+
+**Files Changed:**
+1. `mobile-app/app/HomeScreen.tsx` — Fixed invalid navigation parameter
+
+**Phase 4 — Fixed Scroll Behavior in BuyerReturnRequestPage:**
+
+**Problem:** Multi-step return form continued scrolling to bottom section when clicking "Continue" to advance steps, forcing users to manually scroll back to top to see the new step.
+
+**Solution:**
+- Added `useEffect` that listens to `currentStep` state changes
+- On step change, smoothly scrolls page to top: `window.scrollTo({ top: 0, behavior: 'smooth' })`
+- Improves UX: Users immediately see the next step without manual scrolling
+
+**Implementation:**
+```typescript
+useEffect(() => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}, [currentStep]);
+```
+
+**Files Changed:**
+1. `web/src/pages/BuyerReturnRequestPage.tsx` — Added scroll-to-top on step transitions
+
+**Phase 5 — Smart History-Based Navigation (OrderDetailPage + CheckoutPage):**
+
+**Problem:** Back buttons used hardcoded routes that didn't respect where the user came from, breaking natural navigation flow:
+- User lands on OrderDetailPage from Search Results or Notifications
+- Clicks "Back to Orders" → redirects to `/orders` (wrong - user was searching for something)
+- User lands on CheckoutPage from Product Details page
+- Clicks "Back to Cart" → redirects to `/enhanced-cart` (wrong - user was shopping for new products)
+
+**Solution:** Implemented dynamic history-based navigation using `navigate(-1)` (browser back):
+
+**OrderDetailPage Changes:**
+1. Line ~150: Changed button behavior from:
+   - Old: `onClick={() => navigate('/orders')}`
+   - New: `onClick={() => navigate(-1)}`
+2. Button label: "Back to Orders" → "Go Back"
+3. Now respects browser history — returns to previous page regardless of entry point (My Orders, Search Results, Notifications, etc.)
+
+**CheckoutPage Changes:**
+1. Line ~95: Changed button behavior from:
+   - Old: `onClick={() => navigate('/enhanced-cart')}`
+   - New: `onClick={() => navigate(-1)}`
+2. Button label: "Back to Cart" → "Go Back"
+3. Now returns to previous page (Enhanced Cart, Product Details, History, etc.)
+
+**Result:** Users experience natural, intuitive navigation that matches web conventions. Back buttons always return to the previous page in browsing flow.
+
+**Files Changed:**
+1. `web/src/pages/OrderDetailPage.tsx` — Smart history-based back navigation
+2. `web/src/pages/CheckoutPage.tsx` — Smart history-based back navigation
+
+**Validation:**
+- ✅ `web/src/services/notificationService.ts` — No TypeScript errors
+- ✅ `mobile-app/app/HomeScreen.tsx` — No terminal errors  
+- ✅ `web/src/pages/BuyerReturnRequestPage.tsx` — Scroll behavior verified
+- ✅ `web/src/pages/OrderDetailPage.tsx` — Navigation verified
+- ✅ `web/src/pages/CheckoutPage.tsx` — Navigation verified
+
+**Testing Notes:**
+- All modified files compile without TypeScript errors
+- Navigation tested across multiple entry points to verify back button behavior
+- Scroll behavior confirmed on BuyerReturnRequestPage with step transitions
+
+**Session Summary:**
+- Completed all 6 requested features/fixes
+- Improved UX for buyer checkout and return workflows
+- Implemented smart navigation pattern for better browsing flow
+- All TypeScript compilation errors resolved
+- Mobile app navigation fixed
 

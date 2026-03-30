@@ -5,6 +5,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { authService } from '@/services/authService';
 import type { Seller } from './sellerTypes';
 import { mapDbSellerToSeller } from './sellerHelpers';
+import { sellerService } from '@/services/sellerService';
+import type { VacationReason } from '@/types/database.types';
 
 interface AuthStore {
     seller: Seller | null;
@@ -26,6 +28,8 @@ interface AuthStore {
     createBuyerAccount: () => Promise<boolean>;
     hydrateSellerContext: (userId: string) => Promise<boolean>;
     hydrateSellerFromSession: () => Promise<boolean>;
+    setVacationMode: (reason?: VacationReason) => Promise<boolean>;
+    disableVacationMode: () => Promise<boolean>;
 }
 
 // Auth Store
@@ -303,6 +307,8 @@ export const useAuthStore = create<AuthStore>()(
                         return false;
                     }
 
+                    await authService.addUserRole(user.id, "seller");
+
                     const mappedSeller = mapDbSellerToSeller(savedSeller);
                     mappedSeller.email =
                         normalizedRegisterEmail || mappedSeller.email;
@@ -497,6 +503,26 @@ export const useAuthStore = create<AuthStore>()(
                     console.error("Failed to hydrate seller from session:", error);
                     return false;
                 }
+            },
+            setVacationMode: async (reason?: VacationReason) => {
+                const { seller } = get();
+                if (!seller) return false;
+
+                const result = await sellerService.enableVacationMode(seller.id, reason);
+                if (result.success) {
+                    set({ seller: { ...seller, isVacationMode: true, vacationReason: reason || null } });
+                }
+                return result.success;
+            },
+            disableVacationMode: async () => {
+                const { seller } = get();
+                if (!seller) return false;
+
+                const result = await sellerService.disableVacationMode(seller.id);
+                if (result.success) {
+                    set({ seller: { ...seller, isVacationMode: false, vacationReason: null } });
+                }
+                return result.success;
             },
         }),
         {

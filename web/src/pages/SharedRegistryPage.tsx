@@ -9,39 +9,62 @@ const SharedRegistryPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [registry, setRegistry] = useState<any>(null);
-  const { registries, setQuickOrder, loadRegistries } = useBuyerStore();
+  const [isLoading, setIsLoading] = useState(true);
+  const { registries, setQuickOrder, loadPublicRegistry } = useBuyerStore();
 
-  // Fetch registries from backend on mount
+  // Fetch public registry from backend on mount
   useEffect(() => {
-    loadRegistries();
-    console.log("SharedRegistryPage: loadRegistries called");
-  }, [loadRegistries]);
+    const fetchPublicRegistry = async () => {
+      if (!id) {
+        setIsLoading(false);
+        return;
+      }
 
-  // Mock data if not found in store (for demo purposes if sharing across "browsers" isn't synced)
-  // In a real app, this would fetch from backend by ID/slug
-
-  useEffect(() => {
-    if (id) {
-      // Try to find in store after registries are loaded
-      const found = registries.find(
-        (r) => r.id === id || r.title.toLowerCase().replace(/\s+/g, "-") === id,
-      );
-      if (found) {
-        setRegistry(found);
-      } else {
-        // Fallback mock for demo if not found in local state
+      setIsLoading(true);
+      try {
+        // Try to fetch public registry from database
+        const found = await loadPublicRegistry(id);
+        if (found) {
+          setRegistry(found);
+        } else {
+          // Also try local state (for already loaded registries)
+          const localFound = registries.find(
+            (r) => r.id === id || r.title.toLowerCase().replace(/\s+/g, "-") === id,
+          );
+          if (localFound) {
+            setRegistry(localFound);
+          } else {
+            // Fallback mock for demo if not found
+            setRegistry({
+              id: "demo-1",
+              title: id.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+              sharedDate: "Feb 4, 2026",
+              category: "Celebration",
+              products: [],
+              privacy: "link",
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching public registry:", error);
+        // Fallback mock for demo
         setRegistry({
           id: "demo-1",
-          title: id.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+          title: id?.replace(/-/g, " ")?.replace(/\b\w/g, (l) => l.toUpperCase()) || "Registry",
           sharedDate: "Feb 4, 2026",
           category: "Celebration",
           products: [],
+          privacy: "link",
         });
+      } finally {
+        setIsLoading(false);
       }
-    }
-  }, [id, registries]);
+    };
 
-  if (!registry) {
+    fetchPublicRegistry();
+  }, [id, loadPublicRegistry, registries]);
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[var(--brand-wash)]">
         <Header />
@@ -110,7 +133,7 @@ const SharedRegistryPage = () => {
                   >
                     <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center mb-4 overflow-hidden">
                       {product.image ? (
-                        <img
+                        <img loading="lazy" 
                           src={product.image}
                           alt={product.name}
                           className="w-full h-full object-cover"

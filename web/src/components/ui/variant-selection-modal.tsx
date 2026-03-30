@@ -23,6 +23,7 @@ interface VariantSelectionModalProps {
         variants: ProductVariant[];
         variantLabel1Values: string[];
         variantLabel2Values: string[];
+        is_vacation_mode?: boolean;
     };
     onConfirm: (variant: ProductVariant | any, quantity: number) => void;
     buttonText?: string;
@@ -206,6 +207,8 @@ export function VariantSelectionModal({
     };
 
     const handleConfirm = () => {
+        if (product.is_vacation_mode) return;
+
         if (!hasVariants) {
             onConfirm({ price: product.price }, quantity);
             onClose();
@@ -227,11 +230,11 @@ export function VariantSelectionModal({
         }
     };
 
-    const isDisabled =
-        hasVariants &&
+    const isVacationMode = product.is_vacation_mode || false;
+    const isDisabled = isVacationMode || (hasVariants &&
         ((hasColorOptions && !selectedColor) ||
             (hasSizeOptions && !selectedSize) ||
-            currentStock === 0);
+            currentStock === 0));
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -241,7 +244,7 @@ export function VariantSelectionModal({
                 </DialogTitle>
                 {/* Product Image - Compact at top */}
                 <div className="w-full h-64 bg-gray-50 relative flex-shrink-0">
-                    <img
+                    <img loading="lazy" 
                         src={currentImage}
                         alt={product.name}
                         className="w-full h-full object-contain"
@@ -309,7 +312,7 @@ export function VariantSelectionModal({
                                         >
                                             {colorVariant?.thumbnail_url ? (
                                                 <div className="w-12 h-12">
-                                                    <img
+                                                    <img loading="lazy" 
                                                         src={colorVariant.thumbnail_url}
                                                         alt={color}
                                                         className="w-full h-full object-cover"
@@ -385,9 +388,13 @@ export function VariantSelectionModal({
                     <Button
                         onClick={handleConfirm}
                         disabled={isDisabled}
-                        className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white py-6 text-base font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`w-full py-6 text-base font-semibold rounded-xl disabled:cursor-not-allowed ${
+                            isVacationMode
+                                ? "bg-gray-300 text-gray-500 hover:bg-gray-300"
+                                : "bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:opacity-50"
+                        }`}
                     >
-                        {buttonText}
+                        {isVacationMode ? "Store on Vacation" : buttonText}
                     </Button>
                 </div>
             </DialogContent>

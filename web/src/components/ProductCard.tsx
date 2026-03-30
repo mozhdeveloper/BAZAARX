@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BadgeCheck, ShieldCheck, Flame, Star, Heart } from 'lucide-react';
+import { BadgeCheck, ShieldCheck, Flame, Star, Heart, Palmtree } from 'lucide-react';
 import { useWishlist } from '../hooks/useWishlist';
 
 export interface ProductCardProduct {
@@ -23,6 +23,8 @@ export interface ProductCardProduct {
   lifetimeSold?: number;
   campaignSold?: number;
   campaignStock?: number;
+  reviewsCount?: number;
+  isVacationMode?: boolean;
 }
 
 interface ProductCardProps {
@@ -94,6 +96,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
             <span className="text-[10px] font-bold text-[var(--brand-accent)] uppercase">Verified</span>
           </div>
         )}
+
+        {product.isVacationMode && (
+          <div className="absolute top-3 left-3 bg-orange-500 text-white px-2 py-1 rounded text-[10px] font-bold uppercase flex items-center gap-1 shadow-sm">
+            <Palmtree className="w-3 h-3" />
+            On Vacation
+          </div>
+        )}
       </div>
 
       <div className="p-4 flex flex-col justify-between flex-1">
@@ -118,7 +127,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0, isFlash =
               ))}
             </div>
             <span className="text-[12px] text-gray-500 font-medium">
-              ({product.rating || 5.0})
+              {product.rating || 5.0} ({product.reviewsCount || 0})
             </span>
           </div>
 

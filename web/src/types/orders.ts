@@ -1,4 +1,4 @@
-import type { PaymentStatus, ShipmentStatus } from "@/types/database.types";
+import type { PaymentStatus, ShipmentStatus, WarrantyType, WarrantyClaimStatus } from "@/types/database.types";
 
 export type OrderUiStatus =
   | "pending"
@@ -9,6 +9,24 @@ export type OrderUiStatus =
   | "cancelled"
   | "returned"
   | "reviewed";
+
+export interface OrderItemWarrantySnapshot {
+  hasWarranty: boolean;
+  warrantyType: WarrantyType | null;
+  warrantyDurationMonths: number | null;
+  warrantyStartDate: string | null;
+  warrantyExpirationDate: string | null;
+  warrantyProviderName: string | null;
+  warrantyProviderContact: string | null;
+  warrantyProviderEmail: string | null;
+  warrantyTermsUrl: string | null;
+  warrantyPolicy: string | null;
+  warrantyClaimed: boolean;
+  warrantyClaimStatus: WarrantyClaimStatus | null;
+  canClaim: boolean;
+  isExpired: boolean;
+  daysRemaining?: number;
+}
 
 export interface NormalizedShippingAddress {
   fullName: string;
@@ -46,6 +64,7 @@ export interface BuyerOrderItemSnapshot {
     size?: string;
     color?: string;
   } | null;
+  warranty?: OrderItemWarrantySnapshot | null;
 }
 
 export interface OrderReviewSnapshot {
@@ -103,6 +122,7 @@ export interface BuyerOrderSnapshot {
   deliveredAt?: Date;
   deliveryDate?: Date;
   cancelledAt?: Date;
+  cancellationReason?: string;
   receivedAt?: Date;
   updatedAt?: Date;
   items: BuyerOrderItemSnapshot[];
@@ -166,8 +186,6 @@ export interface SellerOrderSnapshot {
   type?: "ONLINE" | "OFFLINE";
   posNote?: string;
   notes?: string;
-  cancellationReason?: string | null;
-  cancelledByRole?: "buyer" | "seller" | null;
 }
 
 export interface OrderTrackingSnapshot {

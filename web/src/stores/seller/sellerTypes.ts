@@ -2,7 +2,7 @@
  * Seller Store Types
  * Shared type definitions for all seller domain stores.
  */
-import type { PaymentStatus, ShipmentStatus } from '@/types/database.types';
+import type { PaymentStatus, ShipmentStatus, VacationReason } from '@/types/database.types';
 
 // Types
 export interface Seller {
@@ -57,6 +57,10 @@ export interface Seller {
     avatar?: string;
     banner?: string;
 
+    // Vacation Mode
+    isVacationMode?: boolean;
+    vacationReason?: VacationReason | null;
+
     latestRejection?: {
         description?: string;
         items?: { documentField: string; reason?: string }[];
@@ -105,6 +109,15 @@ export interface SellerProduct {
         discountValue: number;
         maxDiscountAmount?: number;
     } | null;
+    // Warranty fields
+    hasWarranty?: boolean;
+    warrantyType?: string;
+    warrantyDurationMonths?: number;
+    warrantyProviderName?: string;
+    warrantyProviderContact?: string;
+    warrantyProviderEmail?: string;
+    warrantyTermsUrl?: string;
+    warrantyPolicy?: string;
 }
 
 export interface SellerOrder {
@@ -157,8 +170,6 @@ export interface SellerOrder {
     type?: "ONLINE" | "OFFLINE"; // POS-Lite: Track order source
     posNote?: string; // POS-Lite: Optional note for offline sales
     notes?: string; // Unified notes field
-    cancellationReason?: string | null; // Reason for cancellation (from order_cancellations)
-    cancelledByRole?: "buyer" | "seller" | null; // Who cancelled
 }
 
 // Inventory Ledger - Immutable audit trail for all stock changes

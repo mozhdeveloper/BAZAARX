@@ -11,20 +11,24 @@ import {
   StatusBar,
   ActivityIndicator,
   Pressable,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, SlidersHorizontal, X, Check, Camera, Star, CheckCircle2, Bell, MapPin, ChevronDown } from 'lucide-react-native';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import CameraSearchModal from '../src/components/CameraSearchModal';
-import { ProductCard } from '../src/components/ProductCard';
 import LocationModal from '../src/components/LocationModal';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { FlashList } from "@shopify/flash-list";
+import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
 // Use the service you provided
 import { productService } from '../src/services/productService';
 import { categoryService } from '../src/services/categoryService';
 import { addressService } from '../src/services/addressService';
 import { notificationService } from '../src/services/notificationService';
+import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
+import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -161,7 +165,7 @@ const normalizeProductForShop = (row: any): Product => {
 
   const categoryName = typeof row.category === 'string' ? row.category : (row.category?.name || '');
   const categoryId = row.category_id || (row.category && typeof row.category === 'object' ? row.category.id : undefined);
-  
+
   // Note: if ProductService already transformed it, category is a string.
   // We want to ensure category_id is always available from the source row.
 
@@ -180,12 +184,17 @@ const normalizeProductForShop = (row: any): Product => {
   };
 };
 
-const sortOptions = [
+const attributeSortOptions = [
   { value: 'relevance', label: 'Best Match' },
+  { value: 'featured', label: 'Featured' },
   { value: 'newest', label: 'Newest Arrivals' },
   { value: 'popularity', label: 'Popularity' },
-  { value: 'price-low', label: 'Price: Low to High' },
-  { value: 'price-high', label: 'Price: High to Low' },
+];
+
+const priceSortOptions = [
+  { value: 'price-default', label: 'Default' },
+  { value: 'price-low', label: 'Low to High' },
+  { value: 'price-high', label: 'High to Low' },
 ];
 
 export default function ShopScreen({ navigation, route }: Props) {
@@ -207,10 +216,17 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [categoryChips, setCategoryChips] = useState<CategoryChip[]>(DEFAULT_CATEGORY_CHIPS);
 
-  const { searchQuery: initialSearchQuery, customResults, category: initialCategory } = route.params || {};
+  const { searchQuery: initialSearchQuery, category: initialCategory } = route.params || {};
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
-  const [selectedSort, setSelectedSort] = useState('relevance');
+  const [selectedSort, setSelectedSort] = useState(route.params?.view === 'featured' ? 'featured' : 'relevance');
+  const [selectedPriceSort, setSelectedPriceSort] = useState('price-default');
+  const [isProductsLoading, setIsProductsLoading] = useState(false);
+
+  // Featured products state
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
+  const [boostedProducts, setBoostedProducts] = useState<AdBoostMobile[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(false);
 
   const [minPrice, setMinPrice] = useState('0');
   const [maxPrice, setMaxPrice] = useState('100000');
@@ -276,6 +292,34 @@ export default function ShopScreen({ navigation, route }: Props) {
     loadData();
   }, []);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const [productsResult, categoriesResult] = await Promise.allSettled([
+        productService.getProducts({
+          isActive: true,
+          approvalStatus: 'approved',
+          limit: SHOP_SCREEN_FETCH_LIMIT,
+        }),
+        categoryService.getActiveCategories(),
+      ]);
+      if (productsResult.status === 'fulfilled') {
+        const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row));
+        const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values());
+        setDbProducts(uniqueMapped);
+      }
+      if (categoriesResult.status === 'fulfilled') {
+        const mappedChips = (categoriesResult.value || []).map((category: any) => ({ id: category.id, name: category.name }));
+        setCategoryChips([DEFAULT_CATEGORY_CHIPS[0], ...mappedChips]);
+      }
+    } catch (err) {
+      console.error('[ShopScreen] Error refreshing data:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
   // --- LOCATION & NOTIFICATION LOGIC ---
   useEffect(() => {
     mountedRef.current = true;
@@ -292,11 +336,25 @@ export default function ShopScreen({ navigation, route }: Props) {
       }
     };
 
-    // Load on focus
+    const resetAllFilters = async () => {
+      setSelectedSort('relevance');
+      setSelectedPriceSort('price-default');
+      setSelectedCategory('all');
+      setSearchQuery('');
+      setMinPrice('0');
+      setMaxPrice('100000');
+      setMinInput('0');
+      setMaxInput('100000');
+      setMultiSliderValue([0, 100000]);
+      try {
+        await AsyncStorage.removeItem('shopSortState');
+      } catch (e) { /* ignore */ }
+    };
+
     const unsubFocus = navigation.addListener('focus', loadNotifications);
+    const unsubBlur = navigation.addListener('blur', resetAllFilters);
     loadNotifications();
 
-    // Set up persistent real-time subscription if not already set up
     if (user?.id && !isGuest && !unsubRealtimeRef.current) {
       console.log('[ShopScreen] Setting up real-time subscription for buyer:', user.id);
       unsubRealtimeRef.current = notificationService.subscribeToNotifications(
@@ -304,7 +362,6 @@ export default function ShopScreen({ navigation, route }: Props) {
         'buyer',
         (newNotification) => {
           console.log('[ShopScreen] New notification received:', newNotification);
-          // Immediately increment badge and reload
           if (mountedRef.current) {
             setUnreadCount((prev) => prev + 1);
             loadNotifications();
@@ -313,7 +370,6 @@ export default function ShopScreen({ navigation, route }: Props) {
       );
     }
 
-    // Clean up old polling interval if it exists
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -330,6 +386,7 @@ export default function ShopScreen({ navigation, route }: Props) {
 
     return () => {
       unsubFocus();
+      unsubBlur();
     };
   }, [navigation, user?.id, isGuest]);
 
@@ -373,6 +430,47 @@ export default function ShopScreen({ navigation, route }: Props) {
     loadSavedLocation();
   }, [user]);
 
+  useEffect(() => {
+    if (selectedSort !== 'featured') return;
+
+    const loadFeaturedProducts = async () => {
+      setFeaturedLoading(true);
+      try {
+        const [featuredData, boostedData] = await Promise.all([
+          featuredProductService.getFeaturedProducts(100),
+          adBoostService.getActiveBoostedProducts('featured', 100),
+        ]);
+        setFeaturedProducts(featuredData || []);
+        setBoostedProducts(boostedData || []);
+      } catch (error) {
+        console.error('[ShopScreen] Error loading featured products:', error);
+      } finally {
+        setFeaturedLoading(false);
+      }
+    };
+
+    loadFeaturedProducts();
+  }, [selectedSort]);
+
+  useEffect(() => {
+    const unsubFocus = navigation.addListener('focus', async () => {
+      try {
+        if (route.params?.view === 'featured') {
+          setSelectedSort('featured');
+          await AsyncStorage.setItem('shopSortState', 'featured');
+        } else {
+          const savedSort = await AsyncStorage.getItem('shopSortState');
+          if (savedSort && attributeSortOptions.some(option => option.value === savedSort)) {
+            setSelectedSort(savedSort);
+          }
+        }
+      } catch (error) {
+        console.error('[ShopScreen] Error loading sort state:', error);
+      }
+    });
+    return unsubFocus;
+  }, [navigation, route.params?.view]);
+
   const handleSelectLocation = async (address: string, coords?: any, details?: any) => {
     setDeliveryAddress(address);
     if (coords) setDeliveryCoordinates(coords);
@@ -400,7 +498,7 @@ export default function ShopScreen({ navigation, route }: Props) {
   }, [dbProducts]);
 
   const filteredProducts = useMemo(() => {
-    const sourceProducts = customResults && customResults.length > 0 ? customResults : dbProducts;
+    let sourceProducts = dbProducts;
 
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const min = toNumber(minPrice, 0);
@@ -418,13 +516,8 @@ export default function ShopScreen({ navigation, route }: Props) {
         productCategory.toLowerCase().includes(normalizedQuery) ||
         productSeller.includes(normalizedQuery);
 
-      // Support multiple matching strategies for robustness:
-      // 1. "All" selection
-      // 2. Exact UUID ID match
-      // 3. Exact name match (case-insensitive)
-      // 4. Slugified name match
-      const categoryMatch = 
-        selectedCategory === 'all' || 
+      const categoryMatch =
+        selectedCategory === 'all' ||
         product.category_id === selectedCategory ||
         (typeof product.category === 'string' && (
           product.category.toLowerCase() === selectedCategory.toLowerCase() ||
@@ -435,19 +528,35 @@ export default function ShopScreen({ navigation, route }: Props) {
       return searchMatch && categoryMatch && priceMatch;
     });
 
-    // Sort safely
-    if (selectedSort === 'price-low') {
-      filtered.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
-    } else if (selectedSort === 'price-high') {
-      filtered.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+    // Apply attribute filter
+    if (selectedSort === 'featured') {
+      const featuredProductIds = new Set([
+        ...featuredProducts.map(fp => fp.product_id),
+        ...boostedProducts.map(bp => bp.product_id)
+      ]);
+      filtered = filtered.filter(p => featuredProductIds.has(p.id));
     } else if (selectedSort === 'popularity') {
       filtered.sort((a, b) => (b.sold ?? 0) - (a.sold ?? 0));
     } else if (selectedSort === 'newest') {
       filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     }
 
+    // Apply price sort independently (composable with attribute filter)
+    if (selectedPriceSort === 'price-low') {
+      filtered = [...filtered].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+    } else if (selectedPriceSort === 'price-high') {
+      filtered = [...filtered].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+    }
+
     return filtered;
-  }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults, minPrice, maxPrice, categoryChips]);
+  }, [dbProducts, searchQuery, selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice, categoryChips, featuredProducts, boostedProducts]);
+
+  // Trigger skeleton loading on filter/category changes
+  useEffect(() => {
+    setIsProductsLoading(true);
+    const timer = setTimeout(() => setIsProductsLoading(false), 300);
+    return () => clearTimeout(timer);
+  }, [selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice, searchQuery]);
 
 
   // Memoized FlatList callbacks to prevent re-creating functions on each render
@@ -457,11 +566,7 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const keyExtractor = useCallback((item: Product) => item.id, []);
 
-  const renderProductItem = useCallback(({ item: product }: { item: Product }) => (
-    <View style={styles.cardWrapper}>
-      <ProductCard product={product} onPress={() => handleProductPress(product)} />
-    </View>
-  ), [handleProductPress]);
+  // renderProductItem removed in favor of inline renderItem in MasonryFlashList constants
 
   // Unified empty/loading component for FlatList
   const listEmptyComponent = useMemo(() => {
@@ -484,14 +589,88 @@ export default function ShopScreen({ navigation, route }: Props) {
           <Pressable
             key={cat.id}
             style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
-            onPress={() => setSelectedCategory(cat.id)}
+            onPress={async () => {
+              setSelectedCategory(cat.id);
+            }}
           >
             <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
           </Pressable>
         ))}
       </ScrollView>
+
+      {/* Active Filter Chips */}
+      {(selectedSort !== 'relevance' || selectedPriceSort !== 'price-default' || minPrice !== '0' || maxPrice !== '100000') && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
+          {selectedSort !== 'relevance' && (
+            <Pressable
+              onPress={async () => {
+                setSelectedSort('relevance');
+                try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
+              }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7',
+                borderWidth: 1, borderColor: '#F59E0B', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Star size={12} color="#B45309" fill="#B45309" style={{ marginRight: 4 }} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#B45309', marginRight: 4 }}>
+                {attributeSortOptions.find(o => o.value === selectedSort)?.label || selectedSort}
+              </Text>
+              <X size={12} color="#B45309" />
+            </Pressable>
+          )}
+          {selectedPriceSort !== 'price-default' && (
+            <Pressable
+              onPress={() => setSelectedPriceSort('price-default')}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#DBEAFE',
+                borderWidth: 1, borderColor: '#3B82F6', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#1D4ED8', marginRight: 4 }}>
+                Price: {priceSortOptions.find(o => o.value === selectedPriceSort)?.label || selectedPriceSort}
+              </Text>
+              <X size={12} color="#1D4ED8" />
+            </Pressable>
+          )}
+          {(minPrice !== '0' || maxPrice !== '100000') && (
+            <Pressable
+              onPress={() => {
+                setMinPrice('0'); setMaxPrice('100000');
+                setMinInput('0'); setMaxInput('100000');
+                setMultiSliderValue([0, 100000]);
+              }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#D1FAE5',
+                borderWidth: 1, borderColor: '#10B981', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#065F46', marginRight: 4 }}>
+                ₱{Number(minPrice).toLocaleString()} – ₱{Number(maxPrice).toLocaleString()}
+              </Text>
+              <X size={12} color="#065F46" />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={async () => {
+              setSelectedSort('relevance');
+              setSelectedPriceSort('price-default');
+              setMinPrice('0'); setMaxPrice('100000');
+              setMinInput('0'); setMaxInput('100000');
+              setMultiSliderValue([0, 100000]);
+              try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
+            }}
+            style={{ paddingHorizontal: 8, paddingVertical: 6, justifyContent: 'center' }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '500', color: COLORS.textMuted, textDecorationLine: 'underline' }}>Clear all</Text>
+          </Pressable>
+        </ScrollView>
+      )}
     </View>
-  ), [categoryChips, selectedCategory]);
+  ), [categoryChips, selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice]);
 
   return (
     <View
@@ -567,22 +746,53 @@ export default function ShopScreen({ navigation, route }: Props) {
         </View>
       </View>
 
+      {/* Featured Sort Indicator — replaced by filter chips above */}
+
       {/* Product list as root scroll — enables virtualization */}
-      <FlatList
-        data={isLoading ? [] : filteredProducts}
+      <FlashList
+        data={(isLoading || isProductsLoading) ? [] : filteredProducts}
         keyExtractor={keyExtractor}
-        numColumns={2}
         ListHeaderComponent={listHeaderComponent}
-        ListFooterComponent={<View style={{ height: 100 }} />}
-        ListEmptyComponent={listEmptyComponent}
-        initialNumToRender={8}
-        maxToRenderPerBatch={10}
-        windowSize={7}
-        removeClippedSubviews={true}
-        updateCellsBatchingPeriod={100}
-        columnWrapperStyle={[styles.productsGrid, { paddingHorizontal: 20 }]}
-        contentContainerStyle={{ paddingTop: 15 }}
-        renderItem={renderProductItem}
+        ListFooterComponent={<View style={{ height: 60 }} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_COLOR]}
+            tintColor={BRAND_COLOR}
+          />
+        }
+        ListEmptyComponent={
+          isProductsLoading ? (
+            <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                {[...Array(6)].map((_, i) => (
+                  <View key={`skel-${i}`} style={{ width: (width - 40 - 12) / 2, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6' }}>
+                    <View style={{ aspectRatio: 1, backgroundColor: '#E5E7EB' }} />
+                    <View style={{ padding: 12, gap: 8 }}>
+                      <View style={{ height: 14, backgroundColor: '#E5E7EB', borderRadius: 6, width: '85%' }} />
+                      <View style={{ height: 12, backgroundColor: '#E5E7EB', borderRadius: 6, width: '60%' }} />
+                      <View style={{ height: 16, backgroundColor: '#E5E7EB', borderRadius: 6, width: '40%' }} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : listEmptyComponent
+        }
+        numColumns={2}
+        masonry={true}
+        onEndReachedThreshold={0.5}
+        contentContainerStyle={{ paddingTop: 15, paddingHorizontal: 14, paddingBottom: 60 }}
+        renderItem={({ item }: { item: Product }) => (
+          <View style={{ paddingHorizontal: 6, paddingVertical: 6 }}>
+            <MasonryProductCard
+              product={item}
+              onPress={() => handleProductPress(item)}
+              width={(width - 40 - 12) / 2}
+            />
+          </View>
+        )}
         showsVerticalScrollIndicator={false}
       />
 
@@ -631,11 +841,38 @@ export default function ShopScreen({ navigation, route }: Props) {
                 />
               </View>
 
-              <Text style={[styles.filterSectionTitle, { marginTop: 20 }]}>Sort By</Text>
-              {sortOptions.map((opt) => (
-                <Pressable key={opt.value} style={styles.filterOption} onPress={() => setSelectedSort(opt.value)}>
+              <Text style={styles.filterSectionTitle}>Sort By</Text>
+              {attributeSortOptions.map((opt) => (
+                <Pressable
+                  key={opt.value}
+                  style={styles.filterOption}
+                  onPress={async () => {
+                    setSelectedSort(opt.value);
+                    try {
+                      if (opt.value === 'relevance') {
+                        await AsyncStorage.removeItem('shopSortState');
+                      } else {
+                        await AsyncStorage.setItem('shopSortState', opt.value);
+                      }
+                    } catch (error) {
+                      console.error('[ShopScreen] Error saving sort state:', error);
+                    }
+                  }}
+                >
                   <Text style={[styles.filterText, selectedSort === opt.value && { color: BRAND_COLOR }]}>{opt.label}</Text>
                   {selectedSort === opt.value && <Check size={20} color={BRAND_COLOR} />}
+                </Pressable>
+              ))}
+
+              <Text style={[styles.filterSectionTitle, { marginTop: 20 }]}>Sort by Price</Text>
+              {priceSortOptions.map((opt) => (
+                <Pressable
+                  key={opt.value}
+                  style={styles.filterOption}
+                  onPress={() => setSelectedPriceSort(opt.value)}
+                >
+                  <Text style={[styles.filterText, selectedPriceSort === opt.value && { color: BRAND_COLOR }]}>{opt.label}</Text>
+                  {selectedPriceSort === opt.value && <Check size={20} color={BRAND_COLOR} />}
                 </Pressable>
               ))}
 

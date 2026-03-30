@@ -199,7 +199,7 @@ export const FollowingSection = ({ followedShops = [] }: FollowingSectionProps) 
               <Card className="relative overflow-hidden hover:shadow-xl transition-all duration-300 group h-full flex flex-col border-gray-100 rounded-2xl bg-white">
                 {/* Banner */}
                 <div className="relative h-28 overflow-hidden bg-gray-100">
-                  <img
+                  <img loading="lazy" 
                     src={shop.banner}
                     alt={shop.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 blur-[2px] opacity-50"
@@ -210,7 +210,7 @@ export const FollowingSection = ({ followedShops = [] }: FollowingSectionProps) 
                 <CardContent className="p-5 flex-1 flex flex-col">
                   {/* Shop Brand Area */}
                   <div className="flex items-center gap-3 mb-3">
-                    <img
+                    <img loading="lazy" 
                       src={shop.logo}
                       alt={shop.name}
                       className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md shrink-0 -mt-10 relative z-10"

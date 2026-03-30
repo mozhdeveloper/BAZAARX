@@ -130,21 +130,22 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
 
   const option1Values = useMemo(() => {
     const raw = hasStructuredVariants
-      ? [...new Set(variants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
+      ? [...new Set(variants.map((v: any) => v.option_1_value || v.size).filter(Boolean))]
       : (product.option1Values || product.colors || []);
     return parseOptions(raw);
   }, [hasStructuredVariants, variants, product, parseOptions]);
 
   const option2Values = useMemo(() => {
     const raw = hasStructuredVariants
-      ? [...new Set(variants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
+      ? [...new Set(variants.map((v: any) => v.option_2_value || v.color).filter(Boolean))]
       : (product.option2Values || product.sizes || []);
     return parseOptions(raw);
   }, [hasStructuredVariants, variants, product, parseOptions]);
 
-  // If labels are not provided by DB, we only auto-assign if there are actual values
-  const variantLabel1 = product.variant_label_1 || (option1Values.length > 0 ? 'Color' : undefined);
-  const variantLabel2 = product.variant_label_2 || (option2Values.length > 0 ? 'Size' : undefined);
+  const variantLabel1 = ((product as any).variant_label_1 || (product as any).selectedVariant?.option1Label || '').trim();
+  const variantLabel2 = ((product as any).variant_label_2 || (product as any).selectedVariant?.option2Label || '').trim();
+  const hasLegacySizeAxis1 = hasStructuredVariants && variants.some((v: any) => !v.option_1_value && !!v.size);
+  const hasLegacyColorAxis2 = hasStructuredVariants && variants.some((v: any) => !v.option_2_value && !!v.color);
 
   // Check if axis 1 and 2 are effectively identical (redundant case)
   const isRedundant = useMemo(() => {
@@ -159,13 +160,25 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
   const hasOption1 = option1Values.length > 0;
   const hasOption2 = option2Values.length > 0 && !isRedundant;
 
-  const finalVariantLabel1 = variantLabel1 || 'Select';
-  const finalVariantLabel2 = variantLabel2 || 'Select';
+  const finalVariantLabel1 = variantLabel1 || (hasLegacySizeAxis1 ? 'Size' : 'Option 1');
+  const finalVariantLabel2 = variantLabel2 || (hasLegacyColorAxis2 ? 'Color' : 'Option 2');
 
   // Selection State
   const [selectedOption1, setSelectedOption1] = useState<string | null>(null);
   const [selectedOption2, setSelectedOption2] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(initialQuantity);
+
+  const handleSelectOption1 = (value: string) => {
+    if (selectedOption1 !== value) {
+      setSelectedOption1(value);
+    }
+  };
+
+  const handleSelectOption2 = (value: string) => {
+    if (selectedOption2 !== value) {
+      setSelectedOption2(value);
+    }
+  };
 
   // Track previous visibility to catch the opening moment
   const prevVisibleRef = useRef(visible);
@@ -221,8 +234,8 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
       const targetOp1 = normalize(selectedOption1);
       const targetOp2 = normalize(selectedOption2);
 
-      const vOption1 = normalize(v.option_1_value || v.color);
-      const vOption2 = normalize(v.option_2_value || v.size);
+      const vOption1 = normalize(v.option_1_value || v.size);
+      const vOption2 = normalize(v.option_2_value || v.color);
 
       const op1Match = !selectedOption1 || vOption1 === targetOp1;
       const op2Match = !selectedOption2 || vOption2 === targetOp2;
@@ -237,7 +250,17 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
     };
   }, [hasStructuredVariants, variants, selectedOption1, selectedOption2, product]);
 
+  useEffect(() => {
+    const maxStock = Math.max(1, Number(activeVariantInfo.stock ?? 1));
+    setQuantity((prev) => Math.max(1, Math.min(prev, maxStock)));
+  }, [activeVariantInfo.stock]);
+
   const handleConfirm = () => {
+    // Block if seller is on vacation
+    if ((product as any).is_vacation_mode) {
+      return;
+    }
+
     // Validation
     if ((hasOption1 && !selectedOption1) || (hasOption2 && !selectedOption2)) {
       return;
@@ -269,22 +292,22 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
     if (type === 1) {
       if (hasOption2 && !selectedOption2) {
         return !variants.some((v: any) => {
-          const val = v.option_1_value || v.color;
+          const val = v.option_1_value || v.size;
           return normalize(val) === targetVal && Number(v.stock || 0) > 0;
         });
       }
 
       if (!hasOption2) {
         return !variants.some((v: any) => {
-          const val = v.option_1_value || v.color;
+          const val = v.option_1_value || v.size;
           return normalize(val) === targetVal && Number(v.stock || 0) > 0;
         });
       }
 
       const normSel2 = normalize(selectedOption2);
       const matchingVariant = variants.find((v: any) => {
-        const v1 = v.option_1_value || v.color;
-        const v2 = v.option_2_value || v.size;
+        const v1 = v.option_1_value || v.size;
+        const v2 = v.option_2_value || v.color;
         return normalize(v1) === targetVal && normalize(v2) === normSel2;
       });
       return !matchingVariant || Number(matchingVariant.stock || 0) <= 0;
@@ -294,22 +317,22 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
     if (type === 2) {
       if (hasOption1 && !selectedOption1) {
         return !variants.some((v: any) => {
-          const val = v.option_2_value || v.size;
+          const val = v.option_2_value || v.color;
           return normalize(val) === targetVal && Number(v.stock || 0) > 0;
         });
       }
 
       if (!hasOption1) {
         return !variants.some((v: any) => {
-          const val = v.option_2_value || v.size;
+          const val = v.option_2_value || v.color;
           return normalize(val) === targetVal && Number(v.stock || 0) > 0;
         });
       }
 
       const normSel1 = normalize(selectedOption1);
       const matchingVariant = variants.find((v: any) => {
-        const v1 = v.option_1_value || v.color;
-        const v2 = v.option_2_value || v.size;
+        const v1 = v.option_1_value || v.size;
+        const v2 = v.option_2_value || v.color;
         return normalize(v1) === normSel1 && normalize(v2) === targetVal;
       });
       return !matchingVariant || Number(matchingVariant.stock || 0) <= 0;
@@ -397,33 +420,13 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                 </View>
                 <View style={styles.optionGrid}>
                   {option1Values.map((val: string, i: number) => {
-                    const isColor = finalVariantLabel1.toLowerCase() === 'color';
                     const isSelected = selectedOption1 === val;
                     const isDisabled = isOptionDisabled(1, val);
-
-                    if (isColor) {
-                      return (
-                        <Pressable
-                          key={`op1-${i}`}
-                          onPress={() => !isDisabled && setSelectedOption1(val)}
-                          style={[
-                            styles.colorChip,
-                            { backgroundColor: getColorHex(val) },
-                            isSelected && styles.colorChipSelected,
-                            isDisabled && { opacity: 0.5 },
-                          ]}
-                        >
-                          {isDisabled && (
-                            <View style={styles.colorChipDisabledLine} />
-                          )}
-                        </Pressable>
-                      );
-                    }
 
                     return (
                       <Pressable
                         key={`op1-${i}`}
-                        onPress={() => !isDisabled && setSelectedOption1(val)}
+                        onPress={() => !isDisabled && handleSelectOption1(val)}
                         style={[
                           styles.optionChip,
                           isSelected && styles.optionChipSelected,
@@ -453,33 +456,13 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                 </View>
                 <View style={styles.optionGrid}>
                   {option2Values.map((val: string, i: number) => {
-                    const isColor = finalVariantLabel2.toLowerCase() === 'color';
                     const isSelected = selectedOption2 === val;
                     const isDisabled = isOptionDisabled(2, val);
-
-                    if (isColor) {
-                      return (
-                        <Pressable
-                          key={`op2-${i}`}
-                          onPress={() => !isDisabled && setSelectedOption2(val)}
-                          style={[
-                            styles.colorChip,
-                            { backgroundColor: getColorHex(val) },
-                            isSelected && styles.colorChipSelected,
-                            isDisabled && { opacity: 0.5 },
-                          ]}
-                        >
-                          {isDisabled && (
-                            <View style={styles.colorChipDisabledLine} />
-                          )}
-                        </Pressable>
-                      );
-                    }
 
                     return (
                       <Pressable
                         key={`op2-${i}`}
-                        onPress={() => !isDisabled && setSelectedOption2(val)}
+                        onPress={() => !isDisabled && handleSelectOption2(val)}
                         style={[
                           styles.optionChip,
                           isSelected && styles.optionChipSelected,
@@ -516,10 +499,8 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                       quantity >= (activeVariantInfo.stock ?? 99) && styles.qtyBtnDisabled
                     ]}
                     onPress={() => {
-                      const maxStock = activeVariantInfo.stock ?? 99;
-                      if (quantity < maxStock) {
-                        setQuantity(prev => prev + 1);
-                      }
+                      const maxStock = Math.max(1, Number(activeVariantInfo.stock ?? 99));
+                      setQuantity(prev => Math.min(maxStock, prev + 1));
                     }}
                   >
                     <Plus
@@ -535,9 +516,10 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
 
           {/* ACTION BTN */}
           {(() => {
+            const isVacationMode = (product as any).is_vacation_mode;
             const isSelectionValid = (hasOption1 ? !!selectedOption1 : true) && (hasOption2 ? !!selectedOption2 : true);
             const isOutOfStock = Number(activeVariantInfo.stock || 0) <= 0;
-            const canConfirm = isSelectionValid && !isOutOfStock;
+            const canConfirm = !isVacationMode && isSelectionValid && !isOutOfStock;
             return (
               <Pressable
                 style={[
@@ -553,7 +535,7 @@ export const VariantSelectionModal: React.FC<VariantSelectionModalProps> = ({
                   styles.confirmText,
                   canConfirm ? { color: '#FFF' } : { color: COLORS.gray400 }
                 ]}>
-                  {isOutOfStock ? 'Out of Stock' : confirmLabel}
+                  {isVacationMode ? 'Store on Vacation' : isOutOfStock ? 'Out of Stock' : confirmLabel}
                 </Text>
               </Pressable>
             );
@@ -573,8 +555,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: COLORS.background,
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     paddingTop: 20,
     paddingHorizontal: 20,
     maxHeight: '85%',

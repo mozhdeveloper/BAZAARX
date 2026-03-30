@@ -60,40 +60,35 @@ export const useAdminAuth = create<AdminAuthState>()(
               return false;
             }
 
-            // Verify user is an admin or QA team member
-            // Priority: admins table → qa_team_members table → auth user_metadata fallback
-            let userRole: 'admin' | 'qa_team' = 'admin';
-            const { data: adminRecord } = await supabase
-              .from('admins')
-              .select('id')
-              .eq('id', authData.user.id)
-              .maybeSingle();
+            // Verify role from user_roles table.
+            // Only users with role admin or qa_team are allowed to log in here.
+            const { data: roles, error: rolesError } = await supabase
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', authData.user.id)
+              .in('role', ['admin', 'qa_team']);
 
-            if (!adminRecord) {
-              // Check QA team members table
-              const { data: qaRecord } = await supabase
-                .from('qa_team_members')
-                .select('id')
-                .eq('id', authData.user.id)
-                .maybeSingle();
-
-              if (qaRecord) {
-                userRole = 'qa_team';
-              } else {
-                // Final fallback: check auth user_metadata set during account creation
-                const metaUserType = authData.user.user_metadata?.user_type;
-                if (metaUserType === 'admin' || metaUserType === 'qa_team') {
-                  userRole = metaUserType === 'qa_team' ? 'qa_team' : 'admin';
-                } else {
-                  await supabase.auth.signOut();
-                  set({
-                    error: 'Access denied. Admin or QA account required.',
-                    isLoading: false
-                  });
-                  return false;
-                }
-              }
+            if (rolesError) {
+              console.error('user_roles fetch error:', rolesError);
+              await supabase.auth.signOut();
+              set({
+                error: 'Unable to verify user role',
+                isLoading: false
+              });
+              return false;
             }
+
+            if (!roles || roles.length === 0) {
+              await supabase.auth.signOut();
+              set({
+                error: 'Access denied. Only admin and QA team can log in here.',
+                isLoading: false
+              });
+              return false;
+            }
+
+            const hasQARole = roles.some((r: { role: string }) => r.role === 'qa_team');
+            const userRole: 'admin' | 'qa_team' = hasQARole ? 'qa_team' : 'admin';
 
             // Create admin user object
             const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || (userRole === 'qa_team' ? 'QA Team Member' : 'Admin User');

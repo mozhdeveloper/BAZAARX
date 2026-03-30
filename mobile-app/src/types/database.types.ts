@@ -67,6 +67,8 @@ export type DiscountCampaignType =
 
 export type DiscountType = 'percentage' | 'fixed_amount';
 
+export type VacationReason = 'vacation' | 'personal' | 'maintenance' | 'other';
+
 export type CampaignStatus = 'scheduled' | 'active' | 'paused' | 'ended' | 'cancelled';
 
 // ============================================================================
@@ -110,6 +112,9 @@ export interface Seller {
   verified_at: string | null;
   created_at: string;
   updated_at: string;
+  // Vacation mode
+  is_vacation_mode?: boolean;
+  vacation_reason?: VacationReason | null;
   // Extended joins
   business_profile?: SellerBusinessProfile;
   payout_account?: SellerPayoutAccount;
@@ -328,6 +333,15 @@ export interface Product {
   // Legacy compatibility
   is_active?: boolean;
   original_price?: number;
+  // Warranty fields
+  has_warranty?: boolean;
+  warranty_type?: string;
+  warranty_duration_months?: number;
+  warranty_provider_name?: string;
+  warranty_provider_contact?: string;
+  warranty_provider_email?: string;
+  warranty_terms_url?: string;
+  warranty_policy?: string;
 }
 
 export interface ProductImage {

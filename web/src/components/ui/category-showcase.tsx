@@ -88,7 +88,7 @@ export function CategoryShowcase({ onExploreClick }: CategoryShowcaseProps) {
 						>
 							<div className="relative overflow-hidden rounded-2xl bg-white shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
 								<div className="aspect-[4/3] overflow-hidden">
-									<img
+									<img loading="lazy" 
 										src={category.image}
 										alt={category.name}
 										className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"

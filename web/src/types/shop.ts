@@ -7,6 +7,7 @@ export type ShopProduct = {
     images?: string[];
     rating: number;
     sold: number;
+    reviewsCount: number;
     category: string;
     seller: string;
     sellerId: string;
@@ -35,4 +36,5 @@ export type ShopProduct = {
         discountValue: number;
         maxDiscountAmount?: number;
     };
+    isVacationMode?: boolean;
 };

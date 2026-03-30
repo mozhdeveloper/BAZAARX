@@ -45,8 +45,12 @@ export const mapDbToRegistryProduct = (item: any): RegistryProduct => {
   });
 };
 
-export const mapDbToRegistryItem = (row: any): RegistryItem =>
-  ensureRegistryDefaults({
+export const mapDbToRegistryItem = (row: any): RegistryItem => {
+  console.log('[mapDbToRegistryItem] Raw DB row:', row);
+  console.log('[mapDbToRegistryItem] row.privacy:', row.privacy);
+  console.log('[mapDbToRegistryItem] row.delivery:', row.delivery);
+
+  const result = ensureRegistryDefaults({
     id: row.id,
     title: row.title,
     sharedDate:
@@ -62,6 +66,10 @@ export const mapDbToRegistryItem = (row: any): RegistryItem =>
     delivery: row.delivery || { showAddress: false },
     products: (row.registry_items || []).map(mapDbToRegistryProduct),
   });
+
+  console.log('[mapDbToRegistryItem] Mapped result:', result);
+  return result;
+};
 
 type RawBuyerNameContext = {
   first_name?: string | null;

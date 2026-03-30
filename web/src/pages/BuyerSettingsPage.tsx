@@ -49,6 +49,8 @@ import { useToast } from '@/hooks/use-toast';
 import { regions, provinces, cities, barangays } from "select-philippines-address";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AddressPicker } from '@/components/ui/address-picker';
+import { authService } from '../services/authService';
+import { validatePassword } from '../utils/validation';
 
 // Mock data
 const mockAddresses = [
@@ -99,6 +101,8 @@ const mockPaymentMethods = [
 export default function BuyerSettingsPage() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('addresses');
   const { toast } = useToast();
   const { profile, addresses, addAddress, updateAddress, deleteAddress, logout } = useBuyerStore();
@@ -143,6 +147,19 @@ export default function BuyerSettingsPage() {
   const [isAddressOpen, setIsAddressOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const livePasswordValidation =
+    newPassword.length > 0 ? validatePassword(newPassword) : null;
+  const livePasswordError =
+    livePasswordValidation && !livePasswordValidation.valid
+      ? livePasswordValidation.errors[0]
+      : '';
+  const hasPasswordMismatch =
+    confirmNewPassword.length > 0 && newPassword !== confirmNewPassword;
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   // Address Selection Lists
   const [regionList, setRegionList] = useState<any[]>([]);
@@ -318,6 +335,160 @@ export default function BuyerSettingsPage() {
     promotions: false,
     newsletter: true
   });
+
+  const handleSendPasswordReset = async () => {
+    setIsSendingReset(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const email = user?.email;
+      if (!email) {
+        toast({
+          title: 'Unable to send reset link',
+          description: 'No email found for your current session.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await authService.resetPassword(email);
+      toast({
+        title: 'Reset link sent',
+        description: 'Check your email to reset your password.',
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to send reset link';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      toast({
+        title: 'Missing fields',
+        description: 'Please fill in current, new, and confirm password fields.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+      toast({
+        title: 'Weak password',
+        description: passwordValidation.errors[0] || 'Password does not meet minimum security requirements.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      toast({
+        title: 'Password mismatch',
+        description: 'New password and confirmation do not match.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.email) {
+        throw new Error('No authenticated user found.');
+      }
+
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+
+      if (verifyError) {
+        toast({
+          title: 'Incorrect current password',
+          description: 'Please check your current password and try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await authService.updatePassword(newPassword);
+
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      toast({ title: 'Password updated', description: 'Your password has been changed successfully.' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update password';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  // Load notification consent from DB on mount
+  useEffect(() => {
+    const loadConsent = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const consentTable = (supabase as any).from('user_consent');
+      const { data: rows } = await consentTable
+        .select('channel, consent_type, is_consented')
+        .eq('user_id', user.id);
+
+      const consentRows = (rows ?? []) as Array<{
+        channel: string;
+        consent_type: string;
+        is_consented: boolean;
+      }>;
+      if (!consentRows.length) return;
+
+      const get = (channel: string, type: string) =>
+        consentRows.find((r) => r.channel === channel && r.consent_type === type)?.is_consented ?? true;
+
+      setNotifications({
+        email: get('email', 'transactional'),
+        sms: get('sms', 'transactional'),
+        push: get('push', 'transactional'),
+        orderUpdates: get('email', 'transactional'),
+        promotions: get('email', 'marketing'),
+        newsletter: get('email', 'newsletter'),
+      });
+    };
+
+    loadConsent().catch(console.error);
+  }, []);
+
+  const saveConsent = (channel: string, consentType: string, isConsented: boolean) => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const consentTable = (supabase as any).from('user_consent');
+      await consentTable.upsert(
+        {
+          user_id: user.id,
+          channel,
+          consent_type: consentType,
+          is_consented: isConsented,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,channel,consent_type' }
+      );
+    })().catch(console.error);
+  };
 
   const [privacy, setPrivacy] = useState({
     showProfile: true,
@@ -611,7 +782,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.email}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, email: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, email: checked }); saveConsent('email', 'transactional', checked); }}
                     />
                   </div>
 
@@ -625,7 +796,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.sms}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, sms: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, sms: checked }); saveConsent('sms', 'transactional', checked); }}
                     />
                   </div>
 
@@ -639,7 +810,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.push}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, push: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, push: checked }); saveConsent('push', 'transactional', checked); }}
                     />
                   </div>
                 </CardContent>
@@ -658,7 +829,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.orderUpdates}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, orderUpdates: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, orderUpdates: checked }); saveConsent('email', 'transactional', checked); }}
                     />
                   </div>
 
@@ -669,7 +840,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.promotions}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, promotions: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, promotions: checked }); saveConsent('email', 'marketing', checked); }}
                     />
                   </div>
 
@@ -680,7 +851,7 @@ export default function BuyerSettingsPage() {
                     </div>
                     <Switch
                       checked={notifications.newsletter}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, newsletter: checked })}
+                      onCheckedChange={(checked) => { setNotifications({ ...notifications, newsletter: checked }); saveConsent('email', 'newsletter', checked); }}
                     />
                   </div>
                 </CardContent>
@@ -704,12 +875,33 @@ export default function BuyerSettingsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">Need to reset your password?</p>
+                      <p className="text-sm text-gray-500">We’ll send a secure reset link to your account email.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleSendPasswordReset}
+                      disabled={isSendingReset}
+                      className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] rounded-full"
+                    >
+                      {isSendingReset ? (
+                        <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Sending</span>
+                      ) : (
+                        'Send Reset Link'
+                      )}
+                    </Button>
+                  </div>
+
                   <div>
                     <Label>Current Password</Label>
                     <div className="relative">
                       <Input
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Enter current password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
                         className="pr-10"
                       />
                       <button
@@ -724,17 +916,57 @@ export default function BuyerSettingsPage() {
 
                   <div>
                     <Label>New Password</Label>
-                    <Input type="password" placeholder="Enter new password" />
+                    <div className="relative">
+                      <Input
+                        type={showNewPassword ? 'text' : 'password'}
+                        placeholder="Enter new password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {livePasswordError ? <p className="text-sm text-red-600 mt-1">{livePasswordError}</p> : null}
                   </div>
 
                   <div>
                     <Label>Confirm New Password</Label>
-                    <Input type="password" placeholder="Confirm new password" />
+                    <div className="relative">
+                      <Input
+                        type={showConfirmNewPassword ? 'text' : 'password'}
+                        placeholder="Confirm new password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {hasPasswordMismatch ? <p className="text-sm text-red-600 mt-1">Passwords do not match.</p> : null}
                   </div>
 
-                  <Button className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]">
-                    <Save className="h-4 w-4 mr-2" />
-                    Update Password
+                  <Button
+                    type="button"
+                    onClick={handleUpdatePassword}
+                    disabled={isUpdatingPassword || hasPasswordMismatch || !!livePasswordError}
+                    className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
+                  >
+                    {isUpdatingPassword ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Updating...</>
+                    ) : (
+                      <><Save className="h-4 w-4 mr-2" />Update Password</>
+                    )}
                   </Button>
 
                   <div className="pt-4 border-t">

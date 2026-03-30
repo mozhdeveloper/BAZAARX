@@ -133,6 +133,7 @@ export class ProductService {
             id,
             store_name,
             approval_status,
+            is_vacation_mode,
             business_profile:seller_business_profiles (
               city
             )
@@ -370,6 +371,8 @@ export class ProductService {
             // Seller info
             sellerName: product.seller?.store_name,
             sellerLocation: product.seller?.business_profile?.city,
+            // Seller vacation mode status
+            isVacationMode: product.seller?.is_vacation_mode === true,
             // Flash sale info
             campaignBadge,
             campaignBadgeColor,
@@ -487,6 +490,7 @@ export class ProductService {
             store_name,
             approval_status,
             avatar_url,
+            is_vacation_mode,
             business_profile:seller_business_profiles (
               city
             )
@@ -1101,7 +1105,7 @@ export class ProductService {
                         category:categories!products_category_id_fkey(id, name, slug),
                         images:product_images(image_url, is_primary),
                         variants:product_variants(id, color, size, price, stock),
-                        seller:sellers!products_seller_id_fkey(id, store_name)
+                        seller:sellers!products_seller_id_fkey(id, store_name, is_vacation_mode)
                     `)
                     .in('id', productIds)
                     .is('deleted_at', null)
@@ -1192,7 +1196,7 @@ export class ProductService {
                         category:categories!products_category_id_fkey(id, name, slug),
                         images:product_images(image_url, is_primary),
                         variants:product_variants(id, color, size, price, stock),
-                        seller:sellers!products_seller_id_fkey(id, store_name)
+                        seller:sellers!products_seller_id_fkey(id, store_name, is_vacation_mode)
                     `)
                     .in('id', productIds)
                     .is('deleted_at', null)

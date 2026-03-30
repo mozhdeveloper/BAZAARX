@@ -12,6 +12,7 @@ import { chatService } from './chatService';
 import type { ActiveDiscount } from '@/types/discount';
 import { payMongoService } from './payMongoService';
 import type { PaymentResult } from '@/types/payment.types';
+import { sendOrderReceiptEmail } from '@/services/transactionalEmails';
 
 export interface CheckoutPayload {
     userId: string;
@@ -228,6 +229,26 @@ export class CheckoutService {
                 itemsBySeller[sId].push(item);
             });
 
+            // Fetch warranty information for all products
+            const productWarrantyMap = new Map<string, {
+                has_warranty: boolean;
+                warranty_type: string | null;
+                warranty_duration_months: number | null;
+            }>();
+            if (uniqueProductIds.length > 0) {
+                const { data: warrantyData } = await supabase
+                    .from('products')
+                    .select('id, has_warranty, warranty_type, warranty_duration_months')
+                    .in('id', uniqueProductIds);
+                warrantyData?.forEach(p => {
+                    productWarrantyMap.set(p.id, {
+                        has_warranty: p.has_warranty,
+                        warranty_type: p.warranty_type,
+                        warranty_duration_months: p.warranty_duration_months,
+                    });
+                });
+            }
+
             const addressJson = JSON.stringify({
                 fullName: shippingAddress.fullName, street: shippingAddress.street,
                 city: shippingAddress.city, province: shippingAddress.province,
@@ -257,18 +278,44 @@ export class CheckoutService {
 
                     const sellerLinePricing = linePricing.filter(lp => lp.item.product?.seller_id === sellerId);
 
-                    const orderItemsData = sellerLinePricing.map(lp => ({
-                        order_id: orderData.id,
-                        product_id: lp.item.product_id,
-                        product_name: (lp.item.selected_variant as any)?.name || lp.item.product?.name || 'Product',
-                        primary_image_url: (lp.item.selected_variant as any)?.image || lp.item.product?.primary_image || null,
-                        quantity: lp.quantity,
-                        price: lp.unitPrice,
-                        variant_id: (lp.item.selected_variant as any)?.id || null,
-                        price_discount: lp.campaignDiscountPerUnit,
-                        shipping_price: 0,
-                        shipping_discount: 0
-                    }));
+                    const orderDate = new Date();
+                    const orderItemsData = sellerLinePricing.map(lp => {
+                        const warrantyInfo = lp.item.product_id ? productWarrantyMap.get(lp.item.product_id) : null;
+                        
+                        // Calculate warranty dates if product has warranty
+                        let warrantyStartDate: string | null = null;
+                        let warrantyExpirationDate: string | null = null;
+                        let warrantyType: string | null = null;
+                        let warrantyDurationMonths: number | null = null;
+                        
+                        if (warrantyInfo?.has_warranty && warrantyInfo.warranty_type && warrantyInfo.warranty_duration_months) {
+                            warrantyType = warrantyInfo.warranty_type;
+                            warrantyDurationMonths = warrantyInfo.warranty_duration_months;
+                            warrantyStartDate = orderDate.toISOString();
+                            
+                            // Calculate expiration date
+                            const expirationDate = new Date(orderDate);
+                            expirationDate.setMonth(expirationDate.getMonth() + warrantyDurationMonths);
+                            warrantyExpirationDate = expirationDate.toISOString();
+                        }
+                        
+                        return {
+                            order_id: orderData.id,
+                            product_id: lp.item.product_id,
+                            product_name: (lp.item.selected_variant as any)?.name || lp.item.product?.name || 'Product',
+                            primary_image_url: (lp.item.selected_variant as any)?.image || lp.item.product?.primary_image || null,
+                            quantity: lp.quantity,
+                            price: lp.unitPrice,
+                            variant_id: (lp.item.selected_variant as any)?.id || null,
+                            price_discount: lp.campaignDiscountPerUnit,
+                            shipping_price: 0,
+                            shipping_discount: 0,
+                            warranty_type: warrantyType,
+                            warranty_duration_months: warrantyDurationMonths,
+                            warranty_start_date: warrantyStartDate,
+                            warranty_expiration_date: warrantyExpirationDate,
+                        };
+                    });
 
                     // Stock deductions — use stock already fetched in Phase 1 (no re-fetch)
                     const stockUpdates = sellerLinePricing
@@ -325,6 +372,26 @@ export class CheckoutService {
                                 `New order placed! Order #${(orderData.order_number as string).slice(0, 8).toUpperCase()} is being processed.`
                             ).catch(console.error);
                         }
+                    }).catch(console.error);
+
+                    // Order receipt email (fire-and-forget)
+                    const itemsHtml = sellerLinePricing.map(lp => {
+                        const imgUrl = (lp.item.selected_variant as any)?.image || lp.item.product?.primary_image || '';
+                        const imgCell = imgUrl
+                            ? `<td style="padding:12px 0;width:56px;vertical-align:top"><img src="${imgUrl}" alt="" width="56" height="56" style="display:block;border-radius:8px;border:1px solid #E4E4E7;object-fit:cover" /></td>`
+                            : `<td style="padding:12px 0;width:56px;vertical-align:top"><div style="width:56px;height:56px;border-radius:8px;background:#F4F4F5"></div></td>`;
+                        return `<tr style="border-bottom:1px solid #E4E4E7">${imgCell}<td style="padding:12px 0 12px 12px;vertical-align:top"><p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#18181B">${lp.item.name || 'Product'}</p><p style="margin:0;font-size:13px;color:#71717A">Qty: ${lp.quantity}</p></td><td align="right" style="padding:12px 0;vertical-align:top;white-space:nowrap"><span style="font-size:14px;font-weight:600;color:#18181B">₱${(lp.unitPrice * lp.quantity).toLocaleString()}</span></td></tr>`;
+                    }).join('');
+                    sendOrderReceiptEmail({
+                        buyerEmail: email,
+                        buyerId: userId,
+                        orderNumber: orderData.order_number as string,
+                        orderDate: new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }),
+                        buyerName: shippingAddress.fullName || 'Valued Customer',
+                        itemsHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">${itemsHtml}</table>`,
+                        subtotal: `₱${pricingSummary.subtotal.toLocaleString()}`,
+                        shippingFee: `₱${pricingSummary.shipping.toLocaleString()}`,
+                        totalAmount: `₱${pricingSummary.total.toLocaleString()}`,
                     }).catch(console.error);
 
                     return { id: orderData.id as string, orderNumber: orderData.order_number as string };

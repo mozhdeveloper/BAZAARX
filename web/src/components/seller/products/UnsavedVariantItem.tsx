@@ -19,7 +19,7 @@ export function UnsavedVariantItem({ newVariant }: UnsavedVariantProps) {
           {/* Preview Thumbnail */}
           <div className="h-10 w-10 rounded-lg border border-orange-100 bg-orange-50 overflow-hidden flex items-center justify-center flex-shrink-0">
             {newVariant.image ? (
-              <img src={newVariant.image} alt="Preview" className="h-full w-full object-cover" />
+              <img loading="lazy" src={newVariant.image} alt="Preview" className="h-full w-full object-cover" />
             ) : (
               <Package className="h-4 w-4 text-orange-300" />
             )}

@@ -95,14 +95,16 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       // Build selectedVariant if variant exists
       let selectedVariant = null;
       if (variant) {
+        const hasLegacySizeAxis1 = !variant.option_1_value && !!variant.size;
+        const hasLegacyColorAxis2 = !variant.option_2_value && !!variant.color;
         selectedVariant = {
           variantId: variant.id,
           color: variant.color || undefined,
           size: variant.size || undefined,
-          option1Value: variant.option_1_value || undefined,
-          option2Value: variant.option_2_value || undefined,
-          option1Label: product.variant_label_1 || undefined,
-          option2Label: product.variant_label_2 || undefined,
+          option1Value: variant.option_1_value || variant.size || undefined,
+          option2Value: variant.option_2_value || variant.color || undefined,
+          option1Label: product.variant_label_1 || (hasLegacySizeAxis1 ? 'Size' : 'Option 1'),
+          option2Label: product.variant_label_2 || (hasLegacyColorAxis2 ? 'Color' : 'Option 2'),
         };
       }
       // Also check personalized_options for variant info
@@ -356,10 +358,13 @@ export const useCartStore = create<CartStore>()(
       updateQuantity: (itemId, quantity) => {
         const run = async () => {
           const currentItems = get().items;
+          const targetItem = currentItems.find(i => i.cartItemId === itemId || i.id === itemId);
+          const maxStock = Math.max(1, Number(targetItem?.stock ?? 99));
+          const nextQuantity = Math.max(1, Math.min(quantity, maxStock));
           const localItem = currentItems.find(i => (i.cartItemId === itemId || i.id === itemId) && isLocalCartItem(i));
 
           if (localItem) {
-            if (quantity <= 0) {
+            if (nextQuantity <= 0) {
               set(state => ({ items: state.items.filter(i => i.cartItemId !== localItem.cartItemId) }));
               return;
             }
@@ -367,7 +372,7 @@ export const useCartStore = create<CartStore>()(
             set(state => ({
               items: state.items.map(i =>
                 i.cartItemId === localItem.cartItemId
-                  ? { ...i, quantity }
+                  ? { ...i, quantity: nextQuantity }
                   : i
               )
             }));
@@ -380,7 +385,7 @@ export const useCartStore = create<CartStore>()(
             if (!get().cartId) return;
           }
 
-          if (quantity <= 0) {
+          if (nextQuantity <= 0) {
             return get().removeItem(itemId);
           }
 
@@ -389,7 +394,7 @@ export const useCartStore = create<CartStore>()(
           set(state => ({
             items: state.items.map(i =>
               (i.cartItemId === itemId || i.id === itemId)
-                ? { ...i, quantity }
+                ? { ...i, quantity: nextQuantity }
                 : i
             )
           }));
@@ -397,10 +402,10 @@ export const useCartStore = create<CartStore>()(
           try {
             const item = previousItems.find(i => i.cartItemId === itemId);
             if (item) {
-              await cartService.updateCartItemQuantity(item.cartItemId, quantity);
+              await cartService.updateCartItemQuantity(item.cartItemId, nextQuantity);
             } else {
               const verifiedCartId = cartId as string;
-              await cartService.updateQuantity(verifiedCartId, itemId, quantity);
+              await cartService.updateQuantity(verifiedCartId, itemId, nextQuantity);
             }
             // No re-fetch needed — optimistic update is accurate.
             // A full refresh happens automatically on next screen focus.

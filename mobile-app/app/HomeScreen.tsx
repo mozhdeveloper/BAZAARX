@@ -12,22 +12,22 @@ import {
   StatusBar,
   Alert,
   TouchableOpacity,
-  Image,
-  Keyboard,
   NativeSyntheticEvent,
   NativeScrollEvent,
   useWindowDimensions,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
-  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle, Star, FlaskConical, Flame, TrendingUp, Plus,
+  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle, Star, FlaskConical, Flame, TrendingUp, Plus, ChevronRight,
   Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen, Armchair, SprayCan,
 } from 'lucide-react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { LucideIcon } from 'lucide-react-native';
-import { ProductCard } from '../src/components/ProductCard';
+import { FlashList } from "@shopify/flash-list";
+import { ProductCard, MasonryProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
 import LocationModal from '../src/components/LocationModal';
@@ -52,7 +52,7 @@ import { discountService } from '../src/services/discountService';
 import { featuredProductService, type FeaturedProductMobile } from '../src/services/featuredProductService';
 import { adBoostService, type AdBoostMobile } from '../src/services/adBoostService';
 import { categoryService } from '../src/services/categoryService';
-import { safeImageUri } from '../src/utils/imageUtils';
+import { safeImageUri, PLACEHOLDER_AVATAR, PLACEHOLDER_PRODUCT, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
 import { Image as ExpoImage } from 'expo-image';
 import { CURATED_CATEGORY_IMAGES } from '../src/constants/categories';
 import type { Category } from '../src/types/database.types';
@@ -115,7 +115,7 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl, itemWidth }: { la
     return CURATED_CATEGORY_IMAGES[key] || null;
   }, [label]);
 
-  const finalImageUri = (!imageError && imageUrl) ? safeImageUri(imageUrl) : curatedFallback;
+  const finalImageUri = (!imageError && (imageUrl || curatedFallback)) ? safeImageUri(imageUrl || curatedFallback, PLACEHOLDER_PRODUCT) : null;
 
   return (
     <View style={styles.categoryItm}>
@@ -180,7 +180,7 @@ const CategoryItem = React.memo(({ label, iconValue, imageUrl, itemWidth }: { la
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  const CATEGORY_ITEM_WIDTH = (screenWidth - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4)) / 5;
+  const CATEGORY_ITEM_WIDTH = (screenWidth - (HORIZONTAL_PADDING * 2) - (GRID_GAP * 4) - 4) / 5;
 
   const BRAND_COLOR = COLORS.primary;
   const { user, isGuest } = useAuthStore();
@@ -284,98 +284,101 @@ export default function HomeScreen({ navigation }: Props) {
     );
   }, [sellers, debouncedSearchQuery]);
 
-  // === PARALLEL DATA LOADING — all independent fetches in one shot ===
-  useEffect(() => {
-    const loadAllData = async () => {
-      setIsLoadingProducts(true);
-      setFetchError(null);
+  const loadAllData = useCallback(async () => {
+    setIsLoadingProducts(true);
+    setFetchError(null);
 
-      const [productsResult, flashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = await Promise.allSettled([
-        productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
-        discountService.getFlashSaleProducts(),
-        featuredProductService.getFeaturedProducts(10),
-        adBoostService.getActiveBoostedProducts('featured', 10),
-        sellerService.getAllSellers(),
-        categoryService.getActiveCategories(), // Add this call
-      ]);
+    const [productsResult, flashResult, featuredResult, boostedResult, sellersResult, categoriesResult] = await Promise.allSettled([
+      productService.getProducts({ isActive: true, approvalStatus: 'approved', limit: 20 }),
+      discountService.getFlashSaleProducts(),
+      featuredProductService.getFeaturedProducts(10),
+      adBoostService.getActiveBoostedProducts('featured', 10),
+      sellerService.getAllSellers(),
+      categoryService.getActiveCategories(),
+    ]);
 
-      if (categoriesResult.status === 'fulfilled') {
-        const rawCategories = categoriesResult.value || [];
-        // Deduplicate by name or slug
-        const unique = rawCategories.reduce((acc: Category[], curr) => {
-          if (!acc.find(c => (c.slug && c.slug === curr.slug) || c.name.toLowerCase() === curr.name.toLowerCase())) {
-            acc.push(curr);
-          }
-          return acc;
-        }, []);
-        setDbCategories(unique);
-      }
+    if (categoriesResult.status === 'fulfilled') {
+      const rawCategories = categoriesResult.value || [];
+      const unique = rawCategories.reduce((acc: Category[], curr) => {
+        if (!acc.find(c => (c.slug && c.slug === curr.slug) || c.name.toLowerCase() === curr.name.toLowerCase())) {
+          acc.push(curr);
+        }
+        return acc;
+      }, []);
+      setDbCategories(unique);
+    }
 
-      // Products
-      if (productsResult.status === 'fulfilled') {
-        const mapped: Product[] = (productsResult.value || []).map((row: any) => {
-          const images = row.images?.map((img: any) =>
-            typeof img === 'string' ? img : img.image_url
-          ).filter(Boolean) || [];
-          const primaryImage = safeImageUri(
-            row.images?.find((img: any) => img.is_primary)?.image_url
-            || images[0]
-            || row.primary_image
-            || ''
-          );
+    // Products
+    if (productsResult.status === 'fulfilled') {
+      const mapped: Product[] = (productsResult.value || []).map((row: any) => {
+        const images = row.images?.map((img: any) =>
+          typeof img === 'string' ? img : img.image_url
+        ).filter(Boolean) || [];
+        const primaryImage = safeImageUri(
+          row.images?.find((img: any) => img.is_primary)?.image_url
+          || images[0]
+          || row.primary_image
+          || ''
+        );
 
-          const rawVariants = Array.isArray(row.variants) ? row.variants : [];
-          const variants = rawVariants.map((v: any) => ({
-            id: v.id,
-            product_id: row.id,
-            sku: v.sku,
-            variant_name: v.variant_name || `${v.option_1_value || v.color || ''} ${v.option_2_value || v.size || ''}`.trim() || 'Variant',
-            size: v.size,
-            color: v.color,
-            option_1_value: v.option_1_value,
-            option_2_value: v.option_2_value,
-            price: v.price ?? row.price,
-            stock: v.stock ?? 0,
-            thumbnail_url: v.thumbnail_url ? safeImageUri(v.thumbnail_url) : undefined,
-          }));
+        const rawVariants = Array.isArray(row.variants) ? row.variants : [];
+        const variants = rawVariants.map((v: any) => ({
+          id: v.id,
+          product_id: row.id,
+          sku: v.sku,
+          variant_name: v.variant_name || `${v.option_1_value || v.color || ''} ${v.option_2_value || v.size || ''}`.trim() || 'Variant',
+          size: v.size,
+          color: v.color,
+          option_1_value: v.option_1_value,
+          option_2_value: v.option_2_value,
+          price: v.price ?? row.price,
+          stock: v.stock ?? 0,
+          thumbnail_url: v.thumbnail_url ? safeImageUri(v.thumbnail_url) : undefined,
+        }));
 
-          return {
-            ...row,
-            price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
-            image: primaryImage,
-            images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
-            seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
-          } as Product;
-        });
-        const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
-        setDbProducts(uniqueMapped);
-      } else {
-        setFetchError((productsResult.reason as any)?.message || 'Failed to load products');
-        setDbProducts([]);
-      }
+        return {
+          ...row,
+          price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
+          image: primaryImage,
+          images: images.length > 0 ? images.map((img: string) => safeImageUri(img)) : [primaryImage],
+          seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
+        } as Product;
+      });
+      const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
+      setDbProducts(uniqueMapped);
+    } else {
+      setFetchError((productsResult.reason as any)?.message || 'Failed to load products');
+      setDbProducts([]);
+    }
 
-      // Flash sales
-      if (flashResult.status === 'fulfilled') {
-        const seen = new Set<string>();
-        const unique = (flashResult.value || []).filter((p: any) => {
-          if (seen.has(p.id)) return false;
-          seen.add(p.id);
-          return true;
-        });
-        setFlashSaleProducts(unique);
-      }
+    // Flash sales
+    if (flashResult.status === 'fulfilled') {
+      const seen = new Set<string>();
+      const unique = (flashResult.value || []).filter((p: any) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+      setFlashSaleProducts(unique);
+    }
 
-      // Featured + Boosted
-      if (featuredResult.status === 'fulfilled') setFeaturedProducts(featuredResult.value);
-      if (boostedResult.status === 'fulfilled') setBoostedProducts(boostedResult.value);
+    // Featured + Boosted
+    if (featuredResult.status === 'fulfilled') setFeaturedProducts(featuredResult.value);
+    if (boostedResult.status === 'fulfilled') setBoostedProducts(boostedResult.value);
 
-      // Sellers
-      if (sellersResult.status === 'fulfilled' && sellersResult.value) setSellers(sellersResult.value);
+    if (sellersResult.status === 'fulfilled' && sellersResult.value) setSellers(sellersResult.value);
 
-      setIsLoadingProducts(false);
-    };
-    loadAllData();
+    setIsLoadingProducts(false);
   }, []);
+
+  useEffect(() => { loadAllData(); }, []);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await loadAllData();
+    setIsRefreshing(false);
+  }, [loadAllData]);
 
   // Consolidated flash sale countdown timer — single interval handles both campaign timer and block countdown
   useEffect(() => {
@@ -550,6 +553,7 @@ export default function HomeScreen({ navigation }: Props) {
           id: product.id, name: product.name, price: product.price,
           originalPrice: (product as any).original_price, original_price: (product as any).original_price,
           primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+          image: primaryImg?.image_url, // Added fallback for ProductCard
           images: product.images?.map((img: any) => img.image_url) || [],
           category: product.category?.name, seller: product.seller,
           rating: avgRating, review_count: reviews.length, stock: totalStock,
@@ -572,6 +576,7 @@ export default function HomeScreen({ navigation }: Props) {
           id: product.id, name: product.name, price: product.price,
           originalPrice: product.original_price, original_price: product.original_price,
           primary_image_url: primaryImg?.image_url, primary_image: primaryImg?.image_url,
+          image: primaryImg?.image_url, // Added fallback for ProductCard
           images: product.images?.map((img: any) => img.image_url) || [],
           category: product.category?.name, seller: product.seller,
           rating: avgRating, review_count: reviews.length, stock: totalStock,
@@ -628,9 +633,11 @@ export default function HomeScreen({ navigation }: Props) {
   }, []);
 
   const handleProductPress = useCallback((product: Product) => {
-    saveRecentSearch(product.name || 'Product');
+    if (searchQuery.trim()) {
+      saveRecentSearch(searchQuery);
+    }
     navigation.navigate('ProductDetail', { product });
-  }, [navigation, saveRecentSearch]);
+  }, [navigation, searchQuery, saveRecentSearch]);
 
   // Memoized scroll handler — avoids re-creating the function on every render
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -646,12 +653,7 @@ export default function HomeScreen({ navigation }: Props) {
   }, []);
 
   return (
-    <LinearGradient
-      colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment / Light Amber sweep
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* 1. BRANDED HEADER */}
@@ -701,22 +703,16 @@ export default function HomeScreen({ navigation }: Props) {
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
               onSubmitEditing={() => {
-                // onSubmitEditing is now only for UI feedback,
-                // search history is saved when clicking items
+                if (searchQuery.trim()) {
+                  saveRecentSearch(searchQuery);
+                }
               }}
             />
             <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color={COLORS.primary} /></Pressable>
           </View>
           {isSearchFocused && (
-            <Pressable
-              onPress={() => {
-                setIsSearchFocused(false);
-                setSearchQuery('');
-                Keyboard.dismiss();
-              }}
-              style={{ paddingLeft: 10 }}
-            >
-              <Text style={{ color: '#FFF', fontWeight: '600' }}>Cancel</Text>
+            <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
+              <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Cancel</Text>
             </Pressable>
           )}
         </View>
@@ -725,64 +721,46 @@ export default function HomeScreen({ navigation }: Props) {
       <ScrollView
         style={styles.contentScroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         scrollEventThrottle={16}
         onScroll={handleScroll}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
       >
         {isSearchFocused ? (
-          <Pressable
-            style={styles.searchDiscovery}
-            onPress={() => {
-              setIsSearchFocused(false);
-              Keyboard.dismiss();
-            }}
-          >
+          <View style={styles.searchDiscovery}>
             {searchQuery.trim() === '' ? (
               <View style={styles.recentSection}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <Text style={styles.discoveryTitle}>Recent Searches</Text>
-                  {recentSearches.length > 0 && (
-                    <Pressable onPress={() => { setRecentSearches([]); AsyncStorage.removeItem('recentSearches'); }}>
-                      <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '600' }}>Clear All</Text>
-                    </Pressable>
-                  )}
-                </View>
+                <Text style={styles.discoveryTitle}>Recent Searches</Text>
                 {recentSearches.map((term, i) => (
                   <Pressable
                     key={i}
                     style={styles.searchRecentItem}
-                    onPress={(e) => {
-                      e.stopPropagation();
+                    onPress={() => {
                       setSearchQuery(term);
+                      saveRecentSearch(term); // Move to top
                     }}
                   >
                     <Clock size={16} color="#9CA3AF" />
                     <Text style={styles.searchRecentText}>{term}</Text>
-                    <Pressable
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        const updated = recentSearches.filter((_, idx) => idx !== i);
-                        setRecentSearches(updated);
-                        AsyncStorage.setItem('recentSearches', JSON.stringify(updated));
-                      }}
-                      style={{ marginLeft: 'auto', padding: 4 }}
-                    >
-                      <X size={14} color="#9CA3AF" />
-                    </Pressable>
                   </Pressable>
                 ))}
                 {recentSearches.length === 0 && (
                   <Text style={{ color: '#9CA3AF', fontSize: 14, fontStyle: 'italic', marginTop: 10 }}>No recent searches</Text>
                 )}
-                {/* Filler to catch taps below the content */}
-                <View style={{ flex: 1, minHeight: 400 }} />
               </View>
             ) : (
-              <Pressable style={styles.resultsSection} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.resultsSection}>
                 <Text style={styles.discoveryTitle}>{filteredProducts.length + filteredStores.length} results found</Text>
                 {filteredProducts.length === 0 && filteredStores.length === 0 && (
-                  <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 }}>
+                  <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20 }}>
                     <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                       <Search size={32} color="#FF6A00" />
                     </View>
@@ -793,7 +771,7 @@ export default function HomeScreen({ navigation }: Props) {
                       Can't find what you're looking for? Request it and we'll notify you when a seller offers it!
                     </Text>
                     <Pressable
-                      onPress={(e) => { e.stopPropagation(); setShowProductRequest(true); }}
+                      onPress={() => setShowProductRequest(true)}
                       style={({ pressed }) => [
                         {
                           backgroundColor: '#FF6A00',
@@ -825,32 +803,20 @@ export default function HomeScreen({ navigation }: Props) {
                         <Pressable
                           key={s.id}
                           style={styles.storeSearchResultCard}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            saveRecentSearch(s.store_name || s.business_name);
+                          onPress={() => {
+                            if (searchQuery.trim()) {
+                              saveRecentSearch(searchQuery);
+                            }
                             navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } });
                           }}
                         >
-                          <View style={styles.storeSearchIcon}>
-                            {s.avatar_url || (s as any).logo || (s as any).avatar ? (
-                              <Image
-                                source={{ uri: s.avatar_url || (s as any).logo || (s as any).avatar }}
-                                style={{ width: '100%', height: '100%', borderRadius: 22 }}
-                              />
-                            ) : (
-                              <Text style={{ fontSize: 18, color: COLORS.primary, fontWeight: 'bold' }}>
-                                {(s.store_name || 'S').charAt(0).toUpperCase()}
-                              </Text>
-                            )}
-                          </View>
+                          <View style={styles.storeSearchIcon}><Text style={{ fontSize: 20 }}>🏬</Text></View>
                           <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                               <Text style={styles.storeSearchName} numberOfLines={1}>{s.store_name}</Text>
                               {s.is_verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
                             </View>
-                            <Text style={styles.storeSearchLocation} numberOfLines={1}>
-                              {s.city ? `${s.city}, ${s.province || ''}` : 'Location hidden'}
-                            </Text>
+                            <Text style={styles.storeSearchLocation}>{s.city}, {s.province}</Text>
                           </View>
                         </Pressable>
                       ))}
@@ -869,11 +835,9 @@ export default function HomeScreen({ navigation }: Props) {
                     </View>
                   </View>
                 )}
-                {/* Filler for results section to allow tapping outside */}
-                <View style={{ flex: 1, minHeight: 300 }} />
-              </Pressable>
+              </View>
             )}
-          </Pressable>
+          </View>
         ) : activeTab === 'Home' ? (
           <>
             {/* CAROUSEL */}
@@ -897,7 +861,7 @@ export default function HomeScreen({ navigation }: Props) {
                     }}
                   >
                     <ExpoImage
-                      source={{ uri: slide.image }}
+                      source={{ uri: safeImageUri(slide.image, PLACEHOLDER_BANNER) }}
                       style={StyleSheet.absoluteFill}
                       contentFit="cover"
                     />
@@ -1012,11 +976,8 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
 
             {/* FLASH SALE SECTION (No Container) */}
-            <LinearGradient
-              colors={['#FFF9F9', '#FFF3F3', '#FFF9F9']} // Very light red tint for Flash Sale
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.flashSaleContainer}
+            <View
+              style={[styles.flashSaleContainer, { backgroundColor: '#FFFBF0' }]}
             >
               <View style={styles.flashSaleHeader}>
                 <View style={styles.flashSaleTitleRow}>
@@ -1033,7 +994,7 @@ export default function HomeScreen({ navigation }: Props) {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, gap: 12 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 10, gap: 12 }}
               >
                 {flashSaleProducts.length > 0 ? (
                   Array.from(new Map(flashSaleProducts.slice(0, 10).map(p => [p.id, p])).values()).map((product) => (
@@ -1049,43 +1010,49 @@ export default function HomeScreen({ navigation }: Props) {
                   ))
                 )}
               </ScrollView>
-            </LinearGradient>
+            </View>
 
             {/* FEATURED STORES SECTION */}
             {verifiedStores.length > 0 && (
-              <View style={{ marginTop: 20, marginBottom: 5 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 20 }}>
+              <View style={{ marginTop: 0, marginBottom: 5, paddingVertical: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 }}>
                   <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Stores</Text>
                   <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Featured Stores' })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
                   {verifiedStores.map((store) => (
-                    <Pressable key={store.id} style={styles.storeCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
-                      <View style={styles.storeHeader}>
-                        <View style={styles.storeLogo}>
-                          {store.logo && store.logo !== '🏪' ? (
-                            <ExpoImage source={{ uri: store.logo }} style={{ width: 40, height: 40, borderRadius: 20 }} />
-                          ) : (
-                            <Text style={{ fontSize: 20 }}>🏪</Text>
-                          )}
-                        </View>
-                        <View style={styles.storeInfo}>
-                          <View style={styles.storeNameRow}>
-                            <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-                            {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
-                          </View>
-                          <View style={styles.ratingRow}>
-                            <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
-                            <Text style={styles.ratingText}>{store.rating}</Text>
+                    <Pressable key={store.id} style={styles.storeVerticalCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
+                      <View style={styles.storeBannerContainer}>
+                        <ExpoImage
+                          source={{ uri: safeImageUri(store.products?.[0], PLACEHOLDER_BANNER) }}
+                          style={styles.storeBannerImage}
+                          contentFit="cover"
+                        />
+                        <LinearGradient
+                          colors={['transparent', 'rgba(255,255,255,0.8)', '#FFFFFF']}
+                          style={styles.storeBannerGradient}
+                        />
+                        <View style={styles.storeAvatarOverlap}>
+                          <View style={styles.storeAvatarBorder}>
+                            <ExpoImage
+                              source={{ uri: safeImageUri(store.logo, PLACEHOLDER_AVATAR) }}
+                              style={styles.storeAvatarImage}
+                              contentFit="cover"
+                            />
                           </View>
                         </View>
                       </View>
-                      <View style={styles.storeProducts}>
-                        {(store.products || []).slice(0, 3).map((url: string, i: number) => (
-                          <ExpoImage key={i} source={{ uri: url }} style={styles.storeProductThumb} />
-                        ))}
+
+                      <View style={styles.storeCardBody}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 4 }}>
+                          <Text style={[styles.storeCardName, { marginBottom: 0 }]} numberOfLines={1}>{store.name}</Text>
+                          <ChevronRight size={14} color={COLORS.gray400} />
+                        </View>
+                        <Text style={styles.storeCardSubtitle} numberOfLines={1}>
+                          ★ {store.rating}
+                        </Text>
                       </View>
                     </Pressable>
                   ))}
@@ -1095,22 +1062,28 @@ export default function HomeScreen({ navigation }: Props) {
 
             {/* FEATURED PRODUCTS SECTION */}
             {(featuredProducts.length > 0 || boostedProducts.length > 0) && (
-              <View style={{ marginTop: 10, marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 }}>
+              <View
+                style={{ paddingVertical: 8, backgroundColor: '#FFFBF0' }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 2 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.textPrimary }}>Featured Products</Text>
                     <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
                       <Text style={{ fontSize: 10, fontWeight: '700', color: '#B45309' }}>Sponsored</Text>
                     </View>
                   </View>
-                  <Pressable onPress={() => navigation.navigate('Shop', { customResults: mergedFeaturedProducts.map(({ mapped }) => mapped as any) })}>
+                  <Pressable onPress={() => navigation.navigate('Shop', { view: 'featured' })}>
                     <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>View All</Text>
                   </Pressable>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, gap: 12 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 12 }}>
                   {mergedFeaturedProducts.map(({ key, mapped }) => (
-                    <View key={key} style={{ width: 150 }}>
-                      <ProductCard product={mapped as any} onPress={() => handleProductPress(mapped as any)} />
+                    <View key={key} style={{ width: 155, marginRight: 12 }}>
+                      <MasonryProductCard
+                        product={mapped as any}
+                        onPress={() => handleProductPress(mapped as any)}
+                        width={155}
+                      />
                     </View>
                   ))}
                 </ScrollView>
@@ -1123,11 +1096,23 @@ export default function HomeScreen({ navigation }: Props) {
                 <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={[styles.gridSeeAll, { color: COLORS.primary }]}>View All</Text></Pressable>
               </View>
               <View style={styles.gridBody}>
-                {popularProducts.map((product, i) => (
-                  <View key={`pop-${product.id}-${i}`} style={styles.itemBoxContainerVertical}>
-                    <ProductCard product={product} onPress={() => handleProductPress(product)} />
-                  </View>
-                ))}
+                <FlashList
+                  data={popularProducts.slice(0, 10)}
+                  renderItem={({ item }: { item: Product }) => (
+                    <View style={{ paddingHorizontal: 6, paddingVertical: 6 }}>
+                      <MasonryProductCard
+                        product={item}
+                        onPress={() => handleProductPress(item)}
+                        width={(screenWidth - 40 - 12) / 2}
+                      />
+                    </View>
+                  )}
+                  keyExtractor={(item: Product, index: number) => `pop-${item.id}-${index}`}
+                  numColumns={2}
+                  masonry={true}
+                  scrollEnabled={false}
+                  contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 20 }}
+                />
               </View>
             </View>
 
@@ -1192,13 +1177,13 @@ export default function HomeScreen({ navigation }: Props) {
       )}
 
       {/* Modal code removed */}
-    </LinearGradient >
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20 },
+  container: { flex: 1, backgroundColor: '#FFFBF0' },
+  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, backgroundColor: '#FFFBF0' },
   locationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   locationLabel: { color: COLORS.textMuted, fontSize: 14, paddingBottom: 5 },
   locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -1218,7 +1203,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFD89A'
   },
   notifBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
-  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingHorizontal: 0 },
+  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 24, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14 },
   searchBackBtn: { padding: 4 },
@@ -1226,12 +1211,12 @@ const styles = StyleSheet.create({
   // FLASH SALE STYLES
   flashSaleContainer: {
     marginHorizontal: 0, // Edge-to-edge scroll
-    marginTop: 15,
+    marginTop: 0,
     marginBottom: 5,
-    paddingVertical: 20, // Add padding for the gradient backdrop
+    paddingVertical: 8, // Further reduced for compact layout
     // Removed container styling (bg, shadow, border)
   },
-  flashSaleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15 },
+  flashSaleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 },
   flashSaleTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   flashSaleTitle: { fontSize: 18, fontWeight: '800', color: '#D97706' },
   timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
@@ -1299,7 +1284,7 @@ const styles = StyleSheet.create({
   categoryIconBox: { justifyContent: 'center', alignItems: 'center' },
   categoryLabel: { fontSize: 11, color: COLORS.textHeadline, fontWeight: '700', textAlign: 'center', lineHeight: 14, marginTop: 10 },
   itemBoxContainerVertical: { width: (SCREEN_WIDTH - 48) / 2, marginBottom: 12 },
-  section: { paddingHorizontal: 20, marginVertical: 5 },
+  section: { paddingHorizontal: 20, marginTop: 5, marginBottom: 5, paddingVertical: 4 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
   productRequestButtonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
   productRequestContent: { flexDirection: 'row', alignItems: 'center', gap: 15 },
@@ -1307,12 +1292,12 @@ const styles = StyleSheet.create({
   productRequestText: { flex: 1 },
   productRequestTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textHeadline },
   productRequestSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  gridContainer: { paddingHorizontal: 20, marginBottom: 20 },
-  gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 20 },
+  gridContainer: { paddingHorizontal: 0, marginTop: 0, marginBottom: 5, paddingVertical: 8 },
+  gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingTop: 0, paddingHorizontal: 20 },
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#D97706' },
   gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
-  gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  searchDiscovery: { flex: 1, minHeight: 600, padding: 20 },
+  gridBody: { paddingHorizontal: 0 },
+  searchDiscovery: { padding: 20 },
   discoveryTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
   recentSection: { marginBottom: 20 },
   searchRecentItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
@@ -1321,6 +1306,119 @@ const styles = StyleSheet.create({
   categoryExpandedContent: { padding: 20 },
   categorySectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textHeadline, marginBottom: 15 },
   storeCard: { width: 260, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
+  storeVerticalCard: {
+    width: 220,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  storeBannerContainer: {
+    height: 100,
+    width: '100%',
+    position: 'relative',
+    backgroundColor: '#F3F4F6',
+  },
+  storeBannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  storeBannerGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 40,
+  },
+  storeAvatarOverlap: {
+    position: 'absolute',
+    bottom: -20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  storeAvatarBorder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    padding: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  storeAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+  },
+  storeCardBody: {
+    paddingTop: 28,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  storeCardName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  storeCardSubtitle: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  visitShopText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  storeCircleCard: {
+    width: 90,
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 5,
+  },
+  storeCircleContainer: {
+    width: 88,
+    height: 88,
+    padding: 2,
+    borderRadius: 44,
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#E7DCC5', // Soft beige border as seen in screenshot
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  storeCircleOuter: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+  },
+  storeCircleImage: {
+    width: '100%',
+    height: '100%',
+  },
+  storeCircleName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#5D4037', // Brownish text to match the theme
+    textAlign: 'center',
+    lineHeight: 16,
+  },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   storeLogo: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   storeInfo: { flex: 1 },
@@ -1341,17 +1439,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F3F4F6'
   },
-  storeSearchIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E5E7EB'
-  },
+  storeSearchIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' },
   storeSearchName: { fontSize: 14, fontWeight: '700', color: COLORS.textHeadline },
   storeSearchLocation: { fontSize: 12, color: COLORS.textMuted },
   paginationContainer: {
@@ -1368,7 +1456,7 @@ const styles = StyleSheet.create({
 
   /* ── Lab Pipeline Banner ── */
   labBanner: {
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginTop: 6,
     marginBottom: 8,
     borderRadius: 18,
@@ -1383,7 +1471,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingVertical: 18,
     overflow: 'hidden',
   },
@@ -1469,7 +1557,7 @@ const styles = StyleSheet.create({
   labActionRow: {
     flexDirection: 'row',
     gap: 10,
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginTop: 0,
     marginBottom: 8,
   },

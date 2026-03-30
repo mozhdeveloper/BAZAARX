@@ -16,6 +16,7 @@ import {
   Bell,
   HelpCircle,
   Megaphone,
+  Mail,
 } from "lucide-react";
 
 export type SellerNavLink = {
@@ -30,13 +31,6 @@ export const sellerLinks: SellerNavLink[] = [
     href: "/seller",
     icon: (
       <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
-    ),
-  },
-  {
-    label: "Store Profile",
-    href: "/seller/store-profile",
-    icon: (
-      <Store className="h-5 w-5 flex-shrink-0" />
     ),
   },
   {
@@ -103,6 +97,13 @@ export const sellerLinks: SellerNavLink[] = [
     ),
   },
   {
+    label: "Marketing",
+    href: "/seller/marketing",
+    icon: (
+      <Mail className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
     label: "Messages",
     href: "/seller/messages",
     icon: (
@@ -145,13 +146,6 @@ export const unverifiedSellerLinks: SellerNavLink[] = [
     href: "/seller/unverified",
     icon: (
       <FileCheck className="h-5 w-5 flex-shrink-0" />
-    ),
-  },
-  {
-    label: "Store Profile",
-    href: "/seller/store-profile",
-    icon: (
-      <Store className="h-5 w-5 flex-shrink-0" />
     ),
   },
   {

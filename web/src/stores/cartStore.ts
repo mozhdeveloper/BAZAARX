@@ -22,6 +22,7 @@ export interface Product {
   isVerified?: boolean;
   location?: string;
   description?: string;
+  isVacationMode?: boolean;
 }
 
 // Cart item with quantity

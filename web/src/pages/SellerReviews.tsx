@@ -494,7 +494,7 @@ export function SellerReviews() {
                                   <div className="relative shrink-0">
                                     {review.productImage ? (
                                       <div className="p-1.5 bg-white border border-orange-100 rounded-2xl shadow-sm">
-                                        <img
+                                        <img loading="lazy" 
                                           src={review.productImage}
                                           alt={review.productName}
                                           className="w-20 h-20 object-cover rounded-xl"
@@ -548,7 +548,7 @@ export function SellerReviews() {
                                     <div className="flex-1 space-y-2">
                                       {/* Buyer Info */}
                                       <div className="flex items-center gap-3">
-                                        <img
+                                        <img loading="lazy" 
                                           src={review.buyerAvatar}
                                           alt={review.buyerName}
                                           className="w-6 h-6 rounded-full object-cover ring-2 ring-white shadow-sm"
@@ -568,7 +568,7 @@ export function SellerReviews() {
                                         <div className="flex gap-2 pb-2 overflow-x-auto scrollbar-hide">
                                           {review.images.map((img, idx) => (
                                             <div key={idx} className="relative shrink-0 rounded-lg overflow-hidden border border-gray-100 shadow-sm">
-                                              <img
+                                              <img loading="lazy" 
                                                 src={img}
                                                 alt={`Review ${idx + 1}`}
                                                 className="w-16 h-16 object-cover cursor-zoom-in hover:scale-110 transition-transform duration-300"

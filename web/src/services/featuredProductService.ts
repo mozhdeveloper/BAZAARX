@@ -32,6 +32,7 @@ export interface FeaturedProductWithDetails extends FeaturedProduct {
       id: string;
       store_name: string;
       avatar_url: string | null;
+      is_vacation_mode?: boolean;
     } | null;
     reviews: { rating: number }[];
     variants: { stock: number }[];
@@ -105,7 +106,7 @@ class FeaturedProductService {
             id, name, price, description, seller_id, approval_status, disabled_at,
             images:product_images(id, image_url, is_primary),
             category:categories(id, name),
-            seller:sellers(id, store_name, avatar_url),
+            seller:sellers(id, store_name, avatar_url, is_vacation_mode),
             reviews(rating),
             variants:product_variants(stock)
           )

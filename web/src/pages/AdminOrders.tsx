@@ -313,6 +313,22 @@ const AdminOrders: React.FC = () => {
           note: reason,
           changed_by_role: 'admin',
         });
+
+        // Fire cancellation email to buyer (non-blocking)
+        const buyerEmail = selectedOrder.buyer?.email;
+        const buyerName = selectedOrder.buyer?.name || 'Valued Customer';
+        const buyerId = selectedOrder.buyer_id;
+        if (buyerEmail && buyerId) {
+          import('@/services/transactionalEmails').then((emails) => {
+            emails.sendOrderCancelledEmail({
+              buyerEmail,
+              buyerId,
+              orderNumber: selectedOrder.orderNumber,
+              buyerName,
+              cancelReason: reason,
+            }).catch((err: unknown) => console.warn('[AdminOrders] Cancel email error:', err));
+          }).catch((err: unknown) => console.warn('[AdminOrders] Failed to import transactionalEmails:', err));
+        }
       }
       await loadOrders();
     } catch (err) {
@@ -378,6 +394,26 @@ const AdminOrders: React.FC = () => {
           note: `Admin override to ${newStatus}`,
           changed_by_role: 'admin',
         });
+
+        // Fire buyer email notification using data already in selectedOrder (non-blocking)
+        const buyerEmail = selectedOrder.buyer?.email;
+        const buyerName = selectedOrder.buyer?.name || 'Valued Customer';
+        const buyerId = selectedOrder.buyer_id;
+        const dbStatus = updates.shipment_status || newStatus;
+        if (buyerEmail && buyerId) {
+          import('@/services/transactionalEmails').then((emails) => {
+            const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://bazaar.ph';
+            const trackUrl = `${BASE_URL}/orders/${selectedOrder.id}`;
+            const base = { buyerEmail, buyerId, orderNumber: selectedOrder.orderNumber, buyerName };
+            (
+              dbStatus === 'processing' ? emails.sendOrderConfirmedEmail({ ...base, estimatedDelivery: '3–7 business days' }) :
+              dbStatus === 'shipped' ? emails.sendOrderShippedEmail({ ...base, trackingNumber: selectedOrder.trackingNumber || 'N/A', courierName: 'courier', trackingUrl: trackUrl }) :
+              dbStatus === 'delivered' ? emails.sendOrderDeliveredEmail(base) :
+              dbStatus === 'returned' ? emails.sendOrderCancelledEmail({ ...base, cancelReason: 'Order cancelled' }) :
+              Promise.resolve()
+            ).catch((err: unknown) => console.warn('[AdminOrders] Email error:', err));
+          }).catch((err: unknown) => console.warn('[AdminOrders] Failed to import transactionalEmails:', err));
+        }
       }
       await loadOrders();
     } catch (err) {

@@ -121,7 +121,7 @@ export function SellerAnnouncementsPage() {
 
                       {/* Optional image */}
                       {ann.image_url && (
-                        <img
+                        <img loading="lazy" 
                           src={ann.image_url}
                           alt={ann.title}
                           className="w-full h-40 object-cover rounded-lg mb-3"

@@ -346,7 +346,7 @@ export class ReviewService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('reviews')
         .insert(reviewData)
         .select()
@@ -407,20 +407,8 @@ export class ReviewService {
         });
       }
 
-      let statsReviews = this.mockReviews
+      const statsReviews = this.mockReviews
         .filter((review) => review.product_id === productId);
-
-      if (withImages) {
-        statsReviews = statsReviews.filter(r => (r as any).review_images?.length > 0 || Array.isArray((r as any).images) && (r as any).images.length > 0);
-      }
-
-      if (variantId) {
-        statsReviews = statsReviews.filter(r => {
-          const snapshot = r.variant_snapshot as any;
-          const reviewVariantId = (snapshot?.variant_id || snapshot?.id) as string | undefined;
-          return reviewVariantId === variantId;
-        });
-      }
 
       const pagedReviews = mappedReviews.slice(start, start + limit);
 
@@ -435,7 +423,7 @@ export class ReviewService {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      let query = supabase
+      let query = (supabase as any)
         .from('reviews')
         .select(
           `
@@ -504,7 +492,8 @@ export class ReviewService {
           `,
           { count: 'exact' },
         )
-        .eq('product_id', productId);
+        .eq('product_id', productId)
+        .eq('is_hidden', false);
 
       if (rating) {
         query = query.eq('rating', rating);
@@ -518,7 +507,7 @@ export class ReviewService {
         query = query.filter('order_item.variant_id', 'eq', variantId);
       }
 
-      const { data, error, count } = await query
+      const { data, error } = await query
         .order(sortBy === 'helpful' ? 'helpful_count' : 'created_at', { ascending: false });
 
       if (error) {
@@ -526,35 +515,9 @@ export class ReviewService {
         return { reviews: [], total: 0, stats: EMPTY_REVIEW_STATS };
       }
 
-      // We still want full stats (distribution) even when filtering
-      let statsQuery = supabase
-        .from('reviews')
-        .select(
-          `
-            rating,
-            review_images (
-              id
-            ),
-            order_item:order_items!reviews_order_item_id_fkey (
-              variant_id
-            )
-          `,
-        )
-        .eq('product_id', productId);
-
-      if (variantId) {
-        statsQuery = statsQuery.filter('order_item.variant_id', 'eq', variantId);
-      }
-
-      const { data: statsRows, error: statsError } = await statsQuery;
-
-      if (statsError) {
-        console.warn('Error fetching product review stats:', statsError);
-      }
-
       let mappedReviews = (data || []).map((review) => mapReviewRowToFeedItem(review));
 
-      // Apply the user's specific photo logic
+      // Apply the user's specific photo logic to the list of reviews
       if (rating && !withImages) {
         // User requested: don't show reviews with photos if photo filter is OFF, but only if a rating is selected
         mappedReviews = mappedReviews.filter(r => r.images.length === 0);
@@ -563,15 +526,26 @@ export class ReviewService {
         mappedReviews = mappedReviews.filter(r => r.images.length > 0);
       }
 
-      let filteredStatsRows = statsRows || [];
-      if (withImages) {
-        filteredStatsRows = filteredStatsRows.filter((row: any) =>
-          Array.isArray(row.review_images) && row.review_images.length > 0
-        );
+      // Fetch OVERALL stats for the distribution (ignoring filters as per user request)
+      const { data: statsRows, error: statsError } = await (supabase as any)
+        .from('reviews')
+        .select(
+          `
+            rating,
+            review_images (
+              id
+            )
+          `,
+        )
+        .eq('product_id', productId);
+
+      if (statsError) {
+        console.warn('Error fetching product review stats:', statsError);
       }
 
-      const ratings = filteredStatsRows.map((row: any) => Number(row.rating || 0));
-      const withImagesCount = filteredStatsRows.filter((row: any) =>
+      const currentStatsRows = statsRows || [];
+      const ratings = currentStatsRows.map((row: any) => Number(row.rating || 0));
+      const withImagesCount = currentStatsRows.filter((row: any) =>
         Array.isArray(row.review_images) && row.review_images.length > 0,
       ).length;
 
@@ -601,7 +575,7 @@ export class ReviewService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('reviews')
         .select(`
           *,
@@ -641,7 +615,7 @@ export class ReviewService {
 
     try {
       // Step 1: Get all product IDs for this seller
-      const { data: sellerProducts, error: productsError } = await supabase
+      const { data: sellerProducts, error: productsError } = await (supabase as any)
         .from('products')
         .select('id')
         .eq('seller_id', sellerId);
@@ -656,11 +630,11 @@ export class ReviewService {
         return [];
       }
 
-      const productIds = sellerProducts.map(p => p.id);
+      const productIds = sellerProducts.map((p: any) => p.id);
       console.log(`Found ${productIds.length} products for seller ${sellerId}`);
 
       // Step 2: Get reviews for these products only
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('reviews')
         .select(`
           id,
@@ -727,6 +701,7 @@ export class ReviewService {
             )
           )
         `)
+        .eq('is_hidden', false)
         .in('product_id', productIds)
         .order('created_at', { ascending: false });
 
@@ -761,7 +736,7 @@ export class ReviewService {
     }
 
     try {
-      let query = supabase
+      let query = (supabase as any)
         .from('reviews')
         .select('id', { count: 'exact', head: true })
         .eq('order_id', orderId)
@@ -794,7 +769,7 @@ export class ReviewService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('reviews')
         .select(`
           product:products!reviews_product_id_fkey (
@@ -809,7 +784,9 @@ export class ReviewService {
         return false;
       }
 
-      const product = firstRelationRow(data?.product);
+      if (!data) return false;
+
+      const product = firstRelationRow((data as any)?.product);
       const sellerId = product?.seller_id;
 
       // Block if buyer is the seller of this product
@@ -833,7 +810,7 @@ export class ReviewService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('review_votes')
         .select('review_id')
         .eq('review_id', reviewId)
@@ -873,7 +850,7 @@ export class ReviewService {
 
       if (hasVoted) {
         // Remove vote
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('review_votes')
           .delete()
           .eq('review_id', reviewId)
@@ -886,12 +863,12 @@ export class ReviewService {
         return false; // Unvoted
       } else {
         // Add vote
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('review_votes')
           .insert({
             review_id: reviewId,
             buyer_id: buyerId,
-          });
+          } as any);
 
         if (error) {
           throw error;
@@ -927,7 +904,7 @@ export class ReviewService {
 
     try {
       // Get total count first
-      const { count, error: countError } = await supabase
+      const { count, error: countError } = await (supabase as any)
         .from('review_votes')
         .select('*', { count: 'exact', head: true })
         .eq('review_id', reviewId);
@@ -939,7 +916,7 @@ export class ReviewService {
       const totalCount = count || 0;
 
       // Get voters (limited)
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('review_votes')
         .select('buyer_id, created_at')
         .eq('review_id', reviewId)
@@ -954,23 +931,23 @@ export class ReviewService {
       // Fetch buyer and profile info for each voter
       const voters = await Promise.all((data || []).map(async (vote: any) => {
         // Get buyer info
-        const { data: buyerData } = await supabase
+        const { data: buyerData } = await (supabase as any)
           .from('buyers')
           .select('avatar_url')
           .eq('id', vote.buyer_id)
           .maybeSingle();
 
         // Get profile info for name
-        const { data: profileData } = await supabase
+        const { data: profileData } = await (supabase as any)
           .from('profiles')
           .select('first_name, last_name')
           .eq('id', vote.buyer_id)
           .maybeSingle();
 
-        const firstName = asNonEmptyString(profileData?.first_name);
-        const lastName = asNonEmptyString(profileData?.last_name);
+        const firstName = asNonEmptyString((profileData as any)?.first_name);
+        const lastName = asNonEmptyString((profileData as any)?.last_name);
         const username = [firstName, lastName].filter(Boolean).join(' ').trim() || 'Anonymous';
-        const avatarUrl = asNonEmptyString(buyerData?.avatar_url) || buildFallbackAvatar(username);
+        const avatarUrl = asNonEmptyString((buyerData as any)?.avatar_url) || buildFallbackAvatar(username);
 
         return {
           buyerId: vote.buyer_id,
@@ -1020,7 +997,7 @@ export class ReviewService {
     try {
       // Verify the seller owns the product being reviewed
       // First, get the product_id from the review
-      const { data: reviewBasic, error: reviewBasicError } = await supabase
+      const { data: reviewBasic, error: reviewBasicError } = await (supabase as any)
         .from('reviews')
         .select('product_id')
         .eq('id', reviewId)
@@ -1032,10 +1009,10 @@ export class ReviewService {
       }
 
       // Then, get the seller_id from the product directly
-      const { data: productData, error: productError } = await supabase
+      const { data: productData, error: productError } = await (supabase as any)
         .from('products')
         .select('seller_id')
-        .eq('id', reviewBasic.product_id)
+        .eq('id', (reviewBasic as any).product_id)
         .single();
 
       if (productError || !productData) {
@@ -1048,12 +1025,12 @@ export class ReviewService {
         throw new Error('Product has no associated seller');
       }
 
-      if (productData.seller_id !== sellerId) {
+      if ((productData as any).seller_id !== sellerId) {
         console.error('Seller authorization failed:', {
-          productSellerId: productData.seller_id,
+          productSellerId: (productData as any).seller_id,
           requestingSellerId: sellerId,
           reviewId,
-          productId: reviewBasic.product_id
+          productId: (reviewBasic as any).product_id
         });
         throw new Error('You can only reply to reviews for your own products');
       }
@@ -1064,12 +1041,12 @@ export class ReviewService {
         replied_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('reviews')
         .update({
           seller_reply: sellerReply,
           updated_at: new Date().toISOString(),
-        })
+        } as any)
         .eq('id', reviewId)
         .select(`
           id,
@@ -1149,12 +1126,12 @@ export class ReviewService {
         const orderId = (data as any)?.order_id;
         const productName = (data as any)?.product?.name || 'a product';
         if (buyerId && orderId) {
-          const { data: sellerRow } = await supabase
+          const { data: sellerRow } = await (supabase as any)
             .from('sellers')
             .select('store_name')
             .eq('id', sellerId)
             .single();
-          const sellerName = sellerRow?.store_name || 'The seller';
+          const sellerName = (sellerRow as any)?.store_name || 'The seller';
           await notificationService.notifyBuyerSellerReply({
             buyerId,
             orderId,
@@ -1200,7 +1177,7 @@ export class ReviewService {
 
     try {
       // Verify ownership using the same approach as addSellerReply
-      const { data: reviewBasic, error: reviewBasicError } = await supabase
+      const { data: reviewBasic, error: reviewBasicError } = await (supabase as any)
         .from('reviews')
         .select('product_id')
         .eq('id', reviewId)
@@ -1211,10 +1188,10 @@ export class ReviewService {
         throw new Error('Review not found');
       }
 
-      const { data: productData, error: productError } = await supabase
+      const { data: productData, error: productError } = await (supabase as any)
         .from('products')
         .select('seller_id')
-        .eq('id', reviewBasic.product_id)
+        .eq('id', (reviewBasic as any).product_id)
         .single();
 
       if (productError || !productData) {
@@ -1227,22 +1204,22 @@ export class ReviewService {
         throw new Error('Product has no associated seller');
       }
 
-      if (productData.seller_id !== sellerId) {
+      if ((productData as any).seller_id !== sellerId) {
         console.error('Seller authorization failed:', {
-          productSellerId: productData.seller_id,
+          productSellerId: (productData as any).seller_id,
           requestingSellerId: sellerId,
           reviewId,
-          productId: reviewBasic.product_id
+          productId: (reviewBasic as any).product_id
         });
         throw new Error('Unauthorized');
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('reviews')
         .update({
           seller_reply: null,
           updated_at: new Date().toISOString(),
-        })
+        } as any)
         .eq('id', reviewId)
         .select(`
           id,
@@ -1332,7 +1309,7 @@ export class ReviewService {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('reviews')
         .select(`
           id,
@@ -1414,12 +1391,12 @@ export class ReviewService {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('reviews')
         .update({
           is_hidden: isHidden,
           updated_at: new Date().toISOString()
-        })
+        } as any)
         .eq('id', reviewId);
 
       if (error) throw error;
@@ -1440,7 +1417,7 @@ export class ReviewService {
 
     try {
       // 1. Delete associated images
-      const { error: imagesError } = await supabase
+      const { error: imagesError } = await (supabase as any)
         .from('review_images')
         .delete()
         .eq('review_id', reviewId);
@@ -1450,7 +1427,7 @@ export class ReviewService {
       }
 
       // 2. Delete associated votes
-      const { error: votesError } = await supabase
+      const { error: votesError } = await (supabase as any)
         .from('review_votes')
         .delete()
         .eq('review_id', reviewId);
@@ -1460,7 +1437,7 @@ export class ReviewService {
       }
 
       // 3. Delete the review itself
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('reviews')
         .delete()
         .eq('id', reviewId);

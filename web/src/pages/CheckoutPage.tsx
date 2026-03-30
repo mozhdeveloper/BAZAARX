@@ -21,6 +21,7 @@ import {
   Map,
   Pencil,
   Trash2,
+  Palmtree,
 } from "lucide-react";
 import {
   Dialog,
@@ -159,6 +160,31 @@ export default function CheckoutPage() {
 
   const isRegistryOrder = useMemo(() => {
     return checkoutItems.some(item => !!item.registryId);
+  }, [checkoutItems]);
+
+  // Check for vacation sellers
+  const [vacationSellers, setVacationSellers] = useState<string[]>([]);
+  const hasVacationSeller = vacationSellers.length > 0;
+
+  useEffect(() => {
+    const checkVacationSellers = async () => {
+      const sellerIds = [...new Set(checkoutItems.map(item => item.sellerId || item.seller_id).filter(Boolean))];
+      if (sellerIds.length === 0) {
+        setVacationSellers([]);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('sellers')
+        .select('id, store_name, is_vacation_mode')
+        .in('id', sellerIds)
+        .eq('is_vacation_mode', true);
+
+      const vacationSellerNames = (data || []).map(s => s.store_name || 'Unknown Seller');
+      setVacationSellers(vacationSellerNames);
+    };
+
+    checkVacationSellers();
   }, [checkoutItems]);
 
   // Bazcoins Logic
@@ -574,6 +600,16 @@ export default function CheckoutPage() {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Check for vacation sellers
+    if (hasVacationSeller) {
+      toast({
+        title: "Cannot Complete Order",
+        description: `Some items in your cart are from sellers currently on vacation: ${vacationSellers.join(', ')}. Please remove these items to proceed.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     console.log('🛒 Place Order clicked');
     console.log('  - selectedAddress:', selectedAddress?.id);
     console.log('  - confirmedAddress:', confirmedAddress?.id);
@@ -773,7 +809,7 @@ export default function CheckoutPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [validateForm, profile, checkoutItems, finalTotal, selectedAddress, formData, isBuyAgainMode, isQuickCheckout, useBazcoins, bazcoinDiscount, earnedBazcoins, shippingFee, discount, appliedVoucher, navigate, toast, updateRegistryItem, clearBuyAgainItems, clearQuickOrder, removeSelectedItems]);
+  }, [validateForm, profile, checkoutItems, finalTotal, selectedAddress, formData, isBuyAgainMode, isQuickCheckout, useBazcoins, bazcoinDiscount, earnedBazcoins, shippingFee, discount, appliedVoucher, navigate, toast, updateRegistryItem, clearBuyAgainItems, clearQuickOrder, removeSelectedItems, hasVacationSeller, vacationSellers]);
 
   // Show loading while store is rehydrating
   if (!isStoreReady || isLoadingCheckoutContext) {
@@ -799,14 +835,14 @@ export default function CheckoutPage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/shop')}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
           >
             <ChevronLeft
               size={20}
               className="group-hover:-translate-x-0.5 transition-transform"
             />
-            <span className="text-sm font-medium">Back to Shop</span>
+            <span className="text-sm font-medium">Go Back</span>
           </button>
           <div>
             <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-1">
@@ -1195,7 +1231,7 @@ export default function CheckoutPage() {
                       <div key={`${item.id}-${variant?.id || 'no-variant'}-${idx}`} className="flex items-start gap-3 text-sm">
                         {/* Product Image */}
                         <div className="w-12 h-12 rounded-lg border border-gray-100 bg-white overflow-hidden flex-shrink-0 mt-0.5">
-                          <img
+                          <img loading="lazy" 
                             src={variant?.thumbnail_url || item.image || (item.images && item.images[0])}
                             alt={item.name}
                             className="w-full h-full object-contain"
@@ -1397,9 +1433,22 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                {hasVacationSeller && (
+                  <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start gap-3">
+                    <Palmtree className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-orange-700">Some sellers are currently unavailable</p>
+                      <p className="text-xs text-orange-600">
+                        The following seller(s) are on vacation: <span className="font-semibold">{vacationSellers.join(', ')}</span>.
+                        Please remove their items from your cart to proceed.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   type="submit"
-                  disabled={isLoading || !selectedAddress}
+                  disabled={isLoading || !selectedAddress || hasVacationSeller}
                   className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (

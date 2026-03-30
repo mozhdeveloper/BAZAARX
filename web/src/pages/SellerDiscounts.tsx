@@ -1378,7 +1378,7 @@ export default function SellerDiscounts() {
                           {/* Product Image */}
                           <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
                             {productDiscount.productImage ? (
-                              <img
+                              <img loading="lazy" 
                                 src={productDiscount.productImage}
                                 alt={productDiscount.productName || "Product"}
                                 className="w-full h-full object-cover"

@@ -19,6 +19,8 @@ interface FAQ {
   category: string;
 }
 
+const BRAND_COLOR = COLORS.primary;
+
 export default function HelpCenterScreen({ navigation, route }: Props) {
   const [activeTab, setActiveTab] = useState<'faq' | 'tickets'>('faq');
   const [tickets, setTickets] = useState<TicketType[]>([]);
@@ -167,34 +169,42 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
     return acc;
   }, {} as Record<string, FAQ[]>);
 
+  const BRAND_COLOR = COLORS.primary;
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      {/* Header */}
-      <View
-        style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}
+      <LinearGradient
+        colors={['#FFFBF5', '#FDF2E9', '#FFFBF5']} // Soft Parchment Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.container}
       >
-        <View style={styles.headerTop}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Help Center</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <StatusBar barStyle="dark-content" />
+        {/* Header */}
+        <View
+          style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+        >
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+              <ChevronLeft size={24} color={COLORS.textHeadline} strokeWidth={2.5} />
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: COLORS.textHeadline }]}>Help Center</Text>
+            <View style={{ width: 40 }} />
+          </View>
 
-        <View style={styles.searchSection}>
-          <View style={styles.searchWrapper}>
-            <Search size={20} color={COLORS.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="How can we help you?"
-              placeholderTextColor={COLORS.textMuted}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+          <View style={styles.searchSection}>
+            <View style={styles.searchWrapper}>
+              <Search size={20} color={COLORS.textMuted} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="How can we help you?"
+                placeholderTextColor={COLORS.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
           </View>
         </View>
-      </View>
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
@@ -232,8 +242,8 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
           <>
             {/* Hero Section */}
             <View style={styles.heroSection}>
-              <View style={styles.heroIcon}>
-                <Headphones size={32} color="#F59E0B" />
+              <View style={[styles.heroIcon, { backgroundColor: `${BRAND_COLOR}10` }]}>
+                <Headphones size={32} color={BRAND_COLOR} />
               </View>
               <Text style={styles.heroTitle}>How can we help you?</Text>
               <Text style={styles.heroSubtitle}>
@@ -243,7 +253,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
 
             {/* Business Hours */}
             <View style={styles.hoursCard}>
-              <Clock size={20} color={COLORS.primary} />
+              <Clock size={20} color={BRAND_COLOR} />
               <View style={styles.hoursInfo}>
                 <Text style={styles.hoursTitle}>Support Hours</Text>
                 <Text style={styles.hoursText}>Monday - Saturday: 8:00 AM - 8:00 PM</Text>
@@ -263,7 +273,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
                   ]}
                   onPress={option.onPress}
                 >
-                  <View style={styles.contactIcon}>
+                  <View style={[styles.contactIcon, { backgroundColor: `${option.color}10` }]}>
                     <option.icon size={24} color={option.color} />
                   </View>
                   <View style={styles.contactInfo}>
@@ -402,8 +412,9 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
           </Pressable>
         )
       }
-    </View >
-  );
+    </LinearGradient>
+  </View >
+);
 }
 
 const styles = StyleSheet.create({
@@ -416,9 +427,9 @@ const styles = StyleSheet.create({
     paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    elevation: 8,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 10,
     zIndex: 10,
   },
@@ -429,10 +440,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   headerIconButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerTitle: {
     fontSize: 22,
@@ -445,72 +463,71 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFF',
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 15,
-    paddingVertical: 6,
+    paddingVertical: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
     marginLeft: 10,
     fontSize: 15,
     color: COLORS.textHeadline,
-    height: 36,
+    height: 40,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.background,
     paddingVertical: 10,
     paddingHorizontal: 15,
-    marginTop: -25, // Connect to back of header
-    paddingTop: 30, // Account for negative margin
+    marginTop: -25,
+    paddingTop: 35,
     zIndex: 1,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
   },
   tabButton: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    borderRadius: 20,
+    marginHorizontal: 5,
   },
   activeTabButton: {
-    borderBottomColor: '#F59E0B', // Brand Accent
+    backgroundColor: BRAND_COLOR,
   },
   tabText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#9CA3AF',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#6B7280',
   },
   activeTabText: {
-    color: '#92400E', // Darker Brand Accent
+    color: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 80, // Space for FAB
+    paddingBottom: 100, // Space for FAB
   },
   heroSection: {
     alignItems: 'center',
     paddingVertical: 32,
     paddingHorizontal: 24,
-    backgroundColor: COLORS.background,
+    marginBottom: 10,
   },
   heroIcon: {
     width: 80,
     height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
   },
   heroTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#111827',
     marginBottom: 8,
   },
@@ -525,7 +542,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#111827',
     paddingHorizontal: 20,
     marginBottom: 16,
@@ -536,21 +553,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
     marginBottom: 12,
-    padding: 16,
-    borderRadius: 16,
+    padding: 18,
+    borderRadius: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
   contactCardPressed: {
-    opacity: 0.6,
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
   },
   contactIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -560,7 +578,7 @@ const styles = StyleSheet.create({
   },
   contactTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#111827',
     marginBottom: 2,
   },
@@ -570,61 +588,66 @@ const styles = StyleSheet.create({
   },
   hoursCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
     marginBottom: 24,
-    padding: 16,
-    borderRadius: 16,
+    padding: 20,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderColor: `${BRAND_COLOR}20`,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
   },
   hoursInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 14,
   },
   hoursTitle: {
     fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.primary,
+    fontWeight: '800',
+    color: BRAND_COLOR,
     marginBottom: 6,
   },
   hoursText: {
     fontSize: 13,
-    color: '#F59E0B',
+    color: '#4B5563',
     lineHeight: 18,
+    fontWeight: '500',
   },
   categoryTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontSize: 13,
+    fontWeight: '800',
+    color: BRAND_COLOR,
     paddingHorizontal: 20,
-    marginTop: 8,
+    marginTop: 12,
     marginBottom: 12,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.2,
   },
   faqCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    marginBottom: 8,
-    borderRadius: 12,
+    marginBottom: 12,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   faqQuestion: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 18,
   },
   faqQuestionText: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#111827',
     paddingRight: 12,
   },
@@ -635,16 +658,16 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '90deg' }],
   },
   faqAnswer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
     paddingTop: 0,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: '#FDF2E9',
   },
   faqAnswerText: {
     fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
+    color: '#4B5563',
+    lineHeight: 22,
   },
   resourceCard: {
     flexDirection: 'row',
@@ -652,16 +675,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
     marginBottom: 12,
-    padding: 16,
-    borderRadius: 16,
+    padding: 18,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 3,
   },
   resourceCardPressed: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   resourceInfo: {
     flex: 1,
@@ -669,7 +692,7 @@ const styles = StyleSheet.create({
   },
   resourceTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#111827',
     marginBottom: 2,
   },
@@ -683,49 +706,70 @@ const styles = StyleSheet.create({
   },
   ticketCard: {
     backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
   ticketHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   ticketId: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '800',
     color: '#9CA3AF',
+    letterSpacing: 0.5,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   ticketSubject: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#111827',
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  storeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    backgroundColor: '#F9FAFB',
+    padding: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  storeName: {
+    fontSize: 13,
+    color: '#4B5563',
+    marginLeft: 6,
+    fontWeight: '600',
   },
   ticketFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: 12,
   },
   ticketCategory: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
+    fontWeight: '600',
   },
   ticketDate: {
     fontSize: 12,
@@ -733,53 +777,56 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
-    backgroundColor: COLORS.primary,
+    bottom: 30,
+    right: 20,
+    backgroundColor: BRAND_COLOR,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowColor: BRAND_COLOR,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
     flexDirection: 'row',
     alignItems: 'center',
   },
   fabText: {
     color: '#FFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   loadingContainer: {
     padding: 40,
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 12,
     color: '#6B7280',
     fontSize: 15,
+    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
   emptyStateText: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#374151',
-    marginTop: 16,
+    marginTop: 20,
   },
   emptyStateSubtext: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#6B7280',
-    marginTop: 8,
+    marginTop: 10,
     textAlign: 'center',
+    paddingHorizontal: 40,
+    lineHeight: 22,
   },
   ticketBadge: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -789,22 +836,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   ticketBadgeText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  storeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  storeName: {
-    marginLeft: 6,
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: BRAND_COLOR,
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

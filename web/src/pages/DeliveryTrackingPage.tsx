@@ -951,7 +951,7 @@ function DeliveryTrackingPage() {
                 </button>
 
                 <div className="flex items-center justify-center mb-4">
-                  <img
+                  <img loading="lazy" 
                     src="/Logo.png"
                     alt="BazaarPH Logo"
                     className="w-16 h-16 rounded-xl bg-white/20 p-2"
