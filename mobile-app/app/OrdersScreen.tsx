@@ -656,7 +656,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       onCancel={() => handleCancelOrder(order)}
       onReceive={order.buyerUiStatus === 'delivered' ? () => handleOrderReceived(order) : undefined}
       onReview={order.buyerUiStatus === 'received' ? () => handleReview(order) : undefined}
-      onReturn={(order.buyerUiStatus === 'delivered') && (Date.now() - new Date(order.deliveredAt || order.updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000 ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
+      onReturn={(order.buyerUiStatus === 'received') && (Date.now() - new Date(order.deliveredAt || order.updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000 ? () => navigation.navigate('ReturnRequest', { order }) : undefined}
       onBuyAgain={handleBuyAgain}
       onShopPress={(shopId) => {
         const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;
@@ -713,6 +713,56 @@ export default function OrdersScreen({ navigation, route }: Props) {
             <Text style={styles.primaryButtonText}>Confirm Received</Text>
           </Pressable>
         );
+      case 'received': {
+        const withinReturnWindow = (Date.now() - new Date(order.deliveredAt || order.updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000;
+        const hasNoReview = !order.isReviewed;
+
+        // STACKED: Return/Refund visible → Buy Again on top (full width), Write Review + Return/Refund below
+        if (withinReturnWindow) {
+          return (
+            <View style={{ gap: 8 }}>
+              <Pressable style={[styles.buyAgainButton, { width: '100%' }]} onPress={() => handleBuyAgain(order)}>
+                <ShoppingCart size={16} color={BRAND_COLOR} strokeWidth={2.5} />
+                <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
+              </Pressable>
+              <View style={styles.buttonRow}>
+                {hasNoReview && (
+                  <Pressable
+                    style={[styles.outlineButton, { flex: 1, borderColor: '#D97706' }]}
+                    onPress={() => handleReview(order)}
+                  >
+                    <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Write Review</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  style={[styles.outlineButton, { flex: 1 }]}
+                  onPress={() => navigation.navigate('ReturnRequest', { order })}
+                >
+                  <Text style={styles.outlineButtonText}>Return / Refund</Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        }
+
+        // UNSTACKED: Return/Refund expired → Write Review (left) + Buy Again (right) side by side
+        return (
+          <View style={styles.buttonRow}>
+            {hasNoReview && (
+              <Pressable
+                style={[styles.outlineButton, { flex: 1, borderColor: '#D97706' }]}
+                onPress={() => handleReview(order)}
+              >
+                <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Write Review</Text>
+              </Pressable>
+            )}
+            <Pressable style={[styles.buyAgainButton, { flex: 1 }]} onPress={() => handleBuyAgain(order)}>
+              <ShoppingCart size={16} color={BRAND_COLOR} strokeWidth={2.5} />
+              <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
+            </Pressable>
+          </View>
+        );
+      }
       case 'reviewed':
         return (
           <View style={styles.buttonRow}>

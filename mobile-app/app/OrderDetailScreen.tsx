@@ -77,10 +77,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     const realOrderId = (order as any).orderId || order.id;
     getTransactionByOrderId(realOrderId)
       .then((tx) => setPaymentTx(tx))
-      .catch(() => {});
+      .catch(() => { });
     fetchTrackingByOrderId(realOrderId)
-      .then(() => {})
-      .catch(() => {});
+      .then(() => { })
+      .catch(() => { });
   }, [(order as any).orderId, order.id]);
 
   useEffect(() => {
@@ -183,7 +183,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         chatSubscriptionRef.current = subscription;
 
         // Mark messages as read
-        chatService.markAsRead(conversation.id, user.id, 'buyer').catch(() => {});
+        chatService.markAsRead(conversation.id, user.id, 'buyer').catch(() => { });
       } catch (error) {
         console.error('[OrderDetail] Error initializing chat:', error);
         Alert.alert('Error', 'Failed to load chat');
@@ -307,8 +307,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           const fileExt = (extMatch?.[1] || 'jpg').toLowerCase();
           const contentType =
             fileExt === 'png' ? 'image/png' :
-            fileExt === 'webp' ? 'image/webp' :
-            (fileExt === 'heic' || fileExt === 'heif') ? 'image/heic' : 'image/jpeg';
+              fileExt === 'webp' ? 'image/webp' :
+                (fileExt === 'heic' || fileExt === 'heif') ? 'image/heic' : 'image/jpeg';
           const suffix = Math.random().toString(36).slice(2, 8);
           const fileName = `${buyerId}/${realOrderId}/receipt-${timestamp}-${index}-${suffix}.${fileExt}`;
           const { error } = await supabase.storage
@@ -359,9 +359,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     try {
       // Get the real order UUID (orderId), not order_number
       const realOrderId = (order as any).orderId || order.id;
-      
+
       // Find item by productId (now correctly passed from ReviewModal)
-      const item = order.items.find(i => 
+      const item = order.items.find(i =>
         i.id === orderItemId || (i as any).productId === productId || i.id === productId
       );
       if (!item) throw new Error('Product not found');
@@ -528,17 +528,17 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
           const steps = isCancelled
             ? [
-                { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
-                { label: 'Cancelled', ts: formatTs(order.cancelledAt) || 'Pending', done: true, icon: X, red: true },
-              ]
+              { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
+              { label: 'Cancelled', ts: formatTs(order.cancelledAt) || 'Pending', done: true, icon: X, red: true },
+            ]
             : [
-                { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
-                { label: 'Confirmed', ts: formatTs(order.confirmedAt), done: uiStatus !== 'pending', icon: CheckCircle2 },
-                { label: 'Shipped', ts: formatTs(order.shippedAt), done: isShipped, icon: Truck },
-                { label: 'Delivered', ts: formatTs(order.deliveredAt), done: isDelivered, icon: CheckCircle2 },
-                ...(isReceived ? [{ label: 'Received', ts: formatTs((order as any).receivedAt), done: true, icon: CheckCircle2 }] : []),
-                ...(isReturned ? [{ label: 'Return Requested', ts: null, done: true, icon: RotateCcw, amber: true }] : []),
-              ];
+              { label: 'Order Placed', ts: formatTs(order.createdAt), done: true, icon: CheckCircle2 },
+              { label: 'Confirmed', ts: formatTs(order.confirmedAt), done: uiStatus !== 'pending', icon: CheckCircle2 },
+              { label: 'Shipped', ts: formatTs(order.shippedAt), done: isShipped, icon: Truck },
+              { label: 'Delivered', ts: formatTs(order.deliveredAt), done: isDelivered, icon: CheckCircle2 },
+              ...(isReceived ? [{ label: 'Received', ts: formatTs((order as any).receivedAt), done: true, icon: CheckCircle2 }] : []),
+              ...(isReturned ? [{ label: 'Return Requested', ts: null, done: true, icon: RotateCcw, amber: true }] : []),
+            ];
 
           return (
             <View style={{ backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 12, marginBottom: 16, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
@@ -879,34 +879,64 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </>
         )}
 
-        {/* RECEIVED / COMPLETED: Buy Again + Write Review */}
-        {order.buyerUiStatus === 'received' && (
-          <>
-            <Pressable
-              onPress={() => setShowReviewModal(true)}
-              style={[styles.outlineButton, { flex: 1, borderColor: '#D97706' }]}
-            >
-              <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Write Review</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (order.items.length > 0) {
-                  const addItem = useCartStore.getState().addItem;
-                  Promise.all(order.items.map(item => addItem(item as any, { forceNewItem: true })))
-                  .then((ids) => {
-                    navigation.navigate('MainTabs', {
-                      screen: 'Cart',
-                      params: { selectedCartItemIds: ids.filter(Boolean) as string[] }
-                    });
+        {/* RECEIVED: stacked when Return/Refund visible, side-by-side when not */}
+        {order.buyerUiStatus === 'received' && (() => {
+          const withinReturnWindow = (Date.now() - new Date((order as any).deliveredAt || (order as any).updatedAt || order.createdAt).getTime()) <= 7 * 24 * 60 * 60 * 1000;
+          const buyAgainAction = () => {
+            if (order.items.length > 0) {
+              const addItem = useCartStore.getState().addItem;
+              Promise.all(order.items.map(item => addItem(item as any, { forceNewItem: true })))
+                .then((ids) => {
+                  navigation.navigate('MainTabs', {
+                    screen: 'Cart',
+                    params: { selectedCartItemIds: ids.filter(Boolean) as string[] }
                   });
-                }
-              }}
-              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
-            >
-              <Text style={styles.solidButtonText}>Buy Again</Text>
-            </Pressable>
-          </>
-        )}
+                });
+            }
+          };
+
+          // STACKED: Return/Refund visible → Buy Again (top full width), Write Review + Return/Refund below
+          if (withinReturnWindow) {
+            return (
+              <View style={{ flex: 1, gap: 8 }}>
+                <Pressable onPress={buyAgainAction} style={[styles.solidButton, { backgroundColor: COLORS.primary }]}>
+                  <Text style={styles.solidButtonText}>Buy Again</Text>
+                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    onPress={() => setShowReviewModal(true)}
+                    style={[styles.outlineButton, { flex: 1, borderColor: '#D97706' }]}
+                  >
+                    <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Write Review</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => navigation.navigate('ReturnRequest', { order })}
+                    style={[styles.returnButton, { flex: 1 }]}
+                  >
+                    <RotateCcw size={13} color="#B45309" strokeWidth={3.5} />
+                    <Text style={styles.returnButtonText}>Return / Refund</Text>
+                  </Pressable>
+
+                </View>
+              </View>
+            );
+          }
+
+          // UNSTACKED: Return/Refund expired → Write Review (left) + Buy Again (right) side by side
+          return (
+            <>
+              <Pressable
+                onPress={() => setShowReviewModal(true)}
+                style={[styles.outlineButton, { flex: 1, borderColor: '#D97706' }]}
+              >
+                <Text style={[styles.outlineButtonText, { color: '#D97706' }]}>Write Review</Text>
+              </Pressable>
+              <Pressable onPress={buyAgainAction} style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}>
+                <Text style={styles.solidButtonText}>Buy Again</Text>
+              </Pressable>
+            </>
+          );
+        })()}
 
         {/* REVIEWED: Buy Again */}
         {order.buyerUiStatus === 'reviewed' && (
@@ -1077,30 +1107,30 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                   <Text style={{ color: '#9CA3AF', marginTop: 8 }}>No messages yet. Say hello!</Text>
                 </View>
               ) : (
-              chatMessages.map((msg) => (
-                <View
-                  key={msg.id}
-                  style={[
-                    styles.messageBubble,
-                    msg.sender === 'buyer' ? styles.buyerMessage : styles.sellerMessage,
-                    msg.sender === 'system' && styles.systemMessage
-                  ]}
-                >
-                  <Text style={[
-                    styles.messageText,
-                    msg.sender === 'buyer' ? styles.buyerMessageText : styles.sellerMessageText,
-                    msg.sender === 'system' && styles.systemMessageText
-                  ]}>
-                    {msg.message}
-                  </Text>
-                  <Text style={[
-                    styles.messageTime,
-                    msg.sender === 'buyer' ? styles.buyerMessageTime : styles.sellerMessageTime
-                  ]}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                </View>
-              ))
+                chatMessages.map((msg) => (
+                  <View
+                    key={msg.id}
+                    style={[
+                      styles.messageBubble,
+                      msg.sender === 'buyer' ? styles.buyerMessage : styles.sellerMessage,
+                      msg.sender === 'system' && styles.systemMessage
+                    ]}
+                  >
+                    <Text style={[
+                      styles.messageText,
+                      msg.sender === 'buyer' ? styles.buyerMessageText : styles.sellerMessageText,
+                      msg.sender === 'system' && styles.systemMessageText
+                    ]}>
+                      {msg.message}
+                    </Text>
+                    <Text style={[
+                      styles.messageTime,
+                      msg.sender === 'buyer' ? styles.buyerMessageTime : styles.sellerMessageTime
+                    ]}>
+                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                ))
               )}
             </ScrollView>
 
@@ -1394,6 +1424,19 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     letterSpacing: 0.3,
   },
+  returnButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 12,
+    minHeight: 40,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
   // ===== BOTTOM BAR =====
   bottomBar: {
     flexDirection: 'row',
@@ -1573,6 +1616,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.primary,
+  },
+  returnButtonText: {
+    color: '#B45309',
+    fontSize: 16,
+    fontWeight: '600',
   },
   solidButton: {
     flexDirection: 'row',
