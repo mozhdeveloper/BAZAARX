@@ -5,8 +5,8 @@ export interface DbRegistry {
     buyer_id: string;
     title: string;
     event_type: string;
-    category?: string;
-    privacy?: string;
+    category?: string | null;
+    privacy?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -14,17 +14,18 @@ export interface DbRegistry {
 export interface DbRegistryItem {
     id: string;
     registry_id: string;
-    product_id?: string;
-    product_name?: string;
+    product_id?: string | null;
+    product_name?: string | null;
     quantity_desired: number;
-    requested_qty?: number;
-    received_qty?: number;
-    priority?: string;
-    notes?: string;
-    product_snapshot?: any;
-    is_most_wanted?: boolean;
-    selected_variant?: any;
+    requested_qty?: number | null;
+    received_qty?: number | null;
+    priority?: string | null;
+    notes?: string | null;
+    product_snapshot?: any | null;
+    is_most_wanted?: boolean | null;
+    selected_variant?: any | null;
     created_at: string;
+    updated_at?: string;
 }
 
 export const wishlistService = {

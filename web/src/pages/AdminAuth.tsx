@@ -28,7 +28,7 @@ const AdminAuth: React.FC = () => {
 
   // Redirect if already authenticated
   if (isAuthenticated) {
-    const redirectPath = user?.role === 'qa_team' ? '/admin/qa-dashboard' : '/admin';
+    const redirectPath = user?.role === 'qa_team' ? '/qa/dashboard' : '/admin';
     return <Navigate to={redirectPath} replace />;
   }
 
@@ -46,7 +46,7 @@ const AdminAuth: React.FC = () => {
       console.log("the role is ", useAdminAuth.getState().user?.role);
       // Role-aware redirect — QA users go directly to QA dashboard
       const currentUser = useAdminAuth.getState().user;
-      const destination = currentUser?.role === 'qa_team' ? '/admin/qa-dashboard' : '/admin';
+      const destination = currentUser?.role === 'qa_team' ? '/qa/dashboard' : '/admin';
       navigate(destination, { replace: true });
     }
   };

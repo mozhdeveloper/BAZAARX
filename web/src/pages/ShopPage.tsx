@@ -789,7 +789,7 @@ export default function ShopPage() {
 
                           {/* Product Image */}
                           <div className="relative aspect-square overflow-hidden bg-gray-50">
-                            <img 
+                            <img
                               src={imageUrl}
                               alt={product.name}
                               loading="lazy"

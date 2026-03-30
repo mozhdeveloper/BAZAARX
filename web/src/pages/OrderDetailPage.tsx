@@ -1240,7 +1240,7 @@ export default function OrderDetailPage() {
                         >
                           <div className="relative group flex-shrink-0">
                             <div className="w-16 h-16 overflow-hidden border border-gray-100 bg-gray-50">
-                              <img loading="lazy" 
+                              <img loading="lazy"
                                 src={item.image}
                                 alt={item.name}
                                 className="w-16 h-16 object-cover transition-transform group-hover/item:scale-110"
@@ -1369,75 +1369,144 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
 
-                  {/* Action Buttons Row */}
-                  <div className="flex flex-row gap-2 pt-4 mt-2">
-                    {/* Confirm Received  */}
-                    {order.status === 'delivered' && (
-                      <Button
-                        onClick={() => setConfirmReceivedModalOpen(true)}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        Confirm Received
-                      </Button>
-                    )}
+                  {/* Action Buttons */}
+                  {order.status === 'received' ? (() => {
+                    // Return/Refund is only available within 7 days of delivery
+                    const deliveryDate = order.deliveredAt || order.receivedAt || order.updatedAt;
+                    const isWithin7DaysOfDelivery = deliveryDate
+                      ? (Date.now() - new Date(deliveryDate).getTime()) < 7 * 24 * 60 * 60 * 1000
+                      : false;
 
-                    {/* Request Return / Refund */}
-                    {order.status === 'received' && (
-                      <Button
-                        variant="outline"
-                        onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
-                        className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
-                      >
-                        Write Review
-                      </Button>
-                    )}
+                    const buyAgainHandler = async () => {
+                      if (!order.items || order.items.length === 0) return;
+                      const addedIds: string[] = [];
+                      await Promise.all(order.items.map(async (item: any) => {
+                        const productObj = {
+                          id: item.productId || item.id,
+                          name: item.name,
+                          price: item.price,
+                          originalPrice: item.originalPrice,
+                          image: item.image,
+                        } as any;
+                        const variantObj = item.selectedVariant || item.variant;
+                        try {
+                          const addedCartItemId = await addToCart(productObj, item.quantity || 1, variantObj, { forceNewItem: true });
+                          addedIds.push(addedCartItemId || productObj.id);
+                        } catch (e) {
+                          console.error('Buy Again addToCart failed:', e);
+                        }
+                      }));
+                      navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
+                    };
 
-                    {/* Buy Again - shown for delivered/received/reviewed orders */}
-                    {(order.status === 'delivered' || order.status === 'received' || order.status === 'reviewed') && (
-                      <Button
-                        onClick={async () => {
-                          if (!order.items || order.items.length === 0) return;
+                    if (isWithin7DaysOfDelivery) {
+                      // Within 7 days: Buy Again on top, Write Review + Return/Refund side by side below
+                      return (
+                        <div className="flex flex-col gap-2 pt-4 mt-2">
+                          <Button
+                            onClick={buyAgainHandler}
+                            className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
+                          >
+                            Buy Again
+                          </Button>
+                          <div className="flex flex-row gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => setShowReviewModal(true)}
+                              className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
+                            >
+                              Write Review
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
+                              className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                              Return / Refund
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    }
 
-                          // Add each item to cart (preserving variant where possible)
-                          const addedIds: string[] = [];
-                          await Promise.all(order.items.map(async (item: any) => {
-                            const productObj = {
-                              id: item.productId || item.id,
-                              name: item.name,
-                              price: item.price,
-                              originalPrice: item.originalPrice,
-                              image: item.image,
-                            } as any;
+                    // Past 7 days: Write Review (left) + Buy Again (right), side by side
+                    return (
+                      <div className="flex flex-row gap-2 pt-4 mt-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowReviewModal(true)}
+                          className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
+                        >
+                          Write Review
+                        </Button>
+                        <Button
+                          onClick={buyAgainHandler}
+                          className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
+                        >
+                          Buy Again
+                        </Button>
+                      </div>
+                    );
+                  })() : (
+                    <div className="flex flex-row gap-2 pt-4 mt-2">
+                      {/* Confirm Received  */}
+                      {order.status === 'delivered' && (
+                        <Button
+                          onClick={() => setConfirmReceivedModalOpen(true)}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          Confirm Received
+                        </Button>
+                      )}
 
-                            const variantObj = item.selectedVariant || item.variant;
-                            try {
-                              const addedCartItemId = await addToCart(productObj, item.quantity || 1, variantObj, { forceNewItem: true });
-                              addedIds.push(addedCartItemId || productObj.id);
-                            } catch (e) {
-                              console.error('Buy Again addToCart failed:', e);
-                            }
-                          }));
+                      {/* Buy Again - shown for delivered/reviewed orders */}
+                      {(order.status === 'delivered' || order.status === 'reviewed') && (
+                        <Button
+                          onClick={async () => {
+                            if (!order.items || order.items.length === 0) return;
 
-                          // Navigate to enhanced cart so user can adjust variants/sizes/colors
-                          navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
-                        }}
-                        className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
-                      >
-                        Buy Again
-                      </Button>
-                    )}
+                            // Add each item to cart (preserving variant where possible)
+                            const addedIds: string[] = [];
+                            await Promise.all(order.items.map(async (item: any) => {
+                              const productObj = {
+                                id: item.productId || item.id,
+                                name: item.name,
+                                price: item.price,
+                                originalPrice: item.originalPrice,
+                                image: item.image,
+                              } as any;
 
-                    {/* Cancel Order - shown for pending unpaid orders */}
-                    {order.status === 'pending' && !order.isPaid && (
-                      <Button
-                        variant="outline"
-                        onClick={() => setCancelModalOpen(true)}
-                        className="flex-1 border-red-600 text-red-600 hover:bg-red-50 hover:text-red-600"
-                      >
-                        Cancel Order
-                      </Button>
-                    )}
-                  </div>
+                              const variantObj = item.selectedVariant || item.variant;
+                              try {
+                                const addedCartItemId = await addToCart(productObj, item.quantity || 1, variantObj, { forceNewItem: true });
+                                addedIds.push(addedCartItemId || productObj.id);
+                              } catch (e) {
+                                console.error('Buy Again addToCart failed:', e);
+                              }
+                            }));
+
+                            // Navigate to enhanced cart so user can adjust variants/sizes/colors
+                            navigate('/enhanced-cart', { state: { selectedItems: addedIds } });
+                          }}
+                          className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-accent)] text-white"
+                        >
+                          Buy Again
+                        </Button>
+                      )}
+
+                      {/* Cancel Order - shown for pending unpaid orders */}
+                      {order.status === 'pending' && !order.isPaid && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setCancelModalOpen(true)}
+                          className="flex-1 border-red-600 text-red-600 hover:bg-red-50 hover:text-red-600"
+                        >
+                          Cancel Order
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1651,7 +1720,7 @@ export default function OrderDetailPage() {
           >
             <X className="w-6 h-6" />
           </button>
-          <img loading="lazy" 
+          <img loading="lazy"
             src={selectedPhoto}
             alt="Receipt photo"
             className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain"
@@ -1661,6 +1730,6 @@ export default function OrderDetailPage() {
       )}
 
       <BazaarFooter />
-    </div >
+    </div>
   );
 }

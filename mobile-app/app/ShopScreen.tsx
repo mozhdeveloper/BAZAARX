@@ -587,6 +587,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         ))}
       </ScrollView>
 
+      {/* Active Filter Chips */}
       {(selectedSort !== 'relevance' || selectedPriceSort !== 'price-default' || minPrice !== '0' || maxPrice !== '100000') && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
           {selectedSort !== 'relevance' && (
@@ -739,7 +740,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         data={(isLoading || isProductsLoading) ? [] : filteredProducts}
         keyExtractor={keyExtractor}
         ListHeaderComponent={listHeaderComponent}
-        ListFooterComponent={<View style={{ height: 100 }} />}
+        ListFooterComponent={<View style={{ height: 60 }} />}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -769,7 +770,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         numColumns={2}
         masonry={true}
         onEndReachedThreshold={0.5}
-        contentContainerStyle={{ paddingTop: 15, paddingHorizontal: 14, paddingBottom: 100 }}
+        contentContainerStyle={{ paddingTop: 15, paddingHorizontal: 14, paddingBottom: 60 }}
         renderItem={({ item }: { item: Product }) => (
           <View style={{ paddingHorizontal: 6, paddingVertical: 6 }}>
             <MasonryProductCard

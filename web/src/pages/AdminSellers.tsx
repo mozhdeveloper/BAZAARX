@@ -66,6 +66,78 @@ import {
   MoreVertical,
 } from "lucide-react";
 
+const SuspendDialog = React.memo(({
+  open,
+  onOpenChange,
+  sellerName,
+  suspendSeller,
+  sellerId,
+  onSuccess,
+  isLoading,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sellerName?: string;
+  suspendSeller: (id: string, reason: string) => Promise<void>;
+  sellerId?: string;
+  onSuccess: () => void;
+  isLoading: boolean;
+}) => {
+  const [suspendReason, setSuspendReason] = useState("");
+
+  const handleSuspend = async () => {
+    if (!sellerId || !suspendReason.trim()) return;
+    await suspendSeller(sellerId, suspendReason);
+    setSuspendReason("");
+    onSuccess();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Suspend Seller</DialogTitle>
+          <DialogDescription>
+            Please provide a reason for suspending "{sellerName}".
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <Input
+            placeholder="Enter suspension reason..."
+            value={suspendReason}
+            onChange={(e) => setSuspendReason(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => {
+            onOpenChange(false);
+            setSuspendReason('');
+          }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSuspend}
+            disabled={!suspendReason.trim() || isLoading}
+            className="bg-orange-600 hover:bg-orange-700 text-white"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Suspending...
+              </>
+            ) : (
+              'Suspend Seller'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+});
+
+SuspendDialog.displayName = 'SuspendDialog';
+
 const AdminSellers: React.FC = () => {
   const SHOW_BANKING_INFO = false;
 
@@ -98,7 +170,6 @@ const AdminSellers: React.FC = () => {
     Record<string, { checked: boolean; reason: string }>
   >({});
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
-  const [suspendReason, setSuspendReason] = useState("");
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -276,11 +347,8 @@ const AdminSellers: React.FC = () => {
     document.body.removeChild(link);
   }, []);
 
-  const handleSuspend = async () => {
-    if (!selectedSeller || !suspendReason) return;
-    await suspendSeller(selectedSeller.id, suspendReason);
+  const handleSuspendSuccess = () => {
     setShowSuspendDialog(false);
-    setSuspendReason("");
     selectSeller(null);
   };
 
@@ -1474,45 +1542,15 @@ const AdminSellers: React.FC = () => {
       </Dialog>
 
       {/* Suspend Seller Dialog */}
-      <Dialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Suspend Seller</DialogTitle>
-            <DialogDescription>
-              Please provide a reason for suspending "{selectedSeller?.storeName}".
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              placeholder="Enter suspension reason..."
-              value={suspendReason}
-              onChange={(e) => setSuspendReason(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowSuspendDialog(false);
-              setSuspendReason('');
-            }}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSuspend}
-              disabled={!suspendReason.trim() || isLoading}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Suspending...
-                </>
-              ) : (
-                'Suspend Seller'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SuspendDialog
+        open={showSuspendDialog}
+        onOpenChange={setShowSuspendDialog}
+        sellerName={selectedSeller?.storeName}
+        suspendSeller={suspendSeller}
+        sellerId={selectedSeller?.id}
+        onSuccess={handleSuspendSuccess}
+        isLoading={isLoading}
+      />
     </div>
   );
 };

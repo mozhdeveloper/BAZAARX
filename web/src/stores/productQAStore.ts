@@ -41,6 +41,8 @@ export interface QAProduct {
   submittedAt?: string;
   approvedAt?: string;
   batchId?: string | null;
+  batchCode?: string | null;
+  batchName?: string | null;
   verifiedAt?: string;
   rejectedAt?: string;
   revisionRequestedAt?: string;
@@ -58,6 +60,7 @@ interface ProductQAStore {
   approveForSampleSubmission: (productId: string) => Promise<void>;
   submitForDigitalReview: (productId: string) => Promise<void>;
   submitForPhysicalReview: (productId: string, logisticsMethod: string, batchId?: string) => Promise<void>;
+  assignProductToBatch: (productId: string, batchId: string, batchName?: string) => Promise<void>;
   submitSample: (productId: string, logisticsMethod: string, trackingInfo?: { courier: string; trackingNumber: string; batchId?: string }) => Promise<void>;
   passQualityCheck: (productId: string) => Promise<void>;
   rejectProduct: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
@@ -221,6 +224,8 @@ export const useProductQAStore = create<ProductQAStore>()(
               status: entry.status,
               logistics: entry.logistics,
               batchId: entry.batchId,
+              batchCode: entry.batchCode,
+              batchName: entry.batchName,
               image: imageUrl,
               images: imageUrls.length > 0 ? imageUrls : ['https://placehold.co/100?text=Product'],
               variants: variants.length > 0 ? variants : undefined,
@@ -378,6 +383,33 @@ export const useProductQAStore = create<ProductQAStore>()(
           }
         } catch (error) {
           console.error('Error submitting for physical review:', error);
+          throw error;
+        }
+      },
+
+      assignProductToBatch: async (productId: string, batchId: string, batchName?: string) => {
+        try {
+          const product = get().products.find(p => p.id === productId);
+          if (!product) throw new Error('Product not found');
+
+          if (!batchId || batchId.trim() === '') {
+            throw new Error('Batch ID is required');
+          }
+
+          if (isSupabaseConfigured()) {
+            await qaService.assignBatchToAssessment(productId, batchId, batchName);
+            await get().loadProducts();
+          } else {
+            set((state) => ({
+              products: state.products.map((p) =>
+                p.id === productId
+                  ? { ...p, batchId }
+                  : p
+              ),
+            }));
+          }
+        } catch (error) {
+          console.error('Error assigning product to batch:', error);
           throw error;
         }
       },

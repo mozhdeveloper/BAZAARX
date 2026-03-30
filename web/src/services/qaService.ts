@@ -102,6 +102,8 @@ export interface QAProductDB {
   rejection_stage: 'digital' | 'physical' | null;
   submitted_at: string;
   batchId: string | null;
+  batchCode: string | null;
+  batchName: string | null;
   approved_at: string | null;
   verified_at: string | null;
   rejected_at: string | null;
@@ -141,6 +143,8 @@ export class QAService {
     // Use pre-joined data if available (from enriched queries), otherwise fetch individually
     let logisticsDetails: string | null = null;
     let batchId: string | null = null;
+    let batchCode: string | null = null;
+    let batchName: string | null = null;
     let rejectionDesc: string | null = null;
     let revisionDesc: string | null = null;
 
@@ -148,18 +152,22 @@ export class QAService {
       // Data was pre-joined in the query
       const records = assessment.logistics_records;
       const rawDetails = Array.isArray(records) && records.length > 0 ? records[0].details : null;
+      const structuredBatchId = Array.isArray(records) && records.length > 0 ? records[0].batch_id : null;
       
       // Try to parse JSON if it looks like one
       if (rawDetails && (rawDetails.startsWith('{') || rawDetails.startsWith('['))) {
         try {
           const parsed = JSON.parse(rawDetails);
           logisticsDetails = parsed.method || rawDetails;
-          batchId = parsed.batchId || null;
+          batchId = structuredBatchId || parsed.batchId || null;
+          batchCode = parsed.batchCode || null;
+          batchName = parsed.batchName || null;
         } catch (e) {
           logisticsDetails = rawDetails;
         }
       } else {
         logisticsDetails = rawDetails;
+        batchId = structuredBatchId || null;
       }
       
       rejectionDesc = assessment.rejection_records?.[0]?.description || null;
@@ -169,23 +177,27 @@ export class QAService {
       try {
         const { data: logistics } = await supabase
           .from('product_assessment_logistics')
-          .select('details')
+          .select('details, batch_id')
           .eq('assessment_id', assessment.id)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
 
         const rawDetails = logistics?.details || null;
+        const structuredBatchId = logistics?.batch_id || null;
         if (rawDetails && (rawDetails.startsWith('{') || rawDetails.startsWith('['))) {
           try {
             const parsed = JSON.parse(rawDetails);
             logisticsDetails = parsed.method || rawDetails;
-            batchId = parsed.batchId || null;
+            batchId = structuredBatchId || parsed.batchId || null;
+            batchCode = parsed.batchCode || null;
+            batchName = parsed.batchName || null;
           } catch (e) {
             logisticsDetails = rawDetails;
           }
         } else {
           logisticsDetails = rawDetails;
+          batchId = structuredBatchId || null;
         }
 
         const { data: rejection } = await supabase
@@ -213,6 +225,23 @@ export class QAService {
 
     const legacyStatus = NEW_TO_LEGACY_STATUS[assessment.status] || 'PENDING_DIGITAL_REVIEW';
 
+    if (batchId) {
+      try {
+        const { data: batch } = await supabase
+          .from('qa_submission_batches')
+          .select('batch_code, notes')
+          .eq('id', batchId)
+          .maybeSingle();
+
+        if (batch) {
+          batchCode = batch.batch_code || batchCode;
+          batchName = (batch.notes && batch.notes.trim().length > 0 ? batch.notes : null) || batchName || batch.batch_code || null;
+        }
+      } catch (error) {
+        console.warn('[QA Service] Failed to load batch metadata for', batchId, error);
+      }
+    }
+
     // Resolve vendor name: prefer seller.store_name, fallback to product name
     const vendor = (assessment as any).seller?.store_name 
       || assessment.product?.seller?.store_name
@@ -226,6 +255,8 @@ export class QAService {
       status: legacyStatus,
       logistics: logisticsDetails,
       batchId: batchId as string | null,
+      batchCode,
+      batchName,
       rejection_reason: rejectionDesc || revisionDesc || null,
       rejection_stage: assessment.status === 'rejected' ? 'digital' : null,
       submitted_at: assessment.submitted_at,
@@ -507,7 +538,7 @@ export class QAService {
             variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url),
             seller:sellers (store_name, owner_name)
           ),
-          logistics_records:product_assessment_logistics (details),
+          logistics_records:product_assessment_logistics (details, batch_id),
           rejection_records:product_rejections (description),
           revision_records:product_revisions (description)
         `)
@@ -587,7 +618,7 @@ export class QAService {
             variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url),
             seller:sellers (store_name, owner_name)
           ),
-          logistics_records:product_assessment_logistics (details),
+          logistics_records:product_assessment_logistics (details, batch_id),
           rejection_records:product_rejections (description),
           revision_records:product_revisions (description)
         `)
@@ -718,13 +749,23 @@ export class QAService {
           finalLogistics = JSON.stringify(detailsObj);
         }
 
+        const logisticsPayload: Record<string, any> = {
+          details: finalLogistics,
+          created_by: metadata?.adminId || null,
+        };
+
+        // Support normalized schema when batch_id/logistics_method columns exist.
+        if (metadata?.batchId) {
+          logisticsPayload.batch_id = metadata.batchId;
+        }
+        if (metadata?.logistics) {
+          logisticsPayload.logistics_method = metadata.logistics;
+        }
+
         if (existingLogistics) {
           const { error: updateError } = await supabase
             .from('product_assessment_logistics')
-            .update({
-              details: finalLogistics,
-              created_by: metadata?.adminId || null,
-            })
+            .update(logisticsPayload)
             .eq('id', existingLogistics.id);
           
           if (updateError) console.error('Error updating logistics details:', updateError);
@@ -733,8 +774,7 @@ export class QAService {
             .from('product_assessment_logistics')
             .insert({
               assessment_id: assessment.id,
-              details: finalLogistics,
-              created_by: metadata?.adminId || null,
+              ...logisticsPayload,
             });
           
           if (insertError) console.error('Error inserting logistics details:', insertError);
@@ -810,8 +850,8 @@ export class QAService {
   }
 
   /**
-   * Admin accepts listing → moves to QA queue (pending_digital_review)
-   * This is the admin-only action in the new separated flow
+   * Admin accepts listing → moves to waiting_for_sample.
+   * Seller must submit sample logistics before QA review queue.
    */
   async acceptListing(productId: string, adminId?: string): Promise<void> {
     if (!isSupabaseConfigured()) return;
@@ -828,9 +868,9 @@ export class QAService {
 
       if (!assessment) throw new Error('Assessment not found for product');
 
-      // Update assessment to pending_digital_review (enters QA queue)
+      // Update assessment to waiting_for_sample (seller still needs to submit sample)
       const updatePayload: Record<string, any> = {
-        status: 'pending_digital_review',
+        status: 'waiting_for_sample',
         admin_accepted_at: new Date().toISOString(),
         admin_accepted_by: adminId || null,
       };
@@ -855,11 +895,11 @@ export class QAService {
       // Create approval record
       await supabase.from('product_approvals').insert({
         assessment_id: assessment.id,
-        description: 'Listing accepted by admin, sent to QA team for review',
+        description: 'Listing accepted by admin, awaiting seller sample submission',
         created_by: adminId || null,
       });
 
-      console.log(`✅ Listing accepted: ${productId} → pending_digital_review`);
+      console.log(`✅ Listing accepted: ${productId} → waiting_for_sample`);
     } catch (error) {
       console.error('Error accepting listing:', error);
       throw new Error('Failed to accept listing');
@@ -892,6 +932,161 @@ export class QAService {
       logistics: logisticsMethod,
       batchId
     });
+  }
+
+  /**
+   * Assign or move a product into a batch without changing its QA status.
+   */
+  async assignBatchToAssessment(productId: string, batchId: string, batchName?: string): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+
+    try {
+      const { data: assessment } = await supabase
+        .from('product_assessments')
+        .select('id, product:products!inner (seller_id)')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!assessment) {
+        throw new Error('Assessment not found for product');
+      }
+
+      const sellerId = (assessment as any)?.product?.seller_id as string | undefined;
+      if (!sellerId) {
+        throw new Error('Seller not found for product');
+      }
+
+      // Resolve existing batch (by UUID id or code), otherwise create a new first-class batch record.
+      let resolvedBatchId = batchId;
+      let resolvedBatchCode = batchId;
+
+      const { data: byIdBatch } = await supabase
+        .from('qa_submission_batches')
+        .select('id, batch_code')
+        .eq('id', batchId)
+        .eq('seller_id', sellerId)
+        .maybeSingle();
+
+      if (byIdBatch) {
+        resolvedBatchId = byIdBatch.id;
+        resolvedBatchCode = byIdBatch.batch_code;
+      } else {
+        const { data: byCodeBatch } = await supabase
+          .from('qa_submission_batches')
+          .select('id, batch_code')
+          .eq('batch_code', batchId)
+          .eq('seller_id', sellerId)
+          .maybeSingle();
+
+        if (byCodeBatch) {
+          resolvedBatchId = byCodeBatch.id;
+          resolvedBatchCode = byCodeBatch.batch_code;
+        } else {
+          const { data: createdBatch, error: createBatchError } = await supabase
+            .from('qa_submission_batches')
+            .insert({
+              seller_id: sellerId,
+              batch_code: batchId,
+              notes: batchName || null,
+              submission_type: 'sample',
+              status: 'draft',
+            })
+            .select('id, batch_code')
+            .single();
+
+          if (createBatchError || !createdBatch) {
+            throw createBatchError || new Error('Failed to create batch');
+          }
+
+          resolvedBatchId = createdBatch.id;
+          resolvedBatchCode = createdBatch.batch_code;
+        }
+      }
+
+      const { data: existingLogistics } = await supabase
+        .from('product_assessment_logistics')
+        .select('id, details')
+        .eq('assessment_id', assessment.id)
+        .maybeSingle();
+
+      let detailsObj: Record<string, any> = {
+        method: 'Batch Pending',
+      };
+
+      if (existingLogistics?.details) {
+        try {
+          const parsed = JSON.parse(existingLogistics.details);
+          if (typeof parsed === 'object' && parsed !== null) {
+            detailsObj = {
+              ...detailsObj,
+              ...parsed,
+            };
+          }
+        } catch {
+          detailsObj.rawDetails = existingLogistics.details;
+        }
+      }
+
+      detailsObj.batchId = resolvedBatchId;
+      detailsObj.batchCode = resolvedBatchCode;
+      if (batchName) {
+        detailsObj.batchName = batchName;
+      }
+
+      const detailsPayload = JSON.stringify(detailsObj);
+
+      if (existingLogistics) {
+        const { error: updateError } = await supabase
+          .from('product_assessment_logistics')
+          .update({
+            details: detailsPayload,
+            batch_id: resolvedBatchId,
+          })
+          .eq('id', existingLogistics.id);
+
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('product_assessment_logistics')
+          .insert({
+            assessment_id: assessment.id,
+            details: detailsPayload,
+            batch_id: resolvedBatchId,
+          });
+
+        if (insertError) throw insertError;
+      }
+      const { error: batchItemError } = await supabase
+        .from('qa_submission_batch_items')
+        .upsert(
+          {
+            batch_id: resolvedBatchId,
+            assessment_id: assessment.id,
+            product_id: productId,
+          },
+          { onConflict: 'batch_id,assessment_id' }
+        );
+
+      if (batchItemError) {
+        throw batchItemError;
+      }
+
+      // Remove old batch links for this assessment to support moving between folders.
+      const { error: cleanupError } = await supabase
+        .from('qa_submission_batch_items')
+        .delete()
+        .eq('assessment_id', assessment.id)
+        .neq('batch_id', resolvedBatchId);
+
+      if (cleanupError) {
+        throw cleanupError;
+      }
+    } catch (error) {
+      console.error('Error assigning batch to assessment:', error);
+      throw new Error('Failed to assign product to batch');
+    }
   }
 
   /**

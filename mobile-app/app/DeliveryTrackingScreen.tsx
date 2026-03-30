@@ -43,6 +43,10 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Determine cancellation status at component level for use in render
+  const uiStatus = order.buyerUiStatus || order.status;
+  const isCancelled = uiStatus === 'cancelled';
 
   useEffect(() => {
     // Pulsing animation for current step
@@ -270,13 +274,13 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
                 </Text>
               </View>
             </View>
-            {deliveryInfo.booking.trackingNumber && (
+            {deliveryInfo.booking.trackingNumber && !isCancelled && (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                 <Text style={{ fontSize: 13, color: '#6B7280' }}>Tracking #</Text>
                 <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.primary }}>{deliveryInfo.booking.trackingNumber}</Text>
               </View>
             )}
-            {deliveryInfo.booking.estimatedDelivery && (
+            {deliveryInfo.booking.estimatedDelivery && !isCancelled && (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: 13, color: '#6B7280' }}>Est. Delivery</Text>
                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>
@@ -306,11 +310,17 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
                 <Text style={styles.proofCaption}>Photo captured by driver at delivery.</Text>
               </View>
             </>
+          ) : isCancelled ? (
+            // Cancelled State: Show cancellation message
+            <View style={styles.estimateSection}>
+              <Text style={[styles.estimateLabel, { color: '#DC2626' }]}>Order Cancelled</Text>
+              <Text style={[styles.estimateDate, { color: '#6B7280' }]}>No delivery will be made</Text>
+            </View>
           ) : (
-             <View style={styles.estimateSection}>
-                <Text style={styles.estimateLabel}>Estimated Delivery</Text>
-                <Text style={styles.estimateDate}>{order.scheduledDate || 'Calculating...'}</Text>
-              </View>
+            <View style={styles.estimateSection}>
+              <Text style={styles.estimateLabel}>Estimated Delivery</Text>
+              <Text style={styles.estimateDate}>{order.scheduledDate || 'Calculating...'}</Text>
+            </View>
           )}
         </View>
 
