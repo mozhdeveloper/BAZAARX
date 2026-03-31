@@ -553,7 +553,7 @@ export default function HomeScreen({ navigation }: Props) {
   }, []);
 
   const popularProducts = useMemo(() => {
-    return [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8);
+    return [...dbProducts].filter(p => p && p.name).sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8);
   }, [dbProducts]);
 
   // Memoized merge of boosted + featured products (was an IIFE in JSX)
@@ -563,7 +563,7 @@ export default function HomeScreen({ navigation }: Props) {
 
     for (const bp of boostedProducts) {
       const product = bp.product;
-      if (!product || seenIds.has(product.id)) continue;
+      if (!product || !product.name || seenIds.has(product.id)) continue;
       seenIds.add(product.id);
       const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
       const reviews = product.reviews || [];
@@ -586,7 +586,7 @@ export default function HomeScreen({ navigation }: Props) {
 
     for (const fp of featuredProducts) {
       const product = (fp as any).product;
-      if (!product || seenIds.has(product.id)) continue;
+      if (!product || !product.name || seenIds.has(product.id)) continue;
       seenIds.add(product.id);
       const primaryImg = product.images?.find((img: any) => img.is_primary) || product.images?.[0];
       const reviews = product.reviews || [];
@@ -929,7 +929,7 @@ export default function HomeScreen({ navigation }: Props) {
               </Pressable>
             </View>
             <View style={styles.categoryGrid}>
-              {dbCategories.slice(0, 10).map((item) => (
+              {dbCategories.slice(0, 10).filter(item => item && item.name).map((item) => (
                 <Pressable
                   key={item.id}
                   style={[styles.categoryGridItem, { width: CATEGORY_ITEM_WIDTH }]}
@@ -1017,7 +1017,7 @@ export default function HomeScreen({ navigation }: Props) {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 10, gap: 12 }}
               >
-                {flashSaleProducts.length > 0 ? (
+                {flashSaleProducts.filter(p => p && p.name).length > 0 ? (
                   Array.from(new Map(flashSaleProducts.slice(0, 10).map(p => [p.id, p])).values()).map((product) => (
                     <View key={product.id} style={{ width: 150 }}>
                       <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
@@ -1043,7 +1043,7 @@ export default function HomeScreen({ navigation }: Props) {
                   </Pressable>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-                  {verifiedStores.map((store) => (
+                  {verifiedStores.filter(store => store && store.name).map((store) => (
                     <Pressable key={store.id} style={styles.storeVerticalCard} onPress={() => navigation.navigate('StoreDetail', { store })}>
                       <View style={styles.storeBannerContainer}>
                         <ExpoImage
