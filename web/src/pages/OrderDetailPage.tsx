@@ -1413,16 +1413,16 @@ export default function OrderDetailPage() {
                             <Button
                               variant="outline"
                               onClick={() => setShowReviewModal(true)}
-                              className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
+                              className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)] px-2"
                             >
                               Write Review
                             </Button>
                             <Button
                               variant="outline"
                               onClick={() => navigate(`/order/${order.orderNumber || order.id}/return`)}
-                              className="flex-1 border-[var(--brand-accent)] text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:text-[var(--brand-accent)]"
+                              className="flex-1 bg-[#FFFBEB] border-[#F59E0B] text-[#B45309] hover:text-[var(--brand-accent)] hover:bg-[var(--brand-wash)] hover:border-[var(--brand-accent)] text-sm font-medium px-2"
                             >
-                              <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                              <RotateCcw className="w-4 h-4 mr-1.5" />
                               Return / Refund
                             </Button>
                           </div>
