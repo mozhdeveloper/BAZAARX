@@ -147,22 +147,40 @@ export default function CartScreen({ navigation, route }: any) {
     return { selectedItems: selected, subtotal: sub, totalSavings: savings };
   }, [items, selectedIds]);
   const shippingFee = (subtotal > 500 || subtotal === 0) ? 0 : 50;
-  const total = subtotal; // Only items subtotal, exclude shipping here as per request
-
-  const isAllSelected = items.length > 0 && selectedIds.length === items.length;
+  const total = subtotal;
 
   // O(1) membership lookup — replaces O(n) Array.includes() calls in render
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
+  // Helper: resolve effective stock for a cart item
+  const getItemStock = useCallback((item: CartItem): number | null => {
+    if (item.selectedVariant?.variantId && item.variants) {
+      const v = item.variants.find(v => v.id === item.selectedVariant?.variantId);
+      if (v) return v.stock;
+    }
+    return item.stock ?? null;
+  }, []);
+
+  const isItemOutOfStock = useCallback((item: CartItem) => {
+    const s = getItemStock(item);
+    return s !== null && s === 0;
+  }, [getItemStock]);
+
+  const selectableItems = useMemo(() => items.filter(i => !isItemOutOfStock(i)), [items, isItemOutOfStock]);
+  const isAllSelected = selectableItems.length > 0 && selectableItems.every(i => selectedSet.has(i.cartItemId));
+  const hasOutOfStockSelected = useMemo(() => selectedItems.some(i => isItemOutOfStock(i)), [selectedItems, isItemOutOfStock]);
+
   const toggleSelectItem = useCallback((id: string) => {
+    const item = items.find(i => i.cartItemId === id);
+    if (item && isItemOutOfStock(item)) return;
     setSelectedIds(prev =>
       selectedSet.has(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
     );
-  }, [selectedSet]);
+  }, [selectedSet, items, isItemOutOfStock]);
 
   const toggleSellerGroup = useCallback((sellerProducts: typeof items) => {
-    const sellerItemIds = sellerProducts.map(item => item.cartItemId);
-    const isSellerFullySelected = sellerItemIds.every(id => selectedSet.has(id));
+    const sellerItemIds = sellerProducts.filter(item => !isItemOutOfStock(item)).map(item => item.cartItemId);
+    const isSellerFullySelected = sellerItemIds.length > 0 && sellerItemIds.every(id => selectedSet.has(id));
 
     if (isSellerFullySelected) {
       const removeSet = new Set(sellerItemIds);
@@ -229,7 +247,7 @@ export default function CartScreen({ navigation, route }: any) {
 
       {/* SELECT ALL BAR */}
       <View style={styles.selectAllBar}>
-        <Pressable style={styles.checkboxWrapper} onPress={() => isAllSelected ? setSelectedIds([]) : setSelectedIds(items.map(i => i.cartItemId))}>
+        <Pressable style={styles.checkboxWrapper} onPress={() => isAllSelected ? setSelectedIds([]) : setSelectedIds(selectableItems.map(i => i.cartItemId))}>
           <View style={[
             styles.checkboxBase,
             isAllSelected && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
@@ -287,26 +305,21 @@ export default function CartScreen({ navigation, route }: any) {
               {sellerProducts.map((item, index) => (
                 <View key={item.cartItemId}>
                   <View style={styles.itemRow}>
-                    <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)}>
+                    <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.cartItemId)} disabled={isItemOutOfStock(item)}>
                       <View style={[
                         styles.checkboxBase,
-                        selectedSet.has(item.cartItemId) && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                        isItemOutOfStock(item) && { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB', opacity: 0.5 },
+                        !isItemOutOfStock(item) && selectedSet.has(item.cartItemId) && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
                       ]}>
-                        {selectedSet.has(item.cartItemId) && <Check size={12} color="#FFF" strokeWidth={2.5} />}
+                        {!isItemOutOfStock(item) && selectedSet.has(item.cartItemId) && <Check size={12} color="#FFF" strokeWidth={2.5} />}
                       </View>
                     </Pressable>
                     <View style={{ flex: 1 }}>
                       <CartItemRow
                         item={item}
-                        onIncrement={() => {
-                          const liveItem = useCartStore.getState().items.find(
-                            (cartItem) => cartItem.cartItemId === item.cartItemId || cartItem.id === item.cartItemId
-                          );
-                          const currentQty = liveItem?.quantity ?? item.quantity;
-                          updateQuantity(item.cartItemId, currentQty + 1);
-                        }}
-                        onDecrement={() => item.quantity > 1 && updateQuantity(item.cartItemId, item.quantity - 1)}
-                        onChange={(val) => updateQuantity(item.cartItemId, val)}
+                        onIncrement={() => {}}
+                        onDecrement={() => {}}
+                        onChange={() => {}}
                         onRemove={() => handleRemoveSingle(item)}
                         onEdit={item.selectedVariant ? () => handleEditVariant(item) : undefined}
                         onPress={() => navigation.navigate('ProductDetail', { product: item })}
@@ -336,7 +349,7 @@ export default function CartScreen({ navigation, route }: any) {
               )}
             </View>
             <Pressable
-              disabled={selectedIds.length === 0}
+              disabled={selectedIds.length === 0 || hasOutOfStockSelected}
               onPress={async () => {
                 // Clear any previous quick order to prioritize cart selection
                 clearQuickOrder();
@@ -357,7 +370,7 @@ export default function CartScreen({ navigation, route }: any) {
                   navigation.navigate('Checkout', { selectedItems });
                 }
               }}
-              style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}>
+              style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: (selectedIds.length === 0 || hasOutOfStockSelected) ? 0.5 : 1 }]}>
               <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
             </Pressable>
           </View>
