@@ -31,6 +31,27 @@ interface OrderStatusEntry {
   location?: string;
 }
 
+// Status bucket mapping - groups similar statuses into buckets
+const STATUS_BUCKETS: Record<string, string[]> = {
+  'Order Placed': ['placed', 'pending', 'confirmed'],
+  'Processing': ['processing', 'preparing', 'ready_to_ship'],
+  'Shipped': ['shipped', 'dispatched', 'in_transit'],
+  'Out for Delivery': ['out_for_delivery', 'out_for_delivery', 'with_courier'],
+  'Delivered': ['delivered', 'received', 'completed'],
+  'Cancelled': ['cancelled', 'canceled'],
+};
+
+// Helper function to get the bucket name for a status
+const getStatusBucket = (status: string): string | null => {
+  const normalizedStatus = status.toLowerCase().replace(/[_\s]+/g, '_');
+  for (const [bucketName, keywords] of Object.entries(STATUS_BUCKETS)) {
+    if (keywords.some(keyword => normalizedStatus.includes(keyword))) {
+      return bucketName;
+    }
+  }
+  return null;
+};
+
 const { width } = Dimensions.get('window');
 
 export default function DeliveryTrackingScreen({ route, navigation }: Props) {
@@ -41,9 +62,9 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryTrackingResult | null>(null);
   const fetchTrackingByOrderId = useDeliveryStore((s) => s.fetchTrackingByOrderId);
   const deliveryStoreTracking = useDeliveryStore((s) => s.tracking);
-  
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  
+
   // Determine cancellation status at component level for use in render
   const uiStatus = order.buyerUiStatus || order.status;
   const isCancelled = uiStatus === 'cancelled';
@@ -71,7 +92,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 
     // Fetch delivery booking/tracking from deliveryStore
     const orderUuid = order.orderId || order.id;
-    fetchTrackingByOrderId(orderUuid).catch(() => {});
+    fetchTrackingByOrderId(orderUuid).catch(() => { });
 
     if (isSupabaseConfigured()) {
       fetchTimelineHistory();
@@ -86,25 +107,50 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
           filter: `order_id=eq.${orderUuid}`
         }, (payload) => {
           console.log('New status update:', payload);
-          // Append new status to timeline
+          
+          const newEntry: OrderStatusEntry = {
+            id: payload.new.id,
+            status: payload.new.status,
+            description: payload.new.description,
+            created_at: payload.new.created_at,
+            location: payload.new.location
+          };
+
+          // Get the bucket for this status
+          const newBucket = getStatusBucket(payload.new.status);
+          
           setTimeline(prev => {
-            // Avoid duplicates
-            if (prev.some(item => item.id === payload.new.id)) return prev;
-            
-            const newEntry: OrderStatusEntry = {
-              id: payload.new.id,
-              status: payload.new.status,
-              description: payload.new.description,
-              created_at: payload.new.created_at,
-              location: payload.new.location
-            };
-            
             // If delivered, show popup
             if (payload.new.status.toLowerCase().includes('delivered')) {
-               setShowRedirectPopup(true);
+              setShowRedirectPopup(true);
             }
-            
-            return [...prev, newEntry].sort((a, b) => 
+
+            // If no bucket found, just add it (unknown status)
+            if (!newBucket) {
+              return [...prev, newEntry].sort((a, b) =>
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
+            }
+
+            // Check if this bucket is already filled
+            const existingBucketIndex = prev.findIndex(item => {
+              const itemBucket = getStatusBucket(item.status);
+              return itemBucket === newBucket;
+            });
+
+            if (existingBucketIndex !== -1) {
+              // Bucket already filled - update existing entry instead of adding new
+              console.log(`[DeliveryTracking] Bucket "${newBucket}" already filled, updating existing entry`);
+              const updated = [...prev];
+              updated[existingBucketIndex] = newEntry;
+              return updated.sort((a, b) =>
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
+            }
+
+            // Bucket not filled - add new entry
+            console.log(`[DeliveryTracking] Adding new bucket "${newBucket}"`);
+            return [...prev, newEntry].sort((a, b) =>
               new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
             );
           });
@@ -137,11 +183,11 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const fetchTimelineHistory = async () => {
     try {
       const orderUuid = order.orderId || order.id;
-      
+
       // Check if order is cancelled - if so, simplify timeline
       const uiStatus = order.buyerUiStatus || order.status;
       const isCancelled = uiStatus === 'cancelled';
-      
+
       // For cancelled orders, fetch cancellation info and show simplified timeline
       if (isCancelled) {
         const { data: cancellationData } = await supabase
@@ -151,7 +197,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        
+
         // Build simplified timeline for cancelled orders
         const cancelledNode: OrderStatusEntry = {
           id: 'cancelled',
@@ -159,14 +205,14 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
           description: cancellationData?.reason || 'Order was cancelled',
           created_at: cancellationData?.cancelled_at || cancellationData?.created_at || new Date().toISOString(),
         };
-        
+
         setTimeline(prev => [
           ...prev.filter(entry => entry.id !== 'cancelled'),
           cancelledNode,
         ]);
         return;
       }
-      
+
       const { data, error } = await supabase
         .from('order_status_history')
         .select('*')
@@ -176,17 +222,33 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        // Merge with initial node, ensuring no duplicates and correct order
+        // Merge with initial node, removing duplicate buckets
         setTimeline(prev => {
-           const combined = [...prev, ...data];
-           // Remove duplicates by ID and sort
-           const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
-           return unique.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+          const combined = [...prev, ...data];
+          
+          // Remove duplicate buckets - keep only the latest entry for each bucket
+          const bucketMap = new Map<string, OrderStatusEntry>();
+          for (const item of combined) {
+            const bucket = getStatusBucket(item.status);
+            if (bucket) {
+              // If bucket exists, keep the one with the latest created_at
+              const existing = bucketMap.get(bucket);
+              if (!existing || new Date(item.created_at).getTime() > new Date(existing.created_at).getTime()) {
+                bucketMap.set(bucket, item);
+              }
+            } else {
+              // Unknown bucket - keep as is with ID as key
+              bucketMap.set(item.id, item);
+            }
+          }
+          
+          const unique = Array.from(bucketMap.values());
+          return unique.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         });
-        
+
         // Check if already delivered
         if (data.some(item => item.status.toLowerCase().includes('delivered'))) {
-           // Maybe show delivered state immediately
+          // Maybe show delivered state immediately
         }
       }
     } catch (err) {
@@ -196,7 +258,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 
   const handleGoToToReceive = () => {
     setShowRedirectPopup(false);
-    navigation.navigate('Orders', { 
+    navigation.navigate('Orders', {
       initialTab: 'shipped'
     });
   };
@@ -225,6 +287,21 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const isDelivered = timeline.some(t => t.status.toLowerCase().includes('delivered') || t.status.toLowerCase().includes('received'));
   const currentStatusIndex = timeline.length - 1;
 
+  // Debug: Log timeline with bucket info
+  useEffect(() => {
+    console.log('[DeliveryTrackingScreen] Timeline Map:', timeline.map((item, index) => ({
+      id: item.id,
+      status: item.status,
+      bucket: getStatusBucket(item.status),
+      description: item.description,
+      created_at: item.created_at,
+      location: item.location,
+      index,
+      isLast: index === timeline.length - 1,
+    })));
+  }, [timeline]);
+
+
   return (
     <View style={styles.container}>
       {/* Edge-to-Edge Soft Amber Header */}
@@ -246,7 +323,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
         </View>
       </LinearGradient>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -299,7 +376,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
               <View style={styles.deliveredHeader}>
                 <Text style={styles.deliveredTitle}>Item Delivered</Text>
               </View>
-              
+
               <View style={styles.proofSection}>
                 <Text style={styles.proofLabel}>Proof of Delivery:</Text>
                 <Image
@@ -327,15 +404,14 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
         {/* Dynamic Delivery Timeline Card */}
         <View style={styles.timelineCard}>
           <Text style={styles.timelineTitle}>Delivery Timeline</Text>
-          
           {timeline.length === 0 ? (
-             <Text style={{color: '#6B7280', textAlign: 'center'}}>Loading tracking info...</Text>
+            <Text style={{ color: '#6B7280', textAlign: 'center' }}>Loading tracking info...</Text>
           ) : (
             timeline.map((item, index) => {
               const isLast = index === timeline.length - 1;
               const StatusIcon = getStatusIcon(item.status);
               const isCancelledItem = item.status.toLowerCase().includes('cancelled');
-              
+
               return (
                 <View key={item.id || index} style={styles.timelineItem}>
                   {/* Left Column (Icon & Line) */}
@@ -357,7 +433,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
                         <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} fill={isCancelledItem ? '#EF4444' : COLORS.primary} />
                       </View>
                     )}
-                    
+
                     {/* Connecting Line */}
                     {index < timeline.length - 1 && (
                       <View style={[styles.timelineLine, isCancelledItem ? { backgroundColor: '#EF4444' } : styles.timelineLineActive]} />
@@ -377,7 +453,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
                     </Text>
                     <Text style={styles.timelineStepTime}>{formatDate(item.created_at)}</Text>
                     {item.description && (
-                        <Text style={styles.timelineDescription}>{item.description}</Text>
+                      <Text style={styles.timelineDescription}>{item.description}</Text>
                     )}
                   </View>
                 </View>
@@ -400,15 +476,15 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
             <View style={styles.checkmarkCircle}>
               <CheckCircle size={64} color="#10B981" strokeWidth={2.5} />
             </View>
-            
+
             {/* Title */}
             <Text style={styles.popupTitle}>Package Arrived!</Text>
-            
+
             {/* Body */}
             <Text style={styles.popupBody}>
               Your order has been delivered successfully. Please confirm receipt in your orders page.
             </Text>
-            
+
             {/* Go to To-Receive Button */}
             <Pressable
               style={({ pressed }) => [
@@ -431,7 +507,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  
+
   // ===== EDGE-TO-EDGE ORANGE HEADER =====
   header: {
     paddingBottom: 25,
@@ -470,12 +546,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontWeight: '500',
   },
-  
+
   // ===== SCROLL VIEW =====
   scrollView: {
     flex: 1,
   },
-  
+
   // ===== DELIVERY ESTIMATE & JOURNEY CARD =====
   deliveryCard: {
     backgroundColor: '#FFFFFF',
@@ -505,7 +581,7 @@ const styles = StyleSheet.create({
     color: '#111827',
     letterSpacing: 0.3,
   },
-  
+
   // ===== DELIVERED STATE =====
   deliveredHeader: {
     marginBottom: 24,
@@ -538,7 +614,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  
+
   // ===== ENHANCED VERTICAL TIMELINE CARD =====
   timelineCard: {
     backgroundColor: '#FFFFFF',
@@ -567,7 +643,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
     width: 32,
   },
-  
+
   // Completed Step: Solid orange circle with white tick
   completedStep: {
     width: 32,
@@ -577,7 +653,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  
+
   // Current Step: Larger glowing orange ring with solid center
   currentStepRing: {
     width: 36,
@@ -600,7 +676,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  
+
   // Timeline Connecting Lines
   timelineLine: {
     flex: 1,
@@ -611,7 +687,7 @@ const styles = StyleSheet.create({
   timelineLineActive: {
     backgroundColor: COLORS.primary,
   },
-  
+
   timelineRight: {
     flex: 1,
     paddingBottom: 24,
@@ -640,7 +716,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
   },
-  
+
   // ===== POPUP MODAL =====
   popupOverlay: {
     flex: 1,
