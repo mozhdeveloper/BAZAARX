@@ -218,6 +218,7 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [isFeaturedView, setIsFeaturedView] = useState(route.params?.view === 'featured');
   const [isProductsLoading, setIsProductsLoading] = useState(false);
   const shuffledIdsRef = useRef<string[]>([]);
+  const flashListRef = useRef<any>(null);
 
   // Featured products state
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
@@ -290,7 +291,23 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
+    console.log('[ShopScreen] Pull-to-refresh started');
     setIsRefreshing(true);
+
+    // Store current filter state to preserve during refresh
+    const currentFilters = {
+      sort: selectedSort,
+      featured: isFeaturedView,
+      category: selectedCategory,
+      search: searchQuery,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+    };
+
+    // Only clear shuffle order to force re-randomization, keep filters intact
+    shuffledIdsRef.current = [];
+    console.log('[ShopScreen] Cleared shuffle order, preserving filters:', currentFilters);
+
     try {
       const [productsResult, categoriesResult] = await Promise.allSettled([
         productService.getProducts({
@@ -300,21 +317,57 @@ export default function ShopScreen({ navigation, route }: Props) {
         }),
         categoryService.getActiveCategories(),
       ]);
+
       if (productsResult.status === 'fulfilled') {
         const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row));
         const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values());
         setDbProducts(uniqueMapped);
+        console.log('[ShopScreen] Loaded', uniqueMapped.length, 'products');
+
+        // Force immediate re-randomization with new data (for default sort)
+        if (uniqueMapped.length > 0) {
+          const ids = uniqueMapped.map(p => p.id);
+          for (let i = ids.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [ids[i], ids[j]] = [ids[j], ids[i]];
+          }
+          shuffledIdsRef.current = ids;
+          console.log('[ShopScreen] Products re-randomized');
+        }
       }
+
       if (categoriesResult.status === 'fulfilled') {
         const mappedChips = (categoriesResult.value || []).map((category: any) => ({ id: category.id, name: category.name }));
         setCategoryChips([DEFAULT_CATEGORY_CHIPS[0], ...mappedChips]);
       }
+
+      // Scroll to top after refresh completes only if no active filters
+      const hasActiveFilters = currentFilters.sort !== 'default' ||
+                              currentFilters.featured ||
+                              currentFilters.category !== 'all' ||
+                              currentFilters.search !== '' ||
+                              currentFilters.minPrice !== '0' ||
+                              currentFilters.maxPrice !== '100000';
+
+      if (!hasActiveFilters) {
+        setTimeout(() => {
+          flashListRef.current?.scrollToOffset({
+            animated: true,
+            offset: 0
+          });
+          console.log('[ShopScreen] Scrolled to top after refresh (no filters)');
+        }, 200);
+      } else {
+        console.log('[ShopScreen] Keeping scroll position due to active filters');
+      }
+
     } catch (err) {
       console.error('[ShopScreen] Error refreshing data:', err);
     } finally {
       setIsRefreshing(false);
+      console.log('[ShopScreen] Pull-to-refresh completed, filters preserved');
     }
-  }, []);
+  }, [selectedSort, isFeaturedView, selectedCategory, searchQuery, minPrice, maxPrice]);
 
   useEffect(() => {
     const resetAllFilters = async () => {
@@ -593,10 +646,46 @@ export default function ShopScreen({ navigation, route }: Props) {
         <View style={styles.emptyBox}>
           <Text style={styles.emptyTitle}>No products found</Text>
           <Text style={styles.emptyText}>Try adjusting your filters or search terms.</Text>
+          {(selectedCategory !== 'all' || searchQuery !== '' || selectedSort !== 'default' ||
+            isFeaturedView || minPrice !== '0' || maxPrice !== '100000') && (
+            <Pressable
+              onPress={async () => {
+                setSelectedSort('default');
+                setIsFeaturedView(false);
+                setSelectedCategory('all');
+                setSearchQuery('');
+                setMinPrice('0');
+                setMaxPrice('100000');
+                setMinInput('0');
+                setMaxInput('100000');
+                setMultiSliderValue([0, 100000]);
+                try {
+                  await AsyncStorage.removeItem('shopSortState');
+                } catch (e) { /* ignore */ }
+                navigation.setParams({ searchQuery: undefined, category: undefined, view: undefined });
+              }}
+              style={{
+                marginTop: 16,
+                paddingVertical: 12,
+                paddingHorizontal: 24,
+                backgroundColor: BRAND_COLOR,
+                borderRadius: 8,
+                alignSelf: 'center'
+              }}
+            >
+              <Text style={{
+                color: '#FFF',
+                fontWeight: '600',
+                fontSize: 14
+              }}>
+                Clear All Filters
+              </Text>
+            </Pressable>
+          )}
         </View>
       </View>
     );
-  }, [isLoading]);
+  }, [isLoading, selectedCategory, searchQuery, selectedSort, isFeaturedView, minPrice, maxPrice, navigation]);
 
   const listHeaderComponent = useMemo(() => (
     <View>
@@ -767,6 +856,7 @@ export default function ShopScreen({ navigation, route }: Props) {
 
       {/* Product list as root scroll — enables virtualization */}
       <FlashList
+        ref={flashListRef}
         data={(isLoading || isProductsLoading) ? [] : filteredProducts}
         keyExtractor={keyExtractor}
         ListHeaderComponent={listHeaderComponent}

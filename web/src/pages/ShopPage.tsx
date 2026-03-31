@@ -1561,6 +1561,59 @@ export default function ShopPage() {
                   );
                 })()}
 
+                {/* Empty State - No Products Found */}
+                {!isProductsLoading && filteredProducts.length === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center py-16"
+                  >
+                    <div className="max-w-md mx-auto">
+                      <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <svg
+                          className="w-12 h-12 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M9 9h6"
+                          />
+                        </svg>
+                      </div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">No Products Found</h3>
+                      <p className="text-gray-600 mb-6">
+                        We couldn't find any products matching your current filters. Try adjusting your search terms or filters.
+                      </p>
+                      <Button
+                        onClick={() => {
+                          setSearchParams(prev => {
+                            const p = new URLSearchParams(prev);
+                            p.delete("query");
+                            p.delete("sort");
+                            p.delete("view");
+                            p.delete("category");
+                            return p;
+                          });
+                          const element = document.getElementById("shop-results-header");
+                          if (element) {
+                            element.scrollIntoView({ behavior: "smooth", block: "start" });
+                          } else {
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }
+                        }}
+                        variant="outline"
+                        className="px-6 py-2 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg transition-all"
+                      >
+                        Clear All Filters
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* Load More Button */}
                 {filteredProducts.length > 0 && (
                   <motion.div
