@@ -1592,7 +1592,7 @@ export class OrderService {
     try {
       const { data: order, error: fetchError } = await supabase
         .from('orders')
-        .select('id, buyer_id, order_number, shipment_status')
+        .select('id, buyer_id, order_number, shipment_status, payment_status')
         .eq('id', orderId)
         .single();
 
@@ -1606,9 +1606,25 @@ export class OrderService {
         throw new Error(`Cannot confirm receipt. Order must be in "delivered" status. Current: ${order.shipment_status}`);
       }
 
+      // Mark as paid when buyer confirms receipt (cash collected on delivery)
+      // This handles COD orders - they become paid when received
+      const needsPaymentUpdate = order.payment_status !== 'paid';
+
+      const now = new Date().toISOString();
+      const updateData: Record<string, any> = { 
+        shipment_status: 'received', 
+        updated_at: now 
+      };
+      
+      // Mark as paid if not already paid
+      if (needsPaymentUpdate) {
+        updateData.payment_status = 'paid';
+        updateData.paid_at = now;
+      }
+
       const { error: updateError } = await supabase
         .from('orders')
-        .update({ shipment_status: 'received', updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', orderId);
 
       if (updateError) throw updateError;

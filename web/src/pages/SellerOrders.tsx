@@ -57,6 +57,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
+import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { OrderDateFilter } from "@/components/orders/OrderDateFilter";
 import { orderExportService } from "@/services/orders/orderExportService";
 
@@ -630,39 +631,10 @@ export function SellerOrders() {
 
                         {/* Payment Method & Status */}
                         <TableCell>
-                          <div className="flex flex-col gap-1">
-                            <span className="text-sm font-medium text-gray-900">
-                              {order.paymentMethod === 'cash' && 'Cash'}
-                              {order.paymentMethod === 'card' && 'Card'}
-                              {order.paymentMethod === 'ewallet' && 'E-Wallet'}
-                              {order.paymentMethod === 'bank_transfer' && 'Bank Transfer'}
-                              {order.paymentMethod === 'cod' && 'COD'}
-                              {order.paymentMethod === 'online' && 'Online'}
-                              {!order.paymentMethod && (order.type === 'OFFLINE' ? 'Cash' : 'Online')}
-                            </span>
-                            <Badge
-                              variant="secondary"
-                              className={cn(
-                                "font-medium text-xs w-fit",
-                                order.paymentStatus ===
-                                "paid" &&
-                                "bg-green-100 text-green-700 hover:bg-green-100",
-                                order.paymentStatus ===
-                                "pending" &&
-                                "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
-                                order.paymentStatus ===
-                                "refunded" &&
-                                "bg-red-100 text-red-700 hover:bg-red-100",
-                              )}
-                            >
-                              {order.paymentStatus
-                                .charAt(0)
-                                .toUpperCase() +
-                                order.paymentStatus.slice(
-                                  1,
-                                )}
-                            </Badge>
-                          </div>
+<PaymentStatusBadge 
+  isPaid={order.paymentStatus === 'paid'} 
+  compact 
+/>
                         </TableCell>
 
                         {/* Total */}
