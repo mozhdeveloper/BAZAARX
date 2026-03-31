@@ -54,17 +54,13 @@ import { CampaignCountdown } from "../components/shop/CampaignCountdown";
 // Flash sale products are now derived from real products in the component
 import { bestSellerProducts } from "../data/products";
 
-const attributeSortOptions = [
-  { value: "newest", label: "Newest Arrivals" },
-  { value: "featured", label: "Featured" },
-  { value: "rating", label: "Top Rated" },
-  { value: "bestseller", label: "Best Sellers" },
-];
-
-const priceSortOptions = [
-  { value: "price-default", label: "Default" },
-  { value: "price-low", label: "Low to High" },
-  { value: "price-high", label: "High to Low" },
+const sortOptions = [
+  { value: "default", label: "Default" },
+  { value: "newest", label: "Newest" },
+  { value: "rating", label: "Rating" },
+  { value: "popularity", label: "Popularity" },
+  { value: "price-high", label: "Price: High to Low" },
+  { value: "price-low", label: "Price: Low to High" },
 ];
 
 const brandOptions: { name: string; count: number }[] = [];
@@ -84,14 +80,15 @@ export default function ShopPage() {
   const manualScrollRef = useRef(false);
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
-  const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
+  const { products: sellerProducts, fetchProducts, subscribeToProducts, loading: storeLoading } = useProductStore();
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
-  const [selectedSort, setSelectedSort] = useState("newest");
-  const [selectedPriceSort, setSelectedPriceSort] = useState("price-default");
-  const [isProductsLoading, setIsProductsLoading] = useState(false);
+  const [selectedSort, setSelectedSort] = useState("default");
+  const [isFeaturedView, setIsFeaturedView] = useState(false);
+  const isProductsLoading = storeLoading;
+  const shuffledIdsRef = useRef<string[]>([]);
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [minRating, setMinRating] = useState<number>(0);
   const [showFilters, setShowFilters] = useState(false);
@@ -185,10 +182,22 @@ export default function ShopPage() {
         variants: p.variants || [],
         lifetimeSold: (p as any).lifetimeSold || p.sales || 0,
         isVacationMode: (p as any).isVacationMode || false,
+        createdAt: (p as any).createdAt || "",
       }));
 
     return dbProducts;
   }, [sellerProducts, categories]);
+
+  useEffect(() => {
+    if (sellerProducts.length > 0 && shuffledIdsRef.current.length === 0) {
+      const ids = sellerProducts.map(p => p.id);
+      for (let i = ids.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+      }
+      shuffledIdsRef.current = ids;
+    }
+  }, [sellerProducts]);
 
   useEffect(() => {
     let isMounted = true;
@@ -350,7 +359,7 @@ export default function ShopPage() {
     const queryParam = searchParams.get("q") || "";
     const categoryParam = searchParams.get("category");
     const sortParam = searchParams.get("sort");
-    const priceSortParam = searchParams.get("priceSort");
+    const viewParam = searchParams.get("view");
 
     setSearchQuery(queryParam);
 
@@ -360,31 +369,20 @@ export default function ShopPage() {
       setSelectedCategory("All Categories");
     }
 
-    if (sortParam && attributeSortOptions.some(option => option.value === sortParam)) {
-      if (queryParam && sortParam === "featured") {
-        setSelectedSort("newest");
-
-        const updatedSearchParams = new URLSearchParams(searchParams.toString());
-        updatedSearchParams.set("sort", "newest");
-        const newSearch = updatedSearchParams.toString();
-        if (newSearch !== searchParams.toString()) {
-          navigate({ search: `?${newSearch}` }, { replace: true });
-        }
-      } else {
-        setSelectedSort(sortParam);
-      }
-    } else if (!sortParam) {
-      setSelectedSort("newest");
+    if (viewParam === "featured") {
+      setIsFeaturedView(true);
+    } else {
+      setIsFeaturedView(false);
     }
 
-    if (priceSortParam && priceSortOptions.some(option => option.value === priceSortParam)) {
-      setSelectedPriceSort(priceSortParam);
-    } else if (!priceSortParam) {
-      setSelectedPriceSort("price-default");
+    if (sortParam && sortOptions.some(option => option.value === sortParam)) {
+      setSelectedSort(sortParam);
+    } else if (!sortParam) {
+      setSelectedSort("default");
     }
 
     setTimeout(() => {
-      const isClean = !categoryParam && !queryParam && !sortParam && !priceSortParam &&
+      const isClean = !categoryParam && !queryParam && !sortParam && !viewParam &&
         priceRange[0] === 0 && priceRange[1] === 100000 &&
         minRating === 0;
 
@@ -439,8 +437,7 @@ export default function ShopPage() {
       return matchesSearch && matchesPrice && matchesRating;
     });
 
-    // Apply attribute filter (featured)
-    if (selectedSort === "featured") {
+    if (isFeaturedView) {
       const featuredProductIds = new Set([
         ...featuredProducts.map(fp => fp.product_id),
         ...boostedProducts.map(bp => bp.product_id)
@@ -449,7 +446,7 @@ export default function ShopPage() {
     }
 
     return result;
-  }, [pricedProducts, searchQuery, selectedSort, priceRange, minRating, featuredProducts, boostedProducts]);
+  }, [pricedProducts, searchQuery, isFeaturedView, priceRange, minRating, featuredProducts, boostedProducts]);
 
   // Category count map that reacts to active filters
   const filteredCategoryCountMap = useMemo(() => {
@@ -465,7 +462,6 @@ export default function ShopPage() {
   }, [productsFilteredWithoutCategory]);
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
-    // Start from the pre-category-filtered list and apply category
     let filtered = productsFilteredWithoutCategory.filter((product) => {
       const matchesCategory =
         selectedCategory === "All Categories" ||
@@ -476,43 +472,49 @@ export default function ShopPage() {
       return matchesCategory;
     });
 
-    // Apply attribute sorting (non-price)
     switch (selectedSort) {
-      case "featured":
-        // Already filtered above, no additional sort needed
-        break;
       case "rating":
         filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
-      case "bestseller":
+      case "popularity":
         filtered.sort((a, b) => (b.sold || 0) - (a.sold || 0));
         break;
-      default:
-        // Keep original order for newest
+      case "newest":
+        filtered.sort((a, b) =>
+          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
         break;
-    }
-
-    // Apply price sort independently (composable with attribute filter)
-    if (selectedPriceSort === "price-low") {
-      filtered = [...filtered].sort((a, b) => a.price - b.price);
-    } else if (selectedPriceSort === "price-high") {
-      filtered = [...filtered].sort((a, b) => b.price - a.price);
+      case "price-low":
+        filtered.sort((a, b) => a.price - b.price);
+        break;
+      case "price-high":
+        filtered.sort((a, b) => b.price - a.price);
+        break;
+      case "default":
+      default: {
+        const order = shuffledIdsRef.current;
+        if (order.length > 0) {
+          const indexMap = new Map(order.map((id, i) => [id, i]));
+          filtered.sort((a, b) => (indexMap.get(a.id) ?? 9999) - (indexMap.get(b.id) ?? 9999));
+        }
+        break;
+      }
     }
 
     return filtered;
-  }, [productsFilteredWithoutCategory, selectedCategory, selectedSkinTypes, selectedSort, selectedPriceSort, categories, featuredProducts, boostedProducts]);
+  }, [productsFilteredWithoutCategory, selectedCategory, selectedSort, categories]);
 
 
 
   const resetFilters = () => {
-    setSelectedSort("newest");
-    setSelectedPriceSort("price-default");
+    setSelectedSort("default");
+    setIsFeaturedView(false);
     setPriceRange([0, 100000]);
     setMinRating(0);
     setSearchParams(prev => {
       const p = new URLSearchParams(prev);
       p.delete("sort");
-      p.delete("priceSort");
+      p.delete("view");
       p.delete("category");
       return p;
     });
@@ -678,7 +680,7 @@ export default function ShopPage() {
           </div>
 
           {/* Featured Products Section — Shopee/Lazada-style Sponsored Products */}
-          {searchQuery === "" && selectedSort !== 'featured' && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
+          {searchQuery === "" && !isFeaturedView && (featuredLoading || featuredProducts.length > 0 || boostedProducts.length > 0) && (
             <div className="mb-10">
               {/* Section Header */}
               <div className="flex items-center justify-between mb-5 px-1">
@@ -695,10 +697,10 @@ export default function ShopPage() {
                   className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-accent)] font-semibold transition-colors flex items-center gap-1"
                   onClick={() => {
                     manualScrollRef.current = true;
-                    setSelectedSort("featured");
+                    setIsFeaturedView(true);
                     setSearchParams(prev => {
                       const params = new URLSearchParams(prev);
-                      params.set("sort", "featured");
+                      params.set("view", "featured");
                       return params;
                     });
                     setTimeout(() => {
@@ -1006,6 +1008,10 @@ export default function ShopPage() {
                               onValueChange={(val) => {
                                 manualScrollRef.current = true;
                                 setPriceRange(val);
+                                if (selectedSort === "price-high" || selectedSort === "price-low") {
+                                  setSelectedSort("default");
+                                  setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete("sort"); return p; });
+                                }
                               }}
                               className="text-[var(--brand-accent)]"
                             />
@@ -1019,7 +1025,13 @@ export default function ShopPage() {
                               <input
                                 type="number"
                                 value={priceRange[0]}
-                                onChange={(e) => setPriceRange([Math.min(Number(e.target.value), priceRange[1]), priceRange[1]])}
+                                onChange={(e) => {
+                                  setPriceRange([Math.min(Number(e.target.value), priceRange[1]), priceRange[1]]);
+                                  if (selectedSort === "price-high" || selectedSort === "price-low") {
+                                    setSelectedSort("default");
+                                    setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete("sort"); return p; });
+                                  }
+                                }}
                                 className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--brand-primary)]"
                                 placeholder="Min"
                               />
@@ -1033,7 +1045,13 @@ export default function ShopPage() {
                               <input
                                 type="number"
                                 value={priceRange[1]}
-                                onChange={(e) => setPriceRange([priceRange[0], Math.max(Number(e.target.value), priceRange[0])])}
+                                onChange={(e) => {
+                                  setPriceRange([priceRange[0], Math.max(Number(e.target.value), priceRange[0])]);
+                                  if (selectedSort === "price-high" || selectedSort === "price-low") {
+                                    setSelectedSort("default");
+                                    setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete("sort"); return p; });
+                                  }
+                                }}
                                 className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--brand-primary)]"
                                 placeholder="Max"
                               />
@@ -1152,14 +1170,13 @@ export default function ShopPage() {
                   </div>
 
                   <div className="flex items-center gap-3 h-10">
-                    {/* Attribute Sort Dropdown */}
                     <span className="text-sm font-medium text-[var(--text-muted)] whitespace-nowrap">Sort by:</span>
                     <Select value={selectedSort} onValueChange={(val) => {
                       manualScrollRef.current = true;
                       setSelectedSort(val);
                       setSearchParams(prev => {
                         const params = new URLSearchParams(prev);
-                        if (val === "newest") {
+                        if (val === "default") {
                           params.delete("sort");
                         } else {
                           params.set("sort", val);
@@ -1167,42 +1184,11 @@ export default function ShopPage() {
                         return params;
                       });
                     }}>
-                      <SelectTrigger className="w-[130px] md:w-[160px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
+                      <SelectTrigger className="w-[170px] md:w-[200px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-none shadow-xl bg-white/95 backdrop-blur-md">
-                        {attributeSortOptions.filter(option => searchQuery === "" || option.value !== "featured").map((option) => (
-                          <SelectItem
-                            key={option.value}
-                            value={option.value}
-                            className="text-xs focus:bg-[var(--brand-primary)] focus:text-white transition-colors cursor-pointer"
-                          >
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {/* Price Sort Dropdown */}
-                    <span className="text-sm font-medium text-[var(--text-muted)] whitespace-nowrap">Price:</span>
-                    <Select value={selectedPriceSort} onValueChange={(val) => {
-                      manualScrollRef.current = true;
-                      setSelectedPriceSort(val);
-                      setSearchParams(prev => {
-                        const params = new URLSearchParams(prev);
-                        if (val === "price-default") {
-                          params.delete("priceSort");
-                        } else {
-                          params.set("priceSort", val);
-                        }
-                        return params;
-                      });
-                    }}>
-                      <SelectTrigger className="w-[120px] md:w-[150px] h-8 border-none bg-white shadow-sm hover:shadow-md rounded-xl transition-all text-sm font-medium text-[var(--text-headline)] focus:ring-0">
-                        <SelectValue placeholder="Price" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl border-none shadow-xl bg-white/95 backdrop-blur-md">
-                        {priceSortOptions.map((option) => (
+                        {sortOptions.map((option) => (
                           <SelectItem
                             key={option.value}
                             value={option.value}
@@ -1217,8 +1203,20 @@ export default function ShopPage() {
                 </motion.div>
 
                 {/* Active Filter Chips */}
-                {(selectedCategory !== "All Categories" || selectedSort !== "newest" || selectedPriceSort !== "price-default" || priceRange[0] !== 0 || priceRange[1] !== 100000 || minRating > 0) && (
+                {(selectedCategory !== "All Categories" || selectedSort !== "default" || isFeaturedView || priceRange[0] !== 0 || priceRange[1] !== 100000 || minRating > 0) && (
                   <div className="mb-4 flex flex-wrap items-center gap-2">
+                    {isFeaturedView && (
+                      <button
+                        onClick={() => {
+                          setIsFeaturedView(false);
+                          setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete("view"); return p; });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-500 hover:text-white transition-all"
+                      >
+                        ⭐ Featured Products
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                     {selectedCategory !== "All Categories" && (
                       <button
                         onClick={() => {
@@ -1232,27 +1230,15 @@ export default function ShopPage() {
                         <X className="h-3 w-3" />
                       </button>
                     )}
-                    {selectedSort !== "newest" && (
+                    {selectedSort !== "default" && (
                       <button
                         onClick={() => {
-                          setSelectedSort("newest");
+                          setSelectedSort("default");
                           setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete("sort"); return p; });
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-500 hover:text-white transition-all"
                       >
-                        {attributeSortOptions.find(o => o.value === selectedSort)?.label || selectedSort}
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                    {selectedPriceSort !== "price-default" && (
-                      <button
-                        onClick={() => {
-                          setSelectedPriceSort("price-default");
-                          setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete("priceSort"); return p; });
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-700 hover:bg-blue-500 hover:text-white transition-all"
-                      >
-                        Price: {priceSortOptions.find(o => o.value === selectedPriceSort)?.label || selectedPriceSort}
+                        {sortOptions.find(o => o.value === selectedSort)?.label || selectedSort}
                         <X className="h-3 w-3" />
                       </button>
                     )}
@@ -1283,13 +1269,27 @@ export default function ShopPage() {
                   </div>
                 )}
 
-                {/* Mobile Filters Menu handled separately above */}
-
-                {/* Skeleton Loading */}
                 {isProductsLoading && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 mb-6">
                     {[...Array(8)].map((_, i) => (
-                      <ProductCardSkeleton key={`skel-${i}`} />
+                      <div key={`skel-${i}`} className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm flex flex-col animate-pulse">
+                        <div className="aspect-square bg-gray-200" />
+                        <div className="p-3 flex flex-col gap-2">
+                          <div className="h-4 bg-gray-200 rounded w-full" />
+                          <div className="h-3 bg-gray-200 rounded w-3/4" />
+                          <div className="flex gap-0.5 mt-1">
+                            {[...Array(5)].map((_, j) => (
+                              <div key={j} className="h-3 w-3 bg-gray-200 rounded-full" />
+                            ))}
+                          </div>
+                          <div className="h-5 bg-gray-200 rounded w-1/2 mt-1" />
+                          <div className="flex justify-between mt-1">
+                            <div className="h-3 bg-gray-200 rounded w-1/3" />
+                            <div className="h-3 bg-gray-200 rounded w-1/4" />
+                          </div>
+                          <div className="h-3 bg-gray-100 rounded w-2/3 mt-2 pt-2 border-t border-gray-50" />
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}

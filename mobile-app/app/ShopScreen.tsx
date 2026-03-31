@@ -183,17 +183,13 @@ const normalizeProductForShop = (row: any): Product => {
   };
 };
 
-const attributeSortOptions = [
-  { value: 'relevance', label: 'Best Match' },
-  { value: 'featured', label: 'Featured' },
-  { value: 'newest', label: 'Newest Arrivals' },
+const sortOptions = [
+  { value: 'default', label: 'Default' },
+  { value: 'newest', label: 'Newest' },
+  { value: 'rating', label: 'Rating' },
   { value: 'popularity', label: 'Popularity' },
-];
-
-const priceSortOptions = [
-  { value: 'price-default', label: 'Default' },
-  { value: 'price-low', label: 'Low to High' },
-  { value: 'price-high', label: 'High to Low' },
+  { value: 'price-high', label: 'Price: High to Low' },
+  { value: 'price-low', label: 'Price: Low to High' },
 ];
 
 export default function ShopScreen({ navigation, route }: Props) {
@@ -218,9 +214,10 @@ export default function ShopScreen({ navigation, route }: Props) {
   const { searchQuery: initialSearchQuery, category: initialCategory } = route.params || {};
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
-  const [selectedSort, setSelectedSort] = useState(route.params?.view === 'featured' ? 'featured' : 'relevance');
-  const [selectedPriceSort, setSelectedPriceSort] = useState('price-default');
+  const [selectedSort, setSelectedSort] = useState(route.params?.view === 'featured' ? 'default' : 'default');
+  const [isFeaturedView, setIsFeaturedView] = useState(route.params?.view === 'featured');
   const [isProductsLoading, setIsProductsLoading] = useState(false);
+  const shuffledIdsRef = useRef<string[]>([]);
 
   // Featured products state
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProductMobile[]>([]);
@@ -321,8 +318,8 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     const resetAllFilters = async () => {
-      setSelectedSort('relevance');
-      setSelectedPriceSort('price-default');
+      setSelectedSort('default');
+      setIsFeaturedView(false);
       setSelectedCategory('all');
       setSearchQuery('');
       setMinPrice('0');
@@ -431,7 +428,7 @@ export default function ShopScreen({ navigation, route }: Props) {
   }, [user]);
 
   useEffect(() => {
-    if (selectedSort !== 'featured') return;
+    if (!isFeaturedView) return;
 
     const loadFeaturedProducts = async () => {
       setFeaturedLoading(true);
@@ -450,14 +447,13 @@ export default function ShopScreen({ navigation, route }: Props) {
     };
 
     loadFeaturedProducts();
-  }, [selectedSort]);
+  }, [isFeaturedView]);
 
   useEffect(() => {
     const unsubFocus = navigation.addListener('focus', async () => {
       try {
         if (route.params?.view === 'featured') {
-          setSelectedSort('featured');
-          await AsyncStorage.setItem('shopSortState', 'featured');
+          setIsFeaturedView(true);
         }
       } catch (error) {
         console.error('[ShopScreen] Error loading sort state:', error);
@@ -465,6 +461,17 @@ export default function ShopScreen({ navigation, route }: Props) {
     });
     return unsubFocus;
   }, [navigation, route.params?.view]);
+
+  useEffect(() => {
+    if (dbProducts.length > 0 && shuffledIdsRef.current.length === 0) {
+      const ids = dbProducts.map(p => p.id);
+      for (let i = ids.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+      }
+      shuffledIdsRef.current = ids;
+    }
+  }, [dbProducts]);
 
   const handleSelectLocation = async (address: string, coords?: any, details?: any) => {
     setDeliveryAddress(address);
@@ -480,6 +487,9 @@ export default function ShopScreen({ navigation, route }: Props) {
     setMultiSliderValue(values);
     setMinInput(values[0].toString());
     setMaxInput(values[1].toString());
+    if (selectedSort === 'price-high' || selectedSort === 'price-low') {
+      setSelectedSort('default');
+    }
   };
 
   const productsBySeller = useMemo(() => {
@@ -523,32 +533,49 @@ export default function ShopScreen({ navigation, route }: Props) {
       return searchMatch && categoryMatch && priceMatch;
     });
 
-    if (selectedSort === 'featured') {
+    if (isFeaturedView) {
       const featuredProductIds = new Set([
         ...featuredProducts.map(fp => fp.product_id),
         ...boostedProducts.map(bp => bp.product_id)
       ]);
       filtered = filtered.filter(p => featuredProductIds.has(p.id));
-    } else if (selectedSort === 'popularity') {
-      filtered.sort((a, b) => (b.sold ?? 0) - (a.sold ?? 0));
-    } else if (selectedSort === 'newest') {
-      filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     }
 
-    if (selectedPriceSort === 'price-low') {
-      filtered = [...filtered].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
-    } else if (selectedPriceSort === 'price-high') {
-      filtered = [...filtered].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+    switch (selectedSort) {
+      case 'rating':
+        filtered.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+        break;
+      case 'popularity':
+        filtered.sort((a, b) => (b.sold ?? 0) - (a.sold ?? 0));
+        break;
+      case 'newest':
+        filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+        break;
+      case 'price-low':
+        filtered.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+        break;
+      case 'price-high':
+        filtered.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+        break;
+      case 'default':
+      default: {
+        const order = shuffledIdsRef.current;
+        if (order.length > 0) {
+          const indexMap = new Map(order.map((id, i) => [id, i]));
+          filtered.sort((a, b) => (indexMap.get(a.id) ?? 9999) - (indexMap.get(b.id) ?? 9999));
+        }
+        break;
+      }
     }
 
     return filtered;
-  }, [dbProducts, searchQuery, selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice, categoryChips, featuredProducts, boostedProducts]);
+  }, [dbProducts, searchQuery, selectedCategory, selectedSort, isFeaturedView, minPrice, maxPrice, categoryChips, featuredProducts, boostedProducts]);
 
   useEffect(() => {
     setIsProductsLoading(true);
     const timer = setTimeout(() => setIsProductsLoading(false), 300);
     return () => clearTimeout(timer);
-  }, [selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice, searchQuery]);
+  }, [selectedCategory, selectedSort, isFeaturedView, minPrice, maxPrice, searchQuery]);
 
 
   const handleProductPress = useCallback((product: Product) => {
@@ -587,13 +614,31 @@ export default function ShopScreen({ navigation, route }: Props) {
         ))}
       </ScrollView>
 
-      {/* Active Filter Chips */}
-      {(selectedSort !== 'relevance' || selectedPriceSort !== 'price-default' || minPrice !== '0' || maxPrice !== '100000') && (
+      {(selectedSort !== 'default' || isFeaturedView || minPrice !== '0' || maxPrice !== '100000') && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8, gap: 8 }}>
-          {selectedSort !== 'relevance' && (
+          {isFeaturedView && (
+            <Pressable
+              onPress={() => {
+                setIsFeaturedView(false);
+                navigation.setParams({ view: undefined });
+              }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7',
+                borderWidth: 1, borderColor: '#F59E0B', borderRadius: 20,
+                paddingHorizontal: 12, paddingVertical: 6,
+              }}
+            >
+              <Star size={12} color="#B45309" fill="#B45309" style={{ marginRight: 4 }} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#B45309', marginRight: 4 }}>
+                Featured Products
+              </Text>
+              <X size={12} color="#B45309" />
+            </Pressable>
+          )}
+          {selectedSort !== 'default' && (
             <Pressable
               onPress={async () => {
-                setSelectedSort('relevance');
+                setSelectedSort('default');
                 try { await AsyncStorage.removeItem('shopSortState'); } catch (e) { /* ignore */ }
               }}
               style={{
@@ -604,24 +649,9 @@ export default function ShopScreen({ navigation, route }: Props) {
             >
               <Star size={12} color="#B45309" fill="#B45309" style={{ marginRight: 4 }} />
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#B45309', marginRight: 4 }}>
-                {attributeSortOptions.find(o => o.value === selectedSort)?.label || selectedSort}
+                {sortOptions.find((o: { value: string; label: string }) => o.value === selectedSort)?.label || selectedSort}
               </Text>
               <X size={12} color="#B45309" />
-            </Pressable>
-          )}
-          {selectedPriceSort !== 'price-default' && (
-            <Pressable
-              onPress={() => setSelectedPriceSort('price-default')}
-              style={{
-                flexDirection: 'row', alignItems: 'center', backgroundColor: '#DBEAFE',
-                borderWidth: 1, borderColor: '#3B82F6', borderRadius: 20,
-                paddingHorizontal: 12, paddingVertical: 6,
-              }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#1D4ED8', marginRight: 4 }}>
-                Price: {priceSortOptions.find(o => o.value === selectedPriceSort)?.label || selectedPriceSort}
-              </Text>
-              <X size={12} color="#1D4ED8" />
             </Pressable>
           )}
           {(minPrice !== '0' || maxPrice !== '100000') && (
@@ -645,8 +675,8 @@ export default function ShopScreen({ navigation, route }: Props) {
           )}
           <Pressable
             onPress={async () => {
-              setSelectedSort('relevance');
-              setSelectedPriceSort('price-default');
+              setSelectedSort('default');
+              setIsFeaturedView(false);
               setMinPrice('0'); setMaxPrice('100000');
               setMinInput('0'); setMaxInput('100000');
               setMultiSliderValue([0, 100000]);
@@ -659,7 +689,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         </ScrollView>
       )}
     </View>
-  ), [categoryChips, selectedCategory, selectedSort, selectedPriceSort, minPrice, maxPrice]);
+  ), [categoryChips, selectedCategory, selectedSort, isFeaturedView, minPrice, maxPrice]);
 
   return (
     <View
@@ -829,14 +859,14 @@ export default function ShopScreen({ navigation, route }: Props) {
               </View>
 
               <Text style={styles.filterSectionTitle}>Sort By</Text>
-              {attributeSortOptions.map((opt) => (
+              {sortOptions.map((opt: { value: string; label: string }) => (
                 <Pressable
                   key={opt.value}
                   style={styles.filterOption}
                   onPress={async () => {
                     setSelectedSort(opt.value);
                     try {
-                      if (opt.value === 'relevance') {
+                      if (opt.value === 'default') {
                         await AsyncStorage.removeItem('shopSortState');
                       } else {
                         await AsyncStorage.setItem('shopSortState', opt.value);
@@ -848,18 +878,6 @@ export default function ShopScreen({ navigation, route }: Props) {
                 >
                   <Text style={[styles.filterText, selectedSort === opt.value && { color: BRAND_COLOR }]}>{opt.label}</Text>
                   {selectedSort === opt.value && <Check size={20} color={BRAND_COLOR} />}
-                </Pressable>
-              ))}
-
-              <Text style={[styles.filterSectionTitle, { marginTop: 20 }]}>Sort by Price</Text>
-              {priceSortOptions.map((opt) => (
-                <Pressable
-                  key={opt.value}
-                  style={styles.filterOption}
-                  onPress={() => setSelectedPriceSort(opt.value)}
-                >
-                  <Text style={[styles.filterText, selectedPriceSort === opt.value && { color: BRAND_COLOR }]}>{opt.label}</Text>
-                  {selectedPriceSort === opt.value && <Check size={20} color={BRAND_COLOR} />}
                 </Pressable>
               ))}
 
