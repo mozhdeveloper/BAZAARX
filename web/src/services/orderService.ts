@@ -2056,7 +2056,8 @@ export class OrderService {
                     id,
                     buyer_id,
                     order_number,
-                    shipment_status
+                    shipment_status,
+                    payment_status
                 `)
                 .eq("id", orderId)
                 .single();
@@ -2080,12 +2081,25 @@ export class OrderService {
                 return true;
             }
 
+            // For COD orders: mark as paid when buyer confirms receipt (cash collected on delivery)
+            // Note: payment_method column may not be available in web, so we update based on payment_status
+            const needsPaymentUpdate = order.payment_status !== "paid";
+
+            const now = new Date().toISOString();
+            const updateData: Record<string, any> = { 
+                shipment_status: "received", 
+                updated_at: now 
+            };
+            
+            // Mark as paid if not already paid
+            if (needsPaymentUpdate) {
+                updateData.payment_status = "paid";
+                updateData.paid_at = now;
+            }
+
             const { error: updateError } = await supabase
                 .from("orders")
-                .update({
-                    shipment_status: "received",
-                    updated_at: new Date().toISOString(),
-                })
+                .update(updateData)
                 .eq("id", orderId);
 
             if (updateError) throw updateError;
@@ -2105,6 +2119,9 @@ export class OrderService {
             // Notify sellers about order receipt (fire-and-forget)
             (async () => {
                 try {
+                    // [COMMENTED OUT] Notification service function not implemented
+                    // Uncomment when notifySellerOrderReceived is available in notificationService
+                    /*
                     // Fetch order items with seller info
                     const { data: orderItems = [] } = await supabase
                         .from("order_items")
@@ -2134,6 +2151,7 @@ export class OrderService {
                             buyerName: buyer?.name,
                         });
                     });
+                    */
                 } catch (notifyError) {
                     console.error("Error notifying sellers of order receipt:", notifyError);
                     // Non-blocking, don't rethrow
