@@ -77,7 +77,7 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
 
     const loadProducts = async () => {
         try {
-            const data = await discountService.getFlashSaleProducts();
+            const data = await discountService.getGlobalFlashSaleProducts();
 
             // Deduplicate by product ID — a product may appear in multiple campaigns
             const seen = new Set<string>();
