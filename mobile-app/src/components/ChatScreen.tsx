@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, FlatList,
   KeyboardAvoidingView, Platform, ActivityIndicator, Image, ListRenderItemInfo,
@@ -16,20 +16,30 @@ type MessageItem = { type: 'message'; data: Message; id: string };
 type DateSepItem = { type: 'date_sep'; label: string; id: string };
 type ListItem = MessageItem | DateSepItem;
 
-// ─── Date label helper ─────────────────────────────────────────────────────────
+// ─── Date label helper ─────────────────────────────────────────────────────
 function formatDateLabel(dateKey: string): string {
-  const date = new Date(dateKey);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  return date.toLocaleDateString([], { month: 'long', day: 'numeric', year: diffDays > 365 ? 'numeric' : undefined });
+  const todayString = new Date().toDateString();
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayString = yesterdayDate.toDateString();
+
+  if (dateKey === todayString) return 'Today';
+  if (dateKey === yesterdayString) return 'Yesterday';
+
+  // Full format: "Friday, March 27, 2026"
+  return new Date(dateKey).toLocaleDateString([], {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 export default function ChatScreen({ conversation, currentUserId, userType, onBack }: any) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<any>();
+  const flatListRef = useRef<FlatList<ListItem>>(null);
   const isScreen = route?.name === 'Chat';
 
   const effectiveConversation = isScreen ? route.params?.conversation : conversation;
@@ -92,6 +102,16 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
+  // Auto-scroll to newest message whenever the list grows (initial load + new real-time messages).
+  // offset 0 = the "top" of the inverted list, which renders as the bottom visually.
+  useEffect(() => {
+    if (listData.length > 0) {
+      setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: false }), 50);
+    }
+  }, [listData.length]);
+
+
+
   // ─── Real-time subscription ───────────────────────────────────────────────
   useEffect(() => {
     if (!conversationId) return;
@@ -101,6 +121,8 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
         if (prev.some(m => m.id === newMsg.id)) return prev;
         return [...prev, newMsg];
       });
+      // Auto-scroll to the new message (animated for incoming messages)
+      setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
       if (newMsg.sender_type !== effectiveUserType) {
         chatService.markAsRead(conversationId, effectiveUserId, effectiveUserType);
       }
@@ -232,6 +254,7 @@ export default function ChatScreen({ conversation, currentUserId, userType, onBa
            renders at the bottom and new items animate in from there.
            keyboardDismissMode="interactive" gives a native swipe-to-dismiss. */
         <FlatList<ListItem>
+          ref={flatListRef}
           data={listData}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}

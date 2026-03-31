@@ -340,11 +340,13 @@ class ChatService {
       })
     );
 
-    // Sort by last_message_at
-    return enrichedConversations.sort((a, b) => 
-      new Date(b.last_message_at || b.updated_at).getTime() - 
-      new Date(a.last_message_at || a.updated_at).getTime()
-    );
+    // Filter out empty conversations (no messages yet), then sort by last_message_at
+    return enrichedConversations
+      .filter((c) => !!c.last_message)
+      .sort((a, b) =>
+        new Date(b.last_message_at || b.updated_at).getTime() -
+        new Date(a.last_message_at || a.updated_at).getTime()
+      );
   }
 
   /**
@@ -574,6 +576,43 @@ class ChatService {
   ): { unsubscribe: () => void } | null {
     const unsubscribeFn = this.subscribeToMessages(conversationId, onMessage);
     return { unsubscribe: unsubscribeFn };
+  }
+
+  /**
+   * Lightweight subscription to ALL new messages (no filter, no async enrichment).
+   * Used by chatlist screens to update last_message / unread counts instantly from
+   * the raw Supabase payload — avoids the 6–8 async DB calls in enrichConversation.
+   * Caller is responsible for checking if message.conversation_id is relevant.
+   */
+  subscribeToAllNewMessages(
+    onMessage: (message: Message) => void
+  ): () => void {
+    const channelName = 'all-new-messages-chatlist';
+    this.unsubscribe(channelName);
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes' as any,
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          const msg = payload.new as Message;
+          if (!msg) return;
+          // Normalise system messages so content is always populated
+          if (msg.message_type === 'system') {
+            msg.content = msg.message_content || '';
+          }
+          onMessage(msg);
+        }
+      )
+      .subscribe();
+
+    this.subscriptions.set(channelName, channel);
+    return () => this.unsubscribe(channelName);
   }
 
   /**
